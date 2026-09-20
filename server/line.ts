@@ -25,6 +25,9 @@ export interface LineWebhookEvent {
     type: string;
     id: string;
     text?: string;
+    mention?: {
+      mentionees?: Array<{ isSelf?: boolean; userId?: string }>;
+    };
   };
   joined?: {
     members: Array<{ type: string; userId: string }>;
@@ -179,6 +182,7 @@ export async function getGroupMemberProfile(
       `https://api.line.me/v2/bot/group/${groupId}/member/${userId}`,
       {
         method: "GET",
+        signal: AbortSignal.timeout(LINE_PROFILE_LOOKUP_TIMEOUT_MS),
         headers: {
           Authorization: `Bearer ${ENV.lineChannelAccessToken}`,
         },

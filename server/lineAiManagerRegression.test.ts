@@ -22,10 +22,11 @@ const lineTransport = read("server/line.ts");
 describe("LCJ official LINE AI manager regression contracts", () => {
   it("keeps general customer AI disabled and delegates only the dedicated liver path", () => {
     expect(agent).toContain("LINE_GENERAL_AI_AUTO_REPLY_ENABLED = false");
-    expect(agent).toContain('if (!isGroupChat)');
+    expect(agent).toContain('if (isGroupChat && !isExplicitGroupMention)');
     expect(agent).toContain('await import("./lineAiManager")');
     expect(agent).toContain("if (handledByAiManager) return");
-    expect(manager).toContain('event.source.type !== "user"');
+    expect(manager).toContain('const isDirectMessage = event.source.type === "user"');
+    expect(manager).toContain('const isGroupMention = event.source.type === "group"');
     expect(manager).toContain("eq(lineUsers.liverId, livers.id)");
     expect(manager).toContain("eq(lineUsers.lineUserId, livers.lineUserId)");
     expect(manager).toContain("eq(livers.isActive, true)");
@@ -33,22 +34,35 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(db).toContain("and(isNull(lineUsers.liverId), eq(lineUsers.lineUserId, livers.lineUserId))");
   });
 
-  it("preserves group safety and never enables unrestricted group AI", () => {
+  it("preserves group safety and enables AI only for a linked person's explicit @LCJ mention", () => {
     expect(agent).toContain("ONLY respond when explicitly mentioned @LCJ");
-    expect(agent).toContain("if (!isGroupChat)");
-    expect(manager).not.toContain("lineGroupId:");
+    expect(agent).toContain("containsExplicitLcjMention");
+    expect(agent).not.toContain("/エージェントさん/i");
+    expect(agent).not.toContain("/LCJエージェント/i");
+    expect(agent).toContain("if (isGroupChat && !isExplicitGroupMention)");
+    expect(agent).toContain("getGroupMemberProfile(groupId, userId)");
+    expect(agent).toContain("if (isExplicitGroupMention)");
+    expect(manager).toContain('lineGroupId: isGroupMention ? event.source.groupId : undefined');
+    expect(manager).toContain("ingress.isExplicitBotMention === true");
+    expect(agent).toContain("グループ内では照会・登録を行いません");
+    expect(manager).toContain('channel: sourceLineGroupId ? "group" : "direct"');
+    expect(manager).toContain("本人の過去DM、売上、内部メモ、次アクション、個人情報を絶対に開示しない");
+    expect(manager).toContain("sourceLineGroupId || latestTarget.lineUserId");
+    expect(manager).toContain('sourceType: lineGroupId ? "group" : "user"');
+    expect(lineTransport).toContain("LINE_PROFILE_LOOKUP_TIMEOUT_MS");
   });
 
   it("persists unique processing events before an AI reply is generated", () => {
     expect(schema).toContain('uniqueIndex("uq_line_ai_manager_event").on(table.eventKey)');
     const enqueueIndex = manager.indexOf("const handoff = await persistInboundAndMaybeEnqueue");
-    const workerStartIndex = manager.indexOf("void processAiManagerEvent(handoff.eventId, event.replyToken)", enqueueIndex);
+    const workerStartIndex = manager.indexOf("void processAiManagerEvent(handoff.eventId)", enqueueIndex);
     expect(enqueueIndex).toBeGreaterThan(0);
     expect(workerStartIndex).toBeGreaterThan(enqueueIndex);
     expect(manager).toContain('eventKey: `reply:${params.sourceMessageId}`');
+    expect(manager).toContain('eventKey: `preference:${params.sourceMessageId}`');
     expect(manager).toContain("if (preferenceCommand)");
     expect(manager).toContain("return db.transaction(async tx =>");
-    expect(manager).toContain("void processAiManagerEvent(handoff.eventId, event.replyToken)");
+    expect(manager).toContain("void processAiManagerEvent(handoff.eventId)");
     expect(agent).toContain("recordLineAiManagerInboundActivity");
     expect(server).toContain("touchLineAiManagerInboundActivity");
   });
@@ -92,6 +106,12 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(schema).toContain('["queued", "processing", "ready", "sending", "sent", "failed", "skipped", "unknown"]');
     expect(migration).toContain("`proactiveEnabled` boolean NOT NULL DEFAULT false");
     expect(server).toContain("startLineAiManagerScheduler()");
+    expect(manager).toContain('errorCode: "outbound_audit_intent_pending"');
+    expect(manager).toContain('errorCode: "delivery_pending"');
+    expect(manager).toContain('errorCode: "outbound_audit_pending"');
+    expect(manager).toContain("persistOutboundAuditIntent");
+    expect(manager).toContain("reconcilePendingOutboundAudits");
+    expect(manager).toContain("persistOutboundAuditAndFinalize");
   });
 
   it("honors LINE unsend and liver stop/restart commands", () => {
@@ -118,10 +138,14 @@ describe("LCJ official LINE AI manager regression contracts", () => {
   });
 
   it("requires an administrator for manager controls", () => {
+    expect(router).toContain("function assertLineManagementAdmin");
+    expect(router).toContain("listUsers: protectedProcedure.query(async ({ ctx })");
+    expect(router).toContain("listMessages: protectedProcedure");
     expect(router).toContain("listAiManagers: protectedProcedure");
+    expect(router).toContain("getAiManagerHistory: protectedProcedure");
     expect(router).toContain("updateAiManagerSettings: protectedProcedure");
     expect(router).toContain("refreshAiManagerTikTok: protectedProcedure");
-    expect(router.match(/ctx\.user\.role !== "admin"/g)?.length || 0).toBeGreaterThanOrEqual(5);
+    expect(router.match(/assertLineManagementAdmin\(ctx\.user\)/g)?.length || 0).toBeGreaterThanOrEqual(20);
   });
 
   it("installs and health-checks the additive manager storage", () => {
@@ -139,9 +163,17 @@ describe("LCJ official LINE AI manager regression contracts", () => {
   it("shows controls, state, next action and TikTok analysis on the same LINE page", () => {
     expect(ui).toContain('value="ai-managers"');
     expect(ui).toContain("LCJ公式・専属AIマネージャー");
-    expect(ui).toContain("受信テキストDMへ自動返信");
+    expect(ui).toContain("本人DM・グループ@LCJへ返信");
     expect(ui).toContain("継続フォロー");
     expect(ui).toContain("次アクション");
     expect(ui).toContain("TikTok公開情報分析");
+    expect(ui).toContain("連絡・AI実行履歴");
+    expect(ui).toContain('value="communications"');
+    expect(ui).toContain('value="ai-executions"');
+    expect(ui).toContain("AIが作成した送信内容");
+    expect(ui).toContain("送信処理中");
+    expect(ui).toContain("送信確認不能");
+    expect(manager).toContain("export async function getLineAiManagerHistory");
+    expect(manager).toContain("groupNames: Object.fromEntries");
   });
 });

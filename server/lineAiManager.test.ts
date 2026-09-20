@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   __lineAiManagerTestUtils,
   LINE_AI_MANAGER_MODEL,
+  tryHandleLineAiManagerMessage,
 } from "./lineAiManager";
 
 const {
@@ -53,5 +54,15 @@ describe("LCJ LINE AI manager", () => {
     expect(sanitized).not.toContain("me@example.com");
     expect(sanitized).not.toContain("090-1234-5678");
     expect(sanitized).not.toContain("1234567890123456");
+  });
+
+  it("rejects a group event unless ingress proves an explicit bot mention", async () => {
+    const event = {
+      type: "message",
+      timestamp: 1_789_000_000_000,
+      source: { type: "group" as const, groupId: "C-group-1", userId: "U-group-liver" },
+      message: { id: "group-unverified", type: "text", text: "@LCJ 相談したい" },
+    };
+    await expect(tryHandleLineAiManagerMessage(event)).resolves.toBe(false);
   });
 });

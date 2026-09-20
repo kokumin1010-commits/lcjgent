@@ -834,6 +834,7 @@ import {
   reconcileActiveLineGroups,
 } from "./lineGroupLifecycle";
 import {
+  getLineAiManagerHistory,
   listLineAiManagers,
   refreshLineAiManagerTikTokInsight,
   updateLineAiManagerSettings,
@@ -3346,6 +3347,12 @@ async function requireAiCoachRoomOwnerOrAdmin(ctx: any, roomId: number, expected
     throw new TRPCError({ code: "FORBIDDEN", message: "他のライバーの会話は操作できません" });
   }
   return { actor, room };
+}
+
+function assertLineManagementAdmin(user: { role?: string | null }): void {
+  if (user.role !== "admin") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+  }
 }
 
 export const appRouter = router({
@@ -13616,21 +13623,31 @@ ${conversationText}
 
   // LINE Management Router
   line: router({
-    listUsers: protectedProcedure.query(async () => {
+    listUsers: protectedProcedure.query(async ({ ctx }) => {
+      assertLineManagementAdmin(ctx.user);
       return await getAllLineUsers();
     }),
 
     // Get LINE users linked to livers with liver details
-    listLiverLinkedUsers: protectedProcedure.query(async () => {
+    listLiverLinkedUsers: protectedProcedure.query(async ({ ctx }) => {
+      assertLineManagementAdmin(ctx.user);
       return await getLineUsersWithLiverDetails();
     }),
 
     listAiManagers: protectedProcedure.query(async ({ ctx }) => {
-      if (ctx.user.role !== "admin") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-      }
+      assertLineManagementAdmin(ctx.user);
       return await listLineAiManagers();
     }),
+
+    getAiManagerHistory: protectedProcedure
+      .input(z.object({
+        lineUserId: z.string().min(1).max(64),
+        limit: z.number().int().min(1).max(200).optional().default(100),
+      }))
+      .query(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
+        return await getLineAiManagerHistory(input.lineUserId, input.limit);
+      }),
 
     updateAiManagerSettings: protectedProcedure
       .input(z.object({
@@ -13642,29 +13659,27 @@ ${conversationText}
         tone: z.enum(["warm", "professional", "energetic"]).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-        }
+        assertLineManagementAdmin(ctx.user);
         return await updateLineAiManagerSettings(input);
       }),
 
     refreshAiManagerTikTok: protectedProcedure
       .input(z.object({ lineUserId: z.string().min(1).max(64) }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-        }
+        assertLineManagementAdmin(ctx.user);
         return await refreshLineAiManagerTikTokInsight(input.lineUserId, true);
       }),
 
     // Get liver interaction summary
     getLiverInteraction: protectedProcedure
       .input(z.object({ liverId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
         return await getLiverInteractionSummary(input.liverId);
       }),
 
-    listGroups: protectedProcedure.query(async () => {
+    listGroups: protectedProcedure.query(async ({ ctx }) => {
+      assertLineManagementAdmin(ctx.user);
       const groups = await getAllLineGroups();
       // Fetch autoReplyEnabled and autoReplyMessage from separate settings table
       const { sql } = await import("drizzle-orm");
@@ -13690,12 +13705,7 @@ ${conversationText}
 
     // Reconcile persisted active groups against LINE on an explicit admin action.
     syncGroups: protectedProcedure.mutation(async ({ ctx }) => {
-      if (ctx.user.role !== "admin") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "管理者権限が必要です",
-        });
-      }
+      assertLineManagementAdmin(ctx.user);
 
       const groups = await getAllLineGroups();
       const activeGroups = await reconcileActiveLineGroups(groups);
@@ -13716,7 +13726,8 @@ ${conversationText}
           limit: z.number().optional().default(50),
         })
       )
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
         return await getLineMessages({
           lineUserId: input.lineUserId,
           lineGroupId: input.lineGroupId,
@@ -13732,6 +13743,7 @@ ${conversationText}
         })
       )
       .mutation(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
         const success = await pushMessage(input.to, [
           { type: "text", text: input.message },
         ]);
@@ -13763,7 +13775,8 @@ ${conversationText}
           userType: z.enum(["customer", "staff", "liver", "unknown"]).optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -13782,7 +13795,8 @@ ${conversationText}
     // Get LINE user details with linked brand/liver info
     getUserDetails: protectedProcedure
       .input(z.object({ lineUserId: z.string() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
         const db = await getDb();
         if (!db) return null;
 
@@ -13814,7 +13828,8 @@ ${conversationText}
       }),
 
     // List all follow-ups
-    listFollowUps: protectedProcedure.query(async () => {
+    listFollowUps: protectedProcedure.query(async ({ ctx }) => {
+      assertLineManagementAdmin(ctx.user);
       return await getAllLineFollowUps();
     }),
 
@@ -13834,6 +13849,7 @@ ${conversationText}
         })
       )
       .mutation(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
         const nextScheduled = input.scheduledAt || new Date(Date.now() + input.delayHours * 60 * 60 * 1000);
         
         const result = await createLineFollowUp({
@@ -13855,7 +13871,8 @@ ${conversationText}
     // Cancel a follow-up
     cancelFollowUp: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
         await updateLineFollowUpStatus(input.id, "cancelled");
         return { success: true };
       }),
@@ -13869,12 +13886,7 @@ ${conversationText}
           .regex(/^C[A-Za-z0-9_-]{8,63}$/, "LINEグループIDが不正です"),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "管理者権限が必要です",
-          });
-        }
+        assertLineManagementAdmin(ctx.user);
 
         const group = await getLineGroupByLineId(input.lineGroupId);
         if (!group || !group.isActive) {
@@ -13913,7 +13925,8 @@ ${conversationText}
           autoReplyMessage: z.string().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
         // Handle autoReplyEnabled and autoReplyMessage in separate settings table
         if (input.autoReplyEnabled !== undefined || input.autoReplyMessage !== undefined) {
           const { sql } = await import("drizzle-orm");
@@ -13935,7 +13948,8 @@ ${conversationText}
 
     getGroupSettings: protectedProcedure
       .input(z.object({ lineGroupId: z.string() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
         const { sql } = await import("drizzle-orm");
         const { getDb } = await import("./db");
         const sdb = await getDb();
@@ -13945,7 +13959,8 @@ ${conversationText}
         return { autoReplyEnabled: row ? Boolean(row.autoReplyEnabled) : true };
       }),
     // Get pending responses (messages that need staff response)
-    getPendingResponses: protectedProcedure.query(async () => {
+    getPendingResponses: protectedProcedure.query(async ({ ctx }) => {
+      assertLineManagementAdmin(ctx.user);
       return await getPendingResponsesForUI();
     }),
 
@@ -13953,6 +13968,7 @@ ${conversationText}
     markAsResponded: protectedProcedure
       .input(z.object({ targetId: z.string() }))
       .mutation(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
         await markMessageResponded(input.targetId, ctx.user.email || "manual");
         return { success: true };
       }),
@@ -13960,7 +13976,8 @@ ${conversationText}
     // Cancel a pending response (dismiss without responding)
     cancelPendingResponse: protectedProcedure
       .input(z.object({ messageId: z.string() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
         await cancelPendingResponse(input.messageId);
         return { success: true };
       }),
@@ -13973,9 +13990,7 @@ ${conversationText}
         description: z.string().min(1),
       }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-        }
+        assertLineManagementAdmin(ctx.user);
         const restrictedMemberId = await resolveMemberIdFromPointKey(input.lineUserId);
         if (restrictedMemberId) await assertMemberActionAllowed(restrictedMemberId, ['points']);
         const { createLinePointTransaction } = await import("./db");
@@ -13993,7 +14008,8 @@ ${conversationText}
     // Get member point history (for admin)
     getMemberPointHistory: protectedProcedure
       .input(z.object({ lineUserId: z.string() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
         const pointBalance = await getLinePointBalance(input.lineUserId);
         const transactions = await getLinePointTransactions(input.lineUserId, { limit: 100 });
         
@@ -14008,7 +14024,8 @@ ${conversationText}
     // Get member receipt history (for admin)
     getMemberReceiptHistory: protectedProcedure
       .input(z.object({ lineUserId: z.string() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
         return await getLineReceiptsByUser(input.lineUserId);
       }),
   }),

@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { MessageSquare, MessageSquareOff, Users, Send, History, RefreshCw, Search, User, Building2, Calendar, Clock, Link2, LogOut, AlertTriangle, Settings, Bell, BellOff, Radio, TrendingUp, Sparkles, ChevronRight, ExternalLink, Bot, ShieldCheck } from "lucide-react";
+import { MessageSquare, MessageSquareOff, Users, Send, History, RefreshCw, Search, User, Building2, Calendar, Clock, Link2, LogOut, AlertTriangle, Settings, Bell, BellOff, Radio, TrendingUp, Sparkles, ChevronRight, ExternalLink, Bot, ShieldCheck, Activity, CheckCircle2, XCircle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
@@ -68,6 +68,8 @@ export default function LineManagement() {
   const [groupMemberCountsLoaded, setGroupMemberCountsLoaded] = useState(false);
   const [showLiverInteractionDialog, setShowLiverInteractionDialog] = useState(false);
   const [selectedLiverId, setSelectedLiverId] = useState<number | null>(null);
+  const [showAiManagerHistoryDialog, setShowAiManagerHistoryDialog] = useState(false);
+  const [selectedAiManagerHistoryUserId, setSelectedAiManagerHistoryUserId] = useState<string | null>(null);
 
   // Fetch LINE users
   const { data: lineUsers, isLoading: loadingUsers, refetch: refetchUsers } = trpc.line.listUsers.useQuery();
@@ -90,6 +92,17 @@ export default function LineManagement() {
   const { data: aiManagerData, isLoading: loadingAiManagers, refetch: refetchAiManagers } = trpc.line.listAiManagers.useQuery(
     undefined,
     { enabled: activeTab === "ai-managers" }
+  );
+
+  const {
+    data: aiManagerHistory,
+    isLoading: loadingAiManagerHistory,
+    isError: aiManagerHistoryFailed,
+    error: aiManagerHistoryError,
+    refetch: refetchAiManagerHistory,
+  } = trpc.line.getAiManagerHistory.useQuery(
+    { lineUserId: selectedAiManagerHistoryUserId || "", limit: 100 },
+    { enabled: showAiManagerHistoryDialog && !!selectedAiManagerHistoryUserId }
   );
 
   const updateAiManagerMutation = trpc.line.updateAiManagerSettings.useMutation({
@@ -323,6 +336,38 @@ export default function LineManagement() {
     }
     return language === "ja" ? `参加人数: ${count.toLocaleString()}人` : `成员人数: ${count.toLocaleString()}人`;
   };
+
+  const getAiHistoryStatusLabel = (status: string) => ({
+    queued: language === "ja" ? "待機中" : "等待中",
+    processing: language === "ja" ? "生成中" : "生成中",
+    ready: language === "ja" ? "送信待ち" : "等待发送",
+    sending: language === "ja" ? "送信中" : "发送中",
+    sent: language === "ja" ? "送信済み" : "已发送",
+    failed: language === "ja" ? "失敗" : "失败",
+    skipped: language === "ja" ? "中止" : "已停止",
+    unknown: language === "ja" ? "送信確認不能" : "无法确认发送",
+  }[status] || status);
+
+  const getAiHistoryStatusClasses = (status: string) => {
+    if (status === "sent") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    if (["queued", "processing", "ready", "sending"].includes(status)) return "border-amber-200 bg-amber-50 text-amber-700";
+    if (status === "unknown") return "border-orange-200 bg-orange-50 text-orange-700";
+    if (status === "failed") return "border-rose-200 bg-rose-50 text-rose-700";
+    return "border-slate-200 bg-slate-50 text-slate-600";
+  };
+
+  const getAiHistoryTriggerLabel = (triggerType: string) => triggerType === "inactivity_follow_up"
+    ? (language === "ja" ? "継続フォロー" : "持续跟进")
+    : (language === "ja" ? "受信DMへの返信" : "回复收到的私信");
+
+  const getLineMessageTypeLabel = (messageType: string) => ({
+    text: language === "ja" ? "テキスト" : "文本",
+    image: language === "ja" ? "画像" : "图片",
+    video: language === "ja" ? "動画" : "视频",
+    audio: language === "ja" ? "音声" : "语音",
+    file: language === "ja" ? "ファイル" : "文件",
+    sticker: language === "ja" ? "スタンプ" : "贴图",
+  }[messageType] || messageType);
 
   return (
     <div className="space-y-6">
@@ -721,7 +766,7 @@ export default function LineManagement() {
                       </Badge>
                     </div>
                     <p className="mt-1 max-w-3xl text-sm text-slate-600">
-                      LINE連携済みライブコマーサー本人のDMだけに、会話履歴・登録TikTok・公開済みLCM商品・配信実績を根拠として自動返信します。継続フォローは各ライバーで有効化後に全自動です。一般顧客のAI返信は停止したまま、グループは従来どおり明示的な@LCJ時だけです。
+                      LINE連携済みライブコマーサー本人のDMへ自動返信します。公式LINEが参加中のグループでは、連携済み本人が毎回明示的に@LCJした時だけ専属AIが返信し、DM・グループ双方の連絡履歴とAI実行結果を各人ごとに保存します。継続フォローは各ライバーで有効化後に全自動です。一般顧客のAI返信は停止したままです。
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
                       本人はLINEで「AI停止／AI再開」「フォロー停止／フォロー再開」と送るだけで設定を変更できます。
@@ -814,8 +859,8 @@ export default function LineManagement() {
                         <div className="grid gap-3 sm:grid-cols-2">
                           <label className="flex items-center justify-between rounded-lg border p-3">
                             <span>
-                              <span className="block text-sm font-medium">受信テキストDMへ自動返信</span>
-                              <span className="block text-xs text-muted-foreground">連携本人のみ</span>
+                              <span className="block text-sm font-medium">本人DM・グループ@LCJへ返信</span>
+                              <span className="block text-xs text-muted-foreground">LINE連携済み本人のみ</span>
                             </span>
                             <Switch
                               checked={manager.replyEnabled}
@@ -906,6 +951,21 @@ export default function LineManagement() {
                               </Button>
                             </div>
                           </div>
+                        </div>
+
+                        <div className="flex justify-end">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="border-amber-200 bg-white hover:bg-amber-50"
+                            onClick={() => {
+                              setSelectedAiManagerHistoryUserId(manager.lineUserId);
+                              setShowAiManagerHistoryDialog(true);
+                            }}
+                          >
+                            <History className="mr-2 h-4 w-4" />
+                            {language === "ja" ? "連絡・AI実行履歴" : "联系・AI执行记录"}
+                          </Button>
                         </div>
 
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -1151,6 +1211,214 @@ export default function LineManagement() {
           </Suspense>
         </TabsContent>
       </Tabs>
+
+      {/* Per-liver LINE communication and AI execution history */}
+      <Dialog open={showAiManagerHistoryDialog} onOpenChange={(open) => {
+        setShowAiManagerHistoryDialog(open);
+        if (!open) setSelectedAiManagerHistoryUserId(null);
+      }}>
+        <DialogContent className="flex max-h-[92vh] max-w-5xl flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bot className="h-5 w-5 text-amber-600" />
+              {aiManagerHistory?.manager.liverName || (language === "ja" ? "連絡・AI実行履歴" : "联系・AI执行记录")}
+            </DialogTitle>
+            <DialogDescription>
+              {aiManagerHistory?.manager.lineDisplayName
+                ? `LINE: ${aiManagerHistory.manager.lineDisplayName}`
+                : (language === "ja" ? "本人とのLINE連絡とAIの処理結果を確認します" : "查看与本人的LINE联系和AI处理结果")}
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingAiManagerHistory ? (
+            <div className="flex min-h-[360px] items-center justify-center text-muted-foreground">
+              <RefreshCw className="mr-2 h-6 w-6 animate-spin" />
+              {language === "ja" ? "履歴を読み込み中..." : "正在加载记录..."}
+            </div>
+          ) : aiManagerHistoryFailed ? (
+            <div className="flex min-h-[280px] flex-col items-center justify-center rounded-lg border border-rose-200 bg-rose-50 p-6 text-center text-rose-700">
+              <AlertTriangle className="mb-2 h-7 w-7" />
+              <div className="font-medium">{language === "ja" ? "履歴を取得できませんでした" : "无法获取记录"}</div>
+              <div className="mt-1 text-sm">{aiManagerHistoryError?.message}</div>
+              <Button className="mt-4" variant="outline" onClick={() => void refetchAiManagerHistory()}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                {language === "ja" ? "再読み込み" : "重新加载"}
+              </Button>
+            </div>
+          ) : (
+            <Tabs defaultValue="communications" className="flex min-h-0 flex-1 flex-col">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="communications">
+                  <MessageSquare className="mr-2 h-4 w-4" />
+                  {language === "ja" ? "連絡履歴" : "联系记录"}
+                  <Badge variant="secondary" className="ml-2">{aiManagerHistory?.messages.length || 0}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="ai-executions">
+                  <Activity className="mr-2 h-4 w-4" />
+                  {language === "ja" ? "AI実行履歴" : "AI执行记录"}
+                  <Badge variant="secondary" className="ml-2">{aiManagerHistory?.aiEvents.length || 0}</Badge>
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="communications" className="mt-4 min-h-0 flex-1 overflow-y-auto rounded-lg border bg-slate-50/60 p-4">
+                {aiManagerHistory?.messages.length ? (
+                  <div className="space-y-3">
+                    {[...aiManagerHistory.messages].reverse().map((message) => (
+                      <div key={message.id} className={`flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`}>
+                        <div className={`max-w-[82%] rounded-xl px-4 py-3 shadow-sm ${
+                          message.direction === "outgoing"
+                            ? "bg-blue-600 text-white"
+                            : "border bg-white text-slate-900"
+                        }`}>
+                          <div className={`mb-1 flex flex-wrap items-center gap-2 text-xs ${
+                            message.direction === "outgoing" ? "text-blue-100" : "text-slate-500"
+                          }`}>
+                            <span className="font-medium">
+                              {message.direction === "outgoing"
+                                ? (language === "ja" ? "LCJ公式LINE" : "LCJ官方LINE")
+                                : (aiManagerHistory.manager.lineDisplayName || aiManagerHistory.manager.liverName)}
+                            </span>
+                            <span>·</span>
+                            <span>{getLineMessageTypeLabel(message.messageType)}</span>
+                            {message.direction === "outgoing" && (
+                              <span className={`rounded-full px-2 py-0.5 ${
+                                message.responseStatus === "pending"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : message.responseStatus === "cancelled"
+                                    ? "bg-rose-100 text-rose-700"
+                                    : "bg-emerald-100 text-emerald-700"
+                              }`}>
+                                {message.responseStatus === "pending"
+                                  ? (language === "ja" ? "送信処理中" : "发送处理中")
+                                  : message.responseStatus === "cancelled"
+                                    ? (language === "ja" ? "送信確認不能" : "发送状态不明")
+                                    : (language === "ja" ? "送信済み" : "已发送")}
+                              </span>
+                            )}
+                            {message.lineGroupId && (
+                              <span className={`rounded-full px-2 py-0.5 ${
+                                message.direction === "outgoing" ? "bg-blue-500 text-white" : "bg-amber-100 text-amber-800"
+                              }`}>
+                                {language === "ja" ? "グループ" : "群组"}: {aiManagerHistory.groupNames[message.lineGroupId] || message.lineGroupId.slice(0, 10)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="whitespace-pre-wrap break-words text-sm">
+                            {message.content || (language === "ja" ? "（本文なし）" : "（无正文）")}
+                          </div>
+                          <div className={`mt-1 text-xs ${message.direction === "outgoing" ? "text-blue-100" : "text-slate-400"}`}>
+                            {format(new Date(message.createdAt), "yyyy/MM/dd HH:mm")}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex min-h-[300px] flex-col items-center justify-center text-muted-foreground">
+                    <MessageSquare className="mb-2 h-8 w-8" />
+                    {language === "ja" ? "この方との連絡履歴はまだありません" : "尚无与此人的联系记录"}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="ai-executions" className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+                {aiManagerHistory?.aiEvents.length ? (
+                  <div className="space-y-3">
+                    {aiManagerHistory.aiEvents.map((event) => (
+                      <div key={event.id} className="rounded-xl border bg-white p-4 shadow-sm">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <div className={`mt-0.5 rounded-full p-2 ${getAiHistoryStatusClasses(event.status)}`}>
+                              {event.status === "sent" ? (
+                                <CheckCircle2 className="h-4 w-4" />
+                              ) : event.status === "failed" ? (
+                                <XCircle className="h-4 w-4" />
+                              ) : (
+                                <Activity className="h-4 w-4" />
+                              )}
+                            </div>
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2 font-medium text-slate-900">
+                                <span>{getAiHistoryTriggerLabel(event.triggerType)}</span>
+                                {event.lineGroupId && (
+                                  <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                                    {language === "ja" ? "グループ" : "群组"}: {aiManagerHistory.groupNames[event.lineGroupId] || event.lineGroupId.slice(0, 10)}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                開始 {format(new Date(event.createdAt), "yyyy/MM/dd HH:mm")}
+                                {event.completedAt ? ` · 完了 ${format(new Date(event.completedAt), "yyyy/MM/dd HH:mm")}` : ""}
+                              </div>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className={getAiHistoryStatusClasses(event.status)}>
+                            {getAiHistoryStatusLabel(event.status)}
+                          </Badge>
+                        </div>
+
+                        {event.responseText ? (
+                          <div className="mt-3 rounded-lg bg-amber-50 p-3">
+                            <div className="mb-1 text-xs font-semibold text-amber-800">
+                              {language === "ja" ? "AIが作成した送信内容" : "AI生成的发送内容"}
+                            </div>
+                            <div className="whitespace-pre-wrap break-words text-sm text-slate-700">{event.responseText}</div>
+                          </div>
+                        ) : event.status === "sent" ? (
+                          <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-muted-foreground">
+                            {language === "ja" ? "送信本文は保持期間経過後に削除されています" : "发送正文已在保存期满后删除"}
+                          </div>
+                        ) : null}
+
+                        {(event.intent || event.nextAction) && (
+                          <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                            {event.intent && (
+                              <div className="rounded-lg border p-3">
+                                <div className="text-xs font-medium text-muted-foreground">{language === "ja" ? "判断した意図" : "判断意图"}</div>
+                                <div className="mt-1 break-words">{event.intent}</div>
+                              </div>
+                            )}
+                            {event.nextAction && (
+                              <div className="rounded-lg border p-3">
+                                <div className="text-xs font-medium text-muted-foreground">{language === "ja" ? "次アクション" : "下一步行动"}</div>
+                                <div className="mt-1 whitespace-pre-wrap break-words">{event.nextAction}</div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t pt-2 text-xs text-muted-foreground">
+                          {event.model && <span>モデル: {event.model}</span>}
+                          <span>試行: {event.attemptCount}回</span>
+                          {(event.promptTokens != null || event.completionTokens != null) && (
+                            <span>トークン: {Number(event.promptTokens || 0) + Number(event.completionTokens || 0)}</span>
+                          )}
+                          {event.errorCode && <span className="text-rose-600">コード: {event.errorCode}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex min-h-[300px] flex-col items-center justify-center rounded-lg border bg-slate-50 text-muted-foreground">
+                    <Bot className="mb-2 h-8 w-8" />
+                    {language === "ja" ? "AIの実行履歴はまだありません" : "尚无AI执行记录"}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          )}
+
+          <DialogFooter className="mt-4 gap-2">
+            <Button variant="outline" onClick={() => void refetchAiManagerHistory()} disabled={!selectedAiManagerHistoryUserId || loadingAiManagerHistory}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${loadingAiManagerHistory ? "animate-spin" : ""}`} />
+              {language === "ja" ? "履歴更新" : "更新记录"}
+            </Button>
+            <Button onClick={() => setShowAiManagerHistoryDialog(false)}>
+              {language === "ja" ? "閉じる" : "关闭"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Send Message Dialog */}
       <Dialog open={showMessageDialog} onOpenChange={setShowMessageDialog}>

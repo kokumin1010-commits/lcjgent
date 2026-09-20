@@ -57,6 +57,38 @@ async function queueMessageForHumanResponse(
   }
 }
 
+async function saveLineCommandReplyAudit(
+  event: LineWebhookEvent,
+  lineUserId: string,
+  content: string,
+): Promise<void> {
+  if (!event.message?.id) return;
+  await saveLineMessage({
+    messageId: `line-command-reply:${event.message.id}`,
+    sourceType: event.source.type,
+    lineUserId,
+    lineGroupId: event.source.groupId,
+    senderName: "LCJ公式LINE",
+    messageType: "text",
+    content,
+    direction: "outgoing",
+    lineTimestamp: Date.now(),
+    needsResponse: false,
+    responseStatus: "none",
+  }).catch(error => console.error("[LINE Agent] Command reply audit write failed:", error));
+}
+
+export function containsExplicitLcjMention(
+  messageText: string,
+  mention?: { mentionees?: Array<{ isSelf?: boolean; userId?: string }> },
+): boolean {
+  if (mention?.mentionees?.some(mentionee => mentionee.isSelf === true)) return true;
+  return [
+    /[@＠]LCJ\b/i,
+    /[@＠]714isnih\b/i,
+  ].some(pattern => pattern.test(messageText));
+}
+
 // Types for LINE webhook events
 export interface LineWebhookEvent {
   type: string;
@@ -75,6 +107,9 @@ export interface LineWebhookEvent {
     duration?: number;
     contentProvider?: {
       type: string;
+    };
+    mention?: {
+      mentionees?: Array<{ isSelf?: boolean; userId?: string }>;
     };
   };
 }
@@ -392,6 +427,9 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
   const userId = event.source.userId;
   const isGroupChat = event.source.type === "group";
   const groupId = event.source.groupId;
+  const isExplicitGroupMention = Boolean(
+    isGroupChat && groupId && containsExplicitLcjMention(messageText, event.message.mention),
+  );
 
   if (!userId) {
     console.log(`[LINE Agent] No user ID for message`);
@@ -400,13 +438,18 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
 
   console.log(`[LINE Agent] Processing message from ${userId}: ${messageText.substring(0, 50)}...`);
 
+  if (isGroupChat && !isExplicitGroupMention) {
+    console.log(`[LINE Agent] Ignoring message in group (no @LCJ mention): ${messageText.substring(0, 30)}...`);
+    return;
+  }
+
   try {
+    const isDirectCommand = containsPointsHistoryKeyword(messageText) || containsReminderKeyword(messageText);
     if (!isGroupChat) {
       const {
         recordLineAiManagerInboundActivity,
         tryHandleLineAiManagerMessage,
       } = await import("./lineAiManager");
-      const isDirectCommand = containsPointsHistoryKeyword(messageText) || containsReminderKeyword(messageText);
       if (isDirectCommand) {
         await recordLineAiManagerInboundActivity(event);
       } else {
@@ -415,10 +458,16 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       }
     }
 
-    // Get user profile
+    // Group members require the group-member profile endpoint. Direct chats use
+    // the normal profile endpoint.
     let profile = null;
     try {
-      profile = await getUserProfile(userId);
+      if (isGroupChat && groupId) {
+        const { getGroupMemberProfile } = await import("./line");
+        profile = await getGroupMemberProfile(groupId, userId);
+      } else {
+        profile = await getUserProfile(userId);
+      }
     } catch (error) {
       console.error("[LINE Agent] Failed to get user profile:", error);
     }
@@ -435,6 +484,31 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
     // Update last message timestamp
     await updateLineUserLastMessage(userId);
 
+    if (isExplicitGroupMention) {
+      const {
+        recordLineAiManagerInboundActivity,
+        tryHandleLineAiManagerMessage,
+      } = await import("./lineAiManager");
+      if (isDirectCommand) {
+        await recordLineAiManagerInboundActivity(event, profile?.displayName);
+        const privateCommandMessage = "ポイント履歴の確認やリマインダーの確認・設定は、個人情報保護のためLCJ公式LINEとの1対1トークで送ってください。グループ内では照会・登録を行いません。\n\n— LCJ公式AIマネージャー";
+        if (event.replyToken) {
+          await replyMessage(event.replyToken, [
+            { type: "text", text: privateCommandMessage },
+          ]);
+          await saveLineCommandReplyAudit(event, userId, privateCommandMessage);
+        }
+        return;
+      } else {
+        const handledByAiManager = await tryHandleLineAiManagerMessage(
+          event,
+          profile?.displayName,
+          { isExplicitBotMention: true },
+        );
+        if (handledByAiManager) return;
+      }
+    }
+
     // For group chats, only respond if mentioned or has active session
     let shouldRespond = !isGroupChat; // Always respond in DM
 
@@ -442,16 +516,8 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       // CRITICAL: In group chats, ONLY respond when explicitly mentioned @LCJ
       // Do NOT use session-based continuation - this causes unwanted responses
       // Each message must have an explicit @LCJ mention to get a response
-      const lcjMentionPatterns = [
-        /@LCJ/i,           // @LCJ (case insensitive)
-        /@714isnih/i,      // LINE bot ID
-        /LCJエージェント/i, // LCJエージェント
-        /エージェントさん/i, // エージェントさん
-      ];
-      const isMentioned = lcjMentionPatterns.some(pattern => pattern.test(messageText));
-
       // ONLY respond if explicitly mentioned - NO session continuation
-      if (isMentioned) {
+      if (isExplicitGroupMention) {
         shouldRespond = true;
         console.log(`[LINE Agent] Responding to mention in group ${groupId}`);
       } else {
@@ -473,6 +539,7 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
         await replyMessage(event.replyToken, [
           { type: "text", text: historyMessage },
         ]);
+        await saveLineCommandReplyAudit(event, userId, historyMessage);
       }
       return;
     }
@@ -487,6 +554,7 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
           await replyMessage(event.replyToken, [
             { type: "text", text: listMessage },
           ]);
+          await saveLineCommandReplyAudit(event, userId, listMessage);
         }
         return;
       }
@@ -497,6 +565,7 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
         await replyMessage(event.replyToken, [
           { type: "text", text: result.message },
         ]);
+        await saveLineCommandReplyAudit(event, userId, result.message);
       }
       return;
     }

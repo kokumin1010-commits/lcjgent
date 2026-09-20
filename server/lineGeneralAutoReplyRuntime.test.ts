@@ -7,6 +7,12 @@ const mocks = vi.hoisted(() => ({
   saveLineMessage: vi.fn(),
   tryHandleLineAiManagerMessage: vi.fn(async () => false),
   recordLineAiManagerInboundActivity: vi.fn(async () => false),
+  getGroupMemberProfile: vi.fn(),
+  containsReminderKeyword: vi.fn(() => false),
+  createReminderFromMessage: vi.fn(),
+  getReminderListMessage: vi.fn(),
+  getLinePointBalance: vi.fn(),
+  getLineReceiptsByUser: vi.fn(),
 }));
 
 vi.mock("./_core/llm", () => ({
@@ -14,15 +20,23 @@ vi.mock("./_core/llm", () => ({
 }));
 
 vi.mock("./lineReminder", () => ({
-  containsReminderKeyword: vi.fn(() => false),
-  createReminderFromMessage: vi.fn(),
-  getReminderListMessage: vi.fn(),
+  containsReminderKeyword: mocks.containsReminderKeyword,
+  createReminderFromMessage: mocks.createReminderFromMessage,
+  getReminderListMessage: mocks.getReminderListMessage,
 }));
 
 vi.mock("./lineAiManager", () => ({
   tryHandleLineAiManagerMessage: mocks.tryHandleLineAiManagerMessage,
   recordLineAiManagerInboundActivity: mocks.recordLineAiManagerInboundActivity,
 }));
+
+vi.mock("./line", async () => {
+  const actual = await vi.importActual<typeof import("./line")>("./line");
+  return {
+    ...actual,
+    getGroupMemberProfile: mocks.getGroupMemberProfile,
+  };
+});
 
 vi.mock("./db", async () => {
   const actual = await vi.importActual<typeof import("./db")>("./db");
@@ -31,10 +45,12 @@ vi.mock("./db", async () => {
     createOrUpdateLineUser: mocks.createOrUpdateLineUser,
     updateLineUserLastMessage: mocks.updateLineUserLastMessage,
     saveLineMessage: mocks.saveLineMessage,
+    getLinePointBalance: mocks.getLinePointBalance,
+    getLineReceiptsByUser: mocks.getLineReceiptsByUser,
   };
 });
 
-import { processLineMessage, processReceiptImageMessage, type LineWebhookEvent } from "./lineAgent";
+import { containsExplicitLcjMention, processLineMessage, processReceiptImageMessage, type LineWebhookEvent } from "./lineAgent";
 import { verifyLineMemberSessionToken } from "./lineMemberSession";
 
 const TEST_SECRET = "line-receipt-handoff-test-secret-at-least-32-chars";
@@ -62,12 +78,36 @@ describe("LINE general AI auto-reply runtime behavior", () => {
     mocks.createOrUpdateLineUser.mockResolvedValue(undefined);
     mocks.updateLineUserLastMessage.mockResolvedValue(undefined);
     mocks.saveLineMessage.mockResolvedValue({ id: 1 });
+    mocks.tryHandleLineAiManagerMessage.mockResolvedValue(false);
+    mocks.recordLineAiManagerInboundActivity.mockResolvedValue(false);
+    mocks.containsReminderKeyword.mockReturnValue(false);
+    mocks.createReminderFromMessage.mockResolvedValue({ message: "created" });
+    mocks.getReminderListMessage.mockResolvedValue("list");
+    mocks.getLinePointBalance.mockResolvedValue({ balance: 100 });
+    mocks.getLineReceiptsByUser.mockResolvedValue([]);
+    mocks.getGroupMemberProfile.mockResolvedValue({
+      userId: "U-group-liver",
+      displayName: "連携ライバー",
+    });
   });
 
   afterEach(() => {
     if (previousJwtSecret === undefined) delete process.env.JWT_SECRET;
     else process.env.JWT_SECRET = previousJwtSecret;
     vi.unstubAllGlobals();
+  });
+
+  it("recognizes both visible @LCJ text and LINE's self-mention metadata", () => {
+    expect(containsExplicitLcjMention("@LCJ 商品を相談したい")).toBe(true);
+    expect(containsExplicitLcjMention("＠LCJ 商品を相談したい")).toBe(true);
+    expect(containsExplicitLcjMention("商品を相談したい", {
+      mentionees: [{ isSelf: true }],
+    })).toBe(true);
+    expect(containsExplicitLcjMention("商品を相談したい", {
+      mentionees: [{ isSelf: false }],
+    })).toBe(false);
+    expect(containsExplicitLcjMention("エージェントさん、相談があります")).toBe(false);
+    expect(containsExplicitLcjMention("LCJエージェントについて教えて")).toBe(false);
   });
 
   it("queues an ordinary private message without invoking the LLM or reply API", async () => {
@@ -140,6 +180,92 @@ describe("LINE general AI auto-reply runtime behavior", () => {
         String(input).includes("/message/reply")
       )
     ).toBe(false);
+  });
+
+  it("delegates an explicit @LCJ group message to the dedicated AI manager", async () => {
+    mocks.tryHandleLineAiManagerMessage.mockResolvedValueOnce(true);
+    const event: LineWebhookEvent = {
+      type: "message",
+      timestamp: 1_789_000_000_050,
+      source: { type: "group", groupId: "C-group-1", userId: "U-group-liver" },
+      replyToken: "group-reply-token",
+      message: { id: "group-message-mentioned", type: "text", text: "@LCJ 次の配信商品を相談したい" },
+    };
+
+    await processLineMessage(event);
+
+    expect(mocks.getGroupMemberProfile).toHaveBeenCalledWith("C-group-1", "U-group-liver");
+    expect(mocks.tryHandleLineAiManagerMessage).toHaveBeenCalledWith(
+      event,
+      "連携ライバー",
+      { isExplicitBotMention: true },
+    );
+    expect(mocks.saveLineMessage).not.toHaveBeenCalled();
+  });
+
+  it("does not expose point history from an explicitly mentioned group message", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/message/reply")) {
+        return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+      }
+      throw new Error(`Unexpected outbound request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await processLineMessage({
+      type: "message",
+      timestamp: 1_789_000_000_055,
+      source: { type: "group", groupId: "C-group-1", userId: "U-group-liver" },
+      replyToken: "group-private-command-token",
+      message: { id: "group-points-command", type: "text", text: "@LCJ ポイント履歴を見せて" },
+    });
+
+    expect(mocks.getLinePointBalance).not.toHaveBeenCalled();
+    expect(mocks.getLineReceiptsByUser).not.toHaveBeenCalled();
+    expect(mocks.tryHandleLineAiManagerMessage).not.toHaveBeenCalled();
+    const replyCall = fetchMock.mock.calls.find(([input]) => String(input).includes("/message/reply"));
+    const replyBody = JSON.parse(String((replyCall?.[1] as RequestInit | undefined)?.body || "{}"));
+    expect(replyBody.messages?.[0]?.text).toContain("1対1トーク");
+  });
+
+  it("does not create or list reminders from an explicitly mentioned group message", async () => {
+    mocks.containsReminderKeyword.mockReturnValue(true);
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/message/reply")) {
+        return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+      }
+      throw new Error(`Unexpected outbound request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await processLineMessage({
+      type: "message",
+      timestamp: 1_789_000_000_056,
+      source: { type: "group", groupId: "C-group-1", userId: "U-group-liver" },
+      replyToken: "group-reminder-command-token",
+      message: { id: "group-reminder-command", type: "text", text: "@LCJ 明日10時にリマインドして" },
+    });
+
+    expect(mocks.createReminderFromMessage).not.toHaveBeenCalled();
+    expect(mocks.getReminderListMessage).not.toHaveBeenCalled();
+    expect(mocks.tryHandleLineAiManagerMessage).not.toHaveBeenCalled();
+  });
+
+  it("ignores a group message completely when @LCJ is absent", async () => {
+    await processLineMessage({
+      type: "message",
+      timestamp: 1_789_000_000_060,
+      source: { type: "group", groupId: "C-group-1", userId: "U-group-liver" },
+      replyToken: "unused-group-reply-token",
+      message: { id: "group-message-no-mention", type: "text", text: "次の配信どうしようかな" },
+    });
+
+    expect(mocks.getGroupMemberProfile).not.toHaveBeenCalled();
+    expect(mocks.tryHandleLineAiManagerMessage).not.toHaveBeenCalled();
+    expect(mocks.createOrUpdateLineUser).not.toHaveBeenCalled();
+    expect(mocks.saveLineMessage).not.toHaveBeenCalled();
   });
 
   it("hands LINE receipt images to the Web form with a valid signed session and an explicit incomplete warning", async () => {
