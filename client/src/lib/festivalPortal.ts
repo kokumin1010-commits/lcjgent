@@ -23,6 +23,47 @@ export function buildFestivalLoginUrl(returnTo: string): string {
   return safeReturn ? `/lcf/login?return=${encodeURIComponent(safeReturn)}` : "/lcf/login";
 }
 
+export type FestivalUnauthorizedNavigation = {
+  handled: boolean;
+  destination: string | null;
+};
+
+/**
+ * Keep all LCF / LCM authentication inside the shared Festival account flow.
+ * `destination: null` means the current page owns the error UI and must not be
+ * redirected to the unrelated LCJ employee login.
+ */
+export function resolveFestivalUnauthorizedNavigation(
+  pathname: string,
+  search = "",
+): FestivalUnauthorizedNavigation {
+  if (pathname === "/lcm/manage" || pathname === "/lcm/admin") {
+    return {
+      handled: true,
+      destination: buildFestivalLoginUrl(`${pathname}${search}`),
+    };
+  }
+  if (pathname.startsWith("/lcm")) {
+    return { handled: true, destination: null };
+  }
+
+  if (
+    pathname === "/lcf/login"
+    || pathname === "/lcf/reset-password"
+    || pathname.startsWith("/lcf/apply/")
+  ) {
+    return { handled: true, destination: null };
+  }
+  if (pathname.startsWith("/lcf/")) {
+    return {
+      handled: true,
+      destination: buildFestivalLoginUrl(`${pathname}${search}`),
+    };
+  }
+
+  return { handled: false, destination: null };
+}
+
 type FestivalSessionStorage = {
   getItem: (key: string) => string | null;
   setItem: (key: string, value: string) => void;

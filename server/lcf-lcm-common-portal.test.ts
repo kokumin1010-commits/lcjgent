@@ -8,6 +8,7 @@ import {
   getSafeFestivalReturn,
   getSafeLcmAdminReturn,
   rememberFestivalAdminLcmReturn,
+  resolveFestivalUnauthorizedNavigation,
 } from "../client/src/lib/festivalPortal";
 
 const read = (relativePath: string) => readFileSync(resolve(process.cwd(), relativePath), "utf8");
@@ -90,12 +91,35 @@ describe("LCF / LCM common login and role workspaces", () => {
     expect(login).toContain("LCF・LCM 共通ログイン");
     expect(login).toContain("1つのアカウントで、イベント・ブランド・ライブコマーサー");
     expect(login).toContain("新規登録");
-    expect(bootstrap).toContain("buildFestivalLoginUrl(window.location.pathname + window.location.search)");
+    expect(login).toContain("window.location.replace(safeReturn)");
+    expect(login).toContain("window.location.replace(safeReturn || data.portal.defaultPath)");
+    expect(bootstrap).toContain("resolveFestivalUnauthorizedNavigation(currentPath, window.location.search)");
     expect(lcmLayout).toContain("マイページ");
     expect(lcmLayout).toContain("ログイン");
     expect(lcmLayout).not.toContain("マイLCM");
     expect(lcmLayout).not.toContain("共通マイページ");
     expect(lcmLayout).toContain('me.data.portal?.defaultPath || "/lcf/mypage"');
+    expect(lcmLayout).toContain('const loginReturn = requestedWorkspace ? `/lcm/manage?workspace=${requestedWorkspace}` : "/lcm/manage"');
+    expect(lcmLayout).toContain("buildFestivalLoginUrl(loginReturn)");
+  });
+
+  it("keeps LCF credential errors on the common login instead of redirecting to the employee portal", () => {
+    const bootstrap = read("client/src/main.tsx");
+    expect(resolveFestivalUnauthorizedNavigation("/lcf/login")).toEqual({ handled: true, destination: null });
+    expect(resolveFestivalUnauthorizedNavigation("/lcf/reset-password")).toEqual({ handled: true, destination: null });
+    expect(resolveFestivalUnauthorizedNavigation("/lcf/apply/company")).toEqual({ handled: true, destination: null });
+    expect(resolveFestivalUnauthorizedNavigation("/lcf/mypage", "?tab=tickets")).toEqual({
+      handled: true,
+      destination: "/lcf/login?return=%2Flcf%2Fmypage%3Ftab%3Dtickets",
+    });
+    expect(resolveFestivalUnauthorizedNavigation("/lcm/manage", "?workspace=brand")).toEqual({
+      handled: true,
+      destination: "/lcf/login?return=%2Flcm%2Fmanage%3Fworkspace%3Dbrand",
+    });
+    expect(resolveFestivalUnauthorizedNavigation("/lcm/products/example")).toEqual({ handled: true, destination: null });
+    expect(resolveFestivalUnauthorizedNavigation("/master")).toEqual({ handled: false, destination: null });
+    expect(bootstrap).toContain("resolveFestivalUnauthorizedNavigation(currentPath, window.location.search)");
+    expect(bootstrap).toContain("window.location.href = getLoginUrl()");
   });
 
   it("derives brand and creator roles independently without rewriting the primary account type", () => {

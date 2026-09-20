@@ -58,3 +58,13 @@ LCF管理者が`/lcf/admin`の「LCM運営」から社内`/login`を見ずに仮
 | 誤到達回復 | 同一タブにLCF管理returnを保存したうえで`/login`へ遷移すると、社内フォームを描画せず`/lcf/login?return=%2Flcm%2Fadmin%3Ftab%3Dclaims`へ回復。 |
 
 本番検証は読取専用と画面遷移だけで実施した。正式承認、却下、権限停止、ブランド・商品編集、申込、会員更新、QR発行、メール送信などの本番書込みは行っていない。
+
+## 2026-09-20｜LCM一般ログインが社内`/master`へ進む誤遷移
+
+ユーザー提供の20.8秒の画面録画をフレーム確認した。`/lcf/login`のLCF・LCM共通ログインで認証を送信した後、顧客向け画面内にエラーを表示せず社内スタッフ用`/login`へ移動し、そこで社内アカウントとしてログインすると`/master`へ到達していた。これはLCM会員画面への正常な遷移ではない。
+
+原因は二つあった。第一に、React Queryの全体UNAUTHORIZED処理が`/lcf/login`上のFestival認証失敗もLCJ社内認証の失効と誤判定し、汎用`getLoginUrl()`へ転送していた。第二に、LCM公開ヘッダーの「ログイン」が単なる`/lcf/login`で、LCMへ戻る`return`を渡していなかった。
+
+修正後は、LCF/LCM専用の`resolveFestivalUnauthorizedNavigation`で認証経路を分離した。`/lcf/login`・パスワード再設定・公開申込は同じ画面でエラーを処理し、社内`/login`へ進まない。LCF/LCMの保護ページは安全検証済みの同一origin相対returnを付けて共通ログインへ戻す。LCMトップのログインは`/lcf/login?return=%2Flcm%2Fmanage`を生成し、ワークスペース指定がある場合はbrand/creatorを保持する。ログインだけでなく、同画面での新規登録成功時も安全なreturnを優先する。
+
+検証では、外部URL拒否、LCM管理画面のreturn保持、共通ログイン上の認証失敗停止、LCF保護ページのreturn生成、LCM公開ページの非強制遷移、社内`/master`の非Festival判定を実行テストで固定した。LCF共通アカウントおよび全LCM関連9ファイル76件が成功し、production buildも成功した。ローカルDB未接続のmigration継続ログと既存`sharp` warning以外に今回の失敗はない。

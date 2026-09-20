@@ -10,7 +10,7 @@ import { getLoginUrl } from "./const";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { clearChunkRecoveryMarker, recoverFromChunkLoadError } from "./lib/chunkRecovery";
 import { getFinanceAccessSession } from "./lib/financeAccessSession";
-import { buildFestivalLoginUrl } from "./lib/festivalPortal";
+import { resolveFestivalUnauthorizedNavigation } from "./lib/festivalPortal";
 import { isUnauthorizedTrpcError } from "./lib/trpcAuthError";
 import "./index.css";
 
@@ -75,13 +75,13 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
     return;
   }
 
-  // LCMはLCF会員セッションを再利用する。公開ページでは自動遷移せず、
-  // 会員・運営画面だけを同一サイト内のLCFログインへ戻り先付きで誘導する。
-  if (currentPath === "/lcm/manage" || currentPath === "/lcm/admin") {
-    window.location.href = buildFestivalLoginUrl(window.location.pathname + window.location.search);
-    return;
-  }
-  if (currentPath.startsWith("/lcm")) {
+  // LCF / LCMの認証は共通Festivalアカウント内で完結させる。共通ログイン
+  // 自体の認証失敗を社内スタッフ用ログインへ送ると、/masterへ誤遷移する。
+  const festivalNavigation = resolveFestivalUnauthorizedNavigation(currentPath, window.location.search);
+  if (festivalNavigation.handled) {
+    if (festivalNavigation.destination) {
+      window.location.href = festivalNavigation.destination;
+    }
     return;
   }
   

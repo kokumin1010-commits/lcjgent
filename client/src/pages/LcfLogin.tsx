@@ -50,7 +50,7 @@ export default function LcfLogin() {
   const registerMutation = trpc.festivalAuth.register.useMutation({
     onSuccess: (data) => {
       localStorage.removeItem('lcf_token');
-      window.location.replace(data.portal.defaultPath);
+      window.location.replace(safeReturn || data.portal.defaultPath);
     },
     onError: (err) => {
       setRegisterError(err.message || '新規登録に失敗しました');

@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { LayoutDashboard, LogIn, PackageSearch, ShoppingCart, Users } from "lucide-react";
 import { FestivalWorkspaceNav } from "@/components/lcf/FestivalWorkspaceNav";
-import { getRequestedFestivalWorkspace } from "@/lib/festivalPortal";
+import { buildFestivalLoginUrl, getRequestedFestivalWorkspace } from "@/lib/festivalPortal";
 import { trpc } from "@/lib/trpc";
 
 export function LcmPublicLayout({ children }: { children: ReactNode }) {
@@ -16,7 +16,8 @@ export function LcmPublicLayout({ children }: { children: ReactNode }) {
   const access = trpc.lcm.getMyAccess.useQuery(undefined, { enabled: Boolean(me.data), retry: false });
   const engagement = trpc.lcm.getMyEngagementSummary.useQuery(undefined, { enabled: Boolean(me.data), retry: false });
   const requestedWorkspace = getRequestedFestivalWorkspace(new URLSearchParams(search).get("workspace"));
-  const loginUrl = "/lcf/login";
+  const loginReturn = requestedWorkspace ? `/lcm/manage?workspace=${requestedWorkspace}` : "/lcm/manage";
+  const loginUrl = buildFestivalLoginUrl(loginReturn);
   const activeWorkspace = pathname === "/lcm/manage" ? requestedWorkspace || (access.data?.membership?.memberType === "liver" ? "creator" : "brand") : undefined;
   const roles = access.data?.roles || { event: true, brand: false, creator: false };
 
