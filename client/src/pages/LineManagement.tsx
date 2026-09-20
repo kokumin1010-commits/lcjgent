@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { MessageSquare, MessageSquareOff, Users, Send, History, RefreshCw, Search, User, Building2, Calendar, Clock, Link2, LogOut, AlertTriangle, Settings, Bell, BellOff, Radio, TrendingUp, Sparkles, ChevronRight, ExternalLink } from "lucide-react";
+import { MessageSquare, MessageSquareOff, Users, Send, History, RefreshCw, Search, User, Building2, Calendar, Clock, Link2, LogOut, AlertTriangle, Settings, Bell, BellOff, Radio, TrendingUp, Sparkles, ChevronRight, ExternalLink, Bot, ShieldCheck } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
@@ -86,6 +86,35 @@ export default function LineManagement() {
 
   // Fetch liver-linked LINE users
   const { data: liverLinkedUsers, isLoading: loadingLiverLinked, refetch: refetchLiverLinked } = trpc.line.listLiverLinkedUsers.useQuery();
+
+  const { data: aiManagerData, isLoading: loadingAiManagers, refetch: refetchAiManagers } = trpc.line.listAiManagers.useQuery(
+    undefined,
+    { enabled: activeTab === "ai-managers" }
+  );
+
+  const updateAiManagerMutation = trpc.line.updateAiManagerSettings.useMutation({
+    onSuccess: () => {
+      toast.success(language === "ja" ? "AIマネージャー設定を更新しました" : "AI经理设置已更新");
+      void refetchAiManagers();
+    },
+    onError: (error) => {
+      toast.error(error.message || (language === "ja" ? "設定の更新に失敗しました" : "设置更新失败"));
+    },
+  });
+
+  const refreshAiManagerTikTokMutation = trpc.line.refreshAiManagerTikTok.useMutation({
+    onSuccess: (result) => {
+      toast.success(
+        result.refreshed
+          ? (language === "ja" ? "TikTok公開情報を更新しました" : "TikTok公开信息已更新")
+          : (language === "ja" ? "TikTok分析は更新不要、またはアカウント未設定です" : "TikTok分析无需更新或账号未设置")
+      );
+      void refetchAiManagers();
+    },
+    onError: (error) => {
+      toast.error(error.message || (language === "ja" ? "TikTok分析に失敗しました" : "TikTok分析失败"));
+    },
+  });
 
   // Fetch liver interaction summary
   const { data: liverInteraction, isLoading: loadingLiverInteraction } = trpc.line.getLiverInteraction.useQuery(
@@ -329,6 +358,7 @@ export default function LineManagement() {
               } else {
                 refetchGroups();
               }
+              if (activeTab === "ai-managers") void refetchAiManagers();
               refetchMessages();
             }}
             disabled={activeTab === "groups" && syncGroupsMutation.isPending}
@@ -404,7 +434,7 @@ export default function LineManagement() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="users" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             {language === "ja" ? "ユーザー" : "用户"}
@@ -415,6 +445,15 @@ export default function LineManagement() {
             {liverLinkedUsers && liverLinkedUsers.length > 0 && (
               <Badge variant="secondary" className="ml-1 text-xs">
                 {liverLinkedUsers.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="ai-managers" className="flex items-center gap-2">
+            <Bot className="h-4 w-4" />
+            {language === "ja" ? "AIマネージャー" : "AI经理"}
+            {(aiManagerData?.stats.total || 0) > 0 && (
+              <Badge variant="secondary" className="ml-1 text-xs">
+                {aiManagerData?.stats.replyEnabled || 0}/{aiManagerData?.stats.total || 0}
               </Badge>
             )}
           </TabsTrigger>
@@ -660,6 +699,224 @@ export default function LineManagement() {
                   </CardContent>
                 </Card>
               ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* LCJ Official AI Manager Tab */}
+        <TabsContent value="ai-managers" className="space-y-5">
+          <Card className="border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50">
+            <CardContent className="py-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-xl bg-amber-500 p-2.5 text-white">
+                    <Bot className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold text-slate-900">LCJ公式・専属AIマネージャー</h3>
+                      <Badge className="bg-emerald-600 hover:bg-emerald-600">自動返信</Badge>
+                      <Badge variant="outline" className="border-slate-300 bg-white">
+                        <ShieldCheck className="mr-1 h-3 w-3" />AI明示
+                      </Badge>
+                    </div>
+                    <p className="mt-1 max-w-3xl text-sm text-slate-600">
+                      LINE連携済みライブコマーサー本人のDMだけに、会話履歴・登録TikTok・公開済みLCM商品・配信実績を根拠として自動返信します。継続フォローは各ライバーで有効化後に全自動です。一般顧客のAI返信は停止したまま、グループは従来どおり明示的な@LCJ時だけです。
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      本人はLINEで「AI停止／AI再開」「フォロー停止／フォロー再開」と送るだけで設定を変更できます。
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-5">
+                  <div className="rounded-lg bg-white px-4 py-2 shadow-sm">
+                    <div className="text-xl font-bold text-slate-900">{aiManagerData?.stats.total || 0}</div>
+                    <div className="text-slate-500">対象</div>
+                  </div>
+                  <div className="rounded-lg bg-white px-4 py-2 shadow-sm">
+                    <div className="text-xl font-bold text-amber-600">{aiManagerData?.stats.queued || 0}</div>
+                    <div className="text-slate-500">処理中</div>
+                  </div>
+                  <div className="rounded-lg bg-white px-4 py-2 shadow-sm">
+                    <div className="text-xl font-bold text-emerald-600">{aiManagerData?.stats.sent || 0}</div>
+                    <div className="text-slate-500">送信済み</div>
+                  </div>
+                  <div className="rounded-lg bg-white px-4 py-2 shadow-sm">
+                    <div className="text-xl font-bold text-orange-600">{aiManagerData?.stats.unknown || 0}</div>
+                    <div className="text-slate-500">送信確認不能</div>
+                  </div>
+                  <div className="rounded-lg bg-white px-4 py-2 shadow-sm">
+                    <div className="text-xl font-bold text-rose-600">{aiManagerData?.stats.failed || 0}</div>
+                    <div className="text-slate-500">失敗</div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {loadingAiManagers ? (
+            <div className="py-10 text-center text-muted-foreground">
+              <RefreshCw className="mx-auto mb-2 h-6 w-6 animate-spin" />
+              {language === "ja" ? "AIマネージャーを読み込み中..." : "正在加载AI经理..."}
+            </div>
+          ) : !aiManagerData?.managers.length ? (
+            <Card>
+              <CardContent className="py-10 text-center text-muted-foreground">
+                LINE連携済みのライブコマーサーがまだいません。連携完了後、自動的にここへ表示されます。
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 xl:grid-cols-2">
+              {aiManagerData.managers
+                .filter((manager) => {
+                  if (!searchQuery) return true;
+                  const query = searchQuery.toLowerCase();
+                  return manager.liverName.toLowerCase().includes(query)
+                    || manager.lineDisplayName?.toLowerCase().includes(query)
+                    || manager.tiktokAccount?.toLowerCase().includes(query);
+                })
+                .map((manager) => {
+                  const insight = manager.tiktokInsight as any;
+                  const isUpdating = updateAiManagerMutation.isPending
+                    && updateAiManagerMutation.variables?.lineUserId === manager.lineUserId;
+                  const isRefreshingTikTok = refreshAiManagerTikTokMutation.isPending
+                    && refreshAiManagerTikTokMutation.variables?.lineUserId === manager.lineUserId;
+                  return (
+                    <Card key={manager.lineUserId} className="overflow-hidden border-l-4 border-l-amber-400">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            {(manager.liverAvatarUrl || manager.linePictureUrl) ? (
+                              <img
+                                src={manager.liverAvatarUrl || manager.linePictureUrl || ""}
+                                alt={manager.liverName}
+                                className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-amber-200"
+                              />
+                            ) : (
+                              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                                <Bot className="h-6 w-6 text-amber-700" />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <CardTitle className="truncate text-base">{manager.liverName}</CardTitle>
+                              <CardDescription className="truncate">
+                                {manager.lineDisplayName || "LINE表示名なし"}
+                                {manager.tiktokAccount ? ` · TikTok ${manager.tiktokAccount}` : ""}
+                              </CardDescription>
+                            </div>
+                          </div>
+                          <Badge variant={manager.replyEnabled ? "default" : "secondary"}>
+                            {manager.replyEnabled ? "AI稼働中" : "返信停止"}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <label className="flex items-center justify-between rounded-lg border p-3">
+                            <span>
+                              <span className="block text-sm font-medium">受信テキストDMへ自動返信</span>
+                              <span className="block text-xs text-muted-foreground">連携本人のみ</span>
+                            </span>
+                            <Switch
+                              checked={manager.replyEnabled}
+                              disabled={isUpdating}
+                              onCheckedChange={(replyEnabled) => updateAiManagerMutation.mutate({ lineUserId: manager.lineUserId, replyEnabled })}
+                            />
+                          </label>
+                          <label className="flex items-center justify-between rounded-lg border p-3">
+                            <span>
+                              <span className="block text-sm font-medium">継続フォロー</span>
+                              <span className="block text-xs text-muted-foreground">平日10–18時・最大2回</span>
+                            </span>
+                            <Switch
+                              checked={manager.proactiveEnabled}
+                              disabled={isUpdating}
+                              onCheckedChange={(proactiveEnabled) => updateAiManagerMutation.mutate({ lineUserId: manager.lineUserId, proactiveEnabled })}
+                            />
+                          </label>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <Label className="mb-1.5 block text-xs">話し方</Label>
+                            <Select
+                              value={manager.tone}
+                              disabled={isUpdating}
+                              onValueChange={(tone: "warm" | "professional" | "energetic") => updateAiManagerMutation.mutate({ lineUserId: manager.lineUserId, tone })}
+                            >
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="warm">温かく安心感</SelectItem>
+                                <SelectItem value="professional">プロフェッショナル</SelectItem>
+                                <SelectItem value="energetic">明るく前向き</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="mb-1.5 block text-xs">未返信フォローまで</Label>
+                            <Select
+                              value={String(manager.inactivityDays)}
+                              disabled={isUpdating}
+                              onValueChange={(value) => updateAiManagerMutation.mutate({ lineUserId: manager.lineUserId, inactivityDays: Number(value) })}
+                            >
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {[1, 2, 3, 5, 7, 14].map(day => <SelectItem key={day} value={String(day)}>{day}日</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        <div className="rounded-lg bg-slate-50 p-3 text-sm">
+                          <div className="font-medium text-slate-800">次アクション</div>
+                          <div className="mt-1 whitespace-pre-wrap text-slate-600">
+                            {manager.nextAction || "次回の会話後にAIが自動記録します"}
+                          </div>
+                          {manager.lastResponsePreview && (
+                            <div className="mt-3 border-t pt-2 text-xs text-slate-500">
+                              最新返信: {manager.lastResponsePreview}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="rounded-lg border border-pink-100 bg-pink-50/50 p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-medium">TikTok公開情報分析</div>
+                              <div className="text-xs text-muted-foreground">
+                                {insight?.followerCount != null
+                                  ? `フォロワー ${Number(insight.followerCount).toLocaleString()} · 上位投稿 ${insight.topPosts?.length || 0}件`
+                                  : manager.tiktokAccount ? "未分析" : "TikTok未登録"}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={manager.tiktokAnalysisEnabled}
+                                disabled={isUpdating}
+                                onCheckedChange={(tiktokAnalysisEnabled) => updateAiManagerMutation.mutate({ lineUserId: manager.lineUserId, tiktokAnalysisEnabled })}
+                              />
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={!manager.tiktokAccount || !manager.tiktokAnalysisEnabled || isRefreshingTikTok}
+                                onClick={() => refreshAiManagerTikTokMutation.mutate({ lineUserId: manager.lineUserId })}
+                              >
+                                <RefreshCw className={`mr-1 h-3 w-3 ${isRefreshingTikTok ? "animate-spin" : ""}`} />
+                                分析更新
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <span>最終受信: {manager.lastInboundAt ? format(new Date(manager.lastInboundAt), "yyyy/MM/dd HH:mm") : "未開始"}</span>
+                          <span>最終返信: {manager.lastReplyAt ? format(new Date(manager.lastReplyAt), "yyyy/MM/dd HH:mm") : "未送信"}</span>
+                          <span>最終フォロー: {manager.lastProactiveAt ? format(new Date(manager.lastProactiveAt), "yyyy/MM/dd HH:mm") : "未送信"}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
             </div>
           )}
         </TabsContent>

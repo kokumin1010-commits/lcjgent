@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   createOrUpdateLineUser: vi.fn(),
   updateLineUserLastMessage: vi.fn(),
   saveLineMessage: vi.fn(),
+  tryHandleLineAiManagerMessage: vi.fn(async () => false),
+  recordLineAiManagerInboundActivity: vi.fn(async () => false),
 }));
 
 vi.mock("./_core/llm", () => ({
@@ -15,6 +17,11 @@ vi.mock("./lineReminder", () => ({
   containsReminderKeyword: vi.fn(() => false),
   createReminderFromMessage: vi.fn(),
   getReminderListMessage: vi.fn(),
+}));
+
+vi.mock("./lineAiManager", () => ({
+  tryHandleLineAiManagerMessage: mocks.tryHandleLineAiManagerMessage,
+  recordLineAiManagerInboundActivity: mocks.recordLineAiManagerInboundActivity,
 }));
 
 vi.mock("./db", async () => {
@@ -92,6 +99,15 @@ describe("LINE general AI auto-reply runtime behavior", () => {
         String(input).includes("/message/reply")
       )
     ).toBe(false);
+  });
+
+  it("rethrows a durable AI handoff failure so the webhook can return 5xx", async () => {
+    const handoffError = new Error("handoff failed");
+    handoffError.name = "LineAiManagerHandoffError";
+    mocks.tryHandleLineAiManagerMessage.mockRejectedValueOnce(handoffError);
+
+    await expect(processLineMessage(makeEvent())).rejects.toBe(handoffError);
+    expect(mocks.saveLineMessage).not.toHaveBeenCalled();
   });
 
   it("does not send an automatic fallback even when profile persistence fails", async () => {

@@ -32,3 +32,27 @@ LINE Developersの[メッセージ送信ガイド](https://developers.line.biz/e
 ## 本番確認
 
 実装SHA `28bfe08dfb95cdc96198cbde17b8908043a06d1a`はGitHub Check、Railwayともにsuccessとなった。本番の`GET https://lcjmall.com/api/health/line-group-lifecycle`はHTTP 200と`{"ok":true,"lifecycleStateTable":"ready"}`を返し、`line_group_lifecycle_states`と全必須列のread-only SELECTが成功した。`GET https://lcjmall.com/master/line`もHTTP 200だった。本番業務データへの人工書込みおよびテスト目的の実グループ退会は行っていない。
+
+## LCJ公式・専属AIマネージャー
+
+同じ`/master/line`に「AIマネージャー」タブを追加した。対象は**有効なライバー情報とLINE IDが実際に紐付く本人DMだけ**で、一般顧客向けの汎用AI自動返信は停止したまま、グループでは従来の明示的な`@LCJ`条件を維持する。返信は常に「LCJ公式AIマネージャー」と名乗り、人間・恋人・担当者を装わない。会話履歴、登録済みTikTok公開情報、公開済みLCM商品、配信実績を必要最小限で使い、メールアドレス・電話番号・長い識別番号はLLM送信前にマスキングする。
+
+| 項目 | 実装 |
+|---|---|
+| 受信返信 | LINEメッセージ保存、受信活動記録、重複不能なイベント登録を1つのDB transactionで確定し、LLM生成と送信はバックグラウンドワーカーへ移す。確定失敗時はWebhookを5xxとしてLINE再送に委ねる |
+| 配送状態 | `queued → processing → ready → sending → sent`を永続化。生成・送信ごとにランダムなlease tokenを持たせ、古いワーカーの更新を拒否する。送信中に落ちた場合は`unknown`として自動再送せず重複を優先して防ぐ |
+| 再送 | 同じLINE message IDから同じevent keyを作る。受信保存後・イベント登録前に落ちてもWebhook再送で欠落イベントだけを作成できる |
+| 継続フォロー | 初期値OFF。管理画面で個別に有効化後、平日10:00–18:00 JST、指定日数経過、連続最大2回で自動化。送信直前に新着DMと最新設定を再確認する |
+| 本人停止 | LINEで「AI停止／AI再開」「フォロー停止／フォロー再開」と送るだけで本人が変更できる |
+| 送信取消 | `unsend` Webhookで本文を`[送信取消済み]`へ置換し、未送信のAIイベントを中止して将来のプロンプトから除外する。送信lease取得後にも最終確認し、送信中取消は監査コードを残す |
+| TikTok | 登録済みTikTok IDから公開プロフィールと人気投稿だけをData APIで取得。7日間キャッシュし、失敗時は6時間再試行しない |
+| 商品 | `published`のLCMブランド・商品だけを候補にし、対象視聴者、30秒訴求、実演方法、禁止表現を含める |
+| 運用停止 | `LINE_AI_MANAGER_ENABLED=false`で全返信、`LINE_AI_MANAGER_PROACTIVE_ENABLED=false`で継続フォローを緊急停止できる |
+
+[Webhook受信ガイド](https://developers.line.biz/ja/docs/messaging-api/receiving-messages/)の非同期処理・重複イベント対策に合わせ、30秒間隔の永続キューワーカーと一意event keyを使用する。LINE APIとの分散トランザクションでは厳密なexactly-onceは保証できないため、送信応答が不明なイベントを自動再送しない保守的な方針とし、管理画面で「送信確認不能」を可視化する。返信tokenはDBへ保存せず、即時処理時だけ使用し、クラッシュ回復後はpush送信を使う。AI pushとWebhook起点のfollow・ライバー連携・Mall連携pushにはイベントID＋用途から生成する決定的UUIDを`X-Line-Retry-Key`で渡し、再送・複数インスタンスでの重複配送を抑止する。
+
+AI対象DMは外部プロフィール取得より先にtransactional outboxへ渡す。Webhook内の複数イベントは並列処理し、共通helperと`lineAgent`独自のプロフィール取得はいずれも2秒、LINE reply/pushは10秒で打ち切る。ポイント・リマインダー・連携コード・画像・動画など既存の直接返信経路でも、ライバー本人の受信活動を返信処理より先に記録し、会話直後の誤った継続フォローを抑止する。生成・送信・skip・unknown・sentを含むすべてのterminal遷移は、現在statusと取得済みlease tokenを必須条件にして古いworkerの上書きを拒否する。
+
+`gpt-5-mini`の構造化JSON応答はテスト入力で実測し、`reply`、`intent`、`nextAction`の3項目を取得できた。呼び出しは1,200 completion tokens、1回45秒timeoutに制限した。AIイベント内の返信本文は180日後に消去する。専用healthは設定表・イベント表の必須列、全状態enum、2つの一意index、4つの補助indexを検証し、不完全またはDB未接続ならHTTP 503を返す。
+
+最終回帰は、AI専属処理、transactional outbox、lease fencing、停止コマンド、送信取消、retry key、既存一般AI停止、グループ退会・参加人数を含む11ファイル83件が成功した。production buildと変更ファイル個別bundleも成功した。実LINE認証を要求する既存`line.test.ts` 3件はローカルにsecret/tokenがないため実行不能で、実メッセージは送信していない。

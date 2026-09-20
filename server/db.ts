@@ -2877,7 +2877,10 @@ export async function getLineUsersWithLiverDetails() {
       liverIsActive: livers.isActive,
     })
     .from(lineUsers)
-    .innerJoin(livers, eq(lineUsers.liverId, livers.id))
+    .innerJoin(livers, or(
+      eq(lineUsers.liverId, livers.id),
+      and(isNull(lineUsers.liverId), eq(lineUsers.lineUserId, livers.lineUserId)),
+    ))
     .orderBy(desc(lineUsers.lastMessageAt));
   
   return result;
@@ -3298,6 +3301,17 @@ export async function saveLineMessage(data: {
     }
     throw error;
   }
+}
+
+export async function redactLineMessageByMessageId(messageId: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(lineMessages).set({
+    content: "[送信取消済み]",
+    needsResponse: false,
+    responseStatus: "cancelled",
+    responseSummary: null,
+  }).where(eq(lineMessages.messageId, messageId));
 }
 
 // Get LINE messages for a user or group

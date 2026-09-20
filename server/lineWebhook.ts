@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { ENV } from "./_core/env";
 import { getDb, verifyAndUseLinkCode, linkLineAccountToEmailUser, getLineUserById, getLineReceiptsByUser, getLinePointBalance } from "./db";
-import { livers } from "../drizzle/schema";
+import { lineUsers, livers } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { sendLinePushMessage } from "./_core/lineMessaging";
 
@@ -188,6 +188,11 @@ export async function linkLineUserToLiver(
       lineLinkCodeExpiresAt: null,
     })
     .where(eq(livers.id, liverId));
+
+  await db
+    .update(lineUsers)
+    .set({ liverId, userType: "liver" })
+    .where(eq(lineUsers.lineUserId, lineUserId));
 }
 
 /**

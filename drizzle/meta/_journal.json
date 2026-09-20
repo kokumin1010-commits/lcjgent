@@ -981,6 +981,13 @@
       "when": 1789863073817,
       "tag": "0144_user_navigation_usage",
       "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "5",
+      "when": 1789864539990,
+      "tag": "0145_line_ai_manager",
+      "breakpoints": true
     }
   ]
 }

@@ -386,6 +386,8 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     tools,
     toolChoice,
     tool_choice,
+    maxTokens,
+    max_tokens,
     outputSchema,
     output_schema,
     responseFormat,
@@ -412,12 +414,14 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  // GPT models require max_completion_tokens instead of max_tokens
+  // GPT models require max_completion_tokens instead of max_tokens. Respect
+  // the caller's explicit budget instead of silently replacing it with 16K.
+  const requestedMaxTokens = maxTokens ?? max_tokens ?? 16384;
   const resolvedModel = (model || "gpt-5-nano").toLowerCase();
   if (resolvedModel.startsWith("gpt-")) {
-    payload.max_completion_tokens = 16384;
+    payload.max_completion_tokens = requestedMaxTokens;
   } else {
-    payload.max_tokens = 16384;
+    payload.max_tokens = requestedMaxTokens;
   }
 
   const normalizedResponseFormat = normalizeResponseFormat({
@@ -440,6 +444,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     try {
       const response = await fetch(apiUrl, {
         method: "POST",
+        signal: AbortSignal.timeout(45_000),
         headers: {
           "content-type": "application/json",
           authorization: `Bearer ${ENV.forgeApiKey}`,

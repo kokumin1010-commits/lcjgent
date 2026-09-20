@@ -12,6 +12,7 @@ import { sdk } from "./sdk";
 import { authenticateTikTokScheduleRequest } from "../tiktokPublicScheduleAuth";
 import { getTaskByCompletionToken, updateTask } from "../db";
 import { getLineWebhookLifecycleEventId } from "../lineGroupLifecycleOrder";
+import { createLineRetryKey } from "../lineRetryKey";
 import { notifyOwner } from "./notification";
 import { checkAndSendReminders } from "../reminderScheduler";
 import { startGroupFollowUpScheduler } from "../groupFollowUpScheduler";
@@ -265,6 +266,19 @@ async function startServer() {
     }
   });
 
+  app.get("/api/health/line-ai-manager", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    try {
+      const { checkLineAiManagerStorage } = await import("../lineAiManager");
+      const ready = await checkLineAiManagerStorage();
+      if (!ready) throw new Error("LINE AI manager storage is unavailable");
+      return res.status(200).json({ ok: true, aiManagerStorage: "ready" });
+    } catch (error) {
+      console.error("[LINE AI Manager] Storage health check failed:", error);
+      return res.status(503).json({ ok: false, aiManagerStorage: "unavailable" });
+    }
+  });
+
   // Email tracking endpoint
   app.use("/api/track", trackingRouter);
   // Gmail-friendly alias (avoids 'track' keyword in URL that Gmail may filter)
@@ -370,6 +384,12 @@ async function startServer() {
   // LINE Webhook endpoint
   const lineModule = await import("../line");
   const lineDb = await import("../db");
+
+  const retryKeyForLineEvent = (event: any, purpose: string) => createLineRetryKey([
+    "line-webhook",
+    event.webhookEventId || event.message?.id || `${event.type}:${event.timestamp}:${event.source?.userId || event.source?.groupId || "unknown"}`,
+    purpose,
+  ].join(":"));
   
   // Process LINE event
   async function processLineEvent(
@@ -382,6 +402,10 @@ async function startServer() {
     // Handle different event types
     switch (event.type) {
       case "message":
+        if (event.source.type === "user" && event.source.userId && event.message?.type !== "text") {
+          const { touchLineAiManagerInboundActivity } = await import("../lineAiManager");
+          await touchLineAiManagerInboundActivity(event.source.userId, event.timestamp);
+        }
         await handleLineMessage(event, line, db);
         break;
       case "join":
@@ -435,7 +459,7 @@ async function startServer() {
                 type: "text",
                 text: `${existingLiver.name}さん、おかえりなさい！🎉\n\nライバーアカウントとモール会員アカウントの両方が連携済みです。\n\n・配信後にAIコーチングが届きます\n・TikTok Shopのレシートを送信してポイント獲得できます`,
               },
-            ]);
+            ], retryKeyForLineEvent(event, "follow-response"));
           } else if (existingLiver) {
             // Liver linked but not mall - offer mall linking
             await sendLinePushMessage(event.source.userId, [
@@ -443,7 +467,7 @@ async function startServer() {
                 type: "text",
                 text: `${existingLiver.name}さん、おかえりなさい！🎉\n\nライバーアカウントは連携済みです。配信後にAIコーチングが届きます。\n\n💰 LCJ MALLもお使いですか？\nTikTok Shopのレシートを送信してポイントを獲得できます。\n\n【モール連携方法】\n1. lcjmall.com にログイン\n2. マイページ → LINE連携\n3. 表示されるコード（M-XXXXXX）をこちらに送信`,
               },
-            ]);
+            ], retryKeyForLineEvent(event, "follow-response"));
           } else if (existingMallUser) {
             // Mall linked but not liver - offer liver linking
             await sendLinePushMessage(event.source.userId, [
@@ -451,7 +475,7 @@ async function startServer() {
                 type: "text",
                 text: `おかえりなさい！🎉\n\nLCJ MALLアカウントは連携済みです。TikTok Shopのレシートを送信してポイントを獲得できます。\n\n🎙️ LCJライバーですか？\n配信後にAIコーチングを受け取れます。\n\n【ライバー連携方法】\n1. LCJライバーアプリにログイン\n2. プロフィール編集 → LINE連携\n3. 表示される6桁のコードをこちらに送信`,
               },
-            ]);
+            ], retryKeyForLineEvent(event, "follow-response"));
           } else {
             // Not linked to anything - send both options
             await sendLinePushMessage(event.source.userId, [
@@ -459,7 +483,7 @@ async function startServer() {
                 type: "text",
                 text: `LCJへようこそ！🎊\n\n【LCJライバーの方】\n配信後にAIコーチングを受け取れます。\n1. LCJライバーアプリにログイン\n2. プロフィール編集 → LINE連携\n3. 6桁のコードを送信\n\n【LCJ MALL会員の方】\nTikTok Shopのレシートを送信してポイント獲得！\n1. lcjmall.com にログイン\n2. マイページ → LINE連携\n3. コード（M-XXXXXX）を送信\n\n連携コードを入力してください👇`,
               },
-            ]);
+            ], retryKeyForLineEvent(event, "follow-response"));
           }
         }
         break;
@@ -468,6 +492,13 @@ async function startServer() {
         if (event.source.userId) {
           console.log(`[LINE] User unfollowed: ${event.source.userId}`);
           await db.updateLineUserBlocked(event.source.userId, true);
+        }
+        break;
+      case "unsend":
+        if (event.unsend?.messageId) {
+          await db.redactLineMessageByMessageId(event.unsend.messageId);
+          const { cancelLineAiManagerMessage } = await import("../lineAiManager");
+          await cancelLineAiManagerMessage(event.unsend.messageId);
         }
         break;
       case "leave":
@@ -510,6 +541,8 @@ async function startServer() {
         const lineUserId = event.source.userId;
         
         if (!lineUserId) return;
+        const { recordLineAiManagerInboundActivity } = await import("../lineAiManager");
+        await recordLineAiManagerInboundActivity(event);
         
         // Check if already linked
         const existingLiver = await findLiverByLineUserId(lineUserId);
@@ -519,7 +552,7 @@ async function startServer() {
               type: "text",
               text: `${existingLiver.name}さん、既にLINE連携済みです！✅\n\n配信後にAIコーチングが届きます。`,
             },
-          ]);
+          ], retryKeyForLineEvent(event, "link-command-response"));
           return;
         }
         
@@ -536,19 +569,20 @@ async function startServer() {
               type: "text",
               text: `連携コードが見つからないか、有効期限が切れています。\n\nLCJライバーアプリで新しいコードを発行してください。`,
             },
-          ]);
+          ], retryKeyForLineEvent(event, "link-command-response"));
           return;
         }
         
         // Link the accounts
         await linkLineUserToLiver(liverData.id, lineUserId);
+        await recordLineAiManagerInboundActivity(event);
         
         await sendLinePushMessage(lineUserId, [
           {
             type: "text",
             text: `🎉 ${liverData.name}さん、LINE連携が完了しました！\n\nこれから配信後にAIコーチングがLINEに届きます。\n毎朝、あなた宛の配信提案もお届けします。\n\n頑張ってください！💪`,
           },
-        ]);
+        ], retryKeyForLineEvent(event, "link-command-response"));
         return;
       }
       
@@ -559,6 +593,8 @@ async function startServer() {
         const lineUserId = event.source.userId;
         
         if (!lineUserId) return;
+        const { recordLineAiManagerInboundActivity } = await import("../lineAiManager");
+        await recordLineAiManagerInboundActivity(event);
         
         // Verify the code and get the email user ID
         const emailUserId = await verifyAndUseLinkCode(text.toUpperCase(), lineUserId);
@@ -569,7 +605,7 @@ async function startServer() {
               type: "text",
               text: `連携コードが見つからないか、有効期限が切れています。\n\nLCJ MALLマイページで新しいコードを発行してください。`,
             },
-          ]);
+          ], retryKeyForLineEvent(event, "link-command-response"));
           return;
         }
         
@@ -594,7 +630,7 @@ async function startServer() {
               type: "text",
               text: `🎉 ${userName}さん、LINE連携が完了しました！\n\nこれからレシートをLINEで送信できます。\n\nTikTok Shopで購入したら、レシート画像をこのトークに送信してポイントを獲得しましょう！💰`,
             },
-          ]);
+          ], retryKeyForLineEvent(event, "link-command-response"));
         } catch (error: any) {
           if (error.message === "LINE_ALREADY_LINKED_TO_MALL") {
             await sendLinePushMessage(lineUserId, [
@@ -602,14 +638,14 @@ async function startServer() {
                 type: "text",
                 text: `このLINEアカウントは既に別のモール会員アカウントに連携されています。\n\n別のアカウントでログインしてお試しください。`,
               },
-            ]);
+            ], retryKeyForLineEvent(event, "link-command-response"));
           } else {
             await sendLinePushMessage(lineUserId, [
               {
                 type: "text",
                 text: `連携処理中にエラーが発生しました。\n\nしばらくしてから再度お試しください。`,
               },
-            ]);
+            ], retryKeyForLineEvent(event, "link-command-response"));
           }
         }
         return;
@@ -672,10 +708,9 @@ async function startServer() {
         console.error("[Proline Forward] Async forward error:", err);
       });
       
-      // Process each event
-      for (const event of body.events) {
-        await processLineEvent(event, lineModule, lineDb);
-      }
+      // Process the verified batch concurrently. Any durable-handoff failure
+      // returns 5xx so LINE can redeliver; successful siblings are idempotent.
+      await Promise.all(body.events.map(event => processLineEvent(event, lineModule, lineDb)));
       
       res.status(200).json({ success: true });
     } catch (error) {
@@ -3785,8 +3820,20 @@ async function startServer() {
     throw error;
   }
 
+  try {
+    const { ensureLineAiManagerStorage } = await import("../lineAiManager");
+    await ensureLineAiManagerStorage();
+    console.log("[LINE AI Manager] Storage ready");
+  } catch (error) {
+    console.error("[LINE AI Manager] Storage setup failed", error);
+    throw error;
+  }
+
   server.listen(port, async () => {
     console.log(`Server running on http://localhost:${port}/`);
+
+    const { startLineAiManagerScheduler } = await import("../lineAiManager");
+    startLineAiManagerScheduler();
 
     // Import the user-requested QQ workbook as the archived 9/8–9/9 LCF first-edition
     // knowledge project. The seed is idempotent and never delays Railway health checks.

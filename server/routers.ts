@@ -833,6 +833,11 @@ import {
   leaveLineGroupAndDeactivate,
   reconcileActiveLineGroups,
 } from "./lineGroupLifecycle";
+import {
+  listLineAiManagers,
+  refreshLineAiManagerTikTokInsight,
+  updateLineAiManagerSettings,
+} from "./lineAiManager";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
 import { users, lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos, brandMonthlyGmvTargets, livestreamProducts, livestreamRealtimeRecords, livestreamRealtimeSnapshots, livestreamLuckyBagImages, livestreamCsvSnapshots, livestreamCsvProducts, brandProducts, brandActivities, brandMemos, brandFiles } from "../drizzle/schema";
@@ -13619,6 +13624,38 @@ ${conversationText}
     listLiverLinkedUsers: protectedProcedure.query(async () => {
       return await getLineUsersWithLiverDetails();
     }),
+
+    listAiManagers: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+      }
+      return await listLineAiManagers();
+    }),
+
+    updateAiManagerSettings: protectedProcedure
+      .input(z.object({
+        lineUserId: z.string().min(1).max(64),
+        replyEnabled: z.boolean().optional(),
+        proactiveEnabled: z.boolean().optional(),
+        tiktokAnalysisEnabled: z.boolean().optional(),
+        inactivityDays: z.number().int().min(1).max(30).optional(),
+        tone: z.enum(["warm", "professional", "energetic"]).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        return await updateLineAiManagerSettings(input);
+      }),
+
+    refreshAiManagerTikTok: protectedProcedure
+      .input(z.object({ lineUserId: z.string().min(1).max(64) }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        return await refreshLineAiManagerTikTokInsight(input.lineUserId, true);
+      }),
 
     // Get liver interaction summary
     getLiverInteraction: protectedProcedure

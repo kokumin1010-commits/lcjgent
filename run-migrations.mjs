@@ -136,6 +136,18 @@ async function main() {
       await connection.execute(statement);
     }
     console.log(`[Migration] LINE group lifecycle state table ensured (${lineGroupLifecycleStatements.length} statements).`);
+
+    console.log('[Migration] Ensuring LINE AI manager tables...');
+    const lineAiManagerMigrationPath = path.join(__dirname, 'drizzle', '0145_line_ai_manager.sql');
+    const lineAiManagerSql = await fs.readFile(lineAiManagerMigrationPath, 'utf8');
+    const lineAiManagerStatements = lineAiManagerSql
+      .split('--> statement-breakpoint')
+      .map(statement => statement.trim())
+      .filter(Boolean);
+    for (const statement of lineAiManagerStatements) {
+      await connection.execute(statement);
+    }
+    console.log(`[Migration] LINE AI manager tables ensured (${lineAiManagerStatements.length} statements).`);
   } catch (fallbackErr) {
     console.error('[Migration] Fallback error:', fallbackErr.message);
   } finally {

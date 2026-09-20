@@ -936,6 +936,70 @@ export const lineFollowUps = mysqlTable("line_follow_ups", {
 export type LineFollowUp = typeof lineFollowUps.$inferSelect;
 export type InsertLineFollowUp = typeof lineFollowUps.$inferInsert;
 
+/**
+ * Per-liver controls and durable state for the LCJ official AI manager.
+ * Reply defaults ON only after an active liver linkage; proactive care defaults OFF.
+ */
+export const lineAiManagerSettings = mysqlTable("line_ai_manager_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  lineUserId: varchar("lineUserId", { length: 64 }).notNull(),
+  liverId: int("liverId").notNull(),
+  replyEnabled: boolean("replyEnabled").default(true).notNull(),
+  proactiveEnabled: boolean("proactiveEnabled").default(false).notNull(),
+  tiktokAnalysisEnabled: boolean("tiktokAnalysisEnabled").default(true).notNull(),
+  inactivityDays: int("inactivityDays").default(3).notNull(),
+  maxProactivePerCycle: int("maxProactivePerCycle").default(2).notNull(),
+  tone: mysqlEnum("tone", ["warm", "professional", "energetic"]).default("warm").notNull(),
+  lastInboundAt: timestamp("lastInboundAt"),
+  lastReplyAt: timestamp("lastReplyAt"),
+  lastProactiveAt: timestamp("lastProactiveAt"),
+  consecutiveProactiveCount: int("consecutiveProactiveCount").default(0).notNull(),
+  lastIntent: varchar("lastIntent", { length: 100 }),
+  nextAction: text("nextAction"),
+  lastResponsePreview: text("lastResponsePreview"),
+  tiktokInsight: json("tiktokInsight").$type<Record<string, unknown> | null>(),
+  tiktokInsightUpdatedAt: timestamp("tiktokInsightUpdatedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  lineUserUnique: uniqueIndex("uq_line_ai_manager_user").on(table.lineUserId),
+  liverIndex: index("idx_line_ai_manager_liver").on(table.liverId),
+  proactiveIndex: index("idx_line_ai_manager_proactive").on(table.proactiveEnabled, table.lastInboundAt, table.lastProactiveAt),
+}));
+
+export type LineAiManagerSetting = typeof lineAiManagerSettings.$inferSelect;
+export type InsertLineAiManagerSetting = typeof lineAiManagerSettings.$inferInsert;
+
+/** Durable idempotency, decision and delivery audit for AI manager messages. */
+export const lineAiManagerEvents = mysqlTable("line_ai_manager_events", {
+  id: int("id").autoincrement().primaryKey(),
+  eventKey: varchar("eventKey", { length: 160 }).notNull(),
+  sourceMessageId: varchar("sourceMessageId", { length: 64 }),
+  lineUserId: varchar("lineUserId", { length: 64 }).notNull(),
+  liverId: int("liverId").notNull(),
+  triggerType: mysqlEnum("triggerType", ["reply", "inactivity_follow_up"]).notNull(),
+  status: mysqlEnum("status", ["queued", "processing", "ready", "sending", "sent", "failed", "skipped", "unknown"]).default("queued").notNull(),
+  model: varchar("model", { length: 100 }),
+  attemptCount: int("attemptCount").default(0).notNull(),
+  leaseToken: varchar("leaseToken", { length: 64 }),
+  leaseExpiresAt: timestamp("leaseExpiresAt"),
+  lastAttemptAt: timestamp("lastAttemptAt"),
+  intent: varchar("intent", { length: 100 }),
+  nextAction: text("nextAction"),
+  responseText: text("responseText"),
+  errorCode: varchar("errorCode", { length: 120 }),
+  promptTokens: int("promptTokens"),
+  completionTokens: int("completionTokens"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+}, table => ({
+  eventUnique: uniqueIndex("uq_line_ai_manager_event").on(table.eventKey),
+  userCreatedIndex: index("idx_line_ai_manager_event_user").on(table.lineUserId, table.createdAt),
+  statusCreatedIndex: index("idx_line_ai_manager_event_status").on(table.status, table.leaseExpiresAt, table.createdAt),
+}));
+
+export type LineAiManagerEvent = typeof lineAiManagerEvents.$inferSelect;
+
 
 /**
  * Pending Responses table for tracking messages that require staff response

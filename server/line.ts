@@ -3,6 +3,8 @@ import { ENV } from "./_core/env";
 
 const LINE_GROUP_LOOKUP_TIMEOUT_MS = 5_000;
 const LINE_GROUP_LEAVE_TIMEOUT_MS = 10_000;
+const LINE_MESSAGE_API_TIMEOUT_MS = 10_000;
+const LINE_PROFILE_LOOKUP_TIMEOUT_MS = 2_000;
 
 // LINE Messaging API Types
 export interface LineWebhookEvent {
@@ -93,6 +95,7 @@ export async function replyMessage(
   try {
     const response = await fetch("https://api.line.me/v2/bot/message/reply", {
       method: "POST",
+      signal: AbortSignal.timeout(LINE_MESSAGE_API_TIMEOUT_MS),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${ENV.lineChannelAccessToken}`,
@@ -112,20 +115,26 @@ export async function replyMessage(
 // Send push message (to user or group)
 export async function pushMessage(
   to: string,
-  messages: Array<LineMessage>
+  messages: Array<LineMessage>,
+  retryKey?: string,
 ): Promise<boolean> {
   try {
     const response = await fetch("https://api.line.me/v2/bot/message/push", {
       method: "POST",
+      signal: AbortSignal.timeout(LINE_MESSAGE_API_TIMEOUT_MS),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${ENV.lineChannelAccessToken}`,
+        ...(retryKey ? { "X-Line-Retry-Key": retryKey } : {}),
       },
       body: JSON.stringify({
         to,
         messages,
       }),
     });
+    if (response.status === 409 && retryKey && response.headers.get("x-line-accepted-request-id")) {
+      return true;
+    }
     if (!response.ok) {
       const errorBody = await response.text().catch(() => 'unknown');
       console.error(`[LINE] Push message failed: ${response.status} ${response.statusText} to=${to.substring(0, 8)}... body=${errorBody}`);
@@ -144,6 +153,7 @@ export async function getUserProfile(userId: string): Promise<LineProfile | null
       `https://api.line.me/v2/bot/profile/${userId}`,
       {
         method: "GET",
+        signal: AbortSignal.timeout(LINE_PROFILE_LOOKUP_TIMEOUT_MS),
         headers: {
           Authorization: `Bearer ${ENV.lineChannelAccessToken}`,
         },

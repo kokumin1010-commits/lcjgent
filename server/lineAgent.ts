@@ -23,6 +23,9 @@ import {
 // LINE API configuration
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || "";
 const LINE_API_BASE = "https://api.line.me/v2/bot";
+const LINE_PROFILE_TIMEOUT_MS = 2_000;
+const LINE_MESSAGE_TIMEOUT_MS = 10_000;
+const LINE_CONTENT_TIMEOUT_MS = 15_000;
 
 // Customer questions must be handled by staff. Explicit business commands such as
 // point-history lookup and reminder setup remain available below.
@@ -207,6 +210,7 @@ function endSession(groupId: string, userId: string): void {
 async function replyMessage(replyToken: string, messages: any[]): Promise<void> {
   const response = await fetch(`${LINE_API_BASE}/message/reply`, {
     method: "POST",
+    signal: AbortSignal.timeout(LINE_MESSAGE_TIMEOUT_MS),
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
@@ -232,6 +236,7 @@ async function getUserProfile(userId: string): Promise<{
 } | null> {
   try {
     const response = await fetch(`${LINE_API_BASE}/profile/${userId}`, {
+      signal: AbortSignal.timeout(LINE_PROFILE_TIMEOUT_MS),
       headers: {
         Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
       },
@@ -256,6 +261,7 @@ async function getMessageContent(messageId: string): Promise<{
     const response = await fetch(
       `https://api-data.line.me/v2/bot/message/${messageId}/content`,
       {
+        signal: AbortSignal.timeout(LINE_CONTENT_TIMEOUT_MS),
         headers: {
           Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
         },
@@ -395,6 +401,20 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
   console.log(`[LINE Agent] Processing message from ${userId}: ${messageText.substring(0, 50)}...`);
 
   try {
+    if (!isGroupChat) {
+      const {
+        recordLineAiManagerInboundActivity,
+        tryHandleLineAiManagerMessage,
+      } = await import("./lineAiManager");
+      const isDirectCommand = containsPointsHistoryKeyword(messageText) || containsReminderKeyword(messageText);
+      if (isDirectCommand) {
+        await recordLineAiManagerInboundActivity(event);
+      } else {
+        const handledByAiManager = await tryHandleLineAiManagerMessage(event);
+        if (handledByAiManager) return;
+      }
+    }
+
     // Get user profile
     let profile = null;
     try {
@@ -487,6 +507,9 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       return;
     }
   } catch (error) {
+    if (error instanceof Error && error.name === "LineAiManagerHandoffError") {
+      throw error;
+    }
     // Never send a fallback message automatically. A processing failure must not
     // re-enable customer-facing auto replies through the error path.
     console.error("[LINE Agent] Error processing message while auto-reply is disabled:", error);

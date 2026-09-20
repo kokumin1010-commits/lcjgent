@@ -24,7 +24,8 @@ type LineMessage = LineTextMessage | LineFlexMessage;
  */
 export async function sendLinePushMessage(
   userId: string,
-  messages: LineMessage[]
+  messages: LineMessage[],
+  retryKey?: string,
 ): Promise<{ success: boolean; error?: string }> {
   if (!ENV.lineChannelAccessToken) {
     return { success: false, error: "LINE_CHANNEL_ACCESS_TOKEN not configured" };
@@ -33,9 +34,11 @@ export async function sendLinePushMessage(
   try {
     const response = await fetch("https://api.line.me/v2/bot/message/push", {
       method: "POST",
+      signal: AbortSignal.timeout(10_000),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${ENV.lineChannelAccessToken}`,
+        ...(retryKey ? { "X-Line-Retry-Key": retryKey } : {}),
       },
       body: JSON.stringify({
         to: userId,
@@ -43,9 +46,16 @@ export async function sendLinePushMessage(
       }),
     });
 
+    if (response.status === 409 && retryKey && response.headers.get("x-line-accepted-request-id")) {
+      return { success: true };
+    }
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error("[LINE Push] Error:", response.status, errorData);
+      if (retryKey) {
+        throw new Error(`LINE API error: ${response.status} - ${JSON.stringify(errorData)}`);
+      }
       return { 
         success: false, 
         error: `LINE API error: ${response.status} - ${JSON.stringify(errorData)}` 
@@ -55,6 +65,7 @@ export async function sendLinePushMessage(
     return { success: true };
   } catch (error) {
     console.error("[LINE Push] Exception:", error);
+    if (retryKey) throw error;
     return { 
       success: false, 
       error: error instanceof Error ? error.message : "Unknown error" 
