@@ -3302,3 +3302,11 @@ v3 seed使用内容SHA-256对象键，失败重试覆盖同一对象而不会生
 
 验证：QQ production parser=`sheetCount 36 / visibleValues 8588 / internalImageLinks 66 / positionedImageReferences 69 / positionedImageSheets 4 / unredactedCredentials 0 / directEmails 0`；目标Vitest 3 files、21 tests通过；seed/router/client esbuild通过；完整production build通过。全量`pnpm check`仍为既存729条诊断，本次修改文件0条。独立代码审查指出的列偏移、health覆盖、失败重试重复对象和GIF不一致均已修正。
 正式发布：功能commit `3b22fdc7`已推送GitHub main并通过Railway。production `/api/health/lcf-first-edition`返回HTTP 200：`sourceCount=36`、`internalSourceCount=36`、`positionedSourceCount=36`、`imageAssetCount=69`、`positionedImageCount=69`、`positionedImageSheetCount=4`、`uniqueImageAssetCount=66`、`knowledgeCount=37`、`sopCount=1`、`templateCount=1`。正式LCJ Brain chunk `LcjBrain-Dh5kYTC3.js`包含“原表照片已按单元格位置放回表格”“原表位置”“原表未提供单元格坐标的图片”。未登录`lcjBrainProject.sourceAssets`仍为HTTP 401，确认照片URL和资料明细继续受登录与项目权限保护。
+
+## 2026-09-20 — Rundown 直播时间、商品属性与直播折扣率升级
+
+按运营反馈升级 Rundown 详情页。顶部直播日期、开始时间、结束时间现可直接编辑并保存；时间统一校验为 `HH:mm`，允许跨午夜直播并将结束时间按次日计算，同时拒绝 0 分钟或超过 12 小时的异常时段。商品表在“品牌”和“主题/痛点”之间新增“属性”，仅允许选择“必播品／可选品”；“直播价格”后新增独立的“直播折扣率（%OFF）”，与佣金比例保持不同字段。未人工填写时，折扣率由本次定价和直播价实时计算；人工值可覆盖，选品中心的“历史最低折扣率”不会被误写成当前直播折扣率。
+
+同时修复底部快速新增行与表头错位：25 列现在逐列对应，商品名称、时段、板块、发货时间、属性、直播折扣率等均写入正确字段；原“板块”列误读福袋组合字段的问题也已修正。后端为既有 `rundown_items` 表以幂等方式补齐 `productAttribute`、`deliveryTime`、`liveDiscountRate` 三列，首个相关请求会等待结构升级完成；新增、编辑、复制 Rundown 均完整保留这些字段。
+
+功能提交 `4f1dec2` 已推送 GitHub main，Railway 部署成功。专项及关联 Vitest 共 14 项通过，前后端独立 esbuild 与完整 production build 成功；全库 TypeScript 仍有 727 条既有诊断，本次 Rundown 文件为 0 条，构建仅保留既有 `server/receiptMaskingService.ts` sharp namespace warning。生产 `/master/rundown` 返回 HTTP 200，线上资源 `RundownManager-pGLrLq8k.js` 已确认包含可编辑时间、“必播品／可选品”、直播折扣率、跨午夜提示和 `%OFF`。管理员只读 API 验收确认生产有 1 个 Rundown 会话、5 个商品行，日期/起止时间字段与 `productAttribute`、`deliveryTime`、`liveDiscountRate` 三个新增列均已返回。
