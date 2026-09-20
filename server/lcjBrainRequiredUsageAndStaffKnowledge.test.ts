@@ -170,8 +170,7 @@ describe("LCJ Brain required usage and staff work knowledge", () => {
     expect(permissionService).toContain("canViewPermissionDirectory");
     expect(permissionService).toContain("randomBytes(48)");
     expect(permissionService).toContain("bcrypt.hash(unusablePassword, 10)");
-    expect(permissionService).toContain("SMTP_USER");
-    expect(permissionService).toContain("SMTP_PASS");
+    expect(permissionService).toContain("getEmailProviderConfiguration");
     expect(permissionService).toContain(
       "INSERT INTO users (email, password, name, role, sessionVersion)"
     );
@@ -198,6 +197,8 @@ describe("LCJ Brain required usage and staff work knowledge", () => {
     expect(database).toContain("isNull(passwordResetTokens.usedAt)");
     expect(database).toContain("Password reset token consumption failed");
     expect(auth).toContain("consumeUserPasswordResetToken");
+    expect(auth).toContain("sendEmail");
+    expect(auth).toContain("getEmailProviderConfiguration");
     expect(auth).toContain("核心账号密码重置邮件发送失败");
     expect(schema).toContain('sessionVersion: int("sessionVersion")');
     expect(sessionMigration).toContain("ADD COLUMN `sessionVersion`");

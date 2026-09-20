@@ -22,6 +22,7 @@ import { ENV } from "./_core/env";
 import { PAYROLL_ACCESS_COOKIE } from "./payrollAccess";
 import { FINANCE_ACCESS_COOKIE } from "./financeAccess";
 import { isLcjBrainCoreSuperAdminEmail } from "../shared/lcjBrainCoreAdmins";
+import { getEmailProviderConfiguration, sendEmail } from "./emailService";
 
 const SALT_ROUNDS = 10;
 
@@ -254,7 +255,7 @@ export const authRouter = router({
       const isCoreAccount = isLcjBrainCoreSuperAdminEmail(input.email);
       if (
         isCoreAccount &&
-        (!process.env.SMTP_USER?.trim() || !process.env.SMTP_PASS?.trim())
+        getEmailProviderConfiguration().priority.length === 0
       ) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -278,21 +279,10 @@ export const authRouter = router({
       const resetUrl = `${process.env.APP_URL || "https://lcjmall.com"}/reset-password-admin?token=${token}`;
 
       try {
-        const nodemailer = await import("nodemailer");
-        const transporter = nodemailer.createTransport({
-          host: "smtp.gmail.com",
-          port: 587,
-          secure: false,
-          auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS,
-          },
-        });
-
-        await transporter.sendMail({
-          from: `"業務自動化システム" <${process.env.SMTP_USER}>`,
-          to: input.email,
+        const delivery = await sendEmail({
+          to: [input.email],
           subject: "【業務自動化システム】パスワードリセットのご案内",
+          content: `${user.name || "お客"}様\n\n以下のリンクから新しいパスワードを設定してください。\n${resetUrl}\n\nこのリンクは1時間後に無効になります。`,
           html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
               <h2 style="color: #3b82f6;">パスワードリセットのご案内</h2>
@@ -311,6 +301,9 @@ export const authRouter = router({
             </div>
           `,
         });
+        if (!delivery.success) {
+          throw new Error(delivery.errorCode || "EMAIL_DELIVERY_FAILED");
+        }
       } catch (error) {
         if (isCoreAccount) {
           console.error(

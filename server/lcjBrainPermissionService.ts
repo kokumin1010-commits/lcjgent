@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import { sql } from "drizzle-orm";
 import { LCJ_BRAIN_CORE_SUPER_ADMINS } from "../shared/lcjBrainCoreAdmins";
 import { getDb } from "./db";
+import { getEmailProviderConfiguration } from "./emailService";
 import { createRbacTables } from "./migrations/createRbacTables";
 import { getSystemUserHierarchy } from "./systemUserHierarchyService";
 import { getUserManagementAccess } from "./userManagementAccess";
@@ -47,7 +48,7 @@ async function ensureUserSessionVersionColumn(
 }
 
 function assertCorePasswordResetDeliveryConfigured(): void {
-  if (!process.env.SMTP_USER?.trim() || !process.env.SMTP_PASS?.trim()) {
+  if (getEmailProviderConfiguration().priority.length === 0) {
     throw new Error("Core account password reset delivery is not configured");
   }
 }
