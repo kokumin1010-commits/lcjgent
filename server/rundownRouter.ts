@@ -2,8 +2,14 @@ import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import mysql from "mysql2/promise";
+import { RUNDOWN_PRODUCT_ATTRIBUTE_VALUES, isValidRundownTimeRange } from "../shared/rundown";
 
 let pool: mysql.Pool;
+const rundownTimeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, "时间必须为 HH:mm");
+const optionalRundownDiscountRateSchema = z.union([z.number(), z.string()]).nullable().optional().refine(
+  (value) => value === null || value === undefined || value === "" || (typeof value !== "string" || value.trim() !== "") && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 100,
+  "直播折扣率必须在 0–100 之间",
+);
 function getPool() {
   if (!pool) {
     pool = mysql.createPool({
@@ -13,6 +19,23 @@ function getPool() {
     });
   }
   return pool;
+}
+
+async function ensureRundownItemColumn(p: mysql.Pool, columnName: string, columnDefinition: string) {
+  const [rows] = await p.query(
+    `SELECT COUNT(*) AS count
+       FROM information_schema.columns
+      WHERE table_schema = DATABASE()
+        AND table_name = 'rundown_items'
+        AND column_name = ?`,
+    [columnName],
+  ) as any;
+  if (Number(rows[0]?.count || 0) > 0) return;
+  try {
+    await p.query(`ALTER TABLE rundown_items ADD COLUMN ${columnDefinition}`);
+  } catch (error: any) {
+    if (error?.code !== "ER_DUP_FIELDNAME") throw error;
+  }
 }
 
 // Initialize tables
@@ -48,13 +71,16 @@ async function initRundownTables() {
       productName VARCHAR(500) DEFAULT NULL,
       productNameCn VARCHAR(500) DEFAULT NULL,
       brandName VARCHAR(255) DEFAULT NULL,
+      productAttribute ENUM('required','optional') DEFAULT NULL,
       imageUrl TEXT DEFAULT NULL,
       productLink VARCHAR(1000) DEFAULT NULL,
       selfSiteLink VARCHAR(1000) DEFAULT NULL,
       theme VARCHAR(500) DEFAULT NULL,
+      deliveryTime VARCHAR(255) DEFAULT NULL,
       bundleCombo TEXT DEFAULT NULL,
       listPrice DECIMAL(14,2) DEFAULT NULL,
       livePrice DECIMAL(14,2) DEFAULT NULL,
+      liveDiscountRate DECIMAL(5,2) DEFAULT NULL,
       costPrice DECIMAL(14,2) DEFAULT NULL,
       purchasePrice DECIMAL(14,2) DEFAULT NULL,
       commissionRate DECIMAL(10,2) DEFAULT NULL,
@@ -129,10 +155,24 @@ async function initRundownTables() {
   try { await p.query('ALTER TABLE rundown_items MODIFY COLUMN purchasePrice DECIMAL(14,2) DEFAULT NULL'); } catch (e: any) { /* ignore */ }
   try { await p.query('ALTER TABLE rundown_items MODIFY COLUMN commissionRate DECIMAL(10,2) DEFAULT NULL'); } catch (e: any) { /* ignore */ }
   try { await p.query('ALTER TABLE rundown_items MODIFY COLUMN estimatedGmv DECIMAL(14,2) DEFAULT NULL'); } catch (e: any) { /* ignore */ }
+  await ensureRundownItemColumn(p, 'productAttribute', "productAttribute ENUM('required','optional') DEFAULT NULL AFTER brandName");
+  await ensureRundownItemColumn(p, 'deliveryTime', 'deliveryTime VARCHAR(255) DEFAULT NULL AFTER theme');
+  await ensureRundownItemColumn(p, 'liveDiscountRate', 'liveDiscountRate DECIMAL(5,2) DEFAULT NULL AFTER livePrice');
 }
 
-// Run init on import
-initRundownTables().catch(console.error);
+let rundownTablesReadyPromise: Promise<void> | null = null;
+function ensureRundownTablesReady() {
+  if (!rundownTablesReadyPromise) {
+    rundownTablesReadyPromise = initRundownTables().catch((error) => {
+      rundownTablesReadyPromise = null;
+      throw error;
+    });
+  }
+  return rundownTablesReadyPromise;
+}
+
+// Warm the schema on import; procedures below still await the same promise.
+ensureRundownTablesReady().catch((error) => console.error('rundown table init error:', error));
 
 export const rundownRouter = router({
   // ========== SESSION CRUD ==========
@@ -144,6 +184,7 @@ export const rundownRouter = router({
     page: z.number().default(1),
     pageSize: z.number().default(20),
   }).optional()).query(async ({ input }) => {
+    await ensureRundownTablesReady();
     const p = getPool();
     const params: any[] = [];
     let where = 'WHERE 1=1';
@@ -160,6 +201,7 @@ export const rundownRouter = router({
   }),
 
   getSessionById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
+    await ensureRundownTablesReady();
     const p = getPool();
     const [sessions] = await p.query('SELECT * FROM rundown_sessions WHERE id = ?', [input.id]) as any;
     if (!sessions.length) return null;
@@ -180,14 +222,18 @@ export const rundownRouter = router({
     liverId: z.number().optional(),
     liverName: z.string().optional(),
     liveDate: z.string(),
-    startTime: z.string().optional(),
-    endTime: z.string().optional(),
+    startTime: rundownTimeSchema.optional(),
+    endTime: rundownTimeSchema.optional(),
     platform: z.string().default('TikTok'),
     theme: z.string().optional(),
     operatorName: z.string().optional(),
     shopName: z.string().optional(),
     notes: z.string().optional(),
+  }).refine((value) => !value.startTime || !value.endTime || isValidRundownTimeRange(value.startTime, value.endTime), {
+    message: "直播时段必须大于 0 且不超过 12 小时；跨午夜时结束时间按次日计算",
+    path: ["endTime"],
   })).mutation(async ({ input, ctx }) => {
+    await ensureRundownTablesReady();
     const p = getPool();
     const [result] = await p.query(
       `INSERT INTO rundown_sessions (title, liverId, liverName, liveDate, startTime, endTime, platform, theme, operatorName, shopName, notes, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -219,15 +265,19 @@ export const rundownRouter = router({
     liverId: z.number().optional(),
     liverName: z.string().optional(),
     liveDate: z.string().optional(),
-    startTime: z.string().optional(),
-    endTime: z.string().optional(),
+    startTime: rundownTimeSchema.optional(),
+    endTime: rundownTimeSchema.optional(),
     platform: z.string().optional(),
     theme: z.string().optional(),
     operatorName: z.string().optional(),
     shopName: z.string().optional(),
     status: z.string().optional(),
     notes: z.string().optional(),
+  }).refine((value) => !value.startTime || !value.endTime || isValidRundownTimeRange(value.startTime, value.endTime), {
+    message: "直播时段必须大于 0 且不超过 12 小时；跨午夜时结束时间按次日计算",
+    path: ["endTime"],
   })).mutation(async ({ input }) => {
+    await ensureRundownTablesReady();
     const p = getPool();
     const fields: string[] = [];
     const values: any[] = [];
@@ -262,13 +312,16 @@ export const rundownRouter = router({
     productName: z.string().optional(),
     productNameCn: z.string().optional(),
     brandName: z.string().optional(),
+    productAttribute: z.enum(RUNDOWN_PRODUCT_ATTRIBUTE_VALUES).optional(),
     imageUrl: z.string().optional(),
     productLink: z.string().optional(),
     selfSiteLink: z.string().optional(),
     theme: z.string().optional(),
+    deliveryTime: z.string().optional(),
     bundleCombo: z.string().optional(),
     listPrice: z.number().optional(),
     livePrice: z.number().optional(),
+    liveDiscountRate: z.number().min(0).max(100).optional(),
     costPrice: z.number().optional(),
     purchasePrice: z.number().optional(),
     commissionRate: z.number().optional(),
@@ -279,6 +332,7 @@ export const rundownRouter = router({
     recommendReason: z.string().optional(),
     notes: z.string().optional(),
   })).mutation(async ({ input }) => {
+    await ensureRundownTablesReady();
     const p = getPool();
     // Get next slot order if not provided
     let slotOrder = input.slotOrder;
@@ -287,8 +341,8 @@ export const rundownRouter = router({
       slotOrder = maxRows[0].nextOrder;
     }
     const [result] = await p.query(
-      `INSERT INTO rundown_items (sessionId, slotOrder, timeSlot, durationMinutes, section, productId, productName, productNameCn, brandName, imageUrl, productLink, selfSiteLink, theme, bundleCombo, listPrice, livePrice, costPrice, purchasePrice, commissionRate, bundlePrice, shopAndFormat, estimatedGmv, playStrategy, recommendReason, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [input.sessionId, slotOrder, input.timeSlot || null, input.durationMinutes || null, input.section || null, input.productId || null, input.productName || null, input.productNameCn || null, input.brandName || null, input.imageUrl || null, input.productLink || null, input.selfSiteLink || null, input.theme || null, input.bundleCombo || null, input.listPrice || null, input.livePrice || null, input.costPrice || null, input.purchasePrice || null, input.commissionRate || null, input.bundlePrice || null, input.shopAndFormat || null, input.estimatedGmv || null, input.playStrategy || null, input.recommendReason || null, input.notes || null]
+      `INSERT INTO rundown_items (sessionId, slotOrder, timeSlot, durationMinutes, section, productId, productName, productNameCn, brandName, productAttribute, imageUrl, productLink, selfSiteLink, theme, deliveryTime, bundleCombo, listPrice, livePrice, liveDiscountRate, costPrice, purchasePrice, commissionRate, bundlePrice, shopAndFormat, estimatedGmv, playStrategy, recommendReason, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [input.sessionId, slotOrder, input.timeSlot || null, input.durationMinutes || null, input.section || null, input.productId || null, input.productName || null, input.productNameCn || null, input.brandName || null, input.productAttribute || null, input.imageUrl || null, input.productLink || null, input.selfSiteLink || null, input.theme || null, input.deliveryTime || null, input.bundleCombo || null, input.listPrice ?? null, input.livePrice ?? null, input.liveDiscountRate ?? null, input.costPrice ?? null, input.purchasePrice ?? null, input.commissionRate ?? null, input.bundlePrice || null, input.shopAndFormat || null, input.estimatedGmv ?? null, input.playStrategy || null, input.recommendReason || null, input.notes || null]
     ) as any;
     return { id: result.insertId, success: true };
   }),
@@ -303,13 +357,16 @@ export const rundownRouter = router({
     productName: z.string().nullable().optional(),
     productNameCn: z.string().nullable().optional(),
     brandName: z.string().nullable().optional(),
+    productAttribute: z.enum(RUNDOWN_PRODUCT_ATTRIBUTE_VALUES).nullable().optional(),
     imageUrl: z.string().nullable().optional(),
     productLink: z.string().nullable().optional(),
     selfSiteLink: z.string().nullable().optional(),
     theme: z.string().nullable().optional(),
+    deliveryTime: z.string().nullable().optional(),
     bundleCombo: z.string().nullable().optional(),
     listPrice: z.union([z.number(), z.string()]).nullable().optional(),
     livePrice: z.union([z.number(), z.string()]).nullable().optional(),
+    liveDiscountRate: optionalRundownDiscountRateSchema,
     costPrice: z.union([z.number(), z.string()]).nullable().optional(),
     purchasePrice: z.union([z.number(), z.string()]).nullable().optional(),
     commissionRate: z.union([z.number(), z.string()]).nullable().optional(),
@@ -320,6 +377,7 @@ export const rundownRouter = router({
     recommendReason: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
   })).mutation(async ({ input }) => {
+    await ensureRundownTablesReady();
     const p = getPool();
     const { id, ...rest } = input;
     const fields: string[] = [];
@@ -503,6 +561,7 @@ export const rundownRouter = router({
     newDate: z.string(),
     newTitle: z.string().optional(),
   })).mutation(async ({ input }) => {
+    await ensureRundownTablesReady();
     const p = getPool();
     const [sessions] = await p.query('SELECT * FROM rundown_sessions WHERE id = ?', [input.sessionId]) as any;
     if (!sessions.length) throw new Error('Session not found');
@@ -516,8 +575,8 @@ export const rundownRouter = router({
     const [items] = await p.query('SELECT * FROM rundown_items WHERE sessionId = ? ORDER BY slotOrder', [input.sessionId]) as any;
     for (const item of items) {
       await p.query(
-        `INSERT INTO rundown_items (sessionId, slotOrder, timeSlot, durationMinutes, section, productId, productName, productNameCn, brandName, imageUrl, productLink, selfSiteLink, theme, bundleCombo, listPrice, livePrice, costPrice, purchasePrice, commissionRate, bundlePrice, shopAndFormat, estimatedGmv, playStrategy, recommendReason, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [newId, item.slotOrder, item.timeSlot, item.durationMinutes, item.section, item.productId, item.productName, item.productNameCn, item.brandName, item.imageUrl, item.productLink, item.selfSiteLink, item.theme, item.bundleCombo, item.listPrice, item.livePrice, item.costPrice, item.purchasePrice, item.commissionRate, item.bundlePrice, item.shopAndFormat, item.estimatedGmv, item.playStrategy, item.recommendReason, item.notes]
+        `INSERT INTO rundown_items (sessionId, slotOrder, timeSlot, durationMinutes, section, productId, productName, productNameCn, brandName, productAttribute, imageUrl, productLink, selfSiteLink, theme, deliveryTime, bundleCombo, listPrice, livePrice, liveDiscountRate, costPrice, purchasePrice, commissionRate, bundlePrice, shopAndFormat, estimatedGmv, playStrategy, recommendReason, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [newId, item.slotOrder, item.timeSlot, item.durationMinutes, item.section, item.productId, item.productName, item.productNameCn, item.brandName, item.productAttribute, item.imageUrl, item.productLink, item.selfSiteLink, item.theme, item.deliveryTime, item.bundleCombo, item.listPrice, item.livePrice, item.liveDiscountRate, item.costPrice, item.purchasePrice, item.commissionRate, item.bundlePrice, item.shopAndFormat, item.estimatedGmv, item.playStrategy, item.recommendReason, item.notes]
       );
     }
     // Copy checklist
@@ -667,7 +726,12 @@ Convert K/万 to actual numbers. Only return the JSON object, no explanation.`
         }
       ],
     });
-    const content = result.choices?.[0]?.message?.content || "{}";
+    const rawContent = result.choices?.[0]?.message?.content;
+    const content = typeof rawContent === "string"
+      ? rawContent
+      : Array.isArray(rawContent)
+        ? rawContent.map((part: any) => typeof part?.text === "string" ? part.text : "").filter(Boolean).join("\n")
+        : "{}";
     // Parse JSON from response (handle markdown code blocks)
     let jsonStr = content.trim();
     if (jsonStr.startsWith('```')) {

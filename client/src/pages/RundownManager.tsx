@@ -14,8 +14,17 @@ import { toast } from "sonner";
 import {
   Plus, Trash2, Edit, Copy, Search, Upload, ArrowUp, ArrowDown,
   Calendar, Clock, Video, CheckCircle2, FileSpreadsheet, BarChart3, Sparkles,
-  GripVertical, Package, AlertCircle
+  GripVertical, Package, AlertCircle, Pencil, Save, X
 } from "lucide-react";
+import {
+  RUNDOWN_PRODUCT_ATTRIBUTE_LABELS,
+  calculateRundownLiveDiscountRate,
+  isValidRundownTimeRange,
+  normalizeRundownTime,
+  parseRundownDiscountRate,
+  resolveRundownLiveDiscountRate,
+  type RundownProductAttribute,
+} from "@shared/rundown";
 
 // ============ SESSION LIST ============
 function SessionList({ onSelect }: { onSelect: (id: number) => void }) {
@@ -241,6 +250,46 @@ function SessionDetail({ sessionId, onBack }: { sessionId: number; onBack: () =>
   
   const detailQuery = trpc.rundown.getSessionById.useQuery({ id: sessionId }, { refetchInterval: 3000 });
   const updateSessionMutation = trpc.rundown.updateSession.useMutation({ onSuccess: () => detailQuery.refetch() });
+  const [editingSchedule, setEditingSchedule] = useState(false);
+  const [scheduleDraft, setScheduleDraft] = useState({ liveDate: "", startTime: "", endTime: "" });
+
+  const sessionData = detailQuery.data?.session;
+  const sessionDate = sessionData?.liveDate
+    ? (sessionData.liveDate instanceof Date ? sessionData.liveDate.toISOString() : String(sessionData.liveDate)).split("T")[0]
+    : "";
+
+  useEffect(() => {
+    if (!editingSchedule && sessionData) {
+      setScheduleDraft({
+        liveDate: sessionDate,
+        startTime: String(sessionData.startTime || ""),
+        endTime: String(sessionData.endTime || ""),
+      });
+    }
+  }, [editingSchedule, sessionData?.id, sessionDate, sessionData?.startTime, sessionData?.endTime]);
+
+  const saveSchedule = () => {
+    const startTime = normalizeRundownTime(scheduleDraft.startTime);
+    const endTime = normalizeRundownTime(scheduleDraft.endTime);
+    if (!scheduleDraft.liveDate || !startTime || !endTime) {
+      toast.error("配信日・開始時間・終了時間を正しく入力してください");
+      return;
+    }
+    if (!isValidRundownTimeRange(startTime, endTime)) {
+      toast.error("直播时长必须大于0且不超过12小时；跨午夜时结束时间会按次日计算");
+      return;
+    }
+    updateSessionMutation.mutate(
+      { id: sessionId, liveDate: scheduleDraft.liveDate, startTime, endTime },
+      {
+        onSuccess: () => {
+          setEditingSchedule(false);
+          toast.success("直播时间已更新");
+        },
+        onError: (error) => toast.error(`更新失败: ${error.message}`),
+      },
+    );
+  };
 
   if (detailQuery.isLoading) return <div className="text-center py-12">読み込み中...</div>;
   if (!detailQuery.data) return <div className="text-center py-12">データが見つかりません</div>;
@@ -255,9 +304,38 @@ function SessionDetail({ sessionId, onBack }: { sessionId: number; onBack: () =>
           <Button variant="ghost" onClick={onBack}>← 戻る</Button>
           <div>
             <h1 className="text-xl font-bold">{session.title}</h1>
+            {editingSchedule ? (
+              <div className="mt-2 flex flex-wrap items-end gap-2 rounded-lg border border-blue-200 bg-blue-50/60 p-2">
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium text-blue-800">直播日期</label>
+                  <Input type="date" value={scheduleDraft.liveDate} onChange={(event) => setScheduleDraft((current) => ({ ...current, liveDate: event.target.value }))} className="h-8 w-[145px] bg-white text-xs" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium text-blue-800">开始时间</label>
+                  <Input type="time" value={scheduleDraft.startTime} onChange={(event) => setScheduleDraft((current) => ({ ...current, startTime: event.target.value }))} className="h-8 w-[115px] bg-white text-xs" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium text-blue-800">结束时间</label>
+                  <Input type="time" value={scheduleDraft.endTime} onChange={(event) => setScheduleDraft((current) => ({ ...current, endTime: event.target.value }))} className="h-8 w-[115px] bg-white text-xs" />
+                </div>
+                {scheduleDraft.startTime && scheduleDraft.endTime && scheduleDraft.endTime <= scheduleDraft.startTime && <span className="pb-2 text-[11px] text-blue-700">结束时间按次日计算</span>}
+                <Button type="button" size="sm" className="h-8 gap-1" onClick={saveSchedule} disabled={updateSessionMutation.isPending}><Save className="h-3.5 w-3.5" />保存</Button>
+                <Button type="button" size="sm" variant="ghost" className="h-8" onClick={() => setEditingSchedule(false)}><X className="h-3.5 w-3.5" />取消</Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="mt-1 inline-flex items-center gap-2 rounded-md px-1 py-0.5 text-sm text-muted-foreground hover:bg-blue-50 hover:text-blue-700"
+                onClick={() => setEditingSchedule(true)}
+                title="点击编辑直播日期和时间"
+              >
+                <Calendar className="h-3.5 w-3.5" />
+                <span>{sessionDate}</span>
+                {session.startTime && <span><Clock className="mr-1 inline h-3.5 w-3.5" />{session.startTime}〜{session.endTime}</span>}
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            )}
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              <span>{session.liveDate ? new Date(session.liveDate).toISOString().split("T")[0] : ""}</span>
-              {session.startTime && <span>{session.startTime}〜{session.endTime}</span>}
               {session.liverName && <span>🎤 {session.liverName}</span>}
               {session.theme && <span>テーマ: {session.theme}</span>}
             </div>
@@ -308,7 +386,8 @@ function EditableCell({ item, field, fallback, onSave, isLink, suffix, className
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
-  const displayValue = item[field] || fallback || '';
+  const rawValue = item[field];
+  const displayValue = rawValue === null || rawValue === undefined || rawValue === '' ? (fallback || '') : String(rawValue);
   const formattedDisplay = suffix && displayValue ? displayValue + suffix : displayValue;
 
   useEffect(() => { if (editing && inputRef.current) inputRef.current.focus(); }, [editing]);
@@ -316,7 +395,7 @@ function EditableCell({ item, field, fallback, onSave, isLink, suffix, className
   const handleSave = () => {
     setEditing(false);
     const newVal = value.trim();
-    const oldVal = String(item[field] || '');
+    const oldVal = rawValue === null || rawValue === undefined ? '' : String(rawValue);
     if (newVal !== oldVal) onSave(newVal);
   };
 
@@ -340,7 +419,7 @@ function EditableCell({ item, field, fallback, onSave, isLink, suffix, className
   return (
     <td
       className={`px-1.5 py-1 border border-gray-200 cursor-pointer hover:bg-blue-50 transition-colors text-xs ${className || ''} `}
-      onClick={() => { setValue(String(item[field] || '')); setEditing(true); }}
+      onClick={() => { setValue(rawValue === null || rawValue === undefined ? '' : String(rawValue)); setEditing(true); }}
       title="クリックして編集"
     >
       {isLink && displayValue ? <a href={displayValue} target="_blank" className="text-blue-500 underline truncate block max-w-[60px]" onClick={(e) => e.stopPropagation()}>链接</a> : (formattedDisplay || <span className="text-gray-300">-</span>)}
@@ -416,12 +495,18 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
 
-  const addMutation = trpc.rundown.addItem.useMutation({ onSuccess: () => { onRefresh(); setShowAdd(false); toast.success("追加完了"); } });
+  const addMutation = trpc.rundown.addItem.useMutation({
+    onSuccess: () => { onRefresh(); setShowAdd(false); toast.success("追加完了"); },
+    onError: (error) => toast.error(`追加失敗: ${error.message}`),
+  });
   const inlineAddMutation = trpc.rundown.addItem.useMutation({ 
     onSuccess: () => { onRefresh(); resetForm(); toast.success("追加完了"); },
     onError: (err: any) => { toast.error("追加失敗: " + (err?.message || "不明なエラー")); console.error("[InlineAdd Error]", err); }
   });
-  const updateMutation = trpc.rundown.updateItem.useMutation({ onSuccess: () => { onRefresh(); setEditingItem(null); toast.success("更新完了"); } });
+  const updateMutation = trpc.rundown.updateItem.useMutation({
+    onSuccess: () => { onRefresh(); setEditingItem(null); toast.success("更新完了"); },
+    onError: (error) => toast.error(`更新失敗: ${error.message}`),
+  });
 
   // 画像アップロード処理
   const handleImageUpload = async (file: File) => {
@@ -452,6 +537,10 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
   };
 
   const handleInlineAdd = () => {
+    if (itemForm.liveDiscountRate !== null && itemForm.liveDiscountRate !== undefined && itemForm.liveDiscountRate !== "" && parseRundownDiscountRate(itemForm.liveDiscountRate) === null) {
+      toast.error("直播折扣率请输入 0–100 之间的数字");
+      return;
+    }
     // null/undefined/空文字をフィルタリングしてAPIに送信
     const cleanData: any = { sessionId };
     if (itemForm.timeSlot) cleanData.timeSlot = itemForm.timeSlot;
@@ -459,10 +548,13 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
     if (itemForm.imageUrl && !itemForm.imageUrl.startsWith("data:")) cleanData.imageUrl = itemForm.imageUrl;
     if (itemForm.theme) cleanData.theme = itemForm.theme;
     if (itemForm.brandName) cleanData.brandName = itemForm.brandName;
+    if (itemForm.productAttribute) cleanData.productAttribute = itemForm.productAttribute;
     if (itemForm.productName) cleanData.productName = itemForm.productName;
     if (itemForm.productNameCn) cleanData.productNameCn = itemForm.productNameCn;
+    if (itemForm.deliveryTime) cleanData.deliveryTime = itemForm.deliveryTime;
     if (itemForm.listPrice) cleanData.listPrice = Number(itemForm.listPrice);
     if (itemForm.livePrice) cleanData.livePrice = Number(itemForm.livePrice);
+    if (itemForm.liveDiscountRate !== null && itemForm.liveDiscountRate !== undefined && itemForm.liveDiscountRate !== "") cleanData.liveDiscountRate = Number(itemForm.liveDiscountRate);
     if (itemForm.costPrice) cleanData.costPrice = Number(itemForm.costPrice);
     if (itemForm.commissionRate) cleanData.commissionRate = Number(itemForm.commissionRate);
     if (itemForm.bundlePrice) cleanData.bundlePrice = itemForm.bundlePrice;
@@ -486,17 +578,17 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
 
   const [itemForm, setItemForm] = useState<any>({
     sessionId, timeSlot: "", durationMinutes: null, section: "LCJ プレミアムセレクト",
-    productName: "", productNameCn: "", brandName: "", imageUrl: "", productLink: "",
-    selfSiteLink: "", theme: "", bundleCombo: "", listPrice: null, livePrice: null,
-    costPrice: null, purchasePrice: null, commissionRate: null, bundlePrice: "",
+    productName: "", productNameCn: "", brandName: "", productAttribute: "", imageUrl: "", productLink: "",
+    selfSiteLink: "", theme: "", deliveryTime: "", bundleCombo: "", listPrice: null, livePrice: null,
+    liveDiscountRate: null, costPrice: null, purchasePrice: null, commissionRate: null, bundlePrice: "",
     shopAndFormat: "LCJ/単品", estimatedGmv: null, playStrategy: "", recommendReason: "", notes: "",
   });
 
   const resetForm = () => setItemForm({
     sessionId, timeSlot: "", durationMinutes: null, section: "LCJ プレミアムセレクト",
-    productName: "", productNameCn: "", brandName: "", imageUrl: "", productLink: "",
-    selfSiteLink: "", theme: "", bundleCombo: "", listPrice: null, livePrice: null,
-    costPrice: null, purchasePrice: null, commissionRate: null, bundlePrice: "",
+    productName: "", productNameCn: "", brandName: "", productAttribute: "", imageUrl: "", productLink: "",
+    selfSiteLink: "", theme: "", deliveryTime: "", bundleCombo: "", listPrice: null, livePrice: null,
+    liveDiscountRate: null, costPrice: null, purchasePrice: null, commissionRate: null, bundlePrice: "",
     shopAndFormat: "LCJ/単品", estimatedGmv: null, playStrategy: "", recommendReason: "", notes: "",
   });
 
@@ -514,6 +606,7 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
       purchasePrice: p.purchasePrice ? Number(p.purchasePrice) : null,
       commissionRate: p.commissionType === "percentage" ? Number(p.commissionValue) : null,
       livePrice: p.suggestedPrice ? Number(p.suggestedPrice) : null,
+      liveDiscountRate: null,
       bundlePrice: p.mechanism || "",
     });
     setSearchQuery("");
@@ -521,6 +614,10 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
   };
 
   const handleSave = () => {
+    if (itemForm.liveDiscountRate !== null && itemForm.liveDiscountRate !== undefined && itemForm.liveDiscountRate !== "" && parseRundownDiscountRate(itemForm.liveDiscountRate) === null) {
+      toast.error("直播折扣率请输入 0–100 之间的数字");
+      return;
+    }
     if (editingItem) {
       updateMutation.mutate({ id: editingItem.id, ...itemForm });
     } else {
@@ -552,7 +649,7 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
 
       {/* Table */}
       <div className="overflow-x-auto border rounded-lg" style={{ maxHeight: "calc(100vh - 280px)" }}>
-        <table className="w-full text-xs border-collapse min-w-[1800px]">
+        <table className="w-full text-xs border-collapse min-w-[2050px]">
           <thead className="bg-blue-600 text-white sticky top-0 z-10">
             <tr>
               <th className="px-1.5 py-2 text-center w-8 border border-blue-500">序号</th>
@@ -561,13 +658,15 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
               <th className="px-1.5 py-2 text-center border border-blue-500">板块</th>
               <th className="px-1.5 py-2 text-center border border-blue-500 w-14">图片</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">链接</th>
-              <th className="px-1.5 py-2 text-center border border-blue-500">主题/痛点</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">品牌</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">属性</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">主题/痛点</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">中文名</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">发货时间</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">自制网站</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">定价</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">直播价格</th>
+              <th className="px-1.5 py-2 text-center border border-blue-500">直播折扣率</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">成本价(含运费)</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">佣金比例</th>
               <th className="px-1.5 py-2 text-center border border-blue-500">福袋价格/历史机制</th>
@@ -592,7 +691,7 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
                 </td>
                 <EditableCell item={item} field="productName" onSave={(v) => updateMutation.mutate({ id: item.id, productName: v || null })} className="font-medium" />
                 <EditableCell item={item} field="timeSlot" onSave={(v) => updateMutation.mutate({ id: item.id, timeSlot: v || null })} />
-                <EditableCell item={item} field="bundleCombo" onSave={(v) => updateMutation.mutate({ id: item.id, bundleCombo: v || null })} />
+                <EditableCell item={item} field="section" onSave={(v) => updateMutation.mutate({ id: item.id, section: v || null })} />
                 <td
                   className={`px-1 py-1 text-center border relative group ${pasteTargetId === item.id ? 'border-blue-500 bg-blue-50 border-2' : 'border-gray-200'}`}
                   onClick={() => { setPasteTargetId(item.id); if (item.imageUrl) setPreviewImage(item.imageUrl); }}
@@ -617,13 +716,26 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
                   )}
                 </td>
                 <EditableCell item={item} field="productLink" onSave={(v) => updateMutation.mutate({ id: item.id, productLink: v || null })} isLink />
-                <EditableCell item={item} field="theme" onSave={(v) => updateMutation.mutate({ id: item.id, theme: v || null })} />
                 <EditableCell item={item} field="brandName" onSave={(v) => updateMutation.mutate({ id: item.id, brandName: v || null })} />
+                <td className="border border-gray-200 px-1 py-1">
+                  <select
+                    value={item.productAttribute || ""}
+                    onChange={(event) => updateMutation.mutate({ id: item.id, productAttribute: (event.target.value || null) as RundownProductAttribute | null })}
+                    className={`h-7 w-full min-w-[72px] rounded border px-1 text-xs ${item.productAttribute === "required" ? "border-red-200 bg-red-50 font-semibold text-red-700" : item.productAttribute === "optional" ? "border-blue-200 bg-blue-50 text-blue-700" : "border-gray-200 bg-white text-gray-400"}`}
+                    aria-label="商品属性"
+                  >
+                    <option value="">未设置</option>
+                    <option value="required">{RUNDOWN_PRODUCT_ATTRIBUTE_LABELS.required}</option>
+                    <option value="optional">{RUNDOWN_PRODUCT_ATTRIBUTE_LABELS.optional}</option>
+                  </select>
+                </td>
+                <EditableCell item={item} field="theme" onSave={(v) => updateMutation.mutate({ id: item.id, theme: v || null })} />
                 <EditableCell item={item} field="productNameCn" onSave={(v) => updateMutation.mutate({ id: item.id, productNameCn: v || null })} />
                 <EditableCell item={item} field="deliveryTime" onSave={(v) => updateMutation.mutate({ id: item.id, deliveryTime: v || null })} />
                 <EditableCell item={item} field="selfSiteLink" onSave={(v) => updateMutation.mutate({ id: item.id, selfSiteLink: v || null })} isLink />
                 <EditableCell item={item} field="listPrice" onSave={(v) => updateMutation.mutate({ id: item.id, listPrice: v || null })} />
                 <EditableCell item={item} field="livePrice" onSave={(v) => updateMutation.mutate({ id: item.id, livePrice: v || null })} className="font-medium text-red-600" />
+                <EditableCell item={{ ...item, liveDiscountRate: resolveRundownLiveDiscountRate(item.liveDiscountRate, item.listPrice, item.livePrice) }} field="liveDiscountRate" onSave={(v) => updateMutation.mutate({ id: item.id, liveDiscountRate: v || null })} suffix="%OFF" className="font-medium text-orange-600" />
                 <EditableCell item={item} field="costPrice" onSave={(v) => updateMutation.mutate({ id: item.id, costPrice: v || null })} />
                 <EditableCell item={item} field="commissionRate" onSave={(v) => updateMutation.mutate({ id: item.id, commissionRate: v || null })} suffix="%" />
                 <EditableCell item={item} field="bundlePrice" onSave={(v) => updateMutation.mutate({ id: item.id, bundlePrice: v || null })} />
@@ -641,12 +753,14 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={23} className="text-center py-8 text-muted-foreground">商品がまだ追加されていません</td></tr>
+              <tr><td colSpan={25} className="text-center py-8 text-muted-foreground">商品がまだ追加されていません</td></tr>
             )}
             {/* インライン追加行 - 各列の下に直接入力 */}
             <tr className="bg-yellow-50 border-t-2 border-yellow-300">
               <td className="px-1 py-1 text-center text-xs text-blue-600 font-bold border border-gray-200">+</td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.productName || ""} onChange={(e) => setItemForm({ ...itemForm, productName: e.target.value })} placeholder="商品名称" /></td>
               <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.timeSlot || ""} onChange={(e) => setItemForm({ ...itemForm, timeSlot: e.target.value })} placeholder="20:00-20:05" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.section || ""} onChange={(e) => setItemForm({ ...itemForm, section: e.target.value })} placeholder="板块" /></td>
               <td className="px-1 py-1 border border-gray-200">
                 <label className="flex items-center justify-center h-7 text-xs border rounded-md cursor-pointer hover:bg-blue-50 transition-colors">
                   {itemForm.imageUrl ? <img src={itemForm.imageUrl} alt="" className="h-6 w-6 object-cover rounded" /> : <span className="text-gray-400">📷</span>}
@@ -654,13 +768,21 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
                 </label>
               </td>
               <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.productLink || ""} onChange={(e) => setItemForm({ ...itemForm, productLink: e.target.value })} placeholder="链接" /></td>
-              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.theme || ""} onChange={(e) => setItemForm({ ...itemForm, theme: e.target.value })} placeholder="主题/痛点" /></td>
               <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.brandName || ""} onChange={(e) => setItemForm({ ...itemForm, brandName: e.target.value })} placeholder="品牌" /></td>
+              <td className="px-1 py-1 border border-gray-200">
+                <select value={itemForm.productAttribute || ""} onChange={(e) => setItemForm({ ...itemForm, productAttribute: e.target.value })} className="h-7 w-full min-w-[72px] rounded border border-gray-200 bg-white px-1 text-xs">
+                  <option value="">属性</option>
+                  <option value="required">必播品</option>
+                  <option value="optional">可选品</option>
+                </select>
+              </td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.theme || ""} onChange={(e) => setItemForm({ ...itemForm, theme: e.target.value })} placeholder="主题/痛点" /></td>
               <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.productNameCn || ""} onChange={(e) => setItemForm({ ...itemForm, productNameCn: e.target.value })} placeholder="中文名" /></td>
               <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.deliveryTime || ""} onChange={(e) => setItemForm({ ...itemForm, deliveryTime: e.target.value })} placeholder="发货时间" /></td>
               <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.selfSiteLink || ""} onChange={(e) => setItemForm({ ...itemForm, selfSiteLink: e.target.value })} placeholder="自制网站" /></td>
               <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs w-16" type="number" value={itemForm.listPrice || ""} onChange={(e) => setItemForm({ ...itemForm, listPrice: e.target.value ? Number(e.target.value) : null })} placeholder="定价" /></td>
               <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs w-16" type="number" value={itemForm.livePrice || ""} onChange={(e) => setItemForm({ ...itemForm, livePrice: e.target.value ? Number(e.target.value) : null })} placeholder="直播价" /></td>
+              <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs w-20" type="number" min="0" max="100" step="0.01" value={itemForm.liveDiscountRate ?? ""} onChange={(e) => setItemForm({ ...itemForm, liveDiscountRate: e.target.value === "" ? null : Number(e.target.value) })} placeholder={calculateRundownLiveDiscountRate(itemForm.listPrice, itemForm.livePrice) !== null ? `${calculateRundownLiveDiscountRate(itemForm.listPrice, itemForm.livePrice)}%` : "%OFF"} title="未填写时根据定价和直播价格自动计算" /></td>
               <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs w-16" type="number" value={itemForm.costPrice || ""} onChange={(e) => setItemForm({ ...itemForm, costPrice: e.target.value ? Number(e.target.value) : null })} placeholder="成本" /></td>
               <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs w-14" type="number" value={itemForm.commissionRate || ""} onChange={(e) => setItemForm({ ...itemForm, commissionRate: e.target.value ? Number(e.target.value) : null })} placeholder="%" /></td>
               <td className="px-1 py-1 border border-gray-200"><Input className="h-7 text-xs" value={itemForm.bundlePrice || ""} onChange={(e) => setItemForm({ ...itemForm, bundlePrice: e.target.value })} placeholder="福袋/历史" /></td>
@@ -727,15 +849,9 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
                 <Input type="number" value={itemForm.durationMinutes || ""} onChange={(e) => setItemForm({ ...itemForm, durationMinutes: e.target.value ? Number(e.target.value) : null })} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium">板块</label>
-                <Input value={itemForm.section || ""} onChange={(e) => setItemForm({ ...itemForm, section: e.target.value })} placeholder="LCJ プレミアムセレクト" />
-              </div>
-              <div>
-                <label className="text-sm font-medium">品牌</label>
-                <Input value={itemForm.brandName || ""} onChange={(e) => setItemForm({ ...itemForm, brandName: e.target.value })} />
-              </div>
+            <div>
+              <label className="text-sm font-medium">板块</label>
+              <Input value={itemForm.section || ""} onChange={(e) => setItemForm({ ...itemForm, section: e.target.value })} placeholder="LCJ プレミアムセレクト" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -745,6 +861,23 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
               <div>
                 <label className="text-sm font-medium">中文名</label>
                 <Input value={itemForm.productNameCn || ""} onChange={(e) => setItemForm({ ...itemForm, productNameCn: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium">品牌</label>
+                <Input value={itemForm.brandName || ""} onChange={(e) => setItemForm({ ...itemForm, brandName: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">属性</label>
+                <Select value={itemForm.productAttribute || "unset"} onValueChange={(value) => setItemForm({ ...itemForm, productAttribute: value === "unset" ? "" : value })}>
+                  <SelectTrigger><SelectValue placeholder="必播品 / 可选品" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unset">未设置</SelectItem>
+                    <SelectItem value="required">必播品</SelectItem>
+                    <SelectItem value="optional">可选品</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div>
@@ -761,7 +894,7 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
                 <Input value={itemForm.selfSiteLink || ""} onChange={(e) => setItemForm({ ...itemForm, selfSiteLink: e.target.value })} />
               </div>
             </div>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
               <div>
                 <label className="text-sm font-medium">挂価</label>
                 <Input type="number" value={itemForm.listPrice || ""} onChange={(e) => setItemForm({ ...itemForm, listPrice: e.target.value ? Number(e.target.value) : null })} />
@@ -769,6 +902,11 @@ function RundownTable({ sessionId, items, onRefresh }: { sessionId: number; item
               <div>
                 <label className="text-sm font-medium">直播価格</label>
                 <Input type="number" value={itemForm.livePrice || ""} onChange={(e) => setItemForm({ ...itemForm, livePrice: e.target.value ? Number(e.target.value) : null })} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">直播折扣率（%OFF）</label>
+                <Input type="number" min="0" max="100" step="0.01" value={itemForm.liveDiscountRate ?? ""} onChange={(e) => setItemForm({ ...itemForm, liveDiscountRate: e.target.value === "" ? null : Number(e.target.value) })} placeholder={calculateRundownLiveDiscountRate(itemForm.listPrice, itemForm.livePrice) !== null ? String(calculateRundownLiveDiscountRate(itemForm.listPrice, itemForm.livePrice)) : "例: 50"} />
+                <p className="mt-1 text-[10px] text-muted-foreground">未填写时由定价和直播价格自动计算</p>
               </div>
               <div>
                 <label className="text-sm font-medium">成本価(含運費)</label>
