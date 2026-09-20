@@ -1009,6 +1009,13 @@
       "when": 1789879973227,
       "tag": "0148_lcj_brain_core_super_admins",
       "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "5",
+      "when": 1789889110000,
+      "tag": "0149_lcj_brain_project_soft_delete",
+      "breakpoints": true
     }
   ]
 }

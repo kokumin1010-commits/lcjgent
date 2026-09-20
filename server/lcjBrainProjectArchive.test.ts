@@ -5,6 +5,7 @@ import {
   applyReusableSopTemplateContent,
   buildReusableProjectMilestones,
   buildReusableSopTemplateContent,
+  canDeleteLcjBrainProject,
   canReadProjectSources,
   canTransitionProjectStatus,
 } from "../shared/lcjBrainProjectSop";
@@ -35,6 +36,13 @@ describe("LCJ Brain project archive", () => {
     expect(canTransitionProjectStatus("draft", "archived")).toBe(true);
     expect(canTransitionProjectStatus("active", "archived")).toBe(true);
     expect(canTransitionProjectStatus("completed", "archived")).toBe(true);
+  });
+
+  it("allows owners to delete active work, reserves archived deletion for super admins, and protects the system project", () => {
+    expect(canDeleteLcjBrainProject({ projectCode: "SOP-1", status: "active", isOwner: true, isSuperAdmin: false })).toBe(true);
+    expect(canDeleteLcjBrainProject({ projectCode: "SOP-1", status: "archived", isOwner: true, isSuperAdmin: false })).toBe(false);
+    expect(canDeleteLcjBrainProject({ projectCode: "SOP-1", status: "archived", isOwner: false, isSuperAdmin: true })).toBe(true);
+    expect(canDeleteLcjBrainProject({ projectCode: "LCF-20260908-FIRST-KNOWHOW", status: "archived", isOwner: false, isSuperAdmin: true })).toBe(false);
   });
 
   it("lets every viewer read archived evidence but keeps active evidence participant-only", () => {
@@ -184,7 +192,7 @@ describe("LCJ Brain project archive", () => {
     expect(router).toContain("applyReusableSopTemplateContent");
     expect(
       router.match(
-        /SELECT status FROM lcj_brain_projects WHERE id=\? LIMIT 1 FOR UPDATE/g
+        /SELECT status FROM lcj_brain_projects WHERE id=\? AND deletedAt IS NULL LIMIT 1 FOR UPDATE/g
       )?.length || 0
     ).toBeGreaterThanOrEqual(4);
     expect(router).toContain("sourceIds,model,promptVersion");

@@ -32,6 +32,7 @@ import {
   buildReusableProjectMilestones,
   buildReusableSopTemplateContent,
   buildProjectSourceKey,
+  canDeleteLcjBrainProject,
   canReadProjectSources,
   canTransitionProjectStatus,
   collectValidSourceRefs,
@@ -224,7 +225,7 @@ async function getProjectRow(
   connection: Pool | PoolConnection = getPool()
 ): Promise<any> {
   const [rows] = await connection.query<RowDataPacket[]>(
-    "SELECT * FROM lcj_brain_projects WHERE id = ? LIMIT 1",
+    "SELECT * FROM lcj_brain_projects WHERE id = ? AND deletedAt IS NULL LIMIT 1",
     [projectId]
   );
   if (!rows[0])
@@ -233,7 +234,7 @@ async function getProjectRow(
 }
 
 function projectAccess(project: any, actor: Actor) {
-  return projectCollaborationAccess({
+  const access = projectCollaborationAccess({
     actorId: actor.id,
     isSuperAdmin: actor.isSuperAdmin,
     ownerUserId: Number(project.ownerUserId),
@@ -241,6 +242,33 @@ function projectAccess(project: any, actor: Actor) {
     memberUserIds: parseJson<number[]>(project.memberUserIds, []),
     status: project.status as LcjBrainProjectStatus,
   });
+  return {
+    ...access,
+    canDelete: canDeleteLcjBrainProject({
+      projectCode: project.projectCode,
+      status: project.status,
+      isOwner: access.isOwner,
+      isSuperAdmin: actor.isSuperAdmin,
+    }),
+    canRestore: actor.isSuperAdmin,
+  };
+}
+
+function assertProjectDeleteAllowed(project: any, actor: Actor): void {
+  if (project.projectCode === "LCF-20260908-FIRST-KNOWHOW")
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "系统内置项目不能删除",
+    });
+  const access = projectAccess(project, actor);
+  if (!access.canDelete)
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message:
+        project.status === "archived"
+          ? "已归档项目仅超级管理员可删除"
+          : "只有项目负责人或超级管理员可以删除项目",
+    });
 }
 
 async function requireProject(
@@ -271,7 +299,7 @@ async function changeProjectParticipation(
   try {
     await connection.beginTransaction();
     const [rows] = await connection.query<RowDataPacket[]>(
-      "SELECT * FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+      "SELECT * FROM lcj_brain_projects WHERE id=? AND deletedAt IS NULL LIMIT 1 FOR UPDATE",
       [projectId]
     );
     if (!rows[0])
@@ -435,7 +463,7 @@ async function archiveProjectWithSopTemplate(input: {
   try {
     await connection.beginTransaction();
     const [projectRows] = await connection.query<RowDataPacket[]>(
-      "SELECT * FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+      "SELECT * FROM lcj_brain_projects WHERE id=? AND deletedAt IS NULL LIMIT 1 FOR UPDATE",
       [input.projectId]
     );
     if (!projectRows[0])
@@ -677,7 +705,7 @@ async function insertSourceSnapshot(input: {
   try {
     await connection.beginTransaction();
     const [projectRows] = await connection.query<RowDataPacket[]>(
-      "SELECT status FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+      "SELECT status FROM lcj_brain_projects WHERE id=? AND deletedAt IS NULL LIMIT 1 FOR UPDATE",
       [input.projectId]
     );
     if (!projectRows[0])
@@ -1215,7 +1243,7 @@ export async function runProjectDailyCollection(
       try {
         await writeConnection.beginTransaction();
         const [projectRows] = await writeConnection.query<RowDataPacket[]>(
-          "SELECT status FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+          "SELECT status FROM lcj_brain_projects WHERE id=? AND deletedAt IS NULL LIMIT 1 FOR UPDATE",
           [projectId]
         );
         if (!projectRows[0])
@@ -1515,7 +1543,7 @@ async function generateSopVersion(
     try {
       await connection.beginTransaction();
       const [projectRows] = await connection.query<RowDataPacket[]>(
-        "SELECT status FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+        "SELECT status FROM lcj_brain_projects WHERE id=? AND deletedAt IS NULL LIMIT 1 FOR UPDATE",
         [project.id]
       );
       if (!projectRows[0])
@@ -1702,6 +1730,18 @@ export const lcjBrainProjectUpdateInput = z.object({
   status: projectStatusInput.optional(),
 });
 
+export const lcjBrainProjectDeleteInput = z.object({
+  projectId: z.number().int().positive(),
+  expectedVersion: z.number().int().positive(),
+  confirmationName: z.string().trim().min(2).max(255),
+});
+
+export const lcjBrainProjectRestoreInput = z.object({
+  projectId: z.number().int().positive(),
+  expectedVersion: z.number().int().positive(),
+  confirmationName: z.string().trim().min(2).max(255),
+});
+
 export const lcjBrainProjectRouter = router({
   staffDirectory: protectedProcedure.query(async ({ ctx }) => {
     await ensureLcjBrainProjectUpgrade();
@@ -1725,7 +1765,8 @@ export const lcjBrainProjectRouter = router({
         (SELECT COUNT(*) FROM lcj_brain_project_sources s WHERE s.projectId=p.id AND s.excluded=0) AS sourceCount,
         (SELECT COUNT(*) FROM lcj_brain_project_daily_summaries d WHERE d.projectId=p.id) AS dailySummaryCount,
         (SELECT MAX(v.version) FROM lcj_brain_project_sop_versions v WHERE v.projectId=p.id) AS latestSopVersion
-       FROM lcj_brain_projects p ${input.includeArchived ? "" : "WHERE p.status <> 'archived'"}
+       FROM lcj_brain_projects p
+       WHERE p.deletedAt IS NULL ${input.includeArchived ? "" : "AND p.status <> 'archived'"}
        ORDER BY FIELD(p.status,'active','draft','completed','archived'), p.updatedAt DESC`
       );
       return rows.map(asProject).map(project => ({
@@ -1733,6 +1774,24 @@ export const lcjBrainProjectRouter = router({
         access: projectAccess(project, actor),
       }));
     }),
+
+  deletedList: protectedProcedure.query(async ({ ctx }) => {
+    await ensureLcjBrainProjectUpgrade();
+    const actor = await getActor(ctx.user);
+    if (!actor.isSuperAdmin) return [];
+    const [rows] = await getPool().query<RowDataPacket[]>(
+      `SELECT p.*,
+        (SELECT COUNT(*) FROM lcj_brain_project_sources s WHERE s.projectId=p.id) AS sourceCount,
+        (SELECT COUNT(*) FROM lcj_brain_project_sop_versions v WHERE v.projectId=p.id) AS sopVersionCount
+       FROM lcj_brain_projects p
+       WHERE p.deletedAt IS NOT NULL
+       ORDER BY p.deletedAt DESC, p.id DESC`
+    );
+    return rows.map(asProject).map(project => ({
+      ...project,
+      access: projectAccess(project, actor),
+    }));
+  }),
 
   templates: protectedProcedure.query(async () => {
     await ensureLcjBrainProjectUpgrade();
@@ -2271,7 +2330,7 @@ export const lcjBrainProjectRouter = router({
             : project.completedAt;
       const [result] = await getPool().query<ResultSetHeader>(
         `UPDATE lcj_brain_projects SET name=?, projectType=?, description=?, objective=?, scope=?, status=?, startDate=?, endDate=?, ownerUserId=?, ownerName=?, memberUserIds=?, memberStaffIds=?, keywords=?, currentPhase=?, milestones=?, autoCollectEnabled=?, autoCollectMode=?, completedAt=?, version=version+1
-       WHERE id=? AND version=?`,
+       WHERE id=? AND version=? AND deletedAt IS NULL`,
         [
           next.name,
           next.projectType,
@@ -2314,6 +2373,193 @@ export const lcjBrainProjectRouter = router({
         after: updated,
       });
       return { project: updated };
+    }),
+
+  delete: protectedProcedure
+    .input(lcjBrainProjectDeleteInput)
+    .mutation(async ({ input, ctx }) => {
+      await ensureLcjBrainProjectUpgrade();
+      const actor = await getActor(ctx.user);
+      const connection = await getPool().getConnection();
+      try {
+        await connection.beginTransaction();
+        const [rows] = await connection.query<RowDataPacket[]>(
+          "SELECT * FROM lcj_brain_projects WHERE id=? AND deletedAt IS NULL LIMIT 1 FOR UPDATE",
+          [input.projectId]
+        );
+        if (!rows[0])
+          throw new TRPCError({ code: "NOT_FOUND", message: "项目不存在或已删除" });
+        const project = asProject(rows[0]);
+        assertProjectDeleteAllowed(project, actor);
+        if (project.version !== input.expectedVersion)
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "项目已被其他人更新，请刷新后重试",
+          });
+        if (input.confirmationName !== String(project.name).trim())
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "输入的项目名称不一致，未执行删除",
+          });
+
+        const deletedAt = toSqlDateTime(new Date());
+        const [result] = await connection.query<ResultSetHeader>(
+          `UPDATE lcj_brain_projects
+           SET deletedAt=?,deletedBy=?,deletedByName=?,autoCollectEnabled=0,version=version+1
+           WHERE id=? AND version=? AND deletedAt IS NULL`,
+          [
+            deletedAt,
+            actor.id,
+            actor.name,
+            input.projectId,
+            input.expectedVersion,
+          ]
+        );
+        if (result.affectedRows !== 1)
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "项目已被更新或删除，请刷新后重试",
+          });
+        await connection.query(
+          `UPDATE lcj_brain_project_execution_task_states
+           SET status='cancelled'
+           WHERE projectId=? AND status IN ('todo','pending_review','rejected')`,
+          [input.projectId]
+        );
+        await connection.query(
+          "UPDATE lcj_brain_project_execution_plans SET status='superseded' WHERE projectId=? AND status='draft'",
+          [input.projectId]
+        );
+        await connection.query(
+          "UPDATE lcj_brain_project_execution_runs SET status='failed',errorCode='PROJECT_DELETED',errorMessage='项目已删除',finishedAt=CURRENT_TIMESTAMP WHERE projectId=? AND status='running'",
+          [input.projectId]
+        );
+        await connection.query(
+          "UPDATE lcj_brain_project_runs SET status='failed',errorCode='PROJECT_DELETED',errorMessage='项目已删除',finishedAt=CURRENT_TIMESTAMP WHERE projectId=? AND status='running'",
+          [input.projectId]
+        );
+        await connection.query(
+          `UPDATE tasks t
+           INNER JOIN lcj_brain_project_execution_task_links l ON l.externalTaskId=t.id
+           SET t.status='cancelled'
+           WHERE l.projectId=? AND t.status IN ('pending','in_progress')`,
+          [input.projectId]
+        );
+        await connection.query(
+          "UPDATE lcj_brain_project_sop_templates SET status='retired' WHERE sourceProjectId=? AND status='active'",
+          [input.projectId]
+        );
+        await writeAudit(
+          {
+            projectId: input.projectId,
+            entityType: "project",
+            entityId: input.projectId,
+            action: "project_soft_deleted",
+            actor,
+            before: project,
+            after: {
+              deletedAt,
+              deletedBy: actor.id,
+              autoCollectEnabled: false,
+              linkedOpenTasksCancelled: true,
+            },
+            reason: "用户确认项目名称后执行可恢复删除",
+          },
+          connection
+        );
+        await connection.commit();
+        return { projectId: input.projectId, deletedAt };
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
+    }),
+
+  restore: protectedProcedure
+    .input(lcjBrainProjectRestoreInput)
+    .mutation(async ({ input, ctx }) => {
+      await ensureLcjBrainProjectUpgrade();
+      const actor = await getActor(ctx.user);
+      if (!actor.isSuperAdmin)
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "只有超级管理员可以恢复已删除项目",
+        });
+      const connection = await getPool().getConnection();
+      try {
+        await connection.beginTransaction();
+        const [rows] = await connection.query<RowDataPacket[]>(
+          "SELECT * FROM lcj_brain_projects WHERE id=? AND deletedAt IS NOT NULL LIMIT 1 FOR UPDATE",
+          [input.projectId]
+        );
+        if (!rows[0])
+          throw new TRPCError({ code: "NOT_FOUND", message: "已删除项目不存在或已恢复" });
+        const project = asProject(rows[0]);
+        if (project.projectCode === "LCF-20260908-FIRST-KNOWHOW")
+          throw new TRPCError({ code: "FORBIDDEN", message: "系统内置项目状态异常，请联系技术人员" });
+        if (project.version !== input.expectedVersion)
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "项目状态已变化，请刷新后重试",
+          });
+        if (input.confirmationName !== String(project.name).trim())
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "输入的项目名称不一致，未执行恢复",
+          });
+        const [result] = await connection.query<ResultSetHeader>(
+          `UPDATE lcj_brain_projects
+           SET deletedAt=NULL,deletedBy=NULL,deletedByName=NULL,version=version+1
+           WHERE id=? AND version=? AND deletedAt IS NOT NULL`,
+          [input.projectId, input.expectedVersion]
+        );
+        if (result.affectedRows !== 1)
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "项目状态已变化，请刷新后重试",
+          });
+        if (project.status === "archived") {
+          await connection.query(
+            "UPDATE lcj_brain_project_sop_templates SET status='retired' WHERE sourceProjectId=?",
+            [input.projectId]
+          );
+          const [templateRows] = await connection.query<RowDataPacket[]>(
+            "SELECT id FROM lcj_brain_project_sop_templates WHERE sourceProjectId=? ORDER BY revision DESC,id DESC LIMIT 1",
+            [input.projectId]
+          );
+          if (templateRows[0]?.id)
+            await connection.query(
+              "UPDATE lcj_brain_project_sop_templates SET status='active' WHERE id=?",
+              [templateRows[0].id]
+            );
+        }
+        await writeAudit(
+          {
+            projectId: input.projectId,
+            entityType: "project",
+            entityId: input.projectId,
+            action: "project_restored",
+            actor,
+            before: project,
+            after: {
+              deletedAt: null,
+              autoCollectEnabled: false,
+              linkedTasksRemainCancelled: true,
+            },
+            reason: "超级管理员确认项目名称后恢复；自动归集和已取消任务不会自动重启",
+          },
+          connection
+        );
+        await connection.commit();
+        return { projectId: input.projectId };
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
     }),
 
   sources: protectedProcedure
@@ -2593,7 +2839,7 @@ export const lcjBrainProjectRouter = router({
       try {
         await connection.beginTransaction();
         const [projectRows] = await connection.query<RowDataPacket[]>(
-          "SELECT status FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+          "SELECT status FROM lcj_brain_projects WHERE id=? AND deletedAt IS NULL LIMIT 1 FOR UPDATE",
           [input.projectId]
         );
         if (!projectRows[0])
@@ -2891,7 +3137,7 @@ export const lcjBrainProjectRouter = router({
       try {
         await connection.beginTransaction();
         const [projectRows] = await connection.query<RowDataPacket[]>(
-          "SELECT status FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+          "SELECT status FROM lcj_brain_projects WHERE id=? AND deletedAt IS NULL LIMIT 1 FOR UPDATE",
           [input.projectId]
         );
         if (!projectRows[0])
@@ -2976,7 +3222,7 @@ export const lcjBrainProjectRouter = router({
       try {
         await connection.beginTransaction();
         const [projectRows] = await connection.query<RowDataPacket[]>(
-          "SELECT status FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+          "SELECT status FROM lcj_brain_projects WHERE id=? AND deletedAt IS NULL LIMIT 1 FOR UPDATE",
           [input.projectId]
         );
         if (!projectRows[0])

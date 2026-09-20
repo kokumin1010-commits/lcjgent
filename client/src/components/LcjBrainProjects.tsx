@@ -11,8 +11,10 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   Sparkles,
+  Trash2,
   Upload,
   UserPlus,
   Users,
@@ -49,6 +51,9 @@ export default function LcjBrainProjects() {
   const [createTemplateId, setCreateTemplateId] = useState<number | null>(null);
   const [createMemberIds, setCreateMemberIds] = useState<number[]>([]);
   const [memberError, setMemberError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<any | null>(null);
+  const [confirmationName, setConfirmationName] = useState("");
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const linkedProjectId = Number(params.get("projectId"));
@@ -64,6 +69,7 @@ export default function LcjBrainProjects() {
     }
   }, []);
   const list = trpc.lcjBrainProject.list.useQuery({ includeArchived: true });
+  const deletedList = trpc.lcjBrainProject.deletedList.useQuery();
   const templates = trpc.lcjBrainProject.templates.useQuery();
   const directory = trpc.lcjBrainProject.staffDirectory.useQuery();
   const selectedTemplate = templates.data?.find(
@@ -89,6 +95,42 @@ export default function LcjBrainProjects() {
       setMemberError("");
     },
   });
+  const removeProject = trpc.lcjBrainProject.delete.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.lcjBrainProject.list.invalidate(),
+        utils.lcjBrainProject.deletedList.invalidate(),
+        utils.lcjBrainProject.templates.invalidate(),
+      ]);
+      setDeleteTarget(null);
+      setConfirmationName("");
+    },
+  });
+  const restoreProject = trpc.lcjBrainProject.restore.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.lcjBrainProject.list.invalidate(),
+        utils.lcjBrainProject.deletedList.invalidate(),
+        utils.lcjBrainProject.templates.invalidate(),
+      ]);
+      setRestoreTarget(null);
+      setConfirmationName("");
+    },
+  });
+  const openDeleteDialog = (project: any) => {
+    removeProject.reset();
+    restoreProject.reset();
+    setRestoreTarget(null);
+    setDeleteTarget(project);
+    setConfirmationName("");
+  };
+  const openRestoreDialog = (project: any) => {
+    removeProject.reset();
+    restoreProject.reset();
+    setDeleteTarget(null);
+    setRestoreTarget(project);
+    setConfirmationName("");
+  };
   if (projectId)
     return (
       <ProjectDetail
@@ -270,6 +312,7 @@ export default function LcjBrainProjects() {
           <ProjectGrid
             projects={activeProjects}
             onOpen={setProjectId}
+            onDelete={openDeleteDialog}
             onJoin={joinedProjectId =>
               join.mutate({ projectId: joinedProjectId })
             }
@@ -290,15 +333,163 @@ export default function LcjBrainProjects() {
                 <ProjectGrid
                   projects={archivedProjects}
                   onOpen={setProjectId}
+                  onDelete={openDeleteDialog}
                   onJoin={() => undefined}
                   joinPending={false}
                 />
               </div>
             </details>
           )}
+          {(deletedList.data || []).length > 0 && (
+            <details className="rounded-2xl border border-red-400/15 bg-red-950/10 p-4">
+              <summary className="cursor-pointer text-sm font-medium text-white/60">
+                已删除项目 · {deletedList.data?.length || 0}件
+                <span className="ml-2 text-xs font-normal text-white/35">
+                  仅超级管理员可见和恢复
+                </span>
+              </summary>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {(deletedList.data || []).map((project: any) => (
+                  <div
+                    key={project.id}
+                    className="rounded-xl border border-red-400/15 bg-black/20 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs text-red-300/70">
+                          {project.projectCode}
+                        </p>
+                        <h3 className="mt-1 font-semibold text-white/75">
+                          {project.name}
+                        </h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openRestoreDialog(project)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-400/25 px-2.5 py-1.5 text-xs text-emerald-200 hover:bg-emerald-400/10"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        恢复
+                      </button>
+                    </div>
+                    <p className="mt-3 text-xs text-white/35">
+                      来源 {project.sourceCount} 条 · SOP {project.sopVersionCount} 版
+                    </p>
+                    <p className="mt-1 text-xs text-white/30">
+                      删除时间：
+                      {project.deletedAt
+                        ? new Date(project.deletedAt).toLocaleString("zh-CN")
+                        : "—"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
       )}
       {join.error && <p className="text-red-300">{join.error.message}</p>}
+      {(deleteTarget || restoreTarget) && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4"
+          role="presentation"
+          onMouseDown={event => {
+            if (
+              event.currentTarget === event.target &&
+              !removeProject.isPending &&
+              !restoreProject.isPending
+            ) {
+              setDeleteTarget(null);
+              setRestoreTarget(null);
+              setConfirmationName("");
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="project-delete-title"
+            className="w-full max-w-lg rounded-2xl border border-red-400/25 bg-[#111129] p-6 shadow-2xl"
+          >
+            <h3 id="project-delete-title" className="text-xl font-bold text-white">
+              {deleteTarget ? "删除项目" : "恢复项目"}
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-white/60">
+              {deleteTarget
+                ? "删除后项目会从项目与归档列表隐藏，并停止自动归集；资料、SOP和审计记录会保留，超级管理员可从回收站恢复。关联的未完成任务会被取消。"
+                : "恢复后项目重新出现在列表中，但自动归集和删除时取消的任务不会自动重启。"}
+            </p>
+            <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
+              <p className="text-xs text-white/40">请完整输入项目名称以确认</p>
+              <p className="mt-1 break-words font-semibold text-white">
+                {(deleteTarget || restoreTarget).name}
+              </p>
+              <input
+                autoFocus
+                value={confirmationName}
+                onChange={event => setConfirmationName(event.target.value)}
+                className={`${inputClass} mt-3`}
+                placeholder="输入项目名称"
+              />
+            </div>
+            {(removeProject.error || restoreProject.error) && (
+              <p role="alert" className="mt-3 text-sm text-red-300">
+                {removeProject.error?.message || restoreProject.error?.message}
+              </p>
+            )}
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={removeProject.isPending || restoreProject.isPending}
+                onClick={() => {
+                  setDeleteTarget(null);
+                  setRestoreTarget(null);
+                  setConfirmationName("");
+                }}
+                className={actionClass}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={
+                  confirmationName.trim() !==
+                    String((deleteTarget || restoreTarget).name).trim() ||
+                  removeProject.isPending ||
+                  restoreProject.isPending
+                }
+                onClick={() => {
+                  const target = deleteTarget || restoreTarget;
+                  if (deleteTarget)
+                    removeProject.mutate({
+                      projectId: target.id,
+                      expectedVersion: target.version,
+                      confirmationName: confirmationName.trim(),
+                    });
+                  else
+                    restoreProject.mutate({
+                      projectId: target.id,
+                      expectedVersion: target.version,
+                      confirmationName: confirmationName.trim(),
+                    });
+                }}
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 font-medium text-white disabled:cursor-not-allowed disabled:opacity-40 ${deleteTarget ? "bg-red-600 hover:bg-red-500" : "bg-emerald-600 hover:bg-emerald-500"}`}
+              >
+                {deleteTarget ? (
+                  <Trash2 className="h-4 w-4" />
+                ) : (
+                  <RotateCcw className="h-4 w-4" />
+                )}
+                {removeProject.isPending || restoreProject.isPending
+                  ? "处理中…"
+                  : deleteTarget
+                    ? "确认删除"
+                    : "确认恢复"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -307,11 +498,13 @@ function ProjectGrid({
   projects,
   onOpen,
   onJoin,
+  onDelete,
   joinPending,
 }: {
   projects: any[];
   onOpen: (projectId: number) => void;
   onJoin: (projectId: number) => void;
+  onDelete: (project: any) => void;
   joinPending: boolean;
 }) {
   if (!projects.length) return <Empty text="当前没有进行中或待启动的项目。" />;
@@ -347,7 +540,7 @@ function ProjectGrid({
               </span>
             </div>
           </button>
-          <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
+          <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/10 pt-3">
             <span
               className={`text-xs ${p.status === "archived" ? "text-white/45" : p.access.isParticipant ? "text-emerald-300" : "text-white/40"}`}
             >
@@ -361,16 +554,29 @@ function ProjectGrid({
                     ? "你已参与"
                     : "公司项目 · 可加入参与"}
             </span>
-            {p.access.canJoin && (
-              <button
-                disabled={joinPending}
-                onClick={() => onJoin(p.id)}
-                className={`${actionClass} bg-violet-600 text-sm`}
-              >
-                <UserPlus className="w-4" />
-                参与项目
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {p.access.canJoin && (
+                <button
+                  disabled={joinPending}
+                  onClick={() => onJoin(p.id)}
+                  className={`${actionClass} bg-violet-600 text-sm`}
+                >
+                  <UserPlus className="w-4" />
+                  参与项目
+                </button>
+              )}
+              {p.access.canDelete && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(p)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-400/25 px-2.5 py-2 text-xs text-red-200 hover:bg-red-500/10"
+                  aria-label={`删除项目 ${p.name}`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  删除
+                </button>
+              )}
+            </div>
           </div>
         </div>
       ))}

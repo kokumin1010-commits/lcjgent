@@ -318,7 +318,7 @@ export async function generateExecutionPlanDraft(input: {
     try {
       await connection.beginTransaction();
       const [projectRows] = await connection.query<RowDataPacket[]>(
-        "SELECT status,version FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+        "SELECT status,version FROM lcj_brain_projects WHERE id=? AND deletedAt IS NULL LIMIT 1 FOR UPDATE",
         [input.project.id]
       );
       if (!projectRows[0])
@@ -472,7 +472,7 @@ export async function saveExecutionPlanDraft(input: {
   try {
     await connection.beginTransaction();
     const [projectRows] = await connection.query<RowDataPacket[]>(
-      "SELECT status FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+      "SELECT status FROM lcj_brain_projects WHERE id=? AND deletedAt IS NULL LIMIT 1 FOR UPDATE",
       [input.project.id]
     );
     if (!projectRows[0])
@@ -560,7 +560,7 @@ export async function publishExecutionPlan(input: {
   try {
     await connection.beginTransaction();
     const [projectRows] = await connection.query<RowDataPacket[]>(
-      "SELECT * FROM lcj_brain_projects WHERE id=? LIMIT 1 FOR UPDATE",
+      "SELECT * FROM lcj_brain_projects WHERE id=? AND deletedAt IS NULL LIMIT 1 FOR UPDATE",
       [input.project.id]
     );
     const project = projectRows[0];

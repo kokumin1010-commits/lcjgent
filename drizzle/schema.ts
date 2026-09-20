@@ -6469,6 +6469,7 @@ export const lcjBrainProjects = mysqlTable("lcj_brain_projects", {
   currentPhase: varchar("currentPhase", { length: 255 }), milestones: json("milestones").$type<Array<{ id: string; title: string; dueDate?: string; completedAt?: string; status: "pending" | "completed" }>>(),
   autoCollectEnabled: boolean("autoCollectEnabled").default(true).notNull(), autoCollectMode: mysqlEnum("autoCollectMode", ["strict", "member_only"]).default("strict").notNull(),
   version: int("version").default(1).notNull(), lastAutoCollectedDate: varchar("lastAutoCollectedDate", { length: 10 }), completedAt: timestamp("completedAt"),
+  deletedAt: timestamp("deletedAt"), deletedBy: int("deletedBy"), deletedByName: varchar("deletedByName", { length: 255 }),
   createdBy: int("createdBy").notNull(), createdByName: varchar("createdByName", { length: 255 }).notNull(), createdAt: timestamp("createdAt").defaultNow().notNull(), updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({ statusIdx: index("idx_lcj_brain_projects_status").on(table.status), ownerIdx: index("idx_lcj_brain_projects_owner").on(table.ownerUserId), dateIdx: index("idx_lcj_brain_projects_dates").on(table.startDate, table.endDate) }));
 export type LcjBrainProject = typeof lcjBrainProjects.$inferSelect;

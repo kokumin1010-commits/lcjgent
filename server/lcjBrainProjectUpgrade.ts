@@ -40,7 +40,7 @@ async function backfillArchivedSopTemplates(
   connection: PoolConnection
 ): Promise<void> {
   const [projects] = await connection.query<RowDataPacket[]>(
-    "SELECT * FROM lcj_brain_projects WHERE status='archived' ORDER BY id"
+    "SELECT * FROM lcj_brain_projects WHERE status='archived' AND deletedAt IS NULL ORDER BY id"
   );
   for (const project of projects) {
     const [sopRows] = await connection.query<RowDataPacket[]>(
@@ -149,6 +149,9 @@ async function createTables(): Promise<void> {
       version INT NOT NULL DEFAULT 1,
       lastAutoCollectedDate VARCHAR(10) NULL,
       completedAt DATETIME NULL,
+      deletedAt DATETIME NULL,
+      deletedBy INT NULL,
+      deletedByName VARCHAR(255) NULL,
       createdBy INT NOT NULL,
       createdByName VARCHAR(255) NOT NULL,
       createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -157,6 +160,12 @@ async function createTables(): Promise<void> {
       INDEX idx_lcj_brain_projects_owner (ownerUserId),
       INDEX idx_lcj_brain_projects_dates (startDate, endDate)
     )`);
+
+    await ensureMysqlColumns(connection, "lcj_brain_projects", [
+      { name: "deletedAt", definition: "DATETIME NULL AFTER `completedAt`" },
+      { name: "deletedBy", definition: "INT NULL AFTER `deletedAt`" },
+      { name: "deletedByName", definition: "VARCHAR(255) NULL AFTER `deletedBy`" },
+    ]);
 
     await connection.query(`CREATE TABLE IF NOT EXISTS lcj_brain_project_sources (
       id INT AUTO_INCREMENT PRIMARY KEY,

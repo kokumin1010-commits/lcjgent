@@ -6,6 +6,17 @@ export const LCJ_BRAIN_PROJECT_STATUSES = [
 ] as const;
 export type LcjBrainProjectStatus = (typeof LCJ_BRAIN_PROJECT_STATUSES)[number];
 
+export function canDeleteLcjBrainProject(input: {
+  projectCode: string;
+  status: LcjBrainProjectStatus;
+  isOwner: boolean;
+  isSuperAdmin: boolean;
+}): boolean {
+  if (input.projectCode === "LCF-20260908-FIRST-KNOWHOW") return false;
+  if (input.isSuperAdmin) return true;
+  return input.isOwner && input.status !== "archived";
+}
+
 export function projectCollaborationAccess(input: {
   actorId: number;
   isSuperAdmin: boolean;

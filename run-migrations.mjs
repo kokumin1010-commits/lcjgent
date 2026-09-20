@@ -204,6 +204,13 @@ async function main() {
       await connection.execute(statement);
     }
     console.log(`[Migration] LCJ Brain core super administrators ensured (${lcjBrainPermissionStatements.length} statements).`);
+
+    await ensureMysqlColumns(connection, 'lcj_brain_projects', [
+      { name: 'deletedAt', definition: 'datetime NULL AFTER `completedAt`' },
+      { name: 'deletedBy', definition: 'int NULL AFTER `deletedAt`' },
+      { name: 'deletedByName', definition: 'varchar(255) NULL AFTER `deletedBy`' },
+    ]);
+    console.log('[Migration] LCJ Brain project soft-delete columns ensured.');
   } catch (fallbackErr) {
     console.error('[Migration] Fallback error:', fallbackErr.message);
   } finally {

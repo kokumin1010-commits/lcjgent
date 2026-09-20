@@ -11,7 +11,7 @@ async function runOnce() {
   const pool = mysql.createPool(process.env.DATABASE_URL);
   try {
     const [rows] = await pool.query<any[]>(
-      "SELECT id FROM lcj_brain_projects WHERE status='active' AND autoCollectEnabled=1 ORDER BY id"
+      "SELECT id FROM lcj_brain_projects WHERE status='active' AND autoCollectEnabled=1 AND deletedAt IS NULL ORDER BY id"
     );
     for (const row of rows) {
       try {
