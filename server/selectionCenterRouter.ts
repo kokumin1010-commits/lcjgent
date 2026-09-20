@@ -11,7 +11,7 @@ import { getSelectionPriceBundleRecoveryHealth } from "./selectionPriceBundleRec
 import { getSelectionProductDeepRecoveryHealth } from "./selectionProductDeepRecovery";
 import { getKgProductRecoveryHealth } from "./kgProductRecovery";
 import { getProcurementSchemaUpgradeHealth } from "./procurementSchemaUpgrade";
-import { createSelectionProduct, updateSelectionProduct } from "./selectionProductPersistence";
+import { createSelectionProduct, ensureSelectionProductPersistenceSchema, updateSelectionProduct } from "./selectionProductPersistence";
 import {
   decodeProductWorkbookBase64,
   importSelectionProductWorkbook,
@@ -92,6 +92,54 @@ const selectionCategoryCatalogPromise = (async () => {
 void selectionCategoryCatalogPromise.catch((error: unknown) => {
   console.error('[SelectionCenter] category catalog bootstrap failed:', error);
 });
+
+async function queryLiverAvailableProducts(
+  pool: mysql.Pool,
+  search: string | undefined,
+  includeInternalFields: boolean,
+): Promise<any[]> {
+  await ensureSelectionProductPersistenceSchema(pool);
+  let where = "WHERE sp.status = 'online' AND sp.deletedAt IS NULL";
+  const params: any[] = [];
+  if (search) {
+    const normalized = search.toLowerCase();
+    const fuzzy = "%" + normalized.split("").join("%") + "%";
+    const exact = `%${normalized}%`;
+    where += " AND (LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(sp.barcode) LIKE ? OR LOWER(COALESCE(sp.productNameCn, '')) LIKE ? OR LOWER(COALESCE(sp.productId, '')) LIKE ? OR LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(COALESCE(sp.productNameCn, '')) LIKE ?)";
+    params.push(exact, exact, exact, exact, exact, fuzzy, fuzzy, fuzzy);
+  }
+
+  if (!includeInternalFields) {
+    const [rows] = await pool.query(
+      `SELECT sp.id, sp.productName, sp.productNameCn, sp.productId, sp.barcode,
+        sp.brandName, sp.brandId, sp.price, sp.marketPrice, sp.commissionType,
+        sp.commissionValue, sp.images, sp.productLink, sp.sellingPoints,
+        sp.description, sp.stock, sp.tags, sp.historicalLowestPrice,
+        sp.discountRate, sp.mechanism, sp.status
+       FROM selection_products sp ${where} ORDER BY sp.createdAt DESC`,
+      params,
+    ) as any;
+    return rows;
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT sp.*, b.hasTikTokBackend
+       FROM selection_products sp
+       LEFT JOIN brands b ON sp.brandId = b.id
+       ${where} ORDER BY sp.createdAt DESC`,
+      params,
+    ) as any;
+    return rows;
+  } catch (error: any) {
+    console.warn("[getLiverAvailableProductsInternal] JOIN fallback:", error.message);
+    const [rows] = await pool.query(
+      `SELECT sp.* FROM selection_products sp ${where} ORDER BY sp.createdAt DESC`,
+      params,
+    ) as any;
+    return rows;
+  }
+}
 
 // Auto-init: create auxiliary tables on import (runs once at server startup)
 (async () => {
@@ -188,6 +236,7 @@ export const selectionCenterRouter = router({
         description TEXT DEFAULT NULL,
         stock INT DEFAULT 0,
         supplierContact VARCHAR(255) DEFAULT NULL,
+        brandPermissionInfo JSON DEFAULT NULL,
         tags JSON DEFAULT NULL,
         status ENUM('draft','online','offline') DEFAULT 'draft',
         createdBy INT DEFAULT 0,
@@ -423,6 +472,7 @@ export const selectionCenterRouter = router({
     pageSize: z.number().default(50),
   })).query(async ({ input }) => {
     const pool = getPool();
+    await ensureSelectionProductPersistenceSchema(pool);
     await pool.query("ALTER TABLE selection_products ADD COLUMN parentProductId INT DEFAULT NULL").catch(() => {});
     let where = 'WHERE sp.deletedAt IS NULL AND sp.parentProductId IS NULL';
     const params: any[] = [];
@@ -581,6 +631,7 @@ export const selectionCenterRouter = router({
     description: z.string().optional(),
     stock: z.number().optional(),
     supplierContact: z.string().optional(),
+    brandPermissionInfo: z.union([z.array(z.string()), z.string()]).optional(),
     talentExclusive: z.number().optional(),
     exclusiveLiverIds: z.array(z.number()).optional(),
     tags: z.union([z.array(z.string()), z.string()]).optional(),
@@ -641,6 +692,7 @@ export const selectionCenterRouter = router({
     description: z.string().optional(),
     stock: z.number().optional(),
     supplierContact: z.string().optional(),
+    brandPermissionInfo: z.union([z.array(z.string()), z.string()]).nullable().optional(),
     talentExclusive: z.number().optional(),
     exclusiveLiverIds: z.array(z.number()).nullable().optional(),
     tags: z.union([z.array(z.string()), z.string()]).nullable().optional(),
@@ -917,21 +969,12 @@ export const selectionCenterRouter = router({
   getLiverAvailableProducts: publicProcedure.input(z.object({
     search: z.string().optional(),
   })).query(async ({ input }) => {
-    const pool = getPool();
-    let where = "WHERE sp.status = 'online' AND sp.deletedAt IS NULL";
-    const params: any[] = [];
-    if (input.search) { const s = input.search.toLowerCase(); const fuzzy = '%' + s.split('').join('%') + '%'; const exact = `%${s}%`; where += ' AND (LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(sp.barcode) LIKE ? OR LOWER(COALESCE(sp.productNameCn, \'\')) LIKE ? OR LOWER(COALESCE(sp.productId, \'\')) LIKE ? OR LOWER(sp.productName) LIKE ? OR LOWER(sp.brandName) LIKE ? OR LOWER(COALESCE(sp.productNameCn, \'\')) LIKE ?)'; params.push(exact, exact, exact, exact, exact, fuzzy, fuzzy, fuzzy); }
-    let rows: any[];
-    try {
-      const [result] = await pool.query(`SELECT sp.*, b.hasTikTokBackend FROM selection_products sp LEFT JOIN brands b ON sp.brandId = b.id ${where} ORDER BY sp.createdAt DESC`, params) as any;
-      rows = result;
-    } catch (e: any) {
-      // Fallback if hasTikTokBackend column doesn't exist yet
-      console.warn('[getLiverAvailableProducts] JOIN fallback:', e.message);
-      const [result] = await pool.query(`SELECT sp.* FROM selection_products sp ${where} ORDER BY sp.createdAt DESC`, params) as any;
-      rows = result;
-    }
-    return rows;
+    return queryLiverAvailableProducts(getPool(), input.search, false);
+  }),
+  getLiverAvailableProductsInternal: protectedProcedure.input(z.object({
+    search: z.string().optional(),
+  })).query(async ({ input }) => {
+    return queryLiverAvailableProducts(getPool(), input.search, true);
   }),
 
   liverSelectProduct: publicProcedure.input(z.object({

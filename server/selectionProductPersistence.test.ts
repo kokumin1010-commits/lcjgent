@@ -5,6 +5,7 @@ import {
   resetSelectionProductSchemaEnsureForTests,
   updateSelectionProduct,
 } from "./selectionProductPersistence";
+import { normalizeSelectionProductBrandPermissions } from "../shared/selectionProductPersistence";
 
 function insertColumns(sql: string): string[] {
   const match = sql.match(/INSERT INTO selection_products \(([^)]+)\)/);
@@ -85,6 +86,7 @@ describe("selection product SKU persistence", () => {
       productName: "  新商品A  ",
       productNameCn: "  新商品中文名  ",
       brandName: "LCJ",
+      brandPermissionInfo: ["子账号控制", "creator_flash_sale", "子账号控制", " 广告账户管理 "],
       tags: '["引流款", "引流款", " 福利款 "]',
       skuVariants: [
         { name: " 10個セット ", price: "17500", lowestPrice: "2826", discountRate: "65", promotionType: "1+1" },
@@ -112,6 +114,7 @@ describe("selection product SKU persistence", () => {
     expect(values.stock).toBe(0);
     expect(values.talentExclusive).toBe(0);
     expect(values.selfOperated).toBe(0);
+    expect(values.brandPermissionInfo).toBe('["subaccount_control","creator_flash_sale","广告账户管理"]');
     expect(values.tags).toBe('["引流款","福利款"]');
     expect(values.skuVariants).toBe(JSON.stringify(result.skuVariants));
     expect(values.skuName).toBe("10個セット");
@@ -123,6 +126,7 @@ describe("selection product SKU persistence", () => {
     const result = await updateSelectionProduct(pool, 7, {
       productName: "更新商品名",
       productNameCn: "更新中文名",
+      brandPermissionInfo: ["商品折扣", "店铺后台"],
       tags: '["KG品牌款","爆品款"]',
       skuVariants: JSON.stringify([
         { name: "A套组", price: "1000" },
@@ -138,6 +142,7 @@ describe("selection product SKU persistence", () => {
     const values = Object.fromEntries(columns.map((column, index) => [column, update!.params?.[index]]));
     expect(values.productName).toBe("更新商品名");
     expect(values.productNameCn).toBe("更新中文名");
+    expect(values.brandPermissionInfo).toBe('["product_discount","店铺后台"]');
     expect(values.tags).toBe('["KG品牌款","爆品款"]');
     const updatedVariants = JSON.parse(String(values.skuVariants));
     expectStableVariantIds(updatedVariants);
@@ -189,6 +194,25 @@ describe("selection product SKU persistence", () => {
     expect(values.skuPrice).toBeNull();
     expect(values.skuLowestPrice).toBeNull();
     expect(values.skuDiscountRate).toBeNull();
+  });
+
+  it("clears all brand permissions when an empty array is submitted", async () => {
+    const { pool, state } = createFakePool();
+    await updateSelectionProduct(pool, 7, { brandPermissionInfo: [] }, 88);
+
+    const update = state.transactionQueries.find((entry) => entry.sql.startsWith("UPDATE selection_products SET") && entry.sql.includes("deletedAt IS NULL"));
+    const columns = updateColumns(update!.sql);
+    const values = Object.fromEntries(columns.map((column, index) => [column, update!.params?.[index]]));
+    expect(values.brandPermissionInfo).toBe("[]");
+  });
+
+  it("normalizes preset aliases and comma-separated custom brand permissions", () => {
+    expect(normalizeSelectionProductBrandPermissions("子账号控制，商品折扣, 广告账户管理")).toEqual([
+      "subaccount_control",
+      "product_discount",
+      "广告账户管理",
+    ]);
+    expect(() => normalizeSelectionProductBrandPermissions([{ value: "product_discount" }])).toThrow("必须是文字");
   });
 
   it("ignores a completely blank added SKU row instead of blocking product save", async () => {

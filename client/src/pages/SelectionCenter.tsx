@@ -38,9 +38,12 @@ import {
 } from "@shared/auctionRecordPersistence";
 import {
   legacySelectionProductSkuVariant,
+  normalizeSelectionProductBrandPermissions,
   normalizeSelectionProductSkuVariants,
   normalizeSelectionProductTags,
   parseJsonArray,
+  SELECTION_PRODUCT_BRAND_PERMISSION_PRESETS,
+  selectionProductBrandPermissionLabel,
   SelectionProductValidationError,
   type SelectionProductSkuVariant,
 } from "@shared/selectionProductPersistence";
@@ -48,6 +51,14 @@ import {
   formatSelectionCategoryLabel,
   type ExistingSelectionCategory,
 } from "@shared/selectionCategories";
+
+function safeSelectionProductBrandPermissions(value: unknown): string[] {
+  try {
+    return normalizeSelectionProductBrandPermissions(value);
+  } catch {
+    return [];
+  }
+}
 
 function ProductThumbnail({ images, alt, large = false }: { images: unknown; alt: string; large?: boolean }) {
   const [failed, setFailed] = useState(false);
@@ -302,7 +313,7 @@ function ChildSkuTableRow({
 
 // ==================== Products Tab ====================
 function ProductsTab() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   React.useEffect(() => {
@@ -533,14 +544,16 @@ function ProductsTab() {
             toast.error(`カテゴリ情報を確認できない商品が${unresolvedCategoryCount}件あるため、CSVを出力できません`);
             return;
           }
-          const headers = ['商品名', 'バーコード', 'ブランド', 'カテゴリ', '価格', '佣金', '在庫', 'ステータス'];
+          const headers = ['商品名', 'バーコード', 'ブランド', 'ブランド権限情報', 'カテゴリ', '価格', '佣金', '在庫', 'ステータス'];
           const rows = products.map((p: any) => {
             const category = categoryRecords.find(item => item.id === p.categoryId);
             const categoryLabel = category
               ? formatSelectionCategoryLabel(category, categoryRecords.find(parent => parent.id === category.parentId))
               : '未分類';
             return [
-              p.productName || '', p.barcode || '', p.brandName || '', categoryLabel,
+              p.productName || '', p.barcode || '', p.brandName || '',
+              safeSelectionProductBrandPermissions(p.brandPermissionInfo).map((permission) => selectionProductBrandPermissionLabel(permission, language)).join(' / '),
+              categoryLabel,
               p.price || 0, p.commission || 0, p.stock || 0, p.status || ''
             ];
           });
@@ -626,6 +639,15 @@ function ProductsTab() {
                       {product.brandName}
                       {!!product.hasTikTokBackend && <span className="inline-flex items-center gap-0.5 text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-medium whitespace-nowrap cursor-pointer hover:bg-emerald-200 transition-colors" onClick={(e) => { e.stopPropagation(); window.open(`/master/brands/${product.brandId}`, '_blank'); }} title="TikTok Shop後台操作権限あり - クリックでブランド詳細を開く">{t("sc.tiktokBackend")}<HelpCircle className="h-2.5 w-2.5 opacity-60" /></span>}
                     </span>
+                    {safeSelectionProductBrandPermissions(product.brandPermissionInfo).length > 0 && (
+                      <div className="mt-1 flex max-w-[220px] flex-wrap gap-1">
+                        {safeSelectionProductBrandPermissions(product.brandPermissionInfo).map((permission) => (
+                          <span key={permission} className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+                            {selectionProductBrandPermissionLabel(permission, language)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td className="p-3">{categoryLabel}</td>
                   <td className="p-3 text-right">
@@ -835,10 +857,12 @@ function ProductsTab() {
 }
 
 function ProductFormDialog({ open, onClose, product, protectionMap, categories, onSubmit, loading }: any) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const isChinese = language === "zh" || language === "zh-TW";
   const [form, setForm] = useState<any>(product || {});
   const [uploading, setUploading] = useState(false);
   const [previewImage, setPreviewImage] = useState<ProductImagePreview>(null);
+  const [customBrandPermission, setCustomBrandPermission] = useState("");
   const isEdit = !!product;
   const brandsQuery = trpc.brand.list.useQuery();
 
@@ -890,6 +914,12 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
         toast.error(error instanceof Error ? error.message : "タグデータを読み取れません");
       }
       try {
+        p.brandPermissionInfo = normalizeSelectionProductBrandPermissions(p.brandPermissionInfo);
+      } catch (error) {
+        p.brandPermissionInfo = [];
+        toast.error(error instanceof Error ? error.message : "ブランド権限データを読み取れません");
+      }
+      try {
         const variants = normalizeSelectionProductSkuVariants(p.skuVariants);
         p.skuVariants = variants.length > 0 ? variants : legacySelectionProductSkuVariant(p);
         p.__skuLoadError = undefined;
@@ -898,6 +928,7 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
         p.__skuLoadError = error instanceof Error ? error.message : "SKUデータを読み取れません";
         toast.error(p.__skuLoadError);
       }
+      setCustomBrandPermission("");
       setForm(p);
     }
   }, [open, product]);
@@ -974,6 +1005,37 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
   const detailImageList = parseJsonArray(form.detailImages).map(String).filter(Boolean);
   const skuVariants: SelectionProductSkuVariant[] = Array.isArray(form.skuVariants) ? form.skuVariants : [];
   const selectedTags = (() => { try { return normalizeSelectionProductTags(form.tags); } catch { return []; } })();
+  const selectedBrandPermissions = (() => {
+    try { return normalizeSelectionProductBrandPermissions(form.brandPermissionInfo); }
+    catch { return []; }
+  })();
+
+  const setBrandPermissions = (permissions: unknown): boolean => {
+    try {
+      const normalized = normalizeSelectionProductBrandPermissions(permissions);
+      setForm((current: any) => ({ ...current, brandPermissionInfo: normalized }));
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "品牌权限格式无效");
+      return false;
+    }
+  };
+
+  const toggleBrandPermission = (permission: string) => {
+    setBrandPermissions(
+      selectedBrandPermissions.includes(permission)
+        ? selectedBrandPermissions.filter((value) => value !== permission)
+        : [...selectedBrandPermissions, permission],
+    );
+  };
+
+  const addCustomBrandPermission = () => {
+    const value = customBrandPermission.trim();
+    if (!value) return;
+    if (setBrandPermissions([...selectedBrandPermissions, value])) {
+      setCustomBrandPermission("");
+    }
+  };
 
   const addSkuVariant = () => {
     setForm((current: any) => ({
@@ -1010,6 +1072,7 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
         throw new SelectionProductValidationError("请输入商品名 / 商品名を入力してください");
       }
       const tags = normalizeSelectionProductTags(form.tags);
+      const brandPermissionInfo = normalizeSelectionProductBrandPermissions(form.brandPermissionInfo);
       const normalizedSkuVariants = normalizeSelectionProductSkuVariants(form.skuVariants);
       const primarySku = normalizedSkuVariants[0];
       const submitData: any = {
@@ -1033,6 +1096,7 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
         description: form.description || undefined,
         stock: form.stock != null && form.stock !== "" ? Number(form.stock) : undefined,
         supplierContact: form.supplierContact || undefined,
+        brandPermissionInfo,
         talentExclusive: form.talentExclusive ? 1 : 0,
         exclusiveLiverIds: form.talentExclusive ? (form.exclusiveLiverIds || []) : [],
         tags,
@@ -1426,6 +1490,71 @@ function ProductFormDialog({ open, onClose, product, protectionMap, categories, 
             <Input value={form.supplierContact || ""} onChange={e => setForm({ ...form, supplierContact: e.target.value })} />
           </div>
 
+          <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/40 p-4">
+            <div>
+              <Label className="font-semibold text-blue-900">
+                {isChinese ? "品牌权限信息" : "ブランド権限情報"}
+              </Label>
+              <p className="mt-1 text-xs text-blue-700">
+                {isChinese
+                  ? "可多选品牌已开放的操作权限，也可追加自定义权限。"
+                  : "ブランドから付与された操作権限を複数選択し、独自項目も追加できます。"}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2" aria-label={isChinese ? "品牌权限预设" : "ブランド権限プリセット"}>
+              {SELECTION_PRODUCT_BRAND_PERMISSION_PRESETS.map((permission) => {
+                const selected = selectedBrandPermissions.includes(permission.value);
+                return (
+                  <Button
+                    key={permission.value}
+                    type="button"
+                    size="sm"
+                    variant={selected ? "default" : "outline"}
+                    className={selected ? "bg-blue-600 hover:bg-blue-700" : "border-blue-200 bg-white text-blue-800 hover:bg-blue-100"}
+                    onClick={() => toggleBrandPermission(permission.value)}
+                  >
+                    {selected && <Check className="mr-1 h-3.5 w-3.5" />}
+                    {selectionProductBrandPermissionLabel(permission.value, language)}
+                  </Button>
+                );
+              })}
+            </div>
+            {selectedBrandPermissions.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {selectedBrandPermissions.map((permission) => (
+                  <span key={permission} className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-800">
+                    {selectionProductBrandPermissionLabel(permission, language)}
+                    <button
+                      type="button"
+                      className="rounded-full text-blue-500 hover:bg-blue-100 hover:text-blue-800"
+                      aria-label={`${selectionProductBrandPermissionLabel(permission, language)} ${isChinese ? "删除" : "削除"}`}
+                      onClick={() => toggleBrandPermission(permission)}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Input
+                value={customBrandPermission}
+                maxLength={100}
+                placeholder={isChinese ? "其他权限，例如：广告账户管理" : "その他の権限（例：広告アカウント管理）"}
+                onChange={(event) => setCustomBrandPermission(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addCustomBrandPermission();
+                  }
+                }}
+              />
+              <Button type="button" variant="outline" className="shrink-0 border-blue-200" onClick={addCustomBrandPermission} disabled={!customBrandPermission.trim()}>
+                <Plus className="mr-1 h-4 w-4" />{isChinese ? "添加" : "追加"}
+              </Button>
+            </div>
+          </div>
+
           {/* 自営 section - bordered card */}
           <div className="border rounded-lg p-4 space-y-3">
             <div className="flex items-center gap-2">
@@ -1721,7 +1850,7 @@ function LiverSelectionTab() {
   const [detailProduct, setDetailProduct] = useState<any>(null);
   const [tagFilter, setTagFilter] = useState<string>("");
 
-  const productsQuery = trpc.selectionCenter.getLiverAvailableProducts.useQuery({
+  const productsQuery = trpc.selectionCenter.getLiverAvailableProductsInternal.useQuery({
     search: search || undefined,
   });
   const liversQuery = trpc.selectionCenter.getLivers.useQuery();

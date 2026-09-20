@@ -2,18 +2,19 @@ import type mysql from "mysql2/promise";
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import {
+  normalizeSelectionProductBrandPermissions,
   normalizeSelectionProductSkuVariants,
   normalizeSelectionProductTags,
   SelectionProductValidationError,
   type SelectionProductSkuVariant,
 } from "@shared/selectionProductPersistence";
 
-const JSON_COLUMNS = new Set(["images", "detailImages", "videos", "exclusiveLiverIds", "tags", "skuVariants"]);
+const JSON_COLUMNS = new Set(["images", "detailImages", "videos", "exclusiveLiverIds", "tags", "skuVariants", "brandPermissionInfo"]);
 
 const UPDATE_COLUMNS = [
   "productName", "productNameCn", "productId", "barcode", "brandName", "brandId", "categoryId",
   "price", "marketPrice", "costPrice", "commissionType", "commissionValue", "images", "detailImages",
-  "videos", "productLink", "sellingPoints", "description", "stock", "supplierContact", "talentExclusive",
+  "videos", "productLink", "sellingPoints", "description", "stock", "supplierContact", "brandPermissionInfo", "talentExclusive",
   "exclusiveLiverIds", "tags", "selfOperated", "purchasePrice", "shippingFee", "platformFee", "deliveryTime",
   "suggestedPrice", "mechanism", "historicalLowestPrice", "discountRate", "secondLowestPrice", "thirdLowestPrice",
   "secondDiscountRate", "thirdDiscountRate", "lowestPriceDate", "secondLowestPriceDate", "thirdLowestPriceDate",
@@ -27,6 +28,7 @@ const SCHEMA_STATEMENTS = [
   "ALTER TABLE selection_products ADD COLUMN productNameCn VARCHAR(255) DEFAULT NULL",
   "ALTER TABLE selection_products ADD COLUMN productId VARCHAR(255) DEFAULT NULL",
   "ALTER TABLE selection_products ADD COLUMN detailImages JSON DEFAULT NULL",
+  "ALTER TABLE selection_products ADD COLUMN brandPermissionInfo JSON DEFAULT NULL AFTER supplierContact",
   "ALTER TABLE selection_products ADD COLUMN talentExclusive TINYINT DEFAULT 0",
   "ALTER TABLE selection_products ADD COLUMN exclusiveLiverIds JSON DEFAULT NULL",
   "ALTER TABLE selection_products ADD COLUMN tags JSON DEFAULT NULL",
@@ -153,6 +155,9 @@ function canonicalProductInput(input: Record<string, unknown>): Record<string, u
     if (data.tags !== undefined) {
       data.tags = normalizeSelectionProductTags(data.tags);
     }
+    if (data.brandPermissionInfo !== undefined) {
+      data.brandPermissionInfo = normalizeSelectionProductBrandPermissions(data.brandPermissionInfo);
+    }
     if (data.skuVariants !== undefined) {
       const variants = withStableSkuVariantIds(normalizeSelectionProductSkuVariants(data.skuVariants));
       const primarySku = variants[0];
@@ -223,6 +228,7 @@ export async function createSelectionProduct(
   if (data.talentExclusive === undefined) data.talentExclusive = 0;
   if (data.selfOperated === undefined) data.selfOperated = 0;
   if (data.tags === undefined) data.tags = [];
+  if (data.brandPermissionInfo === undefined) data.brandPermissionInfo = [];
   if (data.skuVariants === undefined) data.skuVariants = [];
   if (data.skuName === undefined) data.skuName = null;
   if (data.skuPrice === undefined) data.skuPrice = null;

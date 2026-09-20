@@ -1,5 +1,74 @@
 export const MAX_SELECTION_PRODUCT_TAGS = 30;
 export const MAX_SELECTION_PRODUCT_SKUS = 100;
+export const MAX_SELECTION_PRODUCT_BRAND_PERMISSIONS = 20;
+
+export const SELECTION_PRODUCT_BRAND_PERMISSION_PRESETS = [
+  { value: "subaccount_control", zh: "子账号控制", ja: "サブアカウント管理" },
+  { value: "creator_flash_sale", zh: "达人秒杀", ja: "クリエイター限定セール" },
+  { value: "product_discount", zh: "商品折扣", ja: "商品割引" },
+] as const;
+
+const BRAND_PERMISSION_ALIASES = new Map<string, string>(
+  SELECTION_PRODUCT_BRAND_PERMISSION_PRESETS.flatMap((preset) => [
+    [preset.value, preset.value],
+    [preset.zh, preset.value],
+    [preset.ja, preset.value],
+  ]),
+);
+
+function brandPermissionIdentity(value: string): string {
+  return value.normalize("NFKC").replace(/\s+/g, " ").trim().toLocaleLowerCase("ja-JP");
+}
+
+export function selectionProductBrandPermissionLabel(value: string, language: "zh-CN" | "ja" | string): string {
+  const preset = SELECTION_PRODUCT_BRAND_PERMISSION_PRESETS.find((candidate) => candidate.value === value);
+  if (!preset) return value;
+  return language === "zh-CN" || language.startsWith("zh") ? preset.zh : preset.ja;
+}
+
+export function normalizeSelectionProductBrandPermissions(value: unknown): string[] {
+  let source: unknown[];
+  if (Array.isArray(value)) {
+    source = value;
+  } else if (value === null || value === undefined || value === "") {
+    source = [];
+  } else if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      source = Array.isArray(parsed) ? parsed : [trimmed];
+    } catch {
+      source = trimmed.split(/[\n,，、]+/);
+    }
+  } else {
+    throw new SelectionProductValidationError("品牌权限格式无效 / ブランド権限の形式が正しくありません");
+  }
+
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+  for (const item of source) {
+    if (typeof item !== "string") {
+      throw new SelectionProductValidationError("品牌权限必须是文字 / ブランド権限は文字列で入力してください");
+    }
+    const compact = item.trim().replace(/\s+/g, " ");
+    if (!compact) continue;
+    if (compact.length > 100) {
+      throw new SelectionProductValidationError("单项品牌权限不能超过100字 / ブランド権限は1件100文字以内で入力してください");
+    }
+    const canonical = BRAND_PERMISSION_ALIASES.get(compact) || compact;
+    const identity = brandPermissionIdentity(canonical);
+    if (!seen.has(identity)) {
+      seen.add(identity);
+      normalized.push(canonical);
+    }
+  }
+
+  if (normalized.length > MAX_SELECTION_PRODUCT_BRAND_PERMISSIONS) {
+    throw new SelectionProductValidationError(`品牌权限最多${MAX_SELECTION_PRODUCT_BRAND_PERMISSIONS}项 / ブランド権限は最大${MAX_SELECTION_PRODUCT_BRAND_PERMISSIONS}件です`);
+  }
+  return normalized;
+}
 
 export type SelectionProductSkuVariant = {
   variantId?: string;
