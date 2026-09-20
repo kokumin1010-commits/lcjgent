@@ -160,6 +160,18 @@ async function main() {
       await connection.execute(statement);
     }
     console.log(`[Migration] LINE group AI insight columns ensured (${lineGroupAiInsightStatements.length} statements).`);
+
+    console.log('[Migration] Ensuring LCJ Brain core super administrators...');
+    const lcjBrainPermissionMigrationPath = path.join(__dirname, 'drizzle', '0148_lcj_brain_core_super_admins.sql');
+    const lcjBrainPermissionSql = await fs.readFile(lcjBrainPermissionMigrationPath, 'utf8');
+    const lcjBrainPermissionStatements = lcjBrainPermissionSql
+      .split('--> statement-breakpoint')
+      .map(statement => statement.trim())
+      .filter(Boolean);
+    for (const statement of lcjBrainPermissionStatements) {
+      await connection.execute(statement);
+    }
+    console.log(`[Migration] LCJ Brain core super administrators ensured (${lcjBrainPermissionStatements.length} statements).`);
   } catch (fallbackErr) {
     console.error('[Migration] Fallback error:', fallbackErr.message);
   } finally {

@@ -1002,6 +1002,13 @@
       "when": 1789877133025,
       "tag": "0147_line_group_ai_insights",
       "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "5",
+      "when": 1789879973227,
+      "tag": "0148_lcj_brain_core_super_admins",
+      "breakpoints": true
     }
   ]
 }

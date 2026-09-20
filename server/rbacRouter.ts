@@ -286,7 +286,7 @@ export const rbacRouter = router({
 
     // Keep the legacy technical admin behavior for existing business pages,
     // while exposing the explicit account-management hierarchy separately.
-    if (ctx.user.role === "admin") {
+    if (ctx.user.role === "admin" || managementAccess.isSuperAdmin) {
       return {
         roleName: managementAccess.isSuperAdmin ? "超级管理员" : "兼容管理员",
         roleId: null,

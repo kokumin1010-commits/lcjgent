@@ -266,6 +266,19 @@ export const LCJ_BRAIN_TOOLS: Tool[] = [
   {
     type: "function",
     function: {
+      name: "list_active_staff_directory",
+      description:
+        "列出当前账号有权查看的全部在职员工。用户说‘把现在在职员工写出来’、‘列出在职人员’、‘现在有哪些员工’时直接使用，不要再追问范围；范围由服务器按普通员工本人、部门负责人负责部门、超级管理员全公司自动确定。只返回姓名、部门和岗位。",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "get_mall_data",
       description: "EC MALL（ショッピング）データを取得。注文・商品・ポイント残高・レシート審査状況を含む。",
       parameters: {
@@ -452,6 +465,10 @@ export async function executeToolCall(
             args as { staffName: string; days?: number; limit?: number },
             context?.actor || null
           )
+        );
+      case "list_active_staff_directory":
+        return JSON.stringify(
+          await toolListActiveStaffDirectory(context?.actor || null)
         );
       case "get_mall_data":
         return JSON.stringify(await toolGetMallData(args));
@@ -1221,6 +1238,112 @@ async function resolveStaffKnowledgeAccess(
     ...management,
     canReadAllStaff: management.isSuperAdmin,
   };
+}
+
+export function isActiveStaffDirectoryQuestion(message: string): boolean {
+  const normalized = message.normalize("NFKC").replace(/[\s　]+/g, "");
+  const staffNoun =
+    "(?:员工|員工|人员|人員|成员|成員|同事|社員|従業員|スタッフ|メンバー|staff)";
+  const mentionsActiveStaff =
+    new RegExp(
+      `(?:在职|在職|现职|現職|現役|在籍)(?:中)?(?:的|の|している)?${staffNoun}`,
+      "i"
+    ).test(normalized) ||
+    new RegExp(
+      `(?:当前|當前|现在|現在|目前|现有|現有|今)(?:的|の|公司(?:里|裏)|团队|團隊|社内)?(?:有|共有|いる|在籍している)?(?:哪些|谁|誰)?${staffNoun}`,
+      "i"
+    ).test(normalized) ||
+    new RegExp(`(?:全部|所有|全体|全员|全員|全社|全)(?:的|の)?${staffNoun}`, "i").test(
+      normalized
+    ) ||
+    new RegExp(`${staffNoun}(?:的|の)?(?:名单|名單|名簿|一覧|名前)`, "i").test(
+      normalized
+    ) ||
+    /(?:在籍者|在職者|現職者)/.test(normalized);
+  const asksForDirectory =
+    /(?:写出来|寫出來|列出|列举|列舉|名单|名單|名簿|一覧|リストアップ|列挙|都有谁|都有誰|有哪些|是谁|是誰|誰|教えて|告诉|告訴|名前)/i.test(
+      normalized
+    );
+  return mentionsActiveStaff && asksForDirectory;
+}
+
+async function toolListActiveStaffDirectory(actor: BrainToolActor | null) {
+  if (!actor?.id || !actor.email) {
+    return { error: "AUTH_REQUIRED", message: "在职员工名单查询需要登录账号。" };
+  }
+  const db = await getDb();
+  if (!db) return { error: "DB_UNAVAILABLE" };
+  const access = await resolveStaffKnowledgeAccess(db, actor);
+  const scopeCondition = access.canReadAllStaff
+    ? sql`TRUE`
+    : access.level === "department_manager" && access.managedDepartment
+      ? eq(staff.department, access.managedDepartment)
+      : sql`LOWER(TRIM(${staff.email})) = LOWER(TRIM(${actor.email}))`;
+  const rows = await db
+    .select({
+      name: staff.name,
+      nameEn: staff.nameEn,
+      email: staff.email,
+      department: staff.department,
+      position: staff.position,
+    })
+    .from(staff)
+    .where(
+      and(
+        eq(staff.isActive, "active"),
+        isNull(staff.archivedAt),
+        isNull(staff.mergedIntoStaffId),
+        scopeCondition
+      )
+    )
+    .orderBy(asc(staff.department), asc(staff.name))
+    .limit(500);
+
+  const visible = rows.filter(member =>
+    canReadStaffWorkKnowledge({
+      isSuperAdmin: access.canReadAllStaff,
+      managementLevel: access.level,
+      managedDepartment: access.managedDepartment,
+      actorEmail: actor.email,
+      targetDepartment: member.department,
+      targetEmail: member.email,
+    })
+  );
+  const scope = access.canReadAllStaff
+    ? "全公司"
+    : access.level === "department_manager"
+      ? access.managedDepartment || "负责部门"
+      : "本人";
+
+  return {
+    source: "LCJ HR在职员工目录",
+    accessLevel: access.canReadAllStaff
+      ? "super_admin"
+      : access.level === "department_manager"
+        ? "department_manager"
+        : "employee",
+    scope,
+    total: visible.length,
+    truncated: rows.length >= 500,
+    staff: visible.map(member => ({
+      name: boundedStaffKnowledgeText(member.name, 120),
+      nameEn: boundedStaffKnowledgeText(member.nameEn, 120),
+      department: boundedStaffKnowledgeText(member.department, 120),
+      position: boundedStaffKnowledgeText(member.position, 120),
+    })),
+    privacy:
+      "只返回姓名、部门和岗位；邮箱、电话、住址、工资、生日、LINE等敏感字段不会进入回答。",
+    guidance:
+      "请直接按部门列出当前可见的全部在职员工，不要再向用户追问范围。若只有本人可见，明确说明这是当前账号权限范围。",
+  };
+}
+
+export async function getActiveStaffDirectoryEvidenceForQuestion(
+  message: string,
+  actor: BrainToolActor
+): Promise<string | null> {
+  if (!isActiveStaffDirectoryQuestion(message)) return null;
+  return JSON.stringify(await toolListActiveStaffDirectory(actor));
 }
 
 async function toolSearchStaffWorkKnowledge(

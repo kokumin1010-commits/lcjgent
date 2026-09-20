@@ -77,6 +77,10 @@ import {
   getStaffWorkKnowledgeReadiness,
 } from "../lcjBrainTools";
 import { ensureLcfRequiredUsageStorage } from "../lcjBrain";
+import {
+  ensureLcjBrainCoreSuperAdmins,
+  getLcjBrainPermissionHealth,
+} from "../lcjBrainPermissionService";
 import { getNavigationUsageHealth } from "../userNavigationUsage";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runAuctionSchemaUpgradeSetup } from "../auctionSchemaUpgrade";
@@ -287,6 +291,20 @@ async function startServer() {
       return res.status(503).json({
         ok: false,
         accessPolicy: "self_department_superadmin",
+      });
+    }
+  });
+
+  app.get("/api/health/lcj-brain-permissions", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    try {
+      const health = await getLcjBrainPermissionHealth();
+      return res.status(health.ok ? 200 : 503).json(health);
+    } catch {
+      return res.status(503).json({
+        ok: false,
+        configuredCoreSuperAdminCount: 0,
+        expectedCoreSuperAdminCount: 2,
       });
     }
   });
@@ -3858,6 +3876,17 @@ async function startServer() {
       code: "LCJ_BRAIN_REQUIRED_USAGE_STORAGE_UNAVAILABLE",
       message: error instanceof Error ? error.message : String(error),
     });
+  }
+
+  try {
+    await ensureLcjBrainCoreSuperAdmins();
+    console.log("[LcjBrainPermissions] core super administrators ready");
+  } catch (error) {
+    console.error("[LcjBrainPermissions] core super administrator setup failed", {
+      code: "LCJ_BRAIN_PERMISSION_SETUP_FAILED",
+      message: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
   }
 
   try {

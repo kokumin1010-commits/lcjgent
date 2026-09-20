@@ -265,6 +265,7 @@ function ChatPanel() {
   const [requiredLcfQuestion, setRequiredLcfQuestion] = useState(false);
   const [requiredLcfRoleQuestionId, setRequiredLcfRoleQuestionId] =
     useState<LcfRequiredRoleQuestionId | null>(null);
+  const [permissionDirectoryOpen, setPermissionDirectoryOpen] = useState(false);
   const utils = trpc.useUtils();
   const chatMutation = trpc.lcjBrain.chat.useMutation();
   const deleteConversation = trpc.lcjBrain.deleteConversation.useMutation();
@@ -272,6 +273,11 @@ function ChatPanel() {
     undefined,
     { enabled: !!user, staleTime: 15_000 }
   );
+  const permissionSummary =
+    trpc.lcjBrain.getStaffKnowledgePermissionSummary.useQuery(undefined, {
+      enabled: !!user,
+      staleTime: 30_000,
+    });
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -522,6 +528,7 @@ function ChatPanel() {
   };
 
   const quickQuestions = [
+    "请按部门列出我当前权限范围内的全部在职员工",
     "12月LCF展会应该从哪里开始？",
     "下一次每季度展会的完整流程和检查清单是什么？",
     "现在有哪些品牌在合作？",
@@ -611,6 +618,137 @@ function ChatPanel() {
             <span className="text-xs text-white/30">
               {conversations?.find(c => c.id === activeConversationId)?.title}
             </span>
+          )}
+        </div>
+
+        <div
+          className="mx-2 mt-2 flex-shrink-0 rounded-xl border border-cyan-400/20 bg-cyan-500/[0.07] px-3 py-2.5"
+          data-testid="lcj-brain-permission-summary"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 items-start gap-2">
+              <div className="mt-0.5 rounded-lg bg-cyan-400/10 p-1.5 text-cyan-200">
+                <Shield className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs font-semibold text-white">
+                    当前权限：
+                    {permissionSummary.data?.currentAccount.levelLabel ||
+                      (permissionSummary.isLoading ? "确认中" : "读取失败")}
+                  </p>
+                  {permissionSummary.data?.currentAccount.displayName && (
+                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-white/65">
+                      {permissionSummary.data.currentAccount.displayName}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 text-[11px] text-white/55">
+                  {permissionSummary.data?.currentAccount.scopeLabel ||
+                    "正在确认当前账号可查询的员工资料范围。"}
+                </p>
+                {permissionSummary.data?.currentAccount.systemAccessLabel && (
+                  <p className="mt-0.5 text-[10px] font-medium text-cyan-100/75">
+                    系统功能：
+                    {permissionSummary.data.currentAccount.systemAccessLabel}
+                  </p>
+                )}
+                <p className="mt-0.5 text-[10px] text-white/40">
+                  全员聊天记录：
+                  {permissionSummary.data?.currentAccount.level === "super_admin"
+                    ? "可只读查看"
+                    : "不可查看"}
+                  ；工资、住址、电话、生日、LINE、紧急联系人、邮箱、原文件名和存储地址不会进入AI回答。
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  sendMessage("请按部门列出我当前权限范围内的全部在职员工")
+                }
+                disabled={isLoading || permissionSummary.isLoading}
+                className="rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-2.5 py-1.5 text-[11px] font-medium text-cyan-100 transition hover:bg-cyan-400/20 disabled:opacity-50"
+              >
+                <Users className="mr-1 inline h-3.5 w-3.5" />
+                列出在职员工
+              </button>
+              <button
+                type="button"
+                onClick={() => setPermissionDirectoryOpen(value => !value)}
+                className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-white/65 transition hover:bg-white/10 hover:text-white"
+              >
+                {permissionDirectoryOpen ? "收起权限说明" : "查看谁有什么权限"}
+              </button>
+            </div>
+          </div>
+
+          {permissionDirectoryOpen && (
+            <div className="mt-2 border-t border-white/10 pt-2">
+              <div className="grid gap-2 text-[10px] sm:grid-cols-3">
+                <div className="rounded-lg border border-white/10 bg-black/15 p-2 text-white/65">
+                  <strong className="block text-white">普通员工</strong>
+                  只能查询自己
+                </div>
+                <div className="rounded-lg border border-white/10 bg-black/15 p-2 text-white/65">
+                  <strong className="block text-white">部门负责人</strong>
+                  只能查询自己负责部门
+                </div>
+                <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.07] p-2 text-amber-100/75">
+                  <strong className="block text-amber-100">超级管理员</strong>
+                  可以跨部门只读；可查看全员聊天记录
+                </div>
+              </div>
+
+              {permissionSummary.data?.permissionDirectory ? (
+                <div className="mt-2">
+                  <div className="mb-1 flex flex-wrap gap-2 text-[10px] text-white/45">
+                    <span>
+                      超级管理员 {permissionSummary.data.permissionDirectory.counts.superAdmins}人
+                    </span>
+                    <span>
+                      部门负责人 {permissionSummary.data.permissionDirectory.counts.departmentManagers}人
+                    </span>
+                    <span>
+                      普通员工 {permissionSummary.data.permissionDirectory.counts.employees}人
+                    </span>
+                  </div>
+                  <div className="max-h-44 space-y-1 overflow-y-auto pr-1">
+                    {permissionSummary.data.permissionDirectory.accounts.map(
+                      (account, index) => (
+                        <div
+                          key={`${account.displayName}-${account.department || "none"}-${index}`}
+                          className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 rounded-md border border-white/[0.06] bg-black/10 px-2 py-1.5 text-[10px]"
+                        >
+                          <span className="truncate font-medium text-white/80">
+                            {account.displayName}
+                          </span>
+                          <span className="truncate text-white/45">
+                            {account.department || "未设置部门"}
+                          </span>
+                          <span
+                            className={
+                              account.level === "super_admin"
+                                ? "text-amber-200"
+                                : account.level === "department_manager"
+                                  ? "text-cyan-200"
+                                  : "text-white/50"
+                            }
+                          >
+                            {account.levelLabel} · {account.scopeLabel}
+                          </span>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-2 text-[10px] text-white/45">
+                  您只能看到自己的权限范围；人员权限总览仅向账号管理员显示。
+                </p>
+              )}
+            </div>
           )}
         </div>
         

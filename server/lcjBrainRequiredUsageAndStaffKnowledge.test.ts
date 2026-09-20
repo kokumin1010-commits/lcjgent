@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   boundedStaffKnowledgeText,
   canReadStaffWorkKnowledge,
+  isActiveStaffDirectoryQuestion,
   shouldQueryScopedStaffReports,
 } from "./lcjBrainTools";
 import {
@@ -78,6 +79,79 @@ describe("LCJ Brain required usage and staff work knowledge", () => {
     expect(shouldQueryScopedStaffReports(101, [])).toBe(false);
     expect(shouldQueryScopedStaffReports(101, [22])).toBe(true);
     expect(shouldQueryScopedStaffReports(undefined, [])).toBe(false);
+  });
+
+  it("recognizes an active-staff list request without asking the user to choose a scope", () => {
+    const directoryRequests = [
+      "我们现在在职员工写出来",
+      "请列出全部在职人员名单",
+      "现在员工有哪些",
+      "目前有哪些同事",
+      "列出所有员工",
+      "現在の在籍社員は誰ですか",
+      "在籍者を教えて",
+      "現在在籍している社員を一覧にして",
+      "在職中の従業員を列挙して",
+      "現職のスタッフを教えて",
+      "全社員の名前を教えて",
+      "今いるメンバーをリストアップして",
+    ];
+    for (const question of directoryRequests) {
+      expect(isActiveStaffDirectoryQuestion(question), question).toBe(true);
+    }
+    expect(isActiveStaffDirectoryQuestion("张三最近30天日报怎么样")).toBe(
+      false
+    );
+    const tools = source("./lcjBrainTools.ts");
+    const brain = source("./lcjBrain.ts");
+    expect(tools).toContain('name: "list_active_staff_directory"');
+    expect(tools).toContain("不要再追问范围");
+    expect(brain).toContain("getActiveStaffDirectoryEvidenceForQuestion");
+    expect(brain).toContain("必须直接按部门完整列出JSON中的人员");
+  });
+
+  it("shows the actual account scope and permission directory inside Brain", () => {
+    const brain = source("./lcjBrain.ts");
+    const permissionService = source("./lcjBrainPermissionService.ts");
+    const chat = source("../client/src/pages/LcjBrain.tsx");
+    const index = source("./_core/index.ts");
+    const rbac = source("./rbacRouter.ts");
+    const migrationRunner = source("../run-migrations.mjs");
+    const migration = source("../drizzle/0148_lcj_brain_core_super_admins.sql");
+    const journal = source("../drizzle/meta/_journal.json");
+
+    expect(brain).toContain("getStaffKnowledgePermissionSummary");
+    expect(permissionService).toContain("getLcjBrainPermissionSummary");
+    expect(permissionService).toContain('displayName: "京極琉（KG）"');
+    expect(permissionService).toContain('displayName: "Cindy"');
+    expect(permissionService).toContain("SET role = 'admin'");
+    expect(permissionService).toContain("getSystemUserHierarchy");
+    expect(permissionService).toContain("canViewPermissionDirectory");
+    expect(chat).toContain('data-testid="lcj-brain-permission-summary"');
+    expect(chat).toContain("查看谁有什么权限");
+    expect(chat).toContain("列出在职员工");
+    expect(chat).toContain("普通员工");
+    expect(chat).toContain("部门负责人");
+    expect(chat).toContain("超级管理员");
+    expect(chat).toContain("全员聊天记录");
+    expect(permissionService).toContain("全部系统功能可用");
+    expect(migration).toContain("ryuhairartist@gmail.com");
+    expect(migration).toContain("cindy121481@gmail.com");
+    expect(migration).toContain("ON DUPLICATE KEY UPDATE");
+    expect(migration).toContain("SET `role` = 'admin'");
+    expect(migration).toContain(
+      "CREATE TABLE IF NOT EXISTS `user_role_assignments`"
+    );
+    expect(migration).toContain(
+      "CREATE TABLE IF NOT EXISTS `user_management_scopes`"
+    );
+    expect(migrationRunner).toContain("0148_lcj_brain_core_super_admins.sql");
+    expect(journal).toContain("0148_lcj_brain_core_super_admins");
+    expect(index).toContain("ensureLcjBrainCoreSuperAdmins");
+    expect(index).toContain("/api/health/lcj-brain-permissions");
+    expect(rbac).toContain(
+      'ctx.user.role === "admin" || managementAccess.isSuperAdmin'
+    );
   });
 
   it("provides a mandatory per-account LCF question flow", () => {
