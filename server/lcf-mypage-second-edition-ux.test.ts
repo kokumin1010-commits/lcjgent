@@ -67,6 +67,8 @@ describe("LCF second-edition mypage and companion admission", () => {
     expect(mypage).not.toContain("参加準備チェックリスト");
     expect(mypage).not.toContain("出展準備チェックリスト");
     expect(guide).toContain("事前マッチング・当日配信・GMV報告");
+    expect(guide).toContain("配信後は、報告対象日を選択し");
+    expect(guide).not.toContain("配信後は12月8日・9日を選択し");
   });
 
   it("keeps first-edition booth reservations read-only until second-edition rules are set", () => {

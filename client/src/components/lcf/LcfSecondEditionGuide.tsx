@@ -54,7 +54,7 @@ export function LcfSecondEditionGuide() {
         </details>
         <details className="group border border-white/10 bg-black/20 p-4">
           <summary className="flex cursor-pointer list-none items-center gap-3 text-sm font-black"><ShoppingBag className="h-4 w-4 text-amber-400" />事前マッチング・当日配信・GMV報告</summary>
-          <p className="mt-3 text-xs leading-6 text-gray-400">第2回の承認済み出展ブランド・公開商品を選び、マッチングを申請します。配信後は12月8日・9日を選択し、自己申告GMVと証拠スクリーンショットを提出してください。運営確認済みの報告だけが集計対象です。</p>
+          <p className="mt-3 text-xs leading-6 text-gray-400">第2回の承認済み出展ブランド・公開商品を選び、マッチングを申請します。配信後は、報告対象日を選択し、自己申告GMVと証拠スクリーンショットを提出してください。運営確認済みの報告だけが集計対象です。</p>
           <a href="#matching-gmv" className="mt-2 inline-flex items-center text-xs font-black text-amber-300 hover:text-amber-200">マッチング・GMV操作へ移動</a>
         </details>
         <details className="group border border-white/10 bg-black/20 p-4">
