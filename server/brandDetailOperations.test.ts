@@ -36,14 +36,26 @@ describe("brand detail operations and historical GMV ledger", () => {
     expect(router).toContain("requireBrandDataView(ctx)");
   });
 
-  it("keeps historical GMV independent and exposes click-to-edit operations", () => {
+  it("adds the historical ledger to all-time GMV and exposes writable contract operations", () => {
     const detail = read("client/src/pages/BrandDetail.tsx");
-    expect(detail).toContain("不计入直播GMV（防止重复）");
+    const routers = read("server/routers.ts");
+    const contractUpdate = read("server/brandContractUpdate.ts");
+    expect(detail).toContain("combineBrandTotalGmv");
+    expect(detail).toContain("计入全期间GMV一次（不写入直播明细）");
+    expect(detail).not.toContain("不计入直播GMV（防止重复）");
     expect(detail).toContain("historicalGmvData?.larkTotal");
     expect(detail).toContain("historicalGmvData?.manualTotal");
     expect(detail).toContain("openHistoricalGmvEditor");
     expect(detail).toContain("setAddContractDialogOpen(true)");
     expect(detail).toContain("handleEditContract(contract)");
+    expect(detail).toContain("合同内容・条款（自由填写）");
+    expect(detail).toContain("保存合同");
+    expect(detail).toContain('memo: String(editingContract.memo || "").trim() || null');
+    expect(routers).toContain('.input(brandContractUpdateInputSchema)');
+    expect(contractUpdate).toContain('memo: z.string().nullable().optional()');
+    expect(contractUpdate).toContain('if (value === null || value === "") return null');
+    expect(routers).toContain('sanitizeBrandContractAuditValue(existingContract as any)');
+    expect(routers).toContain('rest.memo ? `契約内容・条項を更新` : `契約内容・条項をクリア`');
     expect(detail).toContain('id="brand-products-section"');
     expect(detail).toContain('id="brand-livestream-section"');
   });

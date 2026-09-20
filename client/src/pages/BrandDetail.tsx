@@ -44,6 +44,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend, ResponsiveContainer, LineChart, Line, Cell } from "recharts";
 import ProductCardTemplate, { ProductCardMini } from "@/components/ProductCard";
 import { toast } from "sonner";
+import { combineBrandTotalGmv } from "@shared/brandMetrics";
 
 const translations = {
   ja: {
@@ -843,7 +844,7 @@ export default function BrandDetail() {
     gmvTarget: false,
     schedule: true,
     kpiSummary: true,
-    contracts: false,
+    contracts: true,
     shortVideo: false,
     livestreamPerformance: false,
     products: false,
@@ -1784,8 +1785,8 @@ ${proposal.proposalContent}
       setNewContract({ serviceType: "単発ライブ契約", fixedFee: 0, status: "契約中", startDate: "", endDate: "", memo: "", linkedLivestreamIds: [], plannedLivestreamCount: undefined, tspContractId: null, createNewTsp: false });
       toast.success(language === 'zh' ? '合同已添加' : '契約を追加しました');
     },
-    onError: () => {
-      toast.error("エラーが発生しました");
+    onError: (error) => {
+      toast.error(language === 'zh' ? `合同保存失败：${error.message}` : `契約の保存に失敗しました：${error.message}`);
     },
   });
 
@@ -2159,10 +2160,13 @@ ${proposal.proposalContent}
     aiExtractMutation.mutate({ imageUrl: selectedImageForAi });
   };
 
-  // Calculate GMV totals from livestreams data (CSV商品別売上インポート済みのみ)
-  const totalGmv = livestreams.reduce((sum, ls: any) => sum + (ls.effectiveGmv ?? ls.salesAmount ?? ls.gmv ?? 0), 0);
+  // The all-time brand total combines de-duplicated livestream facts with the
+  // canonical historical ledger baseline exactly once at summary level.
+  const livestreamGmvTotal = livestreams.reduce((sum, ls: any) => sum + (ls.effectiveGmv ?? ls.salesAmount ?? ls.gmv ?? 0), 0);
   const historicalGmvRecords = historicalGmvData?.records || [];
   const historicalGmvTotal = historicalGmvData?.total || 0;
+  const brandGmvBreakdown = combineBrandTotalGmv({ livestreamTotal: livestreamGmvTotal, historicalTotal: historicalGmvTotal });
+  const totalGmv = brandGmvBreakdown.total;
   const openHistoricalGmvEditor = (record?: any) => {
     setEditingHistoricalGmv(record || null);
     setHistoricalGmvDraft({
@@ -3503,7 +3507,7 @@ ${proposal.proposalContent}
             <div className="relative text-center">
               <div className="flex items-center justify-center gap-3 mb-4">
                 <span className="text-4xl animate-bounce">🔥</span>
-                <span className="text-red-300 text-lg font-bold uppercase tracking-widest">{t.totalGmv}（全期間）</span>
+                <span className="text-red-300 text-lg font-bold uppercase tracking-widest">{t.totalGmv}（{language === 'ja' ? '配信＋過去台帳' : '直播＋历史台账'}）</span>
               </div>
               <p 
                 className="text-6xl md:text-8xl font-black tracking-tight"
@@ -3518,8 +3522,14 @@ ${proposal.proposalContent}
               </p>
               <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-gray-300">
                 <Badge className="border border-cyan-500/30 bg-cyan-500/10 text-cyan-200">
-                  {language === 'ja' ? `${livestreams.length}件の根拠配信` : `${livestreams.length}条有据直播`}
+                  {language === 'ja' ? `配信GMV ${formatCurrency(brandGmvBreakdown.livestreamTotal)}` : `直播GMV ${formatCurrency(brandGmvBreakdown.livestreamTotal)}`}
                 </Badge>
+                <Badge className="border border-blue-500/30 bg-blue-500/10 text-blue-200">
+                  {language === 'ja' ? `過去台帳 ${formatCurrency(brandGmvBreakdown.historicalTotal)}` : `历史台账 ${formatCurrency(brandGmvBreakdown.historicalTotal)}`}
+                </Badge>
+                <span className="rounded-full border border-gray-700 bg-black/40 px-2 py-1 text-gray-400">
+                  {language === 'ja' ? `${livestreams.length}件の根拠配信` : `${livestreams.length}条有据直播`}
+                </span>
                 {Object.entries(gmvEvidenceSummary)
                   .filter(([source, count]) => source !== "none" && count > 0)
                   .map(([source, count]) => (
@@ -3552,7 +3562,7 @@ ${proposal.proposalContent}
               <div>
                 <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-blue-200">
                   <History className="h-5 w-5 text-cyan-300" />
-                  {language === "ja" ? "過去GMV台帳（独立基準）" : "历史GMV台账（独立基准）"}
+                  {language === "ja" ? "過去GMV台帳（総GMVへ加算）" : "历史GMV台账（计入总GMV）"}
                 </div>
                 <p className="mt-2 text-3xl font-black text-cyan-300 md:text-5xl" style={{ fontFamily: "JetBrains Mono, monospace" }}>
                   {formatCurrency(historicalGmvTotal)}
@@ -3561,7 +3571,7 @@ ${proposal.proposalContent}
               <div className="space-y-1 text-xs text-gray-300 md:text-right">
                 <div>{language === "ja" ? `${historicalGmvRecords.length}件の根拠記録` : `${historicalGmvRecords.length}条依据记录`}</div>
                 <div className="text-blue-300">Lark {formatCurrency(historicalGmvData?.larkTotal || 0)} · {language === "ja" ? "手動" : "人工"} {formatCurrency(historicalGmvData?.manualTotal || 0)}</div>
-                <div className="font-semibold text-amber-300">{language === "ja" ? "配信GMVへ加算しません（重複防止）" : "不计入直播GMV（防止重复）"}</div>
+                <div className="font-semibold text-emerald-300">{language === "ja" ? "全期間GMVへ1回だけ加算（配信明細には混在しません）" : "计入全期间GMV一次（不写入直播明细）"}</div>
                 {historicalGmvData?.hasSourceConflict && <div className="font-semibold text-red-300">{language === "ja" ? "Larkと手動根拠が併存：Larkのみを合計" : "飞书与人工依据并存：合计仅采用飞书"}</div>}
                 <div className="flex items-center justify-end gap-1 text-cyan-200"><Edit2 className="h-3.5 w-3.5" />{language === "ja" ? "クリックして台帳管理" : "点击管理台账"}</div>
               </div>
@@ -3798,7 +3808,13 @@ ${proposal.proposalContent}
             </Button>
           </div>
           {contracts.length === 0 ? (
-            <p className="text-gray-400 text-center py-8 text-lg">{t.noData}</p>
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <p className="text-lg text-gray-300">{language === 'ja' ? '契約はまだ入力されていません' : '合同尚未填写'}</p>
+              <p className="text-sm text-gray-500">{language === 'ja' ? '契約内容・金額・期間・条件をこの画面から直接記入できます。' : '可直接在此页面填写合同内容、金额、期限和条件。'}</p>
+              <Button onClick={() => setAddContractDialogOpen(true)} className="bg-amber-600 text-white hover:bg-amber-500">
+                <Plus className="mr-2 h-4 w-4" />{language === 'ja' ? '契約を記入' : '填写合同'}
+              </Button>
+            </div>
           ) : (
             <div className="space-y-2">
               {contracts.map((contract) => (
@@ -3819,10 +3835,11 @@ ${proposal.proposalContent}
                     <div className="flex items-center gap-2">
                       <button
                         onClick={event => { event.stopPropagation(); handleEditContract(contract); }}
-                        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-amber-400 transition-all"
+                        className="flex items-center gap-1 rounded-md border border-amber-500/30 px-2 py-1 text-xs text-amber-300 transition-all hover:bg-amber-500/10"
                         title={language === 'ja' ? '編集' : '编辑'}
                       >
-                        <Edit2 className="h-5 w-5" />
+                        <Edit2 className="h-4 w-4" />
+                        {language === 'ja' ? '編集' : '编辑'}
                       </button>
                       <button
                         onClick={event => { event.stopPropagation(); setContractToDelete(contract); setDeleteContractDialogOpen(true); }}
@@ -3894,6 +3911,12 @@ ${proposal.proposalContent}
                           <p className="text-xs text-gray-300 whitespace-pre-line">{(contract as any).shortVideoCondition}</p>
                         </div>
                       )}
+                    </div>
+                  )}
+                  {contract.memo && (
+                    <div className="mt-2 rounded-lg border border-amber-500/20 bg-amber-950/20 p-3">
+                      <p className="mb-1 text-[10px] font-bold text-amber-300">{language === 'ja' ? '契約内容・条項' : '合同内容・条款'}</p>
+                      <p className="whitespace-pre-wrap text-sm text-gray-200">{contract.memo}</p>
                     </div>
                   )}
                   {/* ROAS表示コンポーネント */}
@@ -5887,7 +5910,7 @@ ${proposal.proposalContent}
                 <Input
                   type="number"
                   value={editingContract.fixedFee || ""}
-                  onChange={(e) => setEditingContract({ ...editingContract, fixedFee: parseInt(e.target.value) || 0 })}
+                  onChange={(e) => setEditingContract({ ...editingContract, fixedFee: e.target.value === "" ? null : Number(e.target.value) })}
                   placeholder="例: 1000000"
                   className="bg-black/60 border-red-900/50 text-white mt-1"
                 />
@@ -5912,7 +5935,7 @@ ${proposal.proposalContent}
                   <Input
                     type="date"
                     value={editingContract.startDate ? new Date(editingContract.startDate).toISOString().split('T')[0] : ""}
-                    onChange={(e) => setEditingContract({ ...editingContract, startDate: new Date(e.target.value) })}
+                    onChange={(e) => setEditingContract({ ...editingContract, startDate: e.target.value || null })}
                     className="bg-black/60 border-red-900/50 text-white mt-1"
                   />
                 </div>
@@ -5921,17 +5944,19 @@ ${proposal.proposalContent}
                   <Input
                     type="date"
                     value={editingContract.endDate ? new Date(editingContract.endDate).toISOString().split('T')[0] : ""}
-                    onChange={(e) => setEditingContract({ ...editingContract, endDate: new Date(e.target.value) })}
+                    onChange={(e) => setEditingContract({ ...editingContract, endDate: e.target.value || null })}
                     className="bg-black/60 border-red-900/50 text-white mt-1"
                   />
                 </div>
               </div>
               <div>
-                <Label className="text-gray-400">{t.memo}</Label>
+                <Label className="text-amber-300">{language === 'ja' ? '契約内容・条項（自由記入）' : '合同内容・条款（自由填写）'}</Label>
                 <Textarea
                   value={editingContract.memo || ""}
                   onChange={(e) => setEditingContract({ ...editingContract, memo: e.target.value })}
-                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                  placeholder={language === 'ja' ? '契約書の本文、支払条件、更新条件、解約条件などを自由に入力' : '可填写合同正文、付款条件、续约条件、解约条件等'}
+                  className="bg-black/60 border-amber-500/40 text-white mt-1 min-h-[160px]"
+                  rows={7}
                 />
               </div>
 
@@ -6164,8 +6189,8 @@ ${proposal.proposalContent}
                   try {
                     // 契約情報を更新
                     // 日付をISO文字列に変換して送信（無効な日付はundefinedに）
-                    let startDateStr: string | undefined = undefined;
-                    let endDateStr: string | undefined = undefined;
+                    let startDateStr: string | null | undefined = undefined;
+                    let endDateStr: string | null | undefined = undefined;
                     
                     if (editingContract.startDate) {
                       try {
@@ -6178,6 +6203,8 @@ ${proposal.proposalContent}
                       } catch (e) {
                         console.warn('開始日の変換に失敗:', e);
                       }
+                    } else {
+                      startDateStr = null;
                     }
                     
                     if (editingContract.endDate) {
@@ -6191,31 +6218,31 @@ ${proposal.proposalContent}
                       } catch (e) {
                         console.warn('終了日の変換に失敗:', e);
                       }
+                    } else {
+                      endDateStr = null;
                     }
                     
                     const contractData = {
                       id: editingContract.id,
                       serviceType: editingContract.serviceType,
                       status: editingContract.status,
-                      fixedFee: editingContract.fixedFee ? Number(editingContract.fixedFee) : undefined,
-                      commissionRate: editingContract.commissionRate || undefined,
+                      fixedFee: editingContract.fixedFee === "" || editingContract.fixedFee === null ? null : Number(editingContract.fixedFee),
+                      commissionRate: String(editingContract.commissionRate || "").trim() || null,
                       startDate: startDateStr,
                       endDate: endDateStr,
-                      memo: editingContract.memo || undefined,
+                      memo: String(editingContract.memo || "").trim() || null,
                       plannedLivestreamCount: editingContract.plannedLivestreamCount ? Number(editingContract.plannedLivestreamCount) : null,
-                      kgLiveCondition: editingContract.kgLiveCondition || undefined,
-                      liverLiveCondition: editingContract.liverLiveCondition || undefined,
-                      shortVideoCondition: editingContract.shortVideoCondition || undefined,
-                      contractPeriodLabel: editingContract.contractPeriodLabel || undefined,
+                      kgLiveCondition: String(editingContract.kgLiveCondition || "").trim() || null,
+                      liverLiveCondition: String(editingContract.liverLiveCondition || "").trim() || null,
+                      shortVideoCondition: String(editingContract.shortVideoCondition || "").trim() || null,
+                      contractPeriodLabel: String(editingContract.contractPeriodLabel || "").trim() || null,
                     };
-                    console.log("契約更新データ:", JSON.stringify(contractData, null, 2));
                     
                     // 契約更新を実行
                     await updateContractMutation.mutateAsync(contractData);
                     
                     // ライブ紐付けを更新
                     const linkedIds = (editingContract.linkedLivestreams || []).map((ls: any) => ls.id);
-                    console.log("ライブ紐付けデータ:", { contractId: editingContract.id, livestreamIds: linkedIds });
                     
                     await bulkLinkLivestreamsMutation.mutateAsync({
                       contractId: editingContract.id,
@@ -6228,9 +6255,11 @@ ${proposal.proposalContent}
                   }
                 }
               }}
+              disabled={updateContractMutation.isPending || bulkLinkLivestreamsMutation.isPending}
               className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white"
             >
-              {t.save}
+              {(updateContractMutation.isPending || bulkLinkLivestreamsMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {language === 'ja' ? '契約を保存' : '保存合同'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -7353,12 +7382,13 @@ ${proposal.proposalContent}
               </div>
             </div>
             <div>
-              <Label className="text-gray-400">{t.memo}</Label>
+              <Label className="text-amber-300">{language === 'ja' ? '契約内容・条項（自由記入）' : '合同内容・条款（自由填写）'}</Label>
               <Textarea
                 value={newContract.memo}
                 onChange={(e) => setNewContract({ ...newContract, memo: e.target.value })}
-                className="bg-black/60 border-red-900/50 text-white mt-1"
-                rows={3}
+                placeholder={language === 'ja' ? '契約書の本文、支払条件、更新条件、解約条件などを自由に入力' : '可填写合同正文、付款条件、续约条件、解约条件等'}
+                className="bg-black/60 border-amber-500/40 text-white mt-1 min-h-[160px]"
+                rows={7}
               />
             </div>
 
@@ -7589,9 +7619,11 @@ ${proposal.proposalContent}
                   toast.error(err.message || '契約作成に失敗しました');
                 }
               }}
+              disabled={createContractMutation.isPending || createTspContractMutation.isPending}
               className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white"
             >
-              {t.add}
+              {(createContractMutation.isPending || createTspContractMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {language === 'ja' ? '契約を保存' : '保存合同'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -8020,7 +8052,7 @@ ${proposal.proposalContent}
             <DialogTitle className="flex items-center gap-2 text-2xl"><History className="h-6 w-6 text-cyan-300" />{language === "ja" ? "過去GMV台帳" : "历史GMV台账"}</DialogTitle>
             <DialogDescription className="text-gray-400">
               {brandDataAccess?.canSync
-                ? (language === "ja" ? "根拠がある過去GMVだけを登録します。Lark同期値は自動・編集不可、手動記録は編集できます。配信GMVには加算しません。" : "仅登记有依据的历史GMV。飞书同步值自动写入且不可人工修改，人工记录可编辑；不会计入直播GMV。")
+                ? (language === "ja" ? "根拠がある過去GMVだけを登録します。Lark同期値は自動・編集不可、手動記録は編集できます。採用された過去GMV合計は全期間GMVへ1回だけ加算されます。" : "仅登记有依据的历史GMV。飞书同步值自动写入且不可人工修改，人工记录可编辑；采用的历史GMV合计会计入全期间GMV一次。")
                 : (language === "ja" ? "過去GMV根拠の閲覧専用です。編集はスーパー管理者のみ可能です。" : "历史GMV依据为只读；仅超级管理员可以修改。")}
             </DialogDescription>
           </DialogHeader>

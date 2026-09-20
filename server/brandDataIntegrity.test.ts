@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import {
+  combineBrandTotalGmv,
   effectiveGmvFromLivestream,
   resolveExplicitBrandAllocations,
   resolveBrandLivestreamGmv,
@@ -61,6 +62,19 @@ describe("brand GMV evidence resolver", () => {
 
   it("uses server-provided effective GMV first", () => {
     expect(effectiveGmvFromLivestream({ effectiveGmv: 777, salesAmount: 123, gmv: 100 })).toBe(777);
+  });
+
+  it("adds the canonical historical ledger once to the all-time brand total", () => {
+    expect(combineBrandTotalGmv({ livestreamTotal: 435692, historicalTotal: 1915746 })).toEqual({
+      total: 2351438,
+      livestreamTotal: 435692,
+      historicalTotal: 1915746,
+    });
+    expect(combineBrandTotalGmv({ livestreamTotal: -1, historicalTotal: Number.NaN })).toEqual({
+      total: 0,
+      livestreamTotal: 0,
+      historicalTotal: 0,
+    });
   });
 
   it("withholds arbitrary GMV when duplicate brand allocations disagree", () => {

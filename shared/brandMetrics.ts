@@ -36,6 +36,12 @@ export type LarkHistoricalGmvResolution = {
   hasConflict: boolean;
 };
 
+export type BrandTotalGmvBreakdown = {
+  total: number;
+  livestreamTotal: number;
+  historicalTotal: number;
+};
+
 type Candidate = {
   source: Exclude<BrandGmvSource, "none">;
   value: number | null;
@@ -46,6 +52,27 @@ export function normalizeBrandMetricNumber(value: unknown): number | null {
   const numberValue = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(numberValue) || numberValue < 0) return null;
   return numberValue;
+}
+
+/**
+ * Compose the all-time brand GMV shown on the brand detail page.
+ *
+ * Livestream rows have already been de-duplicated per stream by
+ * resolveBrandLivestreamGmv. Historical GMV is a separate, canonical ledger
+ * baseline, so it is added once at brand-summary level and never copied into
+ * an individual livestream.
+ */
+export function combineBrandTotalGmv(input: {
+  livestreamTotal?: unknown;
+  historicalTotal?: unknown;
+}): BrandTotalGmvBreakdown {
+  const livestreamTotal = normalizeBrandMetricNumber(input.livestreamTotal) ?? 0;
+  const historicalTotal = normalizeBrandMetricNumber(input.historicalTotal) ?? 0;
+  return {
+    total: livestreamTotal + historicalTotal,
+    livestreamTotal,
+    historicalTotal,
+  };
 }
 
 /**
@@ -131,7 +158,8 @@ export function resolveLivestreamProductGmv(input: {
 
 /**
  * Resolve a Lark-reported historical GMV baseline independently from live facts.
- * This value is display-only and must never be added to livestream GMV.
+ * It may contribute once to the all-time brand total, but must never be copied
+ * into individual livestream GMV or mixed with conflicting source baselines.
  */
 export function resolveLarkHistoricalGmv(input: {
   reportedGmv?: unknown;

@@ -58,6 +58,7 @@ import { brandBusinessRouter } from "./brandBusinessRouter";
 import { brandHistoricalGmvRouter } from "./brandHistoricalGmvRouter";
 import { getBrandDataAccess, requireBrandDataMutation, requireBrandDataView } from "./brandDataAccess";
 import { getBrandDataIntegrityHealth, mergeBrandsWithEvidence, previewBrandMergeWithEvidence, runBrandHistoricalRecovery } from "./brandHistoricalRecovery";
+import { brandContractUpdateInputSchema, normalizeBrandContractUpdate, sanitizeBrandContractAuditValue } from "./brandContractUpdate";
 import { storeExecutionRouter } from "./storeExecutionRouter";
 import { storeDailyReportRouter } from "./storeDailyReportRouter";
 import { performanceRouter } from "./performanceRouter";
@@ -11588,50 +11589,16 @@ Respond with a JSON object.`,
 
     // Update a contract
     update: protectedProcedure
-      .input(
-        z.object({
-          id: z.number(),
-          serviceType: z.enum(["TSP", "ライブコマース", "広告運用代行", "SNS運用代行", "その他", "単発ライブ契約", "期間契約", "運用代行型（TSP）", "パッケージ／複合契約"]).optional(),
-          contractType: z.enum(["月額契約", "年間契約", "単発契約", "広告案件", "その他"]).optional(),
-          fixedFee: z.number().optional(),
-          commissionRate: z.string().optional(),
-          startDate: z.union([z.date(), z.string()]).optional(),
-          endDate: z.union([z.date(), z.string()]).optional(),
-          status: z.enum(["契約中", "完了", "保留", "終了"]).optional(),
-          memo: z.string().optional(),
-          plannedLivestreamCount: z.number().nullable().optional(),
-          tspContractId: z.number().nullable().optional(),
-          currency: z.string().optional(),
-          kgLiveCondition: z.string().nullable().optional(),
-          liverLiveCondition: z.string().nullable().optional(),
-          shortVideoCondition: z.string().nullable().optional(),
-          contractPeriodLabel: z.string().nullable().optional(),
-          kgLiveHoursQuota: z.number().nullable().optional(),
-          liverLiveHoursQuota: z.number().nullable().optional(),
-          shortVideoCountQuota: z.number().nullable().optional(),
-          kgLiveFrequency: z.number().nullable().optional(),
-          kgLiveMinutesPerSession: z.number().nullable().optional(),
-          liverLiveAssignments: z.array(z.object({ liverName: z.string(), minutesPerMonth: z.number() })).nullable().optional(),
-          shortVideoAssignments: z.array(z.object({ liverName: z.string(), countPerMonth: z.number() })).nullable().optional(),
-        })
-      )
+      .input(brandContractUpdateInputSchema)
       .mutation(async ({ ctx, input }) => {
         try {
-          console.log("[brandContract.update] Input received:", JSON.stringify(input, null, 2));
-          const { id, startDate, endDate, ...rest } = input;
+          const { id, data, startDateProvided, endDateProvided } = normalizeBrandContractUpdate(input);
+          const rest = data as any;
+          console.info("[brandContract.update] Request received", { id, fields: Object.keys(input).filter(key => key !== "id") });
           
           // Get existing contract for logging
           const existingContract = await getContractById(id);
           
-          const data: any = { ...rest };
-          // 日付を適切に変換
-          if (startDate) {
-            data.startDate = startDate instanceof Date ? startDate : new Date(startDate);
-          }
-          if (endDate) {
-            data.endDate = endDate instanceof Date ? endDate : new Date(endDate);
-          }
-
           // LLMでテキスト条件からノルマ数値を自動抽出
           try {
             const { extractQuotaFromConditions } = await import("./contractQuotaExtractor");
@@ -11668,7 +11635,7 @@ Respond with a JSON object.`,
             console.error("[brandContract.update] LLM extraction error (non-fatal):", err);
           }
 
-          console.log("[brandContract.update] Final data:", JSON.stringify(data, null, 2));
+          console.info("[brandContract.update] Applying fields", { id, fields: Object.keys(data) });
           await updateBrandContract(id, data);
           console.log("[brandContract.update] Success for id:", id);
           
@@ -11682,30 +11649,31 @@ Respond with a JSON object.`,
               changes.push(`契約タイプ: ${existingContract.serviceType} → ${rest.serviceType}`);
             }
             if (rest.fixedFee !== undefined && rest.fixedFee !== existingContract.fixedFee) {
-              changes.push(`固定費: ¥${existingContract.fixedFee?.toLocaleString() || 0} → ¥${rest.fixedFee.toLocaleString()}`);
+              const nextFee = rest.fixedFee === null ? "未設定" : `¥${rest.fixedFee.toLocaleString()}`;
+              changes.push(`固定費: ${existingContract.fixedFee == null ? "未設定" : `¥${existingContract.fixedFee.toLocaleString()}`} → ${nextFee}`);
             }
             if (rest.commissionRate !== undefined && rest.commissionRate !== existingContract.commissionRate) {
-              changes.push(`成果報酬: ${existingContract.commissionRate || '-'}% → ${rest.commissionRate}%`);
+              changes.push(`成果報酬: ${existingContract.commissionRate || '未設定'} → ${rest.commissionRate || '未設定'}`);
             }
             if (rest.status && rest.status !== existingContract.status) {
               changes.push(`ステータス: ${existingContract.status} → ${rest.status}`);
             }
-            if (data.startDate && existingContract.startDate) {
-              const oldDate = new Date(existingContract.startDate).toLocaleDateString('ja-JP');
-              const newDate = new Date(data.startDate).toLocaleDateString('ja-JP');
+            if (startDateProvided) {
+              const oldDate = existingContract.startDate ? new Date(existingContract.startDate).toLocaleDateString('ja-JP') : '未設定';
+              const newDate = data.startDate ? new Date(data.startDate).toLocaleDateString('ja-JP') : '未設定';
               if (oldDate !== newDate) {
                 changes.push(`開始日: ${oldDate} → ${newDate}`);
               }
             }
-            if (data.endDate && existingContract.endDate) {
-              const oldDate = new Date(existingContract.endDate).toLocaleDateString('ja-JP');
-              const newDate = new Date(data.endDate).toLocaleDateString('ja-JP');
+            if (endDateProvided) {
+              const oldDate = existingContract.endDate ? new Date(existingContract.endDate).toLocaleDateString('ja-JP') : '未設定';
+              const newDate = data.endDate ? new Date(data.endDate).toLocaleDateString('ja-JP') : '未設定';
               if (oldDate !== newDate) {
                 changes.push(`終了日: ${oldDate} → ${newDate}`);
               }
             }
             if (rest.memo !== undefined && rest.memo !== existingContract.memo) {
-              changes.push(`メモを更新`);
+              changes.push(rest.memo ? `契約内容・条項を更新` : `契約内容・条項をクリア`);
             }
             
             const changeDescription = changes.length > 0 
@@ -11721,8 +11689,8 @@ Respond with a JSON object.`,
               changeDescription,
               ctx.user.id,
               ctx.user.name || ctx.user.email,
-              JSON.stringify(existingContract),
-              JSON.stringify({ ...existingContract, ...data })
+              JSON.stringify(sanitizeBrandContractAuditValue(existingContract as any)),
+              JSON.stringify(sanitizeBrandContractAuditValue({ ...existingContract, ...data }))
             );
           }
           

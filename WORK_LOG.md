@@ -3359,3 +3359,11 @@ LINE管理のユーザー一覧、ライバー連携、会話履歴、AI実行�
 功能提交 `b5d68755b920aeac634f5cae91e1b61a4df3c25b` 的 GitHub Check 与 Railway production 均为 success。生产只读验收确认 `/brand-day/kozuday`、`/entry`、`/creator/login`、`/ranking`、`/creator` 均 HTTP 200；初始 HTML 的标题为 `Dr.Kozu BRAND DAY 2026 | 50% OFF`，`og:site_name` 为 `Dr.Kozu BRAND DAY`，启动标识为 `DR`，启动标题为 `Dr.Kozu BRAND DAYを読み込んでいます`。排除 `lcjmall.com` 域名 URL 后，初始 HTML 中没有任何大小写形式的 `LCJ` 品牌文字。浏览器实际渲染主页后，导航、主视觉、参与流程与页脚均只显示 Dr.Kozu／BRAND DAY，未发现 LCJ 品牌文字；线上 root、entry、login、ranking、creator 与共享 Meta 资源也都包含专属文案及离开页面后的复位逻辑。
 
 本地验证包括 Dr.Kozu 品牌隔离与 Brand Day 基础专项 20 件全部通过，前后端定向 esbuild 通过，production build 成功。全库 TypeScript 仍有既有 725 条诊断，本次新增或修改的 Dr.Kozu 文件为 0 条；构建仅保留既有 `server/receiptMaskingService.ts` 的 sharp namespace warning。没有新增 package、环境变量或生产数据库写入。
+
+## 2026-09-20｜ブランド詳細の契約記入と過去GMV総額反映（本番反映前）
+
+`/master/brands/:id` の契約情報セクションを初期表示で展開し、契約が0件でも「契約を記入／填写合同」ボタンから直接登録できるようにした。追加・編集フォームの備考欄は「契約内容・条項（自由記入）／合同内容・条款（自由填写）」として明確化し、契約本文、支払条件、更新条件、解約条件などを複数行で保存できる。既存契約カードでは編集ボタンを常時表示し、入力済みの契約内容も改行を保持して表示する。編集APIは金額、成果報酬、開始日、終了日、契約本文、配信条件、契約期間ラベルの明示的な空欄を `null` として保存でき、無効な日付はDB更新前に拒否する。契約本文と条件原文はブラウザ／サーバーのコンソールへ出さず、共通編集履歴にも原文ではなく有無と文字数だけを保存する。
+
+ブランド詳細の「全期間GMV」は、配信単位で既存の重複防止済み `effectiveGmv` を合計した「配信GMV」と、`brandHistoricalGmv.list.total` が返す採用済み「過去台帳GMV」をブランド集計レベルで1回だけ加算する方式に変更した。過去GMVは単場配信へは書き戻さず、Larkと手動根拠が併存する場合も既存の防重ルール（Lark基準のみを採用）を維持する。画面には総額と両内訳を併記し、過去GMV台帳の説明も総GMVへ加算する口径に統一した。
+
+专项回归共48件通过，production build成功。相同基线的全库TypeScript检查仍为既有725条诊断，本次新增诊断为0条。1280px与390px视觉验收均确认总GMV为直播GMV与历史台账之和、两个分项可见、合同正文输入区可用、弹窗未超出视口且无console/page/request错误。独立只读审查结论为无发布阻断。未新增package或环境变量，未修改任何生产数据。
