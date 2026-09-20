@@ -11,6 +11,7 @@ import {
 import { decideNonDestructiveLarkField } from "../shared/larkSyncMerge";
 import { syncBrandContactProjectionsFromCurrentSources, type ProjectionResult } from "./accountBrandDataRecovery";
 import { ensureBrandDataIntegrityReady } from "./brandDataIntegrityUpgrade";
+import { upsertLarkHistoricalGmv } from "./brandHistoricalGmvService";
 import { getDb } from "./db";
 import type { LarkBrandData, LarkFieldValue } from "./feishuService";
 
@@ -285,6 +286,17 @@ async function runFeishuSyncUnlocked(triggeredBy: "auto" | "manual", actor: Sync
           if (newId) {
             await db.update(brandLarkSourceSnapshots).set({ brandId: newId })
               .where(and(eq(brandLarkSourceSnapshots.syncRunId, syncRunId), eq(brandLarkSourceSnapshots.recordId, larkBrand.recordId)));
+            if (!larkBrand.fields.reportedGmv.conflict && larkBrand.reportedGmv !== null) {
+              await upsertLarkHistoricalGmv({
+                db,
+                brandId: newId,
+                recordId: larkBrand.recordId,
+                amount: larkBrand.reportedGmv,
+                sourceHash: larkBrand.sourceHash,
+                sourceField: larkBrand.fields.reportedGmv.sourceField,
+                syncRunId,
+              });
+            }
             for (const [targetField, source] of Object.entries(larkBrand.fields)) {
               if (!source.conflict) continue;
               await auditField(db, { syncRunId, brandId: newId, recordId: larkBrand.recordId, targetField, sourceField: source.sourceField, action: "source_alias_conflict", beforeValue: null, incomingValue: source.value, afterValue: null });
@@ -343,6 +355,17 @@ async function runFeishuSyncUnlocked(triggeredBy: "auto" | "manual", actor: Sync
           await auditField(db, { syncRunId, brandId: matchedBrand.id, recordId: larkBrand.recordId, targetField: "larkNumericFacts", sourceField: null, action: "updated", beforeValue: matchedBrand.larkNumericFacts || [], incomingValue: larkBrand.numericFacts, afterValue: larkBrand.numericFacts });
         }
         await db.update(brands).set(updateValues as any).where(eq(brands.id, matchedBrand.id));
+        if (!larkBrand.fields.reportedGmv.conflict && larkBrand.reportedGmv !== null) {
+          await upsertLarkHistoricalGmv({
+            db,
+            brandId: matchedBrand.id,
+            recordId: larkBrand.recordId,
+            amount: larkBrand.reportedGmv,
+            sourceHash: larkBrand.sourceHash,
+            sourceField: larkBrand.fields.reportedGmv.sourceField,
+            syncRunId,
+          });
+        }
         if (changedThisBrand) updated++;
         synced++;
       } catch (error: any) {

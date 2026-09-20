@@ -6686,6 +6686,49 @@ export const brandLarkFieldChanges = mysqlTable("brand_lark_field_changes", {
   actionIndex: index("idx_brand_lark_change_action").on(table.action),
 }));
 
+export const brandHistoricalGmvRecords = mysqlTable("brand_historical_gmv_records", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(),
+  sourceType: varchar("sourceType", { length: 32 }).notNull(),
+  sourceReference: varchar("sourceReference", { length: 255 }),
+  sourceLabel: varchar("sourceLabel", { length: 255 }).notNull(),
+  amount: decimal("amount", { precision: 20, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 8 }).default("JPY").notNull(),
+  periodStart: date("periodStart", { mode: "string" }),
+  periodEnd: date("periodEnd", { mode: "string" }),
+  status: varchar("status", { length: 24 }).default("active").notNull(),
+  isLocked: boolean("isLocked").default(false).notNull(),
+  sourceHash: varchar("sourceHash", { length: 64 }),
+  evidence: json("evidence"),
+  notes: text("notes"),
+  createdBy: bigint("createdBy", { mode: "number" }),
+  updatedBy: bigint("updatedBy", { mode: "number" }),
+  deletedAt: timestamp("deletedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  sourceUnique: uniqueIndex("uq_brand_historical_gmv_source").on(table.brandId, table.sourceType, table.sourceReference),
+  brandStatusIndex: index("idx_brand_historical_gmv_brand_status").on(table.brandId, table.status, table.deletedAt),
+  periodIndex: index("idx_brand_historical_gmv_period").on(table.brandId, table.periodStart, table.periodEnd),
+}));
+export type BrandHistoricalGmvRecord = typeof brandHistoricalGmvRecords.$inferSelect;
+export type InsertBrandHistoricalGmvRecord = typeof brandHistoricalGmvRecords.$inferInsert;
+
+export const brandHistoricalGmvAuditLogs = mysqlTable("brand_historical_gmv_audit_logs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  recordId: bigint("recordId", { mode: "number" }),
+  brandId: int("brandId").notNull(),
+  action: varchar("action", { length: 48 }).notNull(),
+  beforeJson: json("beforeJson"),
+  afterJson: json("afterJson"),
+  actorId: bigint("actorId", { mode: "number" }),
+  actorName: varchar("actorName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  recordTimeIndex: index("idx_brand_historical_gmv_audit_record").on(table.recordId, table.createdAt),
+  brandTimeIndex: index("idx_brand_historical_gmv_audit_brand").on(table.brandId, table.createdAt),
+}));
+
 export const brandDataRecoveryRuns = mysqlTable("brand_data_recovery_runs", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
   runKey: varchar("runKey", { length: 100 }).notNull(),

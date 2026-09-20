@@ -12,6 +12,8 @@ const REQUIRED_TABLES = [
   "brand_lark_sync_runs",
   "brand_lark_source_snapshots",
   "brand_lark_field_changes",
+  "brand_historical_gmv_records",
+  "brand_historical_gmv_audit_logs",
   "brand_data_recovery_runs",
   "brand_data_recovery_items",
 ] as const;
@@ -144,6 +146,43 @@ async function createTables(pool: Pool): Promise<void> {
     KEY idx_brand_lark_change_run (syncRunId),
     KEY idx_brand_lark_change_brand_time (brandId,createdAt),
     KEY idx_brand_lark_change_action (action)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS brand_historical_gmv_records (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    brandId INT NOT NULL,
+    sourceType VARCHAR(32) NOT NULL,
+    sourceReference VARCHAR(255) NULL,
+    sourceLabel VARCHAR(255) NOT NULL,
+    amount DECIMAL(20,2) NOT NULL,
+    currency VARCHAR(8) NOT NULL DEFAULT 'JPY',
+    periodStart DATE NULL,
+    periodEnd DATE NULL,
+    status VARCHAR(24) NOT NULL DEFAULT 'active',
+    isLocked TINYINT(1) NOT NULL DEFAULT 0,
+    sourceHash CHAR(64) NULL,
+    evidence JSON NULL,
+    notes TEXT NULL,
+    createdBy BIGINT NULL,
+    updatedBy BIGINT NULL,
+    deletedAt TIMESTAMP NULL,
+    createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_brand_historical_gmv_source (brandId,sourceType,sourceReference),
+    KEY idx_brand_historical_gmv_brand_status (brandId,status,deletedAt),
+    KEY idx_brand_historical_gmv_period (brandId,periodStart,periodEnd)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS brand_historical_gmv_audit_logs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    recordId BIGINT NULL,
+    brandId INT NOT NULL,
+    action VARCHAR(48) NOT NULL,
+    beforeJson JSON NULL,
+    afterJson JSON NULL,
+    actorId BIGINT NULL,
+    actorName VARCHAR(255) NULL,
+    createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_brand_historical_gmv_audit_record (recordId,createdAt),
+    KEY idx_brand_historical_gmv_audit_brand (brandId,createdAt)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
   await pool.query(`CREATE TABLE IF NOT EXISTS brand_data_recovery_runs (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,

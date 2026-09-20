@@ -44,8 +44,10 @@ import {
   BRAND_DEAL_MODEL_VALUES,
   businessMonthKey,
   businessMonthValue,
+  brandFollowUpStatus,
   canTransitionBrandBdStage,
   compareBusinessMonth,
+  defaultBrandFollowUpAt,
   parseBusinessMonthValue,
   progressPercent,
   shiftBusinessMonth,
@@ -346,6 +348,7 @@ export default function BrandList() {
   const [targetDialogMonth, setTargetDialogMonth] = useState(currentBusinessMonth);
   const [monthlyTargetDraft, setMonthlyTargetDraft] = useState<MonthlyTargetDraft>(emptyMonthlyTarget);
   const [editingDealBrand, setEditingDealBrand] = useState<{ id: number; name: string } | null>(null);
+  const [followUpCustomized, setFollowUpCustomized] = useState(false);
   const [dealDraft, setDealDraft] = useState<DealDraft>({
     stage: "new_lead",
     dealModel: "",
@@ -386,6 +389,9 @@ export default function BrandList() {
   ), [businessOverview?.deals]);
   const editingExistingDeal: any = editingDealBrand ? dealByBrandId.get(editingDealBrand.id) : null;
   const editingFromStage = (editingExistingDeal?.stage || "new_lead") as BrandBdStage;
+  const effectiveDealModel: BrandDealModel | "" = ["slot_fee", "guaranteed_roi", "pure_commission"].includes(dealDraft.stage)
+    ? dealDraft.stage as BrandDealModel
+    : dealDraft.dealModel;
   const businessMonthPosition = compareBusinessMonth(businessMonth, currentBusinessMonth);
 
   useEffect(() => {
@@ -437,14 +443,15 @@ export default function BrandList() {
     event.stopPropagation();
     const existing: any = dealByBrandId.get(brand.id);
     setEditingDealBrand(brand);
+    setFollowUpCustomized(false);
     setDealDraft({
       stage: existing?.stage || "new_lead",
       dealModel: existing?.dealModel || "",
       slotFeeAmount: existing?.slotFeeAmount == null ? "" : String(existing.slotFeeAmount),
       guaranteedRoi: existing?.guaranteedRoi == null ? "2" : String(existing.guaranteedRoi),
       pureCommissionRate: existing?.pureCommissionRate == null ? "" : String(existing.pureCommissionRate),
-      lastContactAt: toJstDateTimeLocal(existing?.lastContactAt),
-      nextFollowUpAt: toJstDateTimeLocal(existing?.nextFollowUpAt),
+      lastContactAt: toJstDateTimeLocal(new Date().toISOString()),
+      nextFollowUpAt: toJstDateTimeLocal(defaultBrandFollowUpAt().toISOString()),
       nextAction: existing?.nextAction || "",
       negotiationNotes: existing?.negotiationNotes || "",
     });
@@ -470,12 +477,8 @@ export default function BrandList() {
       toast.error(isChinese ? "请按照规定顺序更新BD阶段" : "規定の順序に従ってBD段階を更新してください");
       return;
     }
-    if (!["contracted", "lost"].includes(dealDraft.stage) && (!dealDraft.nextAction.trim() || !dealDraft.nextFollowUpAt)) {
-      toast.error(isChinese ? "进行中的项目必须填写下一步具体行动和跟进时间" : "進行中の案件は次の具体的アクションとフォロー日時が必須です");
-      return;
-    }
-    if (["slot_fee", "guaranteed_roi", "pure_commission"].includes(dealDraft.stage) && !dealDraft.lastContactAt) {
-      toast.error(isChinese ? "进入洽谈阶段后必须填写最后联系时间" : "商談段階では最終接触日時が必須です");
+    if (!["contracted", "lost"].includes(dealDraft.stage) && !dealDraft.nextAction.trim()) {
+      toast.error(isChinese ? "进行中的项目必须填写下一步具体行动" : "進行中の案件は次の具体的アクションが必須です");
       return;
     }
     if (dealDraft.stage === "slot_fee" && numberValue(dealDraft.slotFeeAmount) <= 0) {
@@ -491,7 +494,7 @@ export default function BrandList() {
       return;
     }
     if (dealDraft.stage === "contracted") {
-      const expectedModel = editingFromStage === "slot_fee" ? "slot_fee" : editingFromStage === "guaranteed_roi" ? "guaranteed_roi" : editingFromStage === "pure_commission" ? "pure_commission" : null;
+      const expectedModel = editingFromStage === "slot_fee" ? "slot_fee" : editingFromStage === "guaranteed_roi" ? "guaranteed_roi" : editingFromStage === "pure_commission" ? "pure_commission" : editingFromStage === "contracted" ? editingExistingDeal?.dealModel || null : null;
       if (!expectedModel || dealDraft.dealModel !== expectedModel) {
         toast.error(isChinese ? "签约方式必须与签约前的洽谈阶段一致" : "契約方式は直前の商談段階と一致させてください");
         return;
@@ -500,12 +503,12 @@ export default function BrandList() {
     saveDealMutation.mutate({
       brandId: editingDealBrand.id,
       stage: dealDraft.stage,
-      dealModel: dealDraft.dealModel || null,
-      slotFeeAmount: dealDraft.slotFeeAmount ? numberValue(dealDraft.slotFeeAmount) : null,
-      guaranteedRoi: dealDraft.guaranteedRoi ? numberValue(dealDraft.guaranteedRoi) : 2,
-      pureCommissionRate: dealDraft.pureCommissionRate ? numberValue(dealDraft.pureCommissionRate) : null,
-      lastContactAt: fromJstDateTimeLocal(dealDraft.lastContactAt),
-      nextFollowUpAt: fromJstDateTimeLocal(dealDraft.nextFollowUpAt),
+      dealModel: effectiveDealModel || null,
+      slotFeeAmount: effectiveDealModel === "slot_fee" && dealDraft.slotFeeAmount ? numberValue(dealDraft.slotFeeAmount) : null,
+      guaranteedRoi: effectiveDealModel === "guaranteed_roi" ? 2 : null,
+      pureCommissionRate: effectiveDealModel === "pure_commission" && dealDraft.pureCommissionRate ? numberValue(dealDraft.pureCommissionRate) : null,
+      lastContactAt: new Date().toISOString(),
+      nextFollowUpAt: followUpCustomized ? fromJstDateTimeLocal(dealDraft.nextFollowUpAt) : null,
       nextAction: dealDraft.nextAction || null,
       negotiationNotes: dealDraft.negotiationNotes || null,
     });
@@ -1011,7 +1014,7 @@ export default function BrandList() {
             ) : syncHistoryQuery.data && syncHistoryQuery.data.length > 0 ? (
               <div className="space-y-3">
                 {dataIntegrityQuery.data && (
-                  <div className="grid gap-2 rounded-xl border border-cyan-500/20 bg-cyan-950/10 p-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid gap-2 rounded-xl border border-cyan-500/20 bg-cyan-950/10 p-3 sm:grid-cols-2 xl:grid-cols-5">
                     <div>
                       <div className="text-[10px] uppercase tracking-wider text-gray-500">{isChinese ? "有效直播记录" : "有効な配信記録"}</div>
                       <div className="mt-1 text-lg font-bold text-cyan-300">{dataIntegrityQuery.data.counts.activeLivestreams.toLocaleString()}</div>
@@ -1031,6 +1034,11 @@ export default function BrandList() {
                       <div className="text-[10px] uppercase tracking-wider text-gray-500">{isChinese ? "冲突（不重复相加）" : "競合（重複加算なし）"}</div>
                       <div className={`mt-1 text-lg font-bold ${dataIntegrityQuery.data.counts.conflictingLivestreams > 0 ? "text-amber-300" : "text-emerald-300"}`}>{dataIntegrityQuery.data.counts.conflictingLivestreams.toLocaleString()}</div>
                       <div className="text-[10px] text-gray-500">{isChinese ? "保留来源供人工核对" : "根拠を保持して確認待ち"}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-gray-500">{isChinese ? "历史GMV台账" : "過去GMV台帳"}</div>
+                      <div className="mt-1 text-lg font-bold text-cyan-300">¥{dataIntegrityQuery.data.counts.historicalGmvTotal.toLocaleString()}</div>
+                      <div className="text-[10px] text-gray-500">Lark {dataIntegrityQuery.data.counts.larkHistoricalGmvRecords} · {isChinese ? "人工" : "手動"} {dataIntegrityQuery.data.counts.manualHistoricalGmvRecords}</div>
                     </div>
                     <div>
                       <div className="text-[10px] uppercase tracking-wider text-gray-500">{isChinese ? "最近恢复" : "最新復元"}</div>
@@ -1281,6 +1289,9 @@ export default function BrandList() {
             {brands.map((brand) => {
               const deal: any = dealByBrandId.get(brand.id);
               const stage = (deal?.stage || "new_lead") as BrandBdStage;
+              const followUpStatus = ["contracted", "lost"].includes(stage)
+                ? "none"
+                : brandFollowUpStatus(deal?.nextFollowUpAt);
               const larkHistoricalGmv = resolveLarkHistoricalGmv({
                 reportedGmv: (brand as any).larkReportedGmv,
                 numericFacts: (brand as any).larkNumericFacts,
@@ -1290,6 +1301,11 @@ export default function BrandList() {
               );
               return (
                 <div key={brand.id} className={`group relative h-full min-w-0 overflow-hidden rounded-xl p-4 transition-all sm:p-6 ${
+                  followUpStatus === "overdue"
+                    ? "border-2 border-red-500/80 bg-red-950/30 shadow-[0_0_28px_rgba(239,68,68,0.28)]"
+                    : followUpStatus === "due_soon"
+                      ? "border-2 border-amber-400/70 bg-amber-950/20 shadow-[0_0_24px_rgba(251,191,36,0.2)]"
+                      :
                   (brand as any).hasQuota 
                     ? 'bg-gradient-to-br from-orange-950/60 via-red-950/40 to-amber-950/50 border-2 border-orange-500/70 hover:border-orange-400 hover:shadow-[0_0_40px_rgba(255,140,0,0.4)] shadow-[0_0_25px_rgba(255,100,0,0.25)]' 
                     : 'bg-gray-800/50 border border-gray-700/50 hover:border-red-500/50 hover:bg-gray-800/70'
@@ -1419,6 +1435,16 @@ export default function BrandList() {
                         <Badge className={`${bdStageColors[stage]} border text-xs`}>
                           {bdStageLabels[stage]}
                         </Badge>
+                        {followUpStatus === "overdue" && (
+                          <Badge className="ml-1 border border-red-400/50 bg-red-500/20 text-xs text-red-200">
+                            <AlertTriangle className="mr-1 h-3 w-3" />{isChinese ? "跟进已逾期" : "フォロー期限超過"}
+                          </Badge>
+                        )}
+                        {followUpStatus === "due_soon" && (
+                          <Badge className="ml-1 border border-amber-400/50 bg-amber-500/20 text-xs text-amber-100">
+                            <Clock className="mr-1 h-3 w-3" />{isChinese ? "24小时内跟进" : "24時間以内にフォロー"}
+                          </Badge>
+                        )}
                       </div>
                       <button
                         onClick={event => openDealEditor(event, { id: brand.id, name: brand.name })}
@@ -1654,9 +1680,11 @@ export default function BrandList() {
               <Label className="text-gray-300">{bt.currentStage}</Label>
               <Select value={dealDraft.stage} onValueChange={value => setDealDraft(current => {
                 const nextStage = value as BrandBdStage;
-                const contractModel = nextStage === "contracted"
-                  ? editingFromStage === "slot_fee" ? "slot_fee" : editingFromStage === "guaranteed_roi" ? "guaranteed_roi" : editingFromStage === "pure_commission" ? "pure_commission" : current.dealModel
-                  : current.dealModel;
+                const contractModel = nextStage === "slot_fee" || nextStage === "guaranteed_roi" || nextStage === "pure_commission"
+                  ? nextStage
+                  : nextStage === "contracted"
+                    ? editingFromStage === "slot_fee" ? "slot_fee" : editingFromStage === "guaranteed_roi" ? "guaranteed_roi" : editingFromStage === "pure_commission" ? "pure_commission" : current.dealModel
+                    : current.dealModel;
                 return { ...current, stage: nextStage, dealModel: contractModel };
               })}>
                 <SelectTrigger className="border-gray-600 bg-gray-800 text-white"><SelectValue /></SelectTrigger>
@@ -1667,7 +1695,11 @@ export default function BrandList() {
             </div>
             <div className="space-y-2">
               <Label className="text-gray-300">{bt.contractModel}</Label>
-              <Select value={dealDraft.dealModel || "undecided"} onValueChange={value => setDealDraft(current => ({ ...current, dealModel: value === "undecided" ? "" : value as BrandDealModel }))}>
+              <Select
+                value={effectiveDealModel || "undecided"}
+                disabled={["slot_fee", "guaranteed_roi", "pure_commission", "contracted"].includes(dealDraft.stage)}
+                onValueChange={value => setDealDraft(current => ({ ...current, dealModel: value === "undecided" ? "" : value as BrandDealModel }))}
+              >
                 <SelectTrigger className="border-gray-600 bg-gray-800 text-white"><SelectValue /></SelectTrigger>
                 <SelectContent className="border-gray-600 bg-gray-800 text-white">
                   <SelectItem className="text-white focus:bg-orange-500/25 focus:text-white data-[state=checked]:bg-orange-500/20 data-[state=checked]:text-orange-100" value="undecided">{bt.undecided}</SelectItem>
@@ -1675,25 +1707,33 @@ export default function BrandList() {
                 </SelectContent>
               </Select>
             </div>
+            {effectiveDealModel === "slot_fee" && (
+              <div className="space-y-2 md:col-span-2">
+                <Label className="text-gray-300">{bt.slotFeeAmount}</Label>
+                <Input type="number" min={0} inputMode="numeric" value={dealDraft.slotFeeAmount} onChange={event => setDealDraft(current => ({ ...current, slotFeeAmount: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" />
+                <p className="text-xs text-orange-300">{isChinese ? "坑位费为固定费用，不保证 ROI。" : "坑位費は固定費であり、ROI保証はありません。"}</p>
+              </div>
+            )}
+            {effectiveDealModel === "guaranteed_roi" && (
+              <div className="space-y-2 md:col-span-2">
+                <Label className="text-gray-300">{bt.guaranteedRoi}</Label>
+                <div className="flex items-center gap-2"><span className="text-gray-400">1 :</span><Input type="number" value="2" disabled className="border-gray-600 bg-gray-800 text-white disabled:opacity-100" /></div>
+              </div>
+            )}
+            {effectiveDealModel === "pure_commission" && (
+              <div className="space-y-2 md:col-span-2">
+                <Label className="text-gray-300">{bt.commissionRate}</Label>
+                <Input type="number" min={0} max={100} step="0.1" value={dealDraft.pureCommissionRate} onChange={event => setDealDraft(current => ({ ...current, pureCommissionRate: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" />
+              </div>
+            )}
             <div className="space-y-2">
-              <Label className="text-gray-300">{bt.slotFeeAmount}</Label>
-              <Input type="number" min={0} inputMode="numeric" value={dealDraft.slotFeeAmount} onChange={event => setDealDraft(current => ({ ...current, slotFeeAmount: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" />
+              <Label className="text-gray-300">{bt.lastContact} · {isChinese ? "保存时自动记录" : "保存時に自動記録"}</Label>
+              <Input type="datetime-local" value={dealDraft.lastContactAt} disabled className="border-gray-600 bg-gray-800 text-white disabled:opacity-100" />
             </div>
             <div className="space-y-2">
-              <Label className="text-gray-300">{bt.guaranteedRoi}</Label>
-              <div className="flex items-center gap-2"><span className="text-gray-400">1 :</span><Input type="number" value="2" disabled className="border-gray-600 bg-gray-800 text-white disabled:opacity-100" /></div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-gray-300">{bt.commissionRate}</Label>
-              <Input type="number" min={0} max={100} step="0.1" value={dealDraft.pureCommissionRate} onChange={event => setDealDraft(current => ({ ...current, pureCommissionRate: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-gray-300">{bt.lastContact}</Label>
-              <Input type="datetime-local" value={dealDraft.lastContactAt} onChange={event => setDealDraft(current => ({ ...current, lastContactAt: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" />
-            </div>
-            <div className="space-y-2 md:col-span-2">
               <Label className="text-gray-300">{bt.nextFollowUp}</Label>
-              <Input type="datetime-local" value={dealDraft.nextFollowUpAt} onChange={event => setDealDraft(current => ({ ...current, nextFollowUpAt: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" />
+              <Input type="datetime-local" value={dealDraft.nextFollowUpAt} onChange={event => { setFollowUpCustomized(true); setDealDraft(current => ({ ...current, nextFollowUpAt: event.target.value })); }} className="border-gray-600 bg-gray-800 text-white" />
+              <p className="text-xs text-blue-300">{isChinese ? "默认保存后 3 天；到期和逾期会在品牌卡提醒。" : "初期値は保存から3日後。期限前・期限超過はブランドカードで通知します。"}</p>
             </div>
             <div className="space-y-2 md:col-span-2">
               <Label className="text-gray-300">{bt.nextAction}</Label>

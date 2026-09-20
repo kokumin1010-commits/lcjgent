@@ -5,10 +5,13 @@ import {
   BRAND_BD_STAGE_LABELS_ZH,
   BRAND_BD_STAGE_VALUES,
   BRAND_DEAL_MODEL_VALUES,
+  brandFollowUpStatus,
   businessMonthValue,
   businessMonthUtcRange,
   canTransitionBrandBdStage,
   compareBusinessMonth,
+  defaultBrandFollowUpAt,
+  normalizeBrandDealTerms,
   parseBusinessMonthValue,
   progressPercent,
   shiftBusinessMonth,
@@ -31,6 +34,26 @@ describe("brand business command center", () => {
     expect(canTransitionBrandBdStage("slot_fee", "guaranteed_roi")).toBe(true);
     expect(canTransitionBrandBdStage("guaranteed_roi", "pure_commission")).toBe(true);
     expect(canTransitionBrandBdStage("contracted", "lost")).toBe(false);
+  });
+
+  it("keeps contract terms mutually exclusive and schedules the next follow-up after three days", () => {
+    expect(normalizeBrandDealTerms({ dealModel: "slot_fee", slotFeeAmount: 500000, guaranteedRoi: 2, pureCommissionRate: 20 })).toEqual({
+      dealModel: "slot_fee",
+      slotFeeAmount: 500000,
+      guaranteedRoi: null,
+      pureCommissionRate: null,
+    });
+    expect(normalizeBrandDealTerms({ dealModel: "guaranteed_roi", slotFeeAmount: 500000, guaranteedRoi: 3, pureCommissionRate: 20 })).toEqual({
+      dealModel: "guaranteed_roi",
+      slotFeeAmount: null,
+      guaranteedRoi: 2,
+      pureCommissionRate: null,
+    });
+    const savedAt = new Date("2026-09-20T00:00:00.000Z");
+    expect(defaultBrandFollowUpAt(savedAt).toISOString()).toBe("2026-09-23T00:00:00.000Z");
+    expect(brandFollowUpStatus("2026-09-19T23:59:59.000Z", savedAt)).toBe("overdue");
+    expect(brandFollowUpStatus("2026-09-20T12:00:00.000Z", savedAt)).toBe("due_soon");
+    expect(brandFollowUpStatus("2026-09-24T00:00:00.000Z", savedAt)).toBe("scheduled");
   });
 
   it("builds the selected business month in JST and reports uncapped progress", () => {

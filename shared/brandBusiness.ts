@@ -72,6 +72,39 @@ export function canTransitionBrandBdStage(from: BrandBdStage, to: BrandBdStage):
   return BRAND_BD_TRANSITIONS[from].includes(to);
 }
 
+export function defaultBrandFollowUpAt(savedAt = new Date(), days = 3): Date {
+  const result = new Date(savedAt);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
+}
+
+export function normalizeBrandDealTerms(input: {
+  dealModel?: BrandDealModel | null;
+  slotFeeAmount?: number | null;
+  guaranteedRoi?: number | null;
+  pureCommissionRate?: number | null;
+}) {
+  return {
+    dealModel: input.dealModel || null,
+    slotFeeAmount: input.dealModel === "slot_fee" ? input.slotFeeAmount ?? null : null,
+    guaranteedRoi: input.dealModel === "guaranteed_roi" ? 2 : null,
+    pureCommissionRate: input.dealModel === "pure_commission" ? input.pureCommissionRate ?? null : null,
+  };
+}
+
+export function brandFollowUpStatus(
+  nextFollowUpAt: string | Date | null | undefined,
+  now = new Date(),
+): "none" | "scheduled" | "due_soon" | "overdue" {
+  if (!nextFollowUpAt) return "none";
+  const followUp = new Date(nextFollowUpAt);
+  if (!Number.isFinite(followUp.getTime())) return "none";
+  const remaining = followUp.getTime() - now.getTime();
+  if (remaining < 0) return "overdue";
+  if (remaining <= 24 * 60 * 60 * 1000) return "due_soon";
+  return "scheduled";
+}
+
 export function businessMonthKey(date = new Date()): { year: number; month: number } {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Tokyo",

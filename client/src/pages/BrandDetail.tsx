@@ -857,6 +857,10 @@ export default function BrandDetail() {
     aitherHub: false,
   });
   const toggleSection = (key: string) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+  const openSectionAndScroll = (key: string, elementId: string) => {
+    setOpenSections(prev => ({ ...prev, [key]: true }));
+    window.setTimeout(() => document.getElementById(elementId)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  };
   const [newMemo, setNewMemo] = useState("");
 
   // Edit modal states
@@ -879,6 +883,16 @@ export default function BrandDetail() {
   const [selectionImportDialogOpen, setSelectionImportDialogOpen] = useState(false);
   const [addLivestreamDialogOpen, setAddLivestreamDialogOpen] = useState(false);
   const [addContractDialogOpen, setAddContractDialogOpen] = useState(false);
+  const [historicalGmvDialogOpen, setHistoricalGmvDialogOpen] = useState(false);
+  const [editingHistoricalGmv, setEditingHistoricalGmv] = useState<any>(null);
+  const [historicalGmvToDelete, setHistoricalGmvToDelete] = useState<any>(null);
+  const [historicalGmvDraft, setHistoricalGmvDraft] = useState({
+    amount: "",
+    sourceLabel: "",
+    periodStart: "",
+    periodEnd: "",
+    notes: "",
+  });
   const [newProduct, setNewProduct] = useState({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "", liverIds: [] as number[] });
   const [newLivestream, setNewLivestream] = useState({ livestreamDate: "", livestreamStartTime: "", streamerName: "", liverId: null as number | null, platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null as number | null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" });
   const [newContract, setNewContract] = useState({ serviceType: "単発ライブ契約" as "単発ライブ契約" | "期間契約" | "運用代行型（TSP）" | "パッケージ／複合契約", fixedFee: 0, status: "契約中" as "契約中" | "完了" | "保留" | "終了", startDate: "", endDate: "", memo: "", linkedLivestreamIds: [] as number[], plannedLivestreamCount: undefined as number | undefined, tspContractId: null as number | null, createNewTsp: false });
@@ -1026,6 +1040,11 @@ export default function BrandDetail() {
   const { data: selectionProducts = [], refetch: refetchSelectionProducts } = trpc.selectionCenter.getSelectionProductsForBrand.useQuery({ brandId }, { enabled: selectionImportDialogOpen });
   const { data: livestreams = [], refetch: refetchLivestreams } = trpc.brandLivestream.listByBrand.useQuery({ brandId });
   const { data: contracts = [], refetch: refetchContracts } = trpc.brandContract.listByBrand.useQuery({ brandId }, { enabled: brandId > 0 });
+  const { data: brandDataAccess } = trpc.brand.getLarkStatus.useQuery();
+  const { data: historicalGmvData, refetch: refetchHistoricalGmv } = trpc.brandHistoricalGmv.list.useQuery(
+    { brandId },
+    { enabled: brandId > 0 && brandDataAccess?.canView === true },
+  );
   const { data: memos = [], refetch: refetchMemos } = trpc.brandMemo.listByBrand.useQuery({ brandId });
   const { data: monthlyGmvSummary = [] } = trpc.brandLivestream.monthlyGmvSummary.useQuery({ brandId });
   const { data: lcjStaff = [] } = trpc.brand.getLcjStaff.useQuery({ brandId }, { enabled: brandId > 0 });
@@ -1040,6 +1059,33 @@ export default function BrandDetail() {
   const { data: reportFileHistory = [], refetch: refetchReportFileHistory } = trpc.brand.getReportFileHistory.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: campaignDetail, isLoading: campaignDetailLoading } = trpc.brand.getAdCampaignDetail.useQuery({ id: selectedCampaignId! }, { enabled: !!selectedCampaignId });
   const deleteReportFileMutation = trpc.brand.deleteReportFile.useMutation();
+
+  const createHistoricalGmvMutation = trpc.brandHistoricalGmv.create.useMutation({
+    onSuccess: async () => {
+      await refetchHistoricalGmv();
+      setHistoricalGmvDialogOpen(false);
+      setEditingHistoricalGmv(null);
+      toast.success(language === "ja" ? "過去GMVを登録しました" : "历史GMV已登记");
+    },
+    onError: error => toast.error(error.message),
+  });
+  const updateHistoricalGmvMutation = trpc.brandHistoricalGmv.update.useMutation({
+    onSuccess: async () => {
+      await refetchHistoricalGmv();
+      setHistoricalGmvDialogOpen(false);
+      setEditingHistoricalGmv(null);
+      toast.success(language === "ja" ? "過去GMVを更新しました" : "历史GMV已更新");
+    },
+    onError: error => toast.error(error.message),
+  });
+  const deleteHistoricalGmvMutation = trpc.brandHistoricalGmv.delete.useMutation({
+    onSuccess: async () => {
+      await refetchHistoricalGmv();
+      setHistoricalGmvToDelete(null);
+      toast.success(language === "ja" ? "過去GMVを削除しました" : "历史GMV已删除");
+    },
+    onError: error => toast.error(error.message),
+  });
 
   // Ad Report data fetching
   const { data: adReports = [], refetch: refetchAdReports } = trpc.brand.getAdReports.useQuery({ brandId }, { enabled: brandId > 0 });
@@ -1735,7 +1781,7 @@ ${proposal.proposalContent}
     onSuccess: () => {
       refetchContracts();
       setAddContractDialogOpen(false);
-      setNewContract({ serviceType: "単発ライブ契約", fixedFee: 0, status: "契約中", startDate: "", endDate: "", memo: "", linkedLivestreamIds: [], plannedLivestreamCount: undefined });
+      setNewContract({ serviceType: "単発ライブ契約", fixedFee: 0, status: "契約中", startDate: "", endDate: "", memo: "", linkedLivestreamIds: [], plannedLivestreamCount: undefined, tspContractId: null, createNewTsp: false });
       toast.success(language === 'zh' ? '合同已添加' : '契約を追加しました');
     },
     onError: () => {
@@ -2115,6 +2161,38 @@ ${proposal.proposalContent}
 
   // Calculate GMV totals from livestreams data (CSV商品別売上インポート済みのみ)
   const totalGmv = livestreams.reduce((sum, ls: any) => sum + (ls.effectiveGmv ?? ls.salesAmount ?? ls.gmv ?? 0), 0);
+  const historicalGmvRecords = historicalGmvData?.records || [];
+  const historicalGmvTotal = historicalGmvData?.total || 0;
+  const openHistoricalGmvEditor = (record?: any) => {
+    setEditingHistoricalGmv(record || null);
+    setHistoricalGmvDraft({
+      amount: record ? String(record.amount ?? "") : "",
+      sourceLabel: record?.sourceLabel || "",
+      periodStart: record?.periodStart || "",
+      periodEnd: record?.periodEnd || "",
+      notes: record?.notes || "",
+    });
+    setHistoricalGmvDialogOpen(true);
+  };
+  const saveHistoricalGmv = () => {
+    const amount = Number(historicalGmvDraft.amount.replace(/,/g, ""));
+    if (!Number.isFinite(amount) || amount <= 0 || !historicalGmvDraft.sourceLabel.trim()) {
+      toast.error(language === "ja" ? "金額と根拠名を入力してください" : "请填写金额和依据名称");
+      return;
+    }
+    const payload = {
+      amount,
+      sourceLabel: historicalGmvDraft.sourceLabel.trim(),
+      periodStart: historicalGmvDraft.periodStart || null,
+      periodEnd: historicalGmvDraft.periodEnd || null,
+      notes: historicalGmvDraft.notes.trim() || null,
+    };
+    if (editingHistoricalGmv) {
+      updateHistoricalGmvMutation.mutate({ id: editingHistoricalGmv.id, ...payload });
+    } else {
+      createHistoricalGmvMutation.mutate({ brandId, ...payload });
+    }
+  };
   const gmvEvidenceSummary = livestreams.reduce((summary: Record<string, number>, livestream: any) => {
     const source = String(livestream.gmvSource || "none");
     summary[source] = (summary[source] || 0) + 1;
@@ -3407,7 +3485,14 @@ ${proposal.proposalContent}
         {/* Main KPI Card */}
         <div className="grid grid-cols-1 gap-4">
           {/* Total GMV - Large card with fire icon */}
-          <div className="relative overflow-hidden rounded-xl p-6 group transition-all duration-500 hover:scale-[1.02]" style={{
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => openSectionAndScroll("livestreamPerformance", "brand-livestream-section")}
+            onKeyDown={event => event.key === "Enter" && openSectionAndScroll("livestreamPerformance", "brand-livestream-section")}
+            className="relative cursor-pointer overflow-hidden rounded-xl p-6 group transition-all duration-500 hover:scale-[1.02]"
+            title={language === "ja" ? "クリックして配信GMVを追加・編集" : "点击添加或编辑直播GMV"}
+            style={{
             background: 'linear-gradient(135deg, rgba(0,0,0,0.9) 0%, rgba(50,0,0,0.8) 50%, rgba(0,0,0,0.9) 100%)',
             border: '2px solid rgba(255, 50, 50, 0.6)',
             boxShadow: '0 0 60px rgba(255, 0, 0, 0.4), inset 0 0 60px rgba(255, 0, 0, 0.1)',
@@ -3454,6 +3539,34 @@ ${proposal.proposalContent}
               </div>
             </div>
           </div>
+
+          {brandDataAccess?.canView && <div
+            role="button"
+            tabIndex={0}
+            onClick={() => openHistoricalGmvEditor()}
+            onKeyDown={event => event.key === "Enter" && openHistoricalGmvEditor()}
+            className="relative cursor-pointer overflow-hidden rounded-xl border-2 border-blue-500/50 bg-gradient-to-br from-blue-950/70 via-slate-950/85 to-cyan-950/60 p-5 transition-all duration-300 hover:border-cyan-400 hover:scale-[1.01]"
+            title={language === "ja" ? "クリックして過去GMV台帳を追加・編集" : "点击添加或编辑历史GMV台账"}
+          >
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-blue-200">
+                  <History className="h-5 w-5 text-cyan-300" />
+                  {language === "ja" ? "過去GMV台帳（独立基準）" : "历史GMV台账（独立基准）"}
+                </div>
+                <p className="mt-2 text-3xl font-black text-cyan-300 md:text-5xl" style={{ fontFamily: "JetBrains Mono, monospace" }}>
+                  {formatCurrency(historicalGmvTotal)}
+                </p>
+              </div>
+              <div className="space-y-1 text-xs text-gray-300 md:text-right">
+                <div>{language === "ja" ? `${historicalGmvRecords.length}件の根拠記録` : `${historicalGmvRecords.length}条依据记录`}</div>
+                <div className="text-blue-300">Lark {formatCurrency(historicalGmvData?.larkTotal || 0)} · {language === "ja" ? "手動" : "人工"} {formatCurrency(historicalGmvData?.manualTotal || 0)}</div>
+                <div className="font-semibold text-amber-300">{language === "ja" ? "配信GMVへ加算しません（重複防止）" : "不计入直播GMV（防止重复）"}</div>
+                {historicalGmvData?.hasSourceConflict && <div className="font-semibold text-red-300">{language === "ja" ? "Larkと手動根拠が併存：Larkのみを合計" : "飞书与人工依据并存：合计仅采用飞书"}</div>}
+                <div className="flex items-center justify-end gap-1 text-cyan-200"><Edit2 className="h-3.5 w-3.5" />{language === "ja" ? "クリックして台帳管理" : "点击管理台账"}</div>
+              </div>
+            </div>
+          </div>}
 
           {/* LCJ報酬カード - GMV×商品別成果報酬率の合計 */}
           {(() => {
@@ -3580,8 +3693,8 @@ ${proposal.proposalContent}
         </div>
 
         {/* Sub KPI Cards - Neon Style */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <div className="relative overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <div role="button" tabIndex={0} onClick={() => openSectionAndScroll("products", "brand-products-section")} onKeyDown={event => event.key === "Enter" && openSectionAndScroll("products", "brand-products-section")} title={language === "ja" ? "クリックして商品を追加・編集" : "点击添加或编辑商品"} className="relative cursor-pointer overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
             background: 'linear-gradient(135deg, rgba(0,30,50,0.9) 0%, rgba(0,50,80,0.7) 100%)',
             border: '1px solid rgba(0, 255, 255, 0.5)',
             boxShadow: '0 0 25px rgba(0, 255, 255, 0.3), inset 0 0 20px rgba(0, 255, 255, 0.1)',
@@ -3594,7 +3707,7 @@ ${proposal.proposalContent}
               {products.length}<span className="text-sm text-cyan-300 ml-1">{t.items}</span>
             </p>
           </div>
-          <div className="relative overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
+          <div role="button" tabIndex={0} onClick={() => openSectionAndScroll("livestreamPerformance", "brand-livestream-section")} onKeyDown={event => event.key === "Enter" && openSectionAndScroll("livestreamPerformance", "brand-livestream-section")} title={language === "ja" ? "クリックして配信を追加・編集" : "点击添加或编辑直播"} className="relative cursor-pointer overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
             background: 'linear-gradient(135deg, rgba(50,0,50,0.9) 0%, rgba(80,0,80,0.7) 100%)',
             border: '1px solid rgba(255, 100, 200, 0.5)',
             boxShadow: '0 0 25px rgba(255, 100, 200, 0.3), inset 0 0 20px rgba(255, 100, 200, 0.1)',
@@ -3607,7 +3720,7 @@ ${proposal.proposalContent}
               {uniqueLivestreamDays}<span className="text-sm text-pink-300 ml-1">{t.times}</span>
             </p>
           </div>
-          <div className="relative overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
+          <div role="button" tabIndex={0} onClick={() => { setOpenSections(prev => ({ ...prev, contracts: true })); setAddContractDialogOpen(true); }} onKeyDown={event => event.key === "Enter" && setAddContractDialogOpen(true)} title={language === "ja" ? "クリックして契約を追加" : "点击添加合同"} className="relative cursor-pointer overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
             background: 'linear-gradient(135deg, rgba(50,40,0,0.9) 0%, rgba(80,60,0,0.7) 100%)',
             border: '1px solid rgba(255, 200, 50, 0.5)',
             boxShadow: '0 0 25px rgba(255, 200, 50, 0.3), inset 0 0 20px rgba(255, 200, 50, 0.1)',
@@ -3620,7 +3733,7 @@ ${proposal.proposalContent}
               {contracts.length}<span className="text-sm text-amber-300 ml-1">{t.cases}</span>
             </p>
           </div>
-          <div className="relative overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
+          <div role="button" tabIndex={0} onClick={() => openSectionAndScroll("products", "brand-products-section")} onKeyDown={event => event.key === "Enter" && openSectionAndScroll("products", "brand-products-section")} title={language === "ja" ? "クリックして商品別成果報酬を編集" : "点击编辑商品成果报酬"} className="relative cursor-pointer overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
             background: 'linear-gradient(135deg, rgba(40,0,60,0.9) 0%, rgba(60,0,90,0.7) 100%)',
             border: '1px solid rgba(180, 100, 255, 0.5)',
             boxShadow: '0 0 25px rgba(180, 100, 255, 0.3), inset 0 0 20px rgba(180, 100, 255, 0.1)',
@@ -3633,7 +3746,7 @@ ${proposal.proposalContent}
               {commissionRateValue}
             </p>
           </div>
-          <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 hover:border-red-500/50 transition-all">
+          <div role="button" tabIndex={0} onClick={() => navigate(`/master/brands/${id}/edit`)} onKeyDown={event => event.key === "Enter" && navigate(`/master/brands/${id}/edit`)} title={language === "ja" ? "クリックして担当者を編集" : "点击编辑负责人"} className="cursor-pointer bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 hover:border-green-500/50 transition-all">
             <div className="flex items-center gap-2 mb-2">
               <Users className="h-4 w-4 text-green-400" />
               <span className="text-xs text-gray-500 uppercase tracking-wider">{language === 'zh' ? '商务负责人' : '商務負責人'}</span>
@@ -3642,7 +3755,7 @@ ${proposal.proposalContent}
               {(brand as any)?.businessManagerId ? (hrStaffList.find((s: any) => s.id === (brand as any).businessManagerId)?.name || '-') : '-'}
             </p>
           </div>
-          <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 hover:border-red-500/50 transition-all">
+          <div role="button" tabIndex={0} onClick={() => navigate(`/master/brands/${id}/edit`)} onKeyDown={event => event.key === "Enter" && navigate(`/master/brands/${id}/edit`)} title={language === "ja" ? "クリックして担当者を編集" : "点击编辑负责人"} className="cursor-pointer bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 hover:border-blue-500/50 transition-all">
             <div className="flex items-center gap-2 mb-2">
               <Users className="h-4 w-4 text-blue-400" />
               <span className="text-xs text-gray-500 uppercase tracking-wider">{language === 'zh' ? '运营负责人' : '運営負責人'}</span>
@@ -3689,7 +3802,7 @@ ${proposal.proposalContent}
           ) : (
             <div className="space-y-2">
               {contracts.map((contract) => (
-                <div key={contract.id} className="bg-black/60 rounded-xl border border-amber-500/30 p-3 group hover:border-amber-400/50 transition-all">
+                <div key={contract.id} role="button" tabIndex={0} onClick={() => handleEditContract(contract)} onKeyDown={event => event.key === "Enter" && handleEditContract(contract)} title={language === "ja" ? "クリックして契約を編集" : "点击编辑合同"} className="cursor-pointer bg-black/60 rounded-xl border border-amber-500/30 p-3 group hover:border-amber-400/50 transition-all">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <Badge className="bg-amber-500/30 text-amber-300 border border-amber-400/50 text-sm px-2 py-0.5">
@@ -3705,14 +3818,14 @@ ${proposal.proposalContent}
                     </div>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => handleEditContract(contract)}
+                        onClick={event => { event.stopPropagation(); handleEditContract(contract); }}
                         className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-amber-400 transition-all"
                         title={language === 'ja' ? '編集' : '编辑'}
                       >
                         <Edit2 className="h-5 w-5" />
                       </button>
                       <button
-                        onClick={() => { setContractToDelete(contract); setDeleteContractDialogOpen(true); }}
+                        onClick={event => { event.stopPropagation(); setContractToDelete(contract); setDeleteContractDialogOpen(true); }}
                         className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-400 transition-all"
                         title={language === 'ja' ? '削除' : '删除'}
                       >
@@ -3932,7 +4045,7 @@ ${proposal.proposalContent}
           <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSections.livestreamPerformance ? 'rotate-180' : ''}`} />
         </div>
         {/* Livestream Performance Table - 全幅表示 */}
-        <div className={`${!openSections.livestreamPerformance ? "hidden" : ""} bg-black/85 backdrop-blur-xl rounded-xl border border-pink-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,100,0.15)]`}>
+        <div id="brand-livestream-section" className={`${!openSections.livestreamPerformance ? "hidden" : ""} bg-black/85 backdrop-blur-xl rounded-xl border border-pink-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,100,0.15)]`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white flex items-center gap-3">
               <div className="w-1.5 h-8 bg-gradient-to-b from-pink-400 to-pink-600 rounded-full" />
@@ -4331,7 +4444,7 @@ ${proposal.proposalContent}
           <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSections.products ? 'rotate-180' : ''}`} />
         </div>
         {/* Content Grid - 商品テーブル */}
-        <div className={`${!openSections.products ? "hidden" : ""} grid grid-cols-1 gap-6 mb-6`}>
+        <div id="brand-products-section" className={`${!openSections.products ? "hidden" : ""} grid grid-cols-1 gap-6 mb-6`}>
           {/* Product Performance Table */}
           <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)]">
             <div className="flex items-center justify-between mb-4">
@@ -7897,6 +8010,99 @@ ${proposal.proposalContent}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={historicalGmvDialogOpen} onOpenChange={open => {
+        setHistoricalGmvDialogOpen(open);
+        if (!open) setEditingHistoricalGmv(null);
+      }}>
+        <DialogContent className="max-h-[92vh] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto border-blue-500/40 bg-gray-950 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl"><History className="h-6 w-6 text-cyan-300" />{language === "ja" ? "過去GMV台帳" : "历史GMV台账"}</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              {brandDataAccess?.canSync
+                ? (language === "ja" ? "根拠がある過去GMVだけを登録します。Lark同期値は自動・編集不可、手動記録は編集できます。配信GMVには加算しません。" : "仅登记有依据的历史GMV。飞书同步值自动写入且不可人工修改，人工记录可编辑；不会计入直播GMV。")
+                : (language === "ja" ? "過去GMV根拠の閲覧専用です。編集はスーパー管理者のみ可能です。" : "历史GMV依据为只读；仅超级管理员可以修改。")}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-xl border border-blue-500/30 bg-blue-950/20 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-blue-300">{language === "ja" ? "過去GMV合計" : "历史GMV合计"}</p>
+                <p className="text-3xl font-black text-cyan-300">{formatCurrency(historicalGmvTotal)}</p>
+              </div>
+              {brandDataAccess?.canSync && <Button variant="outline" onClick={() => openHistoricalGmvEditor()} className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10">
+                <Plus className="mr-2 h-4 w-4" />{language === "ja" ? "手動記録を追加" : "添加人工记录"}
+              </Button>}
+            </div>
+            <div className="mt-2 text-xs text-gray-400">Lark {formatCurrency(historicalGmvData?.larkTotal || 0)} · {language === "ja" ? "手動" : "人工"} {formatCurrency(historicalGmvData?.manualTotal || 0)}</div>
+            {historicalGmvData?.hasSourceConflict && <div className="mt-1 text-xs font-semibold text-red-300">{language === "ja" ? "重複防止のため合計はLark基準のみ採用します。手動記録は確認用に保持します。" : "为防止重复，合计仅采用飞书基准；人工记录保留供核对。"}</div>}
+          </div>
+
+          <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+            {historicalGmvRecords.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-gray-700 p-6 text-center text-gray-400">{language === "ja" ? "登録済みの過去GMVはありません" : "尚未登记历史GMV"}</div>
+            ) : historicalGmvRecords.map((record: any) => (
+              <div key={record.id} className="rounded-lg border border-gray-700 bg-gray-900/70 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-cyan-200">{record.sourceLabel}</span>
+                      <Badge className={record.isLocked ? "border border-blue-500/40 bg-blue-500/15 text-blue-200" : "border border-emerald-500/40 bg-emerald-500/15 text-emerald-200"}>
+                        {record.isLocked ? (language === "ja" ? "Lark自動・ロック" : "飞书自动・已锁定") : (language === "ja" ? "手動" : "人工")}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-2xl font-black text-white">{formatCurrency(record.amount)}</p>
+                    <p className="text-xs text-gray-400">{record.periodStart || "—"} ～ {record.periodEnd || "—"}</p>
+                    {record.notes && <p className="mt-1 whitespace-pre-wrap text-xs text-gray-300">{record.notes}</p>}
+                  </div>
+                  {!record.isLocked && brandDataAccess?.canSync && (
+                    <div className="flex shrink-0 gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => openHistoricalGmvEditor(record)} className="text-cyan-300 hover:bg-cyan-500/10 hover:text-cyan-100"><Edit2 className="h-4 w-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setHistoricalGmvToDelete(record)} className="text-red-300 hover:bg-red-500/10 hover:text-red-100"><Trash2 className="h-4 w-4" /></Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {brandDataAccess?.canSync && <div className="grid gap-4 rounded-xl border border-gray-700 bg-gray-900/60 p-4 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2">
+              <Label>{language === "ja" ? "根拠名" : "依据名称"}</Label>
+              <Input value={historicalGmvDraft.sourceLabel} onChange={event => setHistoricalGmvDraft(current => ({ ...current, sourceLabel: event.target.value }))} placeholder={language === "ja" ? "例：2025年確定売上台帳" : "例：2025年确认销售台账"} className="border-gray-600 bg-gray-800 text-white" />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>{language === "ja" ? "過去GMV（円）" : "历史GMV（日元）"}</Label>
+              <Input type="number" min={0} step="0.01" value={historicalGmvDraft.amount} onChange={event => setHistoricalGmvDraft(current => ({ ...current, amount: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" />
+            </div>
+            <div className="space-y-2"><Label>{language === "ja" ? "対象期間開始" : "统计开始日期"}</Label><Input type="date" value={historicalGmvDraft.periodStart} onChange={event => setHistoricalGmvDraft(current => ({ ...current, periodStart: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" /></div>
+            <div className="space-y-2"><Label>{language === "ja" ? "対象期間終了" : "统计结束日期"}</Label><Input type="date" value={historicalGmvDraft.periodEnd} onChange={event => setHistoricalGmvDraft(current => ({ ...current, periodEnd: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" /></div>
+            <div className="space-y-2 md:col-span-2"><Label>{language === "ja" ? "根拠・備考" : "依据与备注"}</Label><Textarea rows={3} value={historicalGmvDraft.notes} onChange={event => setHistoricalGmvDraft(current => ({ ...current, notes: event.target.value }))} className="border-gray-600 bg-gray-800 text-white" /></div>
+          </div>}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHistoricalGmvDialogOpen(false)} className="border-gray-600 text-gray-300 hover:bg-gray-800">{language === "ja" ? "閉じる" : "关闭"}</Button>
+            {brandDataAccess?.canSync && <Button onClick={saveHistoricalGmv} disabled={createHistoricalGmvMutation.isPending || updateHistoricalGmvMutation.isPending} className="bg-cyan-600 hover:bg-cyan-500">
+              {(createHistoricalGmvMutation.isPending || updateHistoricalGmvMutation.isPending) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+              {editingHistoricalGmv ? (language === "ja" ? "更新" : "更新") : (language === "ja" ? "登録" : "登记")}
+            </Button>}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!historicalGmvToDelete} onOpenChange={open => !open && setHistoricalGmvToDelete(null)}>
+        <AlertDialogContent className="border-gray-700 bg-gray-950 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{language === "ja" ? "過去GMV記録を削除しますか？" : "删除这条历史GMV记录？"}</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">{language === "ja" ? "記録は非表示になりますが、変更履歴は監査ログに残ります。" : "记录将被隐藏，但变更历史会保留在审计日志。"}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-gray-600 bg-transparent text-gray-300 hover:bg-gray-800 hover:text-white">{language === "ja" ? "キャンセル" : "取消"}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => historicalGmvToDelete && deleteHistoricalGmvMutation.mutate({ id: historicalGmvToDelete.id })} className="bg-red-600 hover:bg-red-500">{language === "ja" ? "削除" : "删除"}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Product Detail Popup Dialog - Exciting Design */}
       <Dialog open={productDetailDialogOpen} onOpenChange={setProductDetailDialogOpen}>

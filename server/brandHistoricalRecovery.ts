@@ -491,7 +491,19 @@ export async function getBrandDataIntegrityHealth() {
         (SELECT COALESCE(SUM(CASE WHEN manualSalesAmount>0 THEN manualSalesAmount WHEN salesAmount>0 THEN salesAmount WHEN gmv>0 THEN gmv ELSE 0 END),0) FROM brand_livestreams WHERE deletedAt IS NULL) AS legacyFactTotal,
         (SELECT COUNT(*) FROM brands source JOIN brands target ON target.larkRecordId=source.larkRecordId AND target.deletedAt IS NULL AND target.id<>source.id WHERE source.deletedAt IS NOT NULL AND source.larkRecordId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM brand_data_recovery_items completed WHERE completed.sourceBrandId=source.id AND completed.targetBrandId=target.id AND completed.action='merge_completed')) AS deletedLarkMergeCandidates,
         (SELECT COUNT(*) FROM brand_lark_source_snapshots) AS larkSnapshots,
-        (SELECT COUNT(*) FROM brand_lark_field_changes WHERE action LIKE 'preserved_%') AS protectedFields
+        (SELECT COUNT(*) FROM brand_lark_field_changes WHERE action LIKE 'preserved_%') AS protectedFields,
+        (SELECT COUNT(*) FROM brand_historical_gmv_records WHERE status='active' AND deletedAt IS NULL) AS historicalGmvRecords,
+        (SELECT COUNT(*) FROM brand_historical_gmv_records WHERE sourceType='lark_reported_gmv' AND status='active' AND deletedAt IS NULL) AS larkHistoricalGmvRecords,
+        (SELECT COUNT(*) FROM brand_historical_gmv_records WHERE sourceType='manual' AND status='active' AND deletedAt IS NULL) AS manualHistoricalGmvRecords,
+        (SELECT COALESCE(SUM(CASE WHEN ledger.larkAmount IS NOT NULL THEN ledger.larkAmount ELSE ledger.manualAmount END),0)
+           FROM (
+             SELECT brandId,
+               MAX(CASE WHEN sourceType='lark_reported_gmv' THEN amount ELSE NULL END) AS larkAmount,
+               SUM(CASE WHEN sourceType='manual' THEN amount ELSE 0 END) AS manualAmount
+             FROM brand_historical_gmv_records
+             WHERE status='active' AND deletedAt IS NULL
+             GROUP BY brandId
+           ) ledger) AS historicalGmvTotal
     `);
     const [latestSyncRows] = await connection.query<RowDataPacket[]>("SELECT * FROM brand_lark_sync_runs ORDER BY id DESC LIMIT 1");
     const [latestRecoveryRows] = await connection.query<RowDataPacket[]>("SELECT id,mode,status,sourceBackupId,preBackupId,postBackupId,proposedItems,appliedItems,conflictItems,startedAt,completedAt,errorMessage FROM brand_data_recovery_runs ORDER BY id DESC LIMIT 1");
@@ -508,6 +520,10 @@ export async function getBrandDataIntegrityHealth() {
         deletedLarkMergeCandidates: Number(row.deletedLarkMergeCandidates || 0),
         larkSnapshots: Number(row.larkSnapshots || 0),
         protectedFields: Number(row.protectedFields || 0),
+        historicalGmvRecords: Number(row.historicalGmvRecords || 0),
+        larkHistoricalGmvRecords: Number(row.larkHistoricalGmvRecords || 0),
+        manualHistoricalGmvRecords: Number(row.manualHistoricalGmvRecords || 0),
+        historicalGmvTotal: Number(row.historicalGmvTotal || 0),
       },
       latestSync: latestSyncRows[0] || null,
       latestRecovery: latestRecoveryRows[0] || null,

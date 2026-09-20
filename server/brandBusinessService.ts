@@ -4,6 +4,8 @@ import {
   BRAND_DEAL_MODEL_VALUES,
   businessMonthUtcRange,
   canTransitionBrandBdStage,
+  defaultBrandFollowUpAt,
+  normalizeBrandDealTerms,
   type BrandBdStage,
   type BrandDealModel,
 } from "../shared/brandBusiness";
@@ -254,18 +256,14 @@ export async function saveBrandBusinessDeal(input: SaveBrandDealInput, actor: Br
     if (!canTransitionBrandBdStage(fromStage, input.stage)) {
       throw new Error(`invalid BD stage transition: ${fromStage}->${input.stage}`);
     }
+    const savedAt = new Date();
     const activeStage = !["contracted", "lost"].includes(input.stage);
     const nextAction = cleanText(input.nextAction, 2000);
-    const nextFollowUpAt = toSqlDate(input.nextFollowUpAt);
-    const lastContactAt = toSqlDate(input.lastContactAt);
-    if (lastContactAt && lastContactAt.getTime() > Date.now() + 10 * 60 * 1000) {
-      throw new Error("last contact date cannot be in the future");
-    }
-    if (activeStage && (!nextAction || !nextFollowUpAt)) {
-      throw new Error("active BD stages require next action and follow-up date");
-    }
-    if (["slot_fee", "guaranteed_roi", "pure_commission"].includes(input.stage) && !lastContactAt) {
-      throw new Error("negotiation stages require last contact date");
+    const requestedFollowUpAt = toSqlDate(input.nextFollowUpAt);
+    const nextFollowUpAt = activeStage ? requestedFollowUpAt || defaultBrandFollowUpAt(savedAt) : null;
+    const lastContactAt = savedAt;
+    if (activeStage && !nextAction) {
+      throw new Error("active BD stages require a next action");
     }
     if (input.stage === "slot_fee" && !(Number(input.slotFeeAmount) > 0)) {
       throw new Error("slot fee stage requires a proposed amount");
@@ -283,7 +281,9 @@ export async function saveBrandBusinessDeal(input: SaveBrandDealInput, actor: Br
           ? "guaranteed_roi"
           : fromStage === "pure_commission"
             ? "pure_commission"
-            : (() => { throw new Error("contract must follow an active negotiation stage"); })();
+            : fromStage === "contracted" && before?.dealModel && BRAND_DEAL_MODEL_VALUES.includes(String(before.dealModel) as BrandDealModel)
+              ? String(before.dealModel) as BrandDealModel
+              : (() => { throw new Error("contract must follow an active negotiation stage"); })();
       if (input.dealModel !== expectedModel) throw new Error("contract model must match the completed negotiation stage");
       if (expectedModel === "slot_fee" && !(Number(input.slotFeeAmount) > 0)) throw new Error("slot fee contract requires an amount");
       if (expectedModel === "guaranteed_roi" && Number(input.guaranteedRoi) !== 2) throw new Error("ROI contract is fixed at 1:2");
@@ -292,12 +292,25 @@ export async function saveBrandBusinessDeal(input: SaveBrandDealInput, actor: Br
     const agreedAt = input.stage === "contracted"
       ? before?.agreedAt || new Date()
       : before?.agreedAt || null;
+    const stageDealModel: BrandDealModel | null = input.stage === "slot_fee"
+      ? "slot_fee"
+      : input.stage === "guaranteed_roi"
+        ? "guaranteed_roi"
+        : input.stage === "pure_commission"
+          ? "pure_commission"
+          : input.dealModel || null;
+    const normalizedTerms = normalizeBrandDealTerms({
+      dealModel: stageDealModel,
+      slotFeeAmount: input.slotFeeAmount,
+      guaranteedRoi: input.guaranteedRoi,
+      pureCommissionRate: input.pureCommissionRate,
+    });
     const values = {
       stage: input.stage,
-      dealModel: input.dealModel || null,
-      slotFeeAmount: input.slotFeeAmount ?? null,
-      guaranteedRoi: input.guaranteedRoi ?? 2,
-      pureCommissionRate: input.pureCommissionRate ?? null,
+      dealModel: normalizedTerms.dealModel,
+      slotFeeAmount: normalizedTerms.slotFeeAmount,
+      guaranteedRoi: normalizedTerms.guaranteedRoi,
+      pureCommissionRate: normalizedTerms.pureCommissionRate,
       lastContactAt,
       nextFollowUpAt,
       nextAction,
