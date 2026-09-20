@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Clock3,
   Crown,
+  ExternalLink,
   Gift,
   LogIn,
   Radio,
@@ -24,6 +25,15 @@ import "./brand-day-portal.css";
 
 const KGDAY_SLUG = "kgday-2026";
 const KG_LOGO_URL = "https://kgdayreco-2kqllucq.manus.space/manus-storage/pasted_file_p9UdsL_1_65ad3cc9.png";
+
+type DrKozuProduct = {
+  image: string;
+  name: string;
+  meta: string;
+  copy: string;
+  badge?: string;
+  href?: string;
+};
 
 type EventInfo = {
   slug: string;
@@ -87,7 +97,12 @@ export default function BrandDayPortal() {
   return <GenericBrandDayPortal info={info} />;
 }
 
-const DRKOZU_ASSETS = {
+const DRKOZU_ASSETS: {
+  logo: string;
+  hero: string;
+  founder: string;
+  products: readonly DrKozuProduct[];
+} = {
   logo: "/brand-day/drkozu/drkozu-logo.webp",
   hero: "/brand-day/drkozu/drkozu-hero.webp",
   founder: "/brand-day/drkozu/drkozu-founder.webp",
@@ -96,8 +111,72 @@ const DRKOZU_ASSETS = {
     { image: "/brand-day/drkozu/cell-peel-crystal.webp", name: "セルピール #クリスタル", meta: "4回分 · ¥13,200", copy: "角質をやさしく整え、なめらかな触り心地と透明感のある印象へ。" },
     { image: "/brand-day/drkozu/repair-clear-wash.webp", name: "リペアクリアウォッシュ", meta: "洗浄ケア", copy: "濃密な泡で摩擦を抑えながら、毎日の洗浄を心地よい美容習慣へ。" },
     { image: "/brand-day/drkozu/beauty-soy-protein.webp", name: "ビューティソイプロテイン", meta: "500g · ¥8,856", copy: "美容と健康を支えるたんぱく質を、おいしく続けやすい一杯に。" },
+    {
+      image: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/utynVskylwoRpqzb.webp",
+      name: "リペアクレンジング",
+      meta: "ジェルクレンジング · 肌環境ケア",
+      copy: "メイクや皮脂を落とすところから、毎日のスキンケアを心地よく整える洗浄アイテム。",
+      badge: "TIKTOK SHOP",
+      href: "https://vt.tiktok.com/ZS9AMLM6LaX6j-oHoqn/",
+    },
+    {
+      image: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/sUHnEWIRkWMdcdrK.webp",
+      name: "リペアリップセラム",
+      meta: "保湿リッププランパー · 全5色",
+      copy: "うるおいとツヤのある口元を演出する、選べる5色のリップセラム。",
+      badge: "TIKTOK SHOP",
+      href: "https://vt.tiktok.com/ZS9AMLkb7LBng-Ti5bv/",
+    },
+    {
+      image: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/KFUMrwftZKCtYEhw.webp",
+      name: "シンデレラマスク",
+      meta: "集中フェイスケア",
+      copy: "うるおい、ツヤ、引き締まった印象を目指す、パウダータイプの集中マスク。",
+      badge: "TIKTOK SHOP",
+      href: "https://vt.tiktok.com/ZS9AMLAuWeow3-oTDqC/",
+    },
+    {
+      image: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ODXaOknYhRUCdhEB.webp",
+      name: "リジュショット",
+      meta: "週1〜2回の集中ケア",
+      copy: "いつものホームケアに取り入れやすい、ワンランク上の集中ケアアイテム。",
+      badge: "TIKTOK SHOP",
+      href: "https://vt.tiktok.com/ZS9AMLUCmAUcY-tfWfa/",
+    },
+    {
+      image: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ojoXvjjJSIiUfgtL.webp",
+      name: "リペアセラム",
+      meta: "美容液 · 40ml",
+      copy: "毎日の保湿ケアに取り入れやすい、スポイトタイプの美容液。",
+      badge: "TIKTOK SHOP",
+      href: "https://vt.tiktok.com/ZS9AMLjNWmap7-oP3fd/",
+    },
+    {
+      image: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/MmzGjxCHQigUjoOc.webp",
+      name: "バランスジェル",
+      meta: "ピーリング後の整肌ケア",
+      copy: "ピーリング後のデリケートな肌を、うるおいで整えるジェルタイプのケア。",
+      badge: "TIKTOK SHOP",
+      href: "https://vt.tiktok.com/ZS9AMLHdJsLop-0JiYy/",
+    },
+    {
+      image: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/lAcZrJNcvLegjNYC.webp",
+      name: "リペアフェイシャルマスク",
+      meta: "フェイスマスク · 1箱5枚入り",
+      copy: "美容液をたっぷり含んだシートで、週1〜2回のうるおいスペシャルケア。",
+      badge: "TIKTOK SHOP",
+      href: "https://vt.tiktok.com/ZS9AMLbALsjMQ-SJR7D/",
+    },
+    {
+      image: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/qGwYHqckZshhETkF.webp",
+      name: "フェイシャルネット",
+      meta: "濃密泡の洗顔サポート",
+      copy: "きめ細かな泡立てをサポートし、毎日の洗顔を心地よくするフェイシャルネット。",
+      badge: "TIKTOK SHOP",
+      href: "https://vt.tiktok.com/ZS9AMLT3FMwjL-s46ye/",
+    },
   ],
-} as const;
+};
 
 function DrKozuPortal({ info }: { info: EventInfo }) {
   const [remaining, setRemaining] = useState(() => getCountdown(info.eventStartAt));
@@ -225,8 +304,8 @@ function DrKozuPortal({ info }: { info: EventInfo }) {
           </div>
         </DrKozuSection>
 
-        <DrKozuSection id="products" eyebrow="PRODUCT SELECTION" title="プロ発想のケアを、Brand Dayで。" intro="主力製品を入口に、落とす・整える・育てる・内側から支えるケアを紹介します。">
-          <div className="drkozu-products">{DRKOZU_ASSETS.products.map((product, index) => <article className="drkozu-product" key={product.name}><div className="drkozu-product-image"><img src={product.image} alt={product.name} /></div><p>0{index + 1} · FEATURED</p><h3>{product.name}</h3><span>{product.meta}</span><div>{product.copy}</div></article>)}</div>
+        <DrKozuSection id="products" eyebrow="PRODUCT SELECTION" title="プロ発想のケアを、Brand Dayで。" intro="Brand Dayで紹介できる12商品を掲載。TikTok Shopの商品は、カードから商品ページを直接確認できます。">
+          <div className="drkozu-products">{DRKOZU_ASSETS.products.map((product, index) => <DrKozuProductCard key={product.name} product={product} index={index} />)}</div>
         </DrKozuSection>
 
         <DrKozuSection id="method" eyebrow="TOTAL CARE METHOD" title="一つひとつに、意味のあるケアを。">
@@ -251,6 +330,22 @@ function DrKozuSection({ id, eyebrow, title, intro, children }: { id: string; ey
 
 function DrKozuCountdown({ value, label }: { value: number; label: string }) {
   return <div><strong>{String(value).padStart(2, "0")}</strong><span>{label}</span></div>;
+}
+
+function DrKozuProductCard({ product, index }: { product: DrKozuProduct; index: number }) {
+  const content = <>
+    <div className="drkozu-product-image"><img src={product.image} alt={product.name} loading="lazy" /></div>
+    <p>{String(index + 1).padStart(2, "0")} · {product.badge ?? "FEATURED"}</p>
+    <h3>{product.name}</h3>
+    <span>{product.meta}</span>
+    <div className="drkozu-product-copy">{product.copy}</div>
+    {product.href && <span className="drkozu-product-link">TikTok Shopで見る <ExternalLink aria-hidden="true" /></span>}
+  </>;
+
+  if (product.href) {
+    return <a className="drkozu-product drkozu-product-clickable" href={product.href} target="_blank" rel="noopener noreferrer" aria-label={`${product.name}をTikTok Shopで見る`}>{content}</a>;
+  }
+  return <article className="drkozu-product">{content}</article>;
 }
 
 function DrKozuStep({ n, icon: IconComponent, title, text }: { n: string; icon: Icon; title: string; text: string }) {
