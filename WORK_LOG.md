@@ -3495,7 +3495,7 @@ Brand Day関連6ファイルの回帰は17件成功、データベース環境�
 
 本地专项回归包括日报对话、LCJ Brain权限、LCF知识与账号层级共4个文件 **50/50** 通过；日报意图、东京日期边界、三项必答、`remarks`映射、Brain嵌入与事务幂等均有回归覆盖。关键前后端esbuild通过，完整production build通过（仅保留既有`sharp`警告）。全量TypeScript仍为既有 **721** 项诊断；本次日报路由行号范围、共享helper、ChatReport、LCJ Brain、Reports与Dashboard没有新增诊断。
 
-## 2026-09-21｜LINEグループAIフォロー・会話履歴・送信監査を強化（本番反映前）
+## 2026-09-21｜LINEグループAIフォロー・会話履歴・送信監査を強化（本番反映済み）
 
 `/master/line`の既存グループ画面を、公式LINEをグループへ招待した後に**@LCJ返信、匿名化会話分析、AI自動フォロー、受信・手動・AI送信の会話履歴**を同じ画面で管理できる形へ拡張した。グループカードの「送信」は単純な本文入力Dialogではなく履歴付きの「会話・送信」画面を開く。履歴は最大200件を取得し、受信、LCJ運営の手動送信、LCJ公式AIフォローを表示名・手動／自動／AIラベル付きで表示する。遅延WebhookでもDB到着順に入れ替わらないよう、サーバーは`lineTimestamp`、`createdAt`、`id`の決定的な新着順で200件を選び、UIは共有helperでイベント時刻の古い順に表示する。送信監査がまだ確定していない行は「送信未確認」と表示する。
 
@@ -3506,3 +3506,5 @@ Brand Day関連6ファイルの回帰は17件成功、データベース環境�
 管理画面手動送信はクライアント生成UUIDをAPI必須とし、LINE送信前に宛先・本文を不変な監査予約として保存する。同じUUIDの同一payloadだけ再試行でき、異なる宛先・本文は`LINE_OUTBOUND_IDEMPOTENCY_CONFLICT`、`cancelled`／`none`のterminal監査は`LINE_OUTBOUND_AUDIT_TERMINAL_*`で拒否する。Dialogを閉じても未確定の本文・UUIDを保持し、対象・本文を変えた時か送信確定時だけUUIDを更新する。監査確定は`pending → responded`だけを条件付き更新し、同時取消されたterminal行を復活させない。自動フォローは候補抽出後、`line_groups`行を`FOR UPDATE`し、active、opt-in、最新活動時刻、無活動閾値、active reminder、AI／固定modeを送信直前に再確認する。資格snapshotを確定してtransactionをcommitし、親row lockを解放してから送信前監査予約、決定的`X-Line-Retry-Key`、LINE送信、監査確定、`lastAutoFollowUpAt`更新を行うため、最大10秒のLINE API待機中に受信・退会・設定変更をblockしない。複数workerは同じretry keyでLINE側重複抑止を共有する。受信グループ投稿も同じ`line_groups`行を先にlockし、`line_messages`挿入と`lastMessageAt`更新を同一transactionにした。手動リマインダーのグループ作成・active化も必ず親`line_groups`行を同じ順序でlockするため、資格snapshotまでの新着・opt-out・active reminder作成見落としを閉じた。監査確定障害では抑止日時を進めず同じretry keyで復旧し、既に`responded`なら再送せず抑止日時だけ整合させる。
 
 対象回帰は10ファイル88件すべて成功し、設定DB障害、未連携／本人OFF／グループOFF時の無返信、キュー投入後のグループOFF・退会、旧一般返信fallback禁止、AI提案なし時の無送信、固定文面fallback禁止、送信直前のdeactivate・opt-out・新着・active reminder・mode変更race、リマインダー作成parent lock、送信前監査、terminal監査拒否・確定競合、監査確定失敗から同一retry keyでの回復、同一UUIDの本文競合拒否、Dialog再開後の同一UUID再試行、設定transaction、admin認可、順序逆転Webhookのイベント時刻表示を含む。LINE関連全体は37ファイル424件成功。残る5ファイル10件は固定された別リポジトリ絶対path、Stripe secret、LINE Login／Messaging API secret・token・APP_URLをローカルに持たない既存環境依存だけだった。production buildは成功。全量TypeScriptは既存721件の診断を残すが、今回変更ファイル・変更行は新規診断0件。network I/Oをtransaction外へ出した最終版は独立再レビューで**GO（release blockerなし）**となった。本番グループへの実送信、設定ON、会員・グループデータ変更は行っていない。
+
+本体commit `813a8936a522d710ccf6eb8b05970392a49aa7d6`をGitHub `main`へpushし、同一SHAのRailway statusが`Success - www.livecommercefestival.com`となったことを確認した。read-only本番確認では`https://lcjmall.com/master/line`がHTTP 200、配信中`LineManagement` chunkに「LCJ公式AIフォロー設定」「会話・送信」「グループ会話履歴」「送信未確認」「まとめてON」がすべて含まれていた。`/api/health/line-ai-manager`は`{"ok":true,"aiManagerStorage":"ready"}`、`/api/health/line-group-lifecycle`は`{"ok":true,"lifecycleStateTable":"ready"}`をHTTP 200で返した。実LINE送信、設定ON、退会、会員・グループデータ変更は本番確認では行っていない。

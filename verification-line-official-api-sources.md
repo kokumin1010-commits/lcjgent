@@ -94,3 +94,5 @@ LINE Messaging APIにはグループ名変更専用Webhookを前提にできな�
 グループ詳細の「会話・送信」は受信、LCJ運営手動送信、LCJ公式AIフォローを最大200件表示する。DBは`COALESCE(lineTimestamp, createdAt)`、`createdAt`、`id`の決定的な新着順で対象windowを選び、UIは同じイベント時刻を用いて古い順に並べる。遅延・順序逆転Webhookがあっても表示順と最新200件の選択をDB到着順へ依存させない。
 
 対象回帰は10ファイル88件成功し、LINE関連全体は37ファイル424件成功した。残る5ファイル10件は固定された別リポジトリpath、Stripe secret、LINE Login／Messaging API secret・token・APP_URLがローカルにない既存環境依存である。production buildは成功し、全量TypeScriptの既存721件のうち今回変更ファイル・変更行は新規診断0件。network I/Oをtransaction外へ出した最終版は独立再レビューでGO（release blockerなし）となった。本検証では実LINEメッセージ送信、グループ設定ON、会員・グループデータ更新は行っていない。
+
+本体commit `813a8936a522d710ccf6eb8b05970392a49aa7d6`はGitHub `main`へpush済みで、同一SHAのRailway statusは`Success - www.livecommercefestival.com`となった。read-only本番確認では`https://lcjmall.com/master/line`がHTTP 200、配信中`LineManagement` chunkに新しいグループAIフォロー・会話履歴・送信状態UI文言が存在した。`/api/health/line-ai-manager`は`aiManagerStorage: ready`、`/api/health/line-group-lifecycle`は`lifecycleStateTable: ready`をHTTP 200で返した。実送信・設定ON・会員／グループ変更を伴う確認は行っていない。
