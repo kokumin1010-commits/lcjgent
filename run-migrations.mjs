@@ -32,22 +32,6 @@ async function ensureMysqlColumns(connection, tableName, columns) {
   }
 }
 
-async function ensureSelectionBulkAuditStorage(connection) {
-  const migrationPath = path.join(__dirname, 'drizzle', '0157_selection_product_bulk_updates.sql');
-  const migrationSql = await fs.readFile(migrationPath, 'utf8');
-  const statements = migrationSql
-    .split('--> statement-breakpoint')
-    .map(statement => statement.trim())
-    .filter(Boolean);
-  for (const statement of statements) await connection.execute(statement);
-  await ensureMysqlColumns(connection, 'selection_price_history', [
-    { name: 'archivedAt', definition: 'timestamp NULL DEFAULT NULL' },
-    { name: 'archivedBy', definition: 'int NULL DEFAULT NULL' },
-    { name: 'archiveReason', definition: 'varchar(255) NULL DEFAULT NULL' },
-  ]);
-  return statements.length;
-}
-
 async function main() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
@@ -308,31 +292,20 @@ async function main() {
   }
 
   try {
-    try {
-      console.log('[Migration] Applying required Beauty Wallet member-link schema...');
-      const bwMemberLinkMigrationPath = path.join(__dirname, 'drizzle', '0156_bw_member_self_link.sql');
-      const bwMemberLinkSql = await fs.readFile(bwMemberLinkMigrationPath, 'utf8');
-      const bwMemberLinkStatements = bwMemberLinkSql
-        .split('--> statement-breakpoint')
-        .map(statement => statement.trim())
-        .filter(Boolean);
-      for (const statement of bwMemberLinkStatements) {
-        await connection.execute(statement);
-      }
-      console.log(`[Migration] Required Beauty Wallet member-link schema applied (${bwMemberLinkStatements.length} statements).`);
-    } catch (criticalErr) {
-      console.error('[Migration] Required Beauty Wallet member-link migration failed:', criticalErr.message);
-      throw criticalErr;
+    console.log('[Migration] Applying required Beauty Wallet member-link schema...');
+    const bwMemberLinkMigrationPath = path.join(__dirname, 'drizzle', '0156_bw_member_self_link.sql');
+    const bwMemberLinkSql = await fs.readFile(bwMemberLinkMigrationPath, 'utf8');
+    const bwMemberLinkStatements = bwMemberLinkSql
+      .split('--> statement-breakpoint')
+      .map(statement => statement.trim())
+      .filter(Boolean);
+    for (const statement of bwMemberLinkStatements) {
+      await connection.execute(statement);
     }
-
-    try {
-      console.log('[Migration] Applying required selection product bulk-update audit schema...');
-      const selectionBulkStatementCount = await ensureSelectionBulkAuditStorage(connection);
-      console.log(`[Migration] Required selection product bulk-update audit schema applied (${selectionBulkStatementCount} statements).`);
-    } catch (criticalErr) {
-      console.error('[Migration] Required selection product bulk-update migration failed:', criticalErr.message);
-      throw criticalErr;
-    }
+    console.log(`[Migration] Required Beauty Wallet member-link schema applied (${bwMemberLinkStatements.length} statements).`);
+  } catch (criticalErr) {
+    console.error('[Migration] Required Beauty Wallet member-link migration failed:', criticalErr.message);
+    throw criticalErr;
   } finally {
     await connection.end();
   }

@@ -66,17 +66,10 @@ const SCHEMA_STATEMENTS = [
     source VARCHAR(50) DEFAULT 'manual',
     note VARCHAR(255) DEFAULT NULL,
     createdBy INT DEFAULT 0,
-    archivedAt TIMESTAMP NULL DEFAULT NULL,
-    archivedBy INT DEFAULT NULL,
-    archiveReason VARCHAR(255) DEFAULT NULL,
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_product (productId),
     INDEX idx_price (price)
   )`,
-  "ALTER TABLE selection_price_history ADD COLUMN archivedAt TIMESTAMP NULL DEFAULT NULL",
-  "ALTER TABLE selection_price_history ADD COLUMN archivedBy INT DEFAULT NULL",
-  "ALTER TABLE selection_price_history ADD COLUMN archiveReason VARCHAR(255) DEFAULT NULL",
-  "ALTER TABLE selection_price_history ADD INDEX idx_selection_price_active (productId, archivedAt, price)",
   `CREATE TABLE IF NOT EXISTS selection_discount_history (
     id INT AUTO_INCREMENT PRIMARY KEY,
     productId INT NOT NULL,
@@ -88,35 +81,13 @@ const SCHEMA_STATEMENTS = [
     INDEX idx_product (productId),
     INDEX idx_discount (discountRate)
   )`,
-  `CREATE TABLE IF NOT EXISTS selection_product_bulk_updates (
-    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    requestId VARCHAR(36) NOT NULL,
-    actorUserId INT NOT NULL,
-    inputHash CHAR(64) NOT NULL,
-    productCount INT NOT NULL,
-    patchJson JSON NOT NULL,
-    beforeState JSON NOT NULL,
-    afterState JSON NOT NULL,
-    createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_selection_product_bulk_request (requestId),
-    KEY idx_selection_product_bulk_actor_created (actorUserId, createdAt)
-  )`,
 ] as const;
 
 let schemaEnsurePromise: Promise<void> | null = null;
 
 function isDuplicateSchemaError(error: unknown): boolean {
-  let current: unknown = error;
-  for (let depth = 0; current && depth < 5; depth += 1) {
-    const candidate = current as { code?: unknown; errno?: unknown; message?: unknown; cause?: unknown };
-    const code = String(candidate.code || "").toUpperCase();
-    const errno = Number(candidate.errno || 0);
-    const message = String(candidate.message || "").toLowerCase();
-    if (code === "ER_DUP_FIELDNAME" || code === "ER_DUP_KEYNAME" || errno === 1060 || errno === 1061
-      || message.includes("duplicate column") || message.includes("duplicate key name")) return true;
-    current = candidate.cause;
-  }
-  return false;
+  const code = String((error as { code?: string })?.code || "");
+  return code === "ER_DUP_FIELDNAME" || code === "ER_DUP_KEYNAME";
 }
 
 export async function ensureSelectionProductPersistenceSchema(pool: mysql.Pool): Promise<void> {
@@ -307,9 +278,9 @@ export async function updateSelectionProduct(
   try {
     await connection.beginTransaction();
     const [existingRows] = await connection.query(
-      "SELECT id, historicalLowestPrice FROM selection_products WHERE id = ? AND deletedAt IS NULL LIMIT 1 FOR UPDATE",
+      "SELECT id FROM selection_products WHERE id = ? AND deletedAt IS NULL LIMIT 1 FOR UPDATE",
       [id],
-    ) as [Array<{ id: number; historicalLowestPrice: string | number | null }>, unknown];
+    ) as [Array<{ id: number }>, unknown];
     if (existingRows.length !== 1) {
       throw new TRPCError({ code: "NOT_FOUND", message: "商品不存在或已删除 / 商品が存在しないか削除済みです" });
     }
@@ -328,22 +299,10 @@ export async function updateSelectionProduct(
       }
     }
 
-    if (data.historicalLowestPrice !== undefined && Number(existingRows[0].historicalLowestPrice || 0) > 0) {
-      const [legacyRows] = await connection.query(
-        "SELECT id FROM selection_price_history WHERE productId = ? AND price = ? AND archivedAt IS NULL LIMIT 1",
-        [id, Number(existingRows[0].historicalLowestPrice)],
-      ) as [Array<{ id: number }>, unknown];
-      if (legacyRows.length === 0) {
-        await connection.query(
-          "INSERT INTO selection_price_history (productId, price, source, note, createdBy) VALUES (?, ?, 'legacy_snapshot', ?, ?)",
-          [id, Number(existingRows[0].historicalLowestPrice), "手動更新前の既存最安値", createdBy],
-        );
-      }
-    }
     const priceHistoryInserted = await insertPriceHistory(connection, id, data.historicalLowestPrice, createdBy, "手動更新");
     if (priceHistoryInserted) {
       const [minRows] = await connection.query(
-        "SELECT MIN(price) AS minPrice FROM selection_price_history WHERE productId = ? AND archivedAt IS NULL",
+        "SELECT MIN(price) AS minPrice FROM selection_price_history WHERE productId = ?",
         [id],
       ) as [Array<{ minPrice: string | number | null }>, unknown];
       if (minRows[0]?.minPrice !== null && minRows[0]?.minPrice !== undefined) {

@@ -229,13 +229,9 @@ async function repairHistoricalLowestPrices(connection: PoolConnection): Promise
     INNER JOIN (
       SELECT productId, MIN(price) AS minPrice
       FROM selection_price_history
-      WHERE archivedAt IS NULL
       GROUP BY productId
     ) ph ON ph.productId = sp.id
-    SET sp.historicalLowestPrice = CASE
-      WHEN sp.historicalLowestPrice IS NULL OR sp.historicalLowestPrice <= 0 THEN ph.minPrice
-      ELSE LEAST(sp.historicalLowestPrice, ph.minPrice)
-    END
+    SET sp.historicalLowestPrice = ph.minPrice
     WHERE sp.deletedAt IS NULL AND ph.minPrice IS NOT NULL AND ph.minPrice > 0
   `);
 }

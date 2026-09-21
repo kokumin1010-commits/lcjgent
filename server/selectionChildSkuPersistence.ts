@@ -240,7 +240,7 @@ export async function updateEntityChildSku(
             COALESCE(MIN(price), 999999999999),
             COALESCE(?, 999999999999)
           ) AS minPrice
-         FROM selection_price_history WHERE productId = ? AND archivedAt IS NULL`,
+         FROM selection_price_history WHERE productId = ?`,
         [current.historicalLowestPrice, childId],
       ) as [Array<{ minPrice: string | number | null }>, unknown];
       const minPrice = minRows[0]?.minPrice;

@@ -63,8 +63,8 @@ describe("selection product workbook router", () => {
     expect(mocks.decode).not.toHaveBeenCalled();
   });
 
-  it("returns the server-side preview for an authenticated editor", async () => {
-    const caller = selectionCenterRouter.createCaller(context({ id: 42, role: "admin" }));
+  it("returns the server-side preview for an authenticated user", async () => {
+    const caller = selectionCenterRouter.createCaller(context({ id: 42, role: "user" }));
     const result = await caller.previewProductWorkbook(fileInput);
     expect(result).toMatchObject({ sheetName: "LIST_PRODUCT", fileSha256: "a".repeat(64) });
     expect(mocks.decode).toHaveBeenCalledWith(fileInput.base64Data);
