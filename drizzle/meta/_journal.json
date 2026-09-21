@@ -1030,6 +1030,13 @@
       "when": 1789960676799,
       "tag": "0151_line_group_ai_draft_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "5",
+      "when": 1789961800000,
+      "tag": "0152_lcm_campaign_pages",
+      "breakpoints": true
     }
   ]
 }

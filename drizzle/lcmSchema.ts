@@ -188,6 +188,55 @@ export const lcmProducts = mysqlTable("lcm_products", {
   index("idx_lcm_product_brand").on(table.brandProfileId, table.status, table.updatedAt),
 ]);
 
+export const lcmCampaigns = mysqlTable("lcm_campaigns", {
+  id: int("id").autoincrement().primaryKey(),
+  brandProfileId: int("brandProfileId").notNull(),
+  slug: varchar("slug", { length: 220 }).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  summary: varchar("summary", { length: 1000 }),
+  description: text("description"),
+  heroImageUrl: text("heroImageUrl"),
+  commissionRateMin: decimal("commissionRateMin", { precision: 5, scale: 2 }),
+  commissionRateMax: decimal("commissionRateMax", { precision: 5, scale: 2 }),
+  discountRateMin: decimal("discountRateMin", { precision: 5, scale: 2 }),
+  discountRateMax: decimal("discountRateMax", { precision: 5, scale: 2 }),
+  rewardNotes: text("rewardNotes"),
+  trackingMethod: mysqlEnum("trackingMethod", ["platform", "coupon", "affiliate_link", "manual_report", "other"]).default("other").notNull(),
+  settlementTerms: text("settlementTerms"),
+  eligibility: text("eligibility"),
+  creativeGuidance: text("creativeGuidance"),
+  prohibitedClaims: text("prohibitedClaims"),
+  sampleAvailable: boolean("sampleAvailable").default(false).notNull(),
+  samplePolicy: text("samplePolicy"),
+  applicationNotes: text("applicationNotes"),
+  startsAt: timestamp("startsAt"),
+  endsAt: timestamp("endsAt"),
+  status: mysqlEnum("status", ["draft", "published", "suspended", "archived"]).default("draft").notNull(),
+  createdByAccountId: int("createdByAccountId"),
+  publishedAt: timestamp("publishedAt"),
+  reviewedBy: int("reviewedBy"),
+  reviewedAt: timestamp("reviewedAt"),
+  moderationReason: text("moderationReason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_lcm_campaign_slug").on(table.slug),
+  index("idx_lcm_campaign_public").on(table.status, table.startsAt, table.endsAt, table.publishedAt),
+  index("idx_lcm_campaign_brand").on(table.brandProfileId, table.status, table.updatedAt),
+]);
+
+export const lcmCampaignProducts = mysqlTable("lcm_campaign_products", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  campaignId: int("campaignId").notNull(),
+  productId: int("productId").notNull(),
+  displayOrder: int("displayOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_lcm_campaign_product").on(table.campaignId, table.productId),
+  index("idx_lcm_campaign_product_order").on(table.campaignId, table.displayOrder),
+  index("idx_lcm_campaign_product_product").on(table.productId, table.campaignId),
+]);
+
 export const lcmSampleRequests = mysqlTable("lcm_sample_requests", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
   requestCode: varchar("requestCode", { length: 32 }).notNull(),
@@ -355,6 +404,10 @@ export type LcmBrandMember = typeof lcmBrandMembers.$inferSelect;
 export type InsertLcmBrandMember = typeof lcmBrandMembers.$inferInsert;
 export type LcmProduct = typeof lcmProducts.$inferSelect;
 export type InsertLcmProduct = typeof lcmProducts.$inferInsert;
+export type LcmCampaign = typeof lcmCampaigns.$inferSelect;
+export type InsertLcmCampaign = typeof lcmCampaigns.$inferInsert;
+export type LcmCampaignProduct = typeof lcmCampaignProducts.$inferSelect;
+export type InsertLcmCampaignProduct = typeof lcmCampaignProducts.$inferInsert;
 export type LcmSampleRequest = typeof lcmSampleRequests.$inferSelect;
 export type InsertLcmSampleRequest = typeof lcmSampleRequests.$inferInsert;
 export type LcmWholesaleInquiry = typeof lcmWholesaleInquiries.$inferSelect;

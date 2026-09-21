@@ -1,15 +1,17 @@
 import mysql, { type Pool, type PoolConnection, type ResultSetHeader, type RowDataPacket } from "mysql2/promise";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
 
-const UPGRADE_KEY = "lcm-marketplace-v3-engagement-reviews";
-const PRE_BACKUP_REASON = "pre-lcm-marketplace-v3-engagement-reviews";
-const POST_BACKUP_REASON = "post-lcm-marketplace-v3-engagement-reviews";
+const UPGRADE_KEY = "lcm-marketplace-v4-campaign-pages";
+const PRE_BACKUP_REASON = "pre-lcm-marketplace-v4-campaign-pages";
+const POST_BACKUP_REASON = "post-lcm-marketplace-v4-campaign-pages";
 const REQUIRED_TABLES = [
   "lcm_memberships",
   "lcm_creator_profiles",
   "lcm_brand_profiles",
   "lcm_brand_members",
   "lcm_products",
+  "lcm_campaigns",
+  "lcm_campaign_products",
   "lcm_sample_requests",
   "lcm_wholesale_inquiries",
   "lcm_product_interests",
@@ -25,6 +27,8 @@ const ADDITIVE_ENGAGEMENT_TABLES = [
   "lcm_brand_event_participations",
   "lcm_product_reviews",
   "lcm_review_reports",
+  "lcm_campaigns",
+  "lcm_campaign_products",
 ] as const;
 const REQUIRED_PRODUCT_COLUMNS = {
   thirtySecondPitch: "TEXT NULL",
@@ -292,6 +296,55 @@ async function createLcmTables(pool: Pool): Promise<void> {
       UNIQUE KEY uq_lcm_product_source (sourceKind, sourceReference),
       INDEX idx_lcm_product_public (status, category, publishedAt),
       INDEX idx_lcm_product_brand (brandProfileId, status, updatedAt)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lcm_campaigns (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      brandProfileId INT NOT NULL,
+      slug VARCHAR(220) NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      summary VARCHAR(1000) NULL,
+      description TEXT NULL,
+      heroImageUrl TEXT NULL,
+      commissionRateMin DECIMAL(5,2) NULL,
+      commissionRateMax DECIMAL(5,2) NULL,
+      discountRateMin DECIMAL(5,2) NULL,
+      discountRateMax DECIMAL(5,2) NULL,
+      rewardNotes TEXT NULL,
+      trackingMethod ENUM('platform','coupon','affiliate_link','manual_report','other') NOT NULL DEFAULT 'other',
+      settlementTerms TEXT NULL,
+      eligibility TEXT NULL,
+      creativeGuidance TEXT NULL,
+      prohibitedClaims TEXT NULL,
+      sampleAvailable TINYINT(1) NOT NULL DEFAULT 0,
+      samplePolicy TEXT NULL,
+      applicationNotes TEXT NULL,
+      startsAt TIMESTAMP NULL,
+      endsAt TIMESTAMP NULL,
+      status ENUM('draft','published','suspended','archived') NOT NULL DEFAULT 'draft',
+      createdByAccountId INT NULL,
+      publishedAt TIMESTAMP NULL,
+      reviewedBy INT NULL,
+      reviewedAt TIMESTAMP NULL,
+      moderationReason TEXT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_lcm_campaign_slug (slug),
+      INDEX idx_lcm_campaign_public (status, startsAt, endsAt, publishedAt),
+      INDEX idx_lcm_campaign_brand (brandProfileId, status, updatedAt)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lcm_campaign_products (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      campaignId INT NOT NULL,
+      productId INT NOT NULL,
+      displayOrder INT NOT NULL DEFAULT 0,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_lcm_campaign_product (campaignId, productId),
+      INDEX idx_lcm_campaign_product_order (campaignId, displayOrder),
+      INDEX idx_lcm_campaign_product_product (productId, campaignId)
     )
   `);
   await pool.query(`

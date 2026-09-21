@@ -7,7 +7,7 @@ const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.ur
 describe("LCM marketplace foundation", () => {
   it("defines separate auditable marketplace tables without modifying legacy application tables", () => {
     const schema = read("drizzle/lcmSchema.ts");
-    for (const table of ["lcm_memberships", "lcm_brand_profiles", "lcm_brand_members", "lcm_products", "lcm_creator_profiles", "lcm_sample_requests", "lcm_wholesale_inquiries", "lcm_product_interests", "lcm_sample_cart_items", "lcm_brand_event_participations", "lcm_product_reviews", "lcm_review_reports", "lcm_audit_logs"]) {
+    for (const table of ["lcm_memberships", "lcm_brand_profiles", "lcm_brand_members", "lcm_products", "lcm_campaigns", "lcm_campaign_products", "lcm_creator_profiles", "lcm_sample_requests", "lcm_wholesale_inquiries", "lcm_product_interests", "lcm_sample_cart_items", "lcm_brand_event_participations", "lcm_product_reviews", "lcm_review_reports", "lcm_audit_logs"]) {
       expect(schema).toContain(`"${table}"`);
     }
     expect(schema).toContain('wholesalePrice: decimal("wholesalePrice"');
@@ -30,8 +30,8 @@ describe("LCM marketplace foundation", () => {
     expect(upgrade).toContain("RELEASE_LOCK");
     expect(upgrade).toContain("CREATE TABLE IF NOT EXISTS");
     expect(upgrade).toContain("runVerifiedBackup");
-    expect(upgrade).toContain("pre-lcm-marketplace-v3-engagement-reviews");
-    expect(upgrade).toContain("post-lcm-marketplace-v3-engagement-reviews");
+    expect(upgrade).toContain("pre-lcm-marketplace-v4-campaign-pages");
+    expect(upgrade).toContain("post-lcm-marketplace-v4-campaign-pages");
     expect(upgrade).toContain("beforeCounts");
     expect(upgrade).toContain("afterCounts");
     expect(upgrade).toContain("ensureProductLiveCommerceColumns");
@@ -83,7 +83,7 @@ describe("LCM marketplace foundation", () => {
     expect(market).toContain("reviewCount");
     expect(brand).toContain("定価は公開、取引条件は会員限定");
     expect(brand).toContain("formatListPrice(item.listPrice, item.taxMode)");
-    expect(market).not.toMatch(/残り\d+|購入者\d+|タイムセール|割引率|レビュー\d+/);
+    expect(market).not.toMatch(/残り\d+|購入者\d+|タイムセール|レビュー\d+/);
   });
 
   it("keeps product layouts readable when an image cannot be loaded", () => {
@@ -301,7 +301,7 @@ describe("LCM marketplace foundation", () => {
     expect(seo).toContain('app.get(["/lcm/manage", "/lcm/admin", "/lcm/sample-cart"]');
     expect(seo).toContain('"X-Robots-Tag", "noindex, nofollow, noarchive"');
     expect(seo).toContain('robots: "noindex, nofollow, noarchive"');
-    expect(seo.indexOf('app.get(["/lcm/manage", "/lcm/admin"]')).toBeLessThan(seo.indexOf('app.get(["/lcm", "/lcm/brands/:slug", "/lcm/products/:slug", "/lcm/creators", "/lcm/creators/:slug"]'));
+    expect(seo.indexOf('app.get(["/lcm/manage", "/lcm/admin", "/lcm/sample-cart"]')).toBeLessThan(seo.indexOf('app.get(["/lcm", "/lcm/brands/:slug", "/lcm/products/:slug", "/lcm/campaigns", "/lcm/campaigns/:slug", "/lcm/creators", "/lcm/creators/:slug"]'));
     expect(seo).toContain("CollectionPage");
     expect(seo).toContain("BreadcrumbList");
     expect(seo).toContain("@type\": \"Product");

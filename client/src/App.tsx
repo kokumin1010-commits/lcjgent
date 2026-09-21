@@ -167,6 +167,8 @@ const Lcf2026Exhibitors = lazy(() => import("./pages/Lcf2026Exhibitors"));
 const LcmMarket = lazy(() => import("./pages/LcmMarket"));
 const LcmBrand = lazy(() => import("./pages/LcmBrand"));
 const LcmProduct = lazy(() => import("./pages/LcmProduct"));
+const LcmCampaigns = lazy(() => import("./pages/LcmCampaigns"));
+const LcmCampaign = lazy(() => import("./pages/LcmCampaign"));
 const LcmSampleCart = lazy(() => import("./pages/LcmSampleCart"));
 const LcmManage = lazy(() => import("./pages/LcmManage"));
 const LcmAdmin = lazy(() => import("./pages/LcmAdmin"));
@@ -688,6 +690,8 @@ function Router() {
         <Route path="/livecommercefestival/2026/exhibitors" component={Lcf2026Exhibitors} />
         <Route path="/livecommercefestival/2026/report" component={Lcf2026Report} />
         <Route path="/lcm/products/:slug" component={LcmProduct} />
+        <Route path="/lcm/campaigns/:slug" component={LcmCampaign} />
+        <Route path="/lcm/campaigns" component={LcmCampaigns} />
         <Route path="/lcm/sample-cart" component={LcmSampleCart} />
         <Route path="/lcm/brands/:slug" component={LcmBrand} />
         <Route path="/lcm/creators/:slug" component={LcmCreatorProfile} />

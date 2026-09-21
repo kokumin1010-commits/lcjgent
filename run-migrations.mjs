@@ -212,6 +212,18 @@ async function main() {
     ]);
     console.log(`[Migration] LINE group AI draft audit storage and conversation revision ensured (${lineGroupAiDraftAuditStatements.length} statements).`);
 
+    console.log('[Migration] Ensuring LCM campaign page tables...');
+    const lcmCampaignMigrationPath = path.join(__dirname, 'drizzle', '0152_lcm_campaign_pages.sql');
+    const lcmCampaignSql = await fs.readFile(lcmCampaignMigrationPath, 'utf8');
+    const lcmCampaignStatements = lcmCampaignSql
+      .split('--> statement-breakpoint')
+      .map(statement => statement.trim())
+      .filter(Boolean);
+    for (const statement of lcmCampaignStatements) {
+      await connection.execute(statement);
+    }
+    console.log(`[Migration] LCM campaign page tables ensured (${lcmCampaignStatements.length} statements).`);
+
     console.log('[Migration] Ensuring LCJ Brain core super administrators...');
     const lcjBrainPermissionMigrationPath = path.join(__dirname, 'drizzle', '0148_lcj_brain_core_super_admins.sql');
     const lcjBrainPermissionSql = await fs.readFile(lcjBrainPermissionMigrationPath, 'utf8');

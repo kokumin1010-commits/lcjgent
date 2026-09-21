@@ -7,6 +7,8 @@ import {
   lcmBrandEventParticipations,
   lcmBrandMembers,
   lcmBrandProfiles,
+  lcmCampaignProducts,
+  lcmCampaigns,
   lcmCreatorProfiles,
   lcmMemberships,
   lcmProductInterests,
@@ -83,6 +85,10 @@ function insertedId(result: unknown): number {
   const id = Number(value || 0);
   if (!Number.isInteger(id) || id <= 0) throw new Error("insert id was not returned");
   return id;
+}
+
+function affectedRows(result: unknown): number {
+  return Number((result as any)?.[0]?.affectedRows ?? (result as any)?.affectedRows ?? 0);
 }
 
 function catalogRecord(page: number) {
@@ -489,6 +495,133 @@ const productInput = productBaseInput.superRefine((value, ctx) => {
   if (value.sampleAvailable && value.sampleMonthlyLimit == null) ctx.addIssue({ code: "custom", path: ["sampleMonthlyLimit"], message: "月間サンプル上限を入力してください" });
 });
 
+const percentageInput = z.number().min(0).max(100).optional().nullable();
+const campaignBaseInput = z.object({
+  title: z.string().trim().min(1).max(255),
+  summary: nullableText(1000),
+  description: nullableText(20_000),
+  heroImageUrl: nullableHttpsUrl,
+  commissionRateMin: percentageInput,
+  commissionRateMax: percentageInput,
+  discountRateMin: percentageInput,
+  discountRateMax: percentageInput,
+  rewardNotes: nullableText(5000),
+  trackingMethod: z.enum(["platform", "coupon", "affiliate_link", "manual_report", "other"]).default("other"),
+  settlementTerms: nullableText(5000),
+  eligibility: nullableText(5000),
+  creativeGuidance: nullableText(10_000),
+  prohibitedClaims: nullableText(10_000),
+  sampleAvailable: z.boolean().default(false),
+  samplePolicy: nullableText(5000),
+  applicationNotes: nullableText(5000),
+  startsAt: z.coerce.date().optional().nullable(),
+  endsAt: z.coerce.date().optional().nullable(),
+  productIds: z.array(z.number().int().positive()).max(50).default([]),
+}).strict();
+
+const campaignInput = campaignBaseInput.superRefine((value, ctx) => {
+  if (new Set(value.productIds).size !== value.productIds.length) {
+    ctx.addIssue({ code: "custom", path: ["productIds"], message: "同じ商品を重複して選択できません" });
+  }
+  if (value.commissionRateMin != null && value.commissionRateMax != null && value.commissionRateMin > value.commissionRateMax) {
+    ctx.addIssue({ code: "custom", path: ["commissionRateMax"], message: "成果報酬率の上限は下限以上にしてください" });
+  }
+  if (value.discountRateMin != null && value.discountRateMax != null && value.discountRateMin > value.discountRateMax) {
+    ctx.addIssue({ code: "custom", path: ["discountRateMax"], message: "割引率の上限は下限以上にしてください" });
+  }
+  if (value.startsAt && value.endsAt && value.startsAt >= value.endsAt) {
+    ctx.addIssue({ code: "custom", path: ["endsAt"], message: "終了日時は開始日時より後にしてください" });
+  }
+  if (value.sampleAvailable && !cleanNullable(value.samplePolicy)) {
+    ctx.addIssue({ code: "custom", path: ["samplePolicy"], message: "サンプル提供条件を入力してください" });
+  }
+});
+
+function campaignDbValues(input: z.infer<typeof campaignBaseInput>) {
+  return {
+    title: input.title,
+    summary: cleanNullable(input.summary),
+    description: cleanNullable(input.description),
+    heroImageUrl: cleanNullable(input.heroImageUrl),
+    commissionRateMin: input.commissionRateMin == null ? null : String(input.commissionRateMin),
+    commissionRateMax: input.commissionRateMax == null ? null : String(input.commissionRateMax),
+    discountRateMin: input.discountRateMin == null ? null : String(input.discountRateMin),
+    discountRateMax: input.discountRateMax == null ? null : String(input.discountRateMax),
+    rewardNotes: cleanNullable(input.rewardNotes),
+    trackingMethod: input.trackingMethod,
+    settlementTerms: cleanNullable(input.settlementTerms),
+    eligibility: cleanNullable(input.eligibility),
+    creativeGuidance: cleanNullable(input.creativeGuidance),
+    prohibitedClaims: cleanNullable(input.prohibitedClaims),
+    sampleAvailable: input.sampleAvailable,
+    samplePolicy: input.sampleAvailable ? cleanNullable(input.samplePolicy) : null,
+    applicationNotes: cleanNullable(input.applicationNotes),
+    startsAt: input.startsAt ?? null,
+    endsAt: input.endsAt ?? null,
+  };
+}
+
+function campaignAuditSnapshot(campaign: Record<string, any>) {
+  return {
+    title: campaign.title || null,
+    commissionRateMin: campaign.commissionRateMin == null ? null : String(campaign.commissionRateMin),
+    commissionRateMax: campaign.commissionRateMax == null ? null : String(campaign.commissionRateMax),
+    discountRateMin: campaign.discountRateMin == null ? null : String(campaign.discountRateMin),
+    discountRateMax: campaign.discountRateMax == null ? null : String(campaign.discountRateMax),
+    trackingMethod: campaign.trackingMethod || null,
+    startsAt: campaign.startsAt || null,
+    endsAt: campaign.endsAt || null,
+    sampleAvailable: Boolean(campaign.sampleAvailable),
+    status: campaign.status || null,
+  };
+}
+
+function assertCampaignPublishable(campaign: {
+  title?: string | null;
+  summary?: string | null;
+  description?: string | null;
+  heroImageUrl?: string | null;
+  commissionRateMin?: unknown;
+  commissionRateMax?: unknown;
+  discountRateMin?: unknown;
+  discountRateMax?: unknown;
+  rewardNotes?: string | null;
+  settlementTerms?: string | null;
+  eligibility?: string | null;
+  creativeGuidance?: string | null;
+  prohibitedClaims?: string | null;
+  startsAt?: Date | null;
+  endsAt?: Date | null;
+  sampleAvailable?: boolean | null;
+  samplePolicy?: string | null;
+}, productCount: number) {
+  if (!campaign.title || !campaign.summary || !campaign.description || !campaign.heroImageUrl) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "タイトル、概要、詳細説明、メイン画像を入力してください" });
+  }
+  if (campaign.commissionRateMin == null || campaign.commissionRateMax == null || campaign.discountRateMin == null || campaign.discountRateMax == null) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "成果報酬率と購入者向け割引率の下限・上限を入力してください" });
+  }
+  if (!campaign.rewardNotes || !campaign.settlementTerms || !campaign.eligibility || !campaign.creativeGuidance || !campaign.prohibitedClaims) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "報酬条件、計測・確定条件、対象者、制作ガイド、NG表現を入力してください" });
+  }
+  if (!campaign.startsAt || !campaign.endsAt || campaign.startsAt >= campaign.endsAt) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "有効なキャンペーン開始日時と終了日時を入力してください" });
+  }
+  if (campaign.sampleAvailable && !campaign.samplePolicy) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "サンプル提供条件を入力してください" });
+  }
+  if (productCount < 1) throw new TRPCError({ code: "BAD_REQUEST", message: "公開中の商品を1つ以上選択してください" });
+}
+
+function campaignPeriodState(startsAt: Date | string | null, endsAt: Date | string | null, now = Date.now()) {
+  const start = startsAt ? new Date(startsAt).getTime() : Number.NaN;
+  const end = endsAt ? new Date(endsAt).getTime() : Number.NaN;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return "undated" as const;
+  if (now < start) return "upcoming" as const;
+  if (now > end) return "ended" as const;
+  return "active" as const;
+}
+
 function assertBrandPublishable(brand: {
   displayName?: string | null;
   description?: string | null;
@@ -608,6 +741,86 @@ const publicProductFields = {
   brandName: lcmBrandProfiles.displayName,
   brandLogoUrl: lcmBrandProfiles.logoUrl,
 } as const;
+
+const campaignPublicProductFields = {
+  id: lcmProducts.id,
+  slug: lcmProducts.slug,
+  name: lcmProducts.name,
+  category: lcmProducts.category,
+  listPrice: lcmProducts.listPrice,
+  currency: lcmProducts.currency,
+  taxMode: lcmProducts.taxMode,
+  sampleAvailable: lcmProducts.sampleAvailable,
+  primaryImageUrl: lcmProducts.primaryImageUrl,
+  brandId: lcmBrandProfiles.id,
+  brandSlug: lcmBrandProfiles.slug,
+  brandName: lcmBrandProfiles.displayName,
+  brandLogoUrl: lcmBrandProfiles.logoUrl,
+} as const;
+
+type CampaignPublicProductRow = Pick<typeof lcmProducts.$inferSelect,
+  "id" | "slug" | "name" | "category" | "listPrice" | "currency" | "taxMode" |
+  "sampleAvailable" | "primaryImageUrl"
+> & {
+  brandId: number;
+  brandSlug: string;
+  brandName: string;
+  brandLogoUrl: string | null;
+};
+
+const publicCampaignFields = {
+  id: lcmCampaigns.id,
+  slug: lcmCampaigns.slug,
+  title: lcmCampaigns.title,
+  summary: lcmCampaigns.summary,
+  description: lcmCampaigns.description,
+  heroImageUrl: lcmCampaigns.heroImageUrl,
+  startsAt: lcmCampaigns.startsAt,
+  endsAt: lcmCampaigns.endsAt,
+  publishedAt: lcmCampaigns.publishedAt,
+  brandId: lcmBrandProfiles.id,
+  brandSlug: lcmBrandProfiles.slug,
+  brandName: lcmBrandProfiles.displayName,
+  brandLogoUrl: lcmBrandProfiles.logoUrl,
+} as const;
+
+async function getPublicCampaignProducts(db: any, campaignId: number, brandProfileId: number): Promise<CampaignPublicProductRow[]> {
+  const conditions: any[] = [
+    eq(lcmCampaignProducts.campaignId, campaignId),
+    eq(lcmProducts.brandProfileId, brandProfileId),
+    eq(lcmProducts.status, "published"),
+  ];
+  return await db.select(campaignPublicProductFields).from(lcmCampaignProducts)
+    .innerJoin(lcmProducts, eq(lcmCampaignProducts.productId, lcmProducts.id))
+    .innerJoin(lcmBrandProfiles, eq(lcmProducts.brandProfileId, lcmBrandProfiles.id))
+    .where(and(...conditions))
+    .orderBy(asc(lcmCampaignProducts.displayOrder), asc(lcmProducts.name)) as CampaignPublicProductRow[];
+}
+
+async function replaceCampaignProducts(db: any, campaignId: number, brandProfileId: number, productIds: number[]) {
+  const uniqueIds = [...new Set(productIds)];
+  if (uniqueIds.length !== productIds.length) throw new TRPCError({ code: "BAD_REQUEST", message: "同じ商品が重複しています" });
+  if (uniqueIds.length) {
+    const products = await db.select({ id: lcmProducts.id, status: lcmProducts.status }).from(lcmProducts)
+      .where(and(eq(lcmProducts.brandProfileId, brandProfileId), inArray(lcmProducts.id, uniqueIds)));
+    if (products.length !== uniqueIds.length) throw new TRPCError({ code: "BAD_REQUEST", message: "選択した商品を確認できません" });
+  }
+  await db.delete(lcmCampaignProducts).where(eq(lcmCampaignProducts.campaignId, campaignId));
+  if (uniqueIds.length) {
+    await db.insert(lcmCampaignProducts).values(uniqueIds.map((productId, displayOrder) => ({ campaignId, productId, displayOrder })));
+  }
+}
+
+async function countPublishedCampaignProducts(db: any, campaignId: number, brandProfileId: number) {
+  const [row] = await db.select({ count: sql<number>`count(*)` }).from(lcmCampaignProducts)
+    .innerJoin(lcmProducts, eq(lcmCampaignProducts.productId, lcmProducts.id))
+    .where(and(
+      eq(lcmCampaignProducts.campaignId, campaignId),
+      eq(lcmProducts.brandProfileId, brandProfileId),
+      eq(lcmProducts.status, "published"),
+    ));
+  return Number(row?.count || 0);
+}
 
 async function getEventBadgesByBrand(db: any, brandIds: number[]) {
   const result = new Map<number, Array<{ eventKey: string; eventLabel: string; archivePath: string }>>();
@@ -734,6 +947,79 @@ export const lcmRouter = router({
       return enrichPublicProducts(db, products);
     }),
 
+  listPublicCampaigns: publicProcedure
+    .input(z.object({ query: z.string().trim().max(200).optional(), brandId: z.number().int().positive().optional(), limit: z.number().int().min(1).max(100).default(60) }).optional())
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const conditions: any[] = [
+        eq(lcmCampaigns.status, "published"),
+        eq(lcmBrandProfiles.status, "published"),
+        sql`EXISTS (SELECT 1 FROM lcm_campaign_products visible_cp INNER JOIN lcm_products visible_p ON visible_p.id = visible_cp.productId WHERE visible_cp.campaignId = ${lcmCampaigns.id} AND visible_p.brandProfileId = ${lcmCampaigns.brandProfileId} AND visible_p.status = 'published')`,
+      ];
+      if (input?.brandId) conditions.push(eq(lcmCampaigns.brandProfileId, input.brandId));
+      if (input?.query) {
+        const q = `%${input.query}%`;
+        conditions.push(or(
+          like(lcmCampaigns.title, q),
+          like(lcmCampaigns.summary, q),
+          like(lcmCampaigns.description, q),
+          like(lcmBrandProfiles.displayName, q),
+          sql`EXISTS (SELECT 1 FROM lcm_campaign_products cp INNER JOIN lcm_products p ON p.id = cp.productId WHERE cp.campaignId = ${lcmCampaigns.id} AND p.status = 'published' AND p.name LIKE ${q})`,
+        )!);
+      }
+      const campaigns = await db.select(publicCampaignFields).from(lcmCampaigns)
+        .innerJoin(lcmBrandProfiles, eq(lcmCampaigns.brandProfileId, lcmBrandProfiles.id))
+        .where(and(...conditions)).orderBy(desc(lcmCampaigns.publishedAt)).limit(input?.limit ?? 60);
+      const ids = campaigns.map((campaign: any) => Number(campaign.id));
+      const productCounts = ids.length ? await db.select({ campaignId: lcmCampaignProducts.campaignId, count: sql<number>`count(*)` })
+        .from(lcmCampaignProducts)
+        .innerJoin(lcmProducts, eq(lcmCampaignProducts.productId, lcmProducts.id))
+        .where(and(inArray(lcmCampaignProducts.campaignId, ids), eq(lcmProducts.status, "published")))
+        .groupBy(lcmCampaignProducts.campaignId) : [];
+      const counts = new Map(productCounts.map((row: any) => [Number(row.campaignId), Number(row.count || 0)]));
+      return campaigns.map((campaign: any) => ({ ...campaign, periodState: campaignPeriodState(campaign.startsAt, campaign.endsAt), productCount: counts.get(Number(campaign.id)) || 0 })).filter((campaign: any) => campaign.productCount > 0);
+    }),
+
+  getPublicCampaign: publicProcedure.input(z.object({ slug: z.string().min(1).max(220) })).query(async ({ input }) => {
+    const db = await requireDb();
+    const [campaign] = await db.select(publicCampaignFields).from(lcmCampaigns)
+      .innerJoin(lcmBrandProfiles, eq(lcmCampaigns.brandProfileId, lcmBrandProfiles.id))
+      .where(and(eq(lcmCampaigns.slug, input.slug), eq(lcmCampaigns.status, "published"), eq(lcmBrandProfiles.status, "published"))).limit(1);
+    if (!campaign) throw new TRPCError({ code: "NOT_FOUND", message: "キャンペーンが見つかりません" });
+    const products = await getPublicCampaignProducts(db, campaign.id, campaign.brandId);
+    if (products.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "公開中の対象商品がありません" });
+    return { ...campaign, periodState: campaignPeriodState(campaign.startsAt, campaign.endsAt), products };
+  }),
+
+  getMemberCampaign: lcmMemberProcedure.input(z.object({ campaignId: z.number().int().positive() })).query(async ({ input }) => {
+    const db = await requireDb();
+    const [campaign] = await db.select().from(lcmCampaigns).where(and(eq(lcmCampaigns.id, input.campaignId), eq(lcmCampaigns.status, "published"))).limit(1);
+    if (!campaign) throw new TRPCError({ code: "NOT_FOUND", message: "キャンペーンが見つかりません" });
+    const [brand] = await db.select({ status: lcmBrandProfiles.status }).from(lcmBrandProfiles).where(eq(lcmBrandProfiles.id, campaign.brandProfileId)).limit(1);
+    if (brand?.status !== "published") throw new TRPCError({ code: "NOT_FOUND", message: "キャンペーンが見つかりません" });
+    const publishedProductCount = await countPublishedCampaignProducts(db, campaign.id, campaign.brandProfileId);
+    if (publishedProductCount < 1) throw new TRPCError({ code: "NOT_FOUND", message: "公開中の対象商品がありません" });
+    return {
+      id: campaign.id,
+      commissionRateMin: campaign.commissionRateMin,
+      commissionRateMax: campaign.commissionRateMax,
+      discountRateMin: campaign.discountRateMin,
+      discountRateMax: campaign.discountRateMax,
+      rewardNotes: campaign.rewardNotes,
+      trackingMethod: campaign.trackingMethod,
+      settlementTerms: campaign.settlementTerms,
+      eligibility: campaign.eligibility,
+      creativeGuidance: campaign.creativeGuidance,
+      prohibitedClaims: campaign.prohibitedClaims,
+      sampleAvailable: campaign.sampleAvailable,
+      samplePolicy: campaign.samplePolicy,
+      applicationNotes: campaign.applicationNotes,
+      startsAt: campaign.startsAt,
+      endsAt: campaign.endsAt,
+      periodState: campaignPeriodState(campaign.startsAt, campaign.endsAt),
+    };
+  }),
+
   getPublicBrand: publicProcedure.input(z.object({ slug: z.string().min(1).max(180) })).query(async ({ input }) => {
     const db = await requireDb();
     const [brand] = await db.select({
@@ -750,12 +1036,20 @@ export const lcmRouter = router({
       .innerJoin(lcmBrandProfiles, eq(lcmProducts.brandProfileId, lcmBrandProfiles.id))
       .where(and(eq(lcmProducts.brandProfileId, brand.id), eq(lcmProducts.status, "published")))
       .orderBy(asc(lcmProducts.name));
-    const [enrichedProducts, eventBadges, [activeMember]] = await Promise.all([
+    const [enrichedProducts, eventBadges, [activeMember], campaigns] = await Promise.all([
       enrichPublicProducts(db, products),
       getEventBadgesByBrand(db, [brand.id]),
       db.select({ id: lcmBrandMembers.id }).from(lcmBrandMembers).where(and(eq(lcmBrandMembers.brandProfileId, brand.id), eq(lcmBrandMembers.status, "active"))).limit(1),
+      db.select(publicCampaignFields).from(lcmCampaigns)
+        .innerJoin(lcmBrandProfiles, eq(lcmCampaigns.brandProfileId, lcmBrandProfiles.id))
+        .where(and(eq(lcmCampaigns.brandProfileId, brand.id), eq(lcmCampaigns.status, "published")))
+        .orderBy(desc(lcmCampaigns.publishedAt)),
     ]);
-    return { ...brand, officiallyLinked: Boolean(activeMember), eventBadges: eventBadges.get(brand.id) || [], products: enrichedProducts };
+    const visibleCampaignIds = campaigns.length && products.length
+      ? new Set((await db.select({ campaignId: lcmCampaignProducts.campaignId }).from(lcmCampaignProducts)
+        .where(and(inArray(lcmCampaignProducts.campaignId, campaigns.map((campaign: any) => Number(campaign.id))), inArray(lcmCampaignProducts.productId, products.map((product: any) => Number(product.id)))))).map((row: any) => Number(row.campaignId)))
+      : new Set<number>();
+    return { ...brand, officiallyLinked: Boolean(activeMember), eventBadges: eventBadges.get(brand.id) || [], products: enrichedProducts, campaigns: campaigns.filter((campaign: any) => visibleCampaignIds.has(Number(campaign.id))).map((campaign: any) => ({ ...campaign, periodState: campaignPeriodState(campaign.startsAt, campaign.endsAt) })) };
   }),
 
   getPublicProduct: publicProcedure.input(z.object({ slug: z.string().min(1).max(220) })).query(async ({ input }) => {
@@ -1243,7 +1537,98 @@ export const lcmRouter = router({
     const [brand] = await db.select().from(lcmBrandProfiles).where(eq(lcmBrandProfiles.id, input.brandId)).limit(1);
     if (!brand) throw new TRPCError({ code: "NOT_FOUND", message: "ブランドが見つかりません" });
     const products = await db.select().from(lcmProducts).where(eq(lcmProducts.brandProfileId, input.brandId)).orderBy(desc(lcmProducts.updatedAt));
-    return { brand, products };
+    const campaigns = await db.select().from(lcmCampaigns).where(eq(lcmCampaigns.brandProfileId, input.brandId)).orderBy(desc(lcmCampaigns.updatedAt));
+    const campaignIds = campaigns.map((campaign: any) => Number(campaign.id));
+    const campaignProducts = campaignIds.length
+      ? await db.select({ campaignId: lcmCampaignProducts.campaignId, productId: lcmCampaignProducts.productId, displayOrder: lcmCampaignProducts.displayOrder })
+        .from(lcmCampaignProducts).where(inArray(lcmCampaignProducts.campaignId, campaignIds)).orderBy(asc(lcmCampaignProducts.displayOrder))
+      : [];
+    const productIdsByCampaign = new Map<number, number[]>();
+    for (const item of campaignProducts) {
+      const ids = productIdsByCampaign.get(Number(item.campaignId)) || [];
+      ids.push(Number(item.productId));
+      productIdsByCampaign.set(Number(item.campaignId), ids);
+    }
+    return { brand, products, campaigns: campaigns.map((campaign: any) => ({ ...campaign, productIds: productIdsByCampaign.get(Number(campaign.id)) || [], periodState: campaignPeriodState(campaign.startsAt, campaign.endsAt) })) };
+  }),
+
+  createCampaign: lcmMemberProcedure.input(z.object({ brandId: z.number().int().positive(), data: campaignInput }).strict()).mutation(async ({ ctx, input }) => {
+    await requireActiveBrandMember(ctx.lcmAccount.accountId, input.brandId);
+    const db = await requireDb();
+    const [campaignCount] = await db.select({ count: sql<number>`count(*)` }).from(lcmCampaigns).where(and(
+      eq(lcmCampaigns.brandProfileId, input.brandId),
+      notInArray(lcmCampaigns.status, ["archived"]),
+    ));
+    if (Number(campaignCount?.count || 0) >= 100) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "1ブランドで登録できるキャンペーン数の上限に達しました" });
+    const campaignId = await db.transaction(async (tx: any) => {
+      const result = await tx.insert(lcmCampaigns).values({
+        brandProfileId: input.brandId,
+        slug: `${slugify(input.data.title)}-${nanoid(7).toLowerCase()}`,
+        ...campaignDbValues(input.data),
+        status: "draft",
+        createdByAccountId: ctx.lcmAccount.accountId,
+      });
+      const id = insertedId(result);
+      await replaceCampaignProducts(tx, id, input.brandId, input.data.productIds);
+      await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "brand_owner", entityType: "campaign", entityId: id, action: "created", after: { brandProfileId: input.brandId, ...campaignAuditSnapshot({ ...campaignDbValues(input.data), status: "draft" }), productIds: input.data.productIds } }, tx);
+      return id;
+    });
+    return { success: true, campaignId };
+  }),
+
+  updateCampaign: lcmMemberProcedure.input(z.object({ campaignId: z.number().int().positive(), data: campaignInput }).strict()).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const [before] = await db.select().from(lcmCampaigns).where(eq(lcmCampaigns.id, input.campaignId)).limit(1);
+    if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "キャンペーンが見つかりません" });
+    await requireActiveBrandMember(ctx.lcmAccount.accountId, before.brandProfileId);
+    await db.transaction(async (tx: any) => {
+      const beforeProducts = await tx.select({ productId: lcmCampaignProducts.productId }).from(lcmCampaignProducts).where(eq(lcmCampaignProducts.campaignId, before.id)).orderBy(asc(lcmCampaignProducts.displayOrder));
+      await replaceCampaignProducts(tx, before.id, before.brandProfileId, input.data.productIds);
+      if (before.status === "published") {
+        const publishedProductCount = await countPublishedCampaignProducts(tx, before.id, before.brandProfileId);
+        if (publishedProductCount !== input.data.productIds.length) throw new TRPCError({ code: "BAD_REQUEST", message: "公開中のキャンペーンには公開中の商品だけを選択してください" });
+        assertCampaignPublishable(campaignDbValues(input.data), publishedProductCount);
+      }
+      await tx.update(lcmCampaigns).set(campaignDbValues(input.data)).where(eq(lcmCampaigns.id, before.id));
+      await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "brand_owner", entityType: "campaign", entityId: before.id, action: "updated", before: { ...campaignAuditSnapshot(before), productIds: beforeProducts.map((item: { productId: number }) => Number(item.productId)) }, after: { ...campaignAuditSnapshot({ ...campaignDbValues(input.data), status: before.status }), fields: Object.keys(input.data).filter((key) => key !== "productIds"), productIds: input.data.productIds } }, tx);
+    });
+    return { success: true };
+  }),
+
+  publishCampaign: lcmMemberProcedure.input(z.object({ campaignId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const [campaign] = await db.select().from(lcmCampaigns).where(eq(lcmCampaigns.id, input.campaignId)).limit(1);
+    if (!campaign) throw new TRPCError({ code: "NOT_FOUND", message: "キャンペーンが見つかりません" });
+    await requireActiveBrandMember(ctx.lcmAccount.accountId, campaign.brandProfileId);
+    if (["suspended", "archived"].includes(campaign.status)) throw new TRPCError({ code: "FORBIDDEN", message: "運営により停止されたキャンペーンは、運営が再開するまで公開できません" });
+    const [brand] = await db.select({ status: lcmBrandProfiles.status }).from(lcmBrandProfiles).where(eq(lcmBrandProfiles.id, campaign.brandProfileId)).limit(1);
+    if (brand?.status !== "published") throw new TRPCError({ code: "BAD_REQUEST", message: "先にブランドページを公開してください" });
+    const [selectedCountRow] = await db.select({ count: sql<number>`count(*)` }).from(lcmCampaignProducts).where(eq(lcmCampaignProducts.campaignId, campaign.id));
+    const selectedCount = Number(selectedCountRow?.count || 0);
+    const publishedProductCount = await countPublishedCampaignProducts(db, campaign.id, campaign.brandProfileId);
+    if (publishedProductCount !== selectedCount) throw new TRPCError({ code: "BAD_REQUEST", message: "キャンペーンには公開中の商品だけを選択してください" });
+    assertCampaignPublishable(campaign, publishedProductCount);
+    const publishedAt = campaign.publishedAt ?? new Date();
+    await db.transaction(async (tx: any) => {
+      const result = await tx.update(lcmCampaigns).set({ status: "published", publishedAt, reviewedBy: null, reviewedAt: null, moderationReason: null }).where(and(eq(lcmCampaigns.id, campaign.id), eq(lcmCampaigns.status, campaign.status)));
+      if (affectedRows(result) !== 1) throw new TRPCError({ code: "CONFLICT", message: "公開状態が変更されました。画面を更新して確認してください" });
+      await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "brand_owner", entityType: "campaign", entityId: campaign.id, action: "self_published", before: { status: campaign.status }, after: { status: "published", productCount: publishedProductCount, preReviewRequired: false } }, tx);
+    });
+    return { success: true, slug: campaign.slug };
+  }),
+
+  unpublishCampaign: lcmMemberProcedure.input(z.object({ campaignId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const [campaign] = await db.select().from(lcmCampaigns).where(eq(lcmCampaigns.id, input.campaignId)).limit(1);
+    if (!campaign) throw new TRPCError({ code: "NOT_FOUND", message: "キャンペーンが見つかりません" });
+    await requireActiveBrandMember(ctx.lcmAccount.accountId, campaign.brandProfileId);
+    if (campaign.status !== "published") throw new TRPCError({ code: "BAD_REQUEST", message: "公開中のキャンペーンだけを下書きへ戻せます" });
+    await db.transaction(async (tx: any) => {
+      const result = await tx.update(lcmCampaigns).set({ status: "draft", publishedAt: null }).where(and(eq(lcmCampaigns.id, campaign.id), eq(lcmCampaigns.status, "published")));
+      if (affectedRows(result) !== 1) throw new TRPCError({ code: "CONFLICT", message: "公開状態が変更されました。画面を更新して確認してください" });
+      await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "brand_owner", entityType: "campaign", entityId: campaign.id, action: "self_unpublished", before: { status: campaign.status }, after: { status: "draft" } }, tx);
+    });
+    return { success: true };
   }),
 
   updateBrand: lcmMemberProcedure.input(z.object({ brandId: z.number().int().positive(), data: brandInput.partial().refine((value) => Object.keys(value).length > 0, "更新内容がありません") }).strict()).mutation(async ({ ctx, input }) => {
@@ -1578,6 +1963,7 @@ export const lcmRouter = router({
       .innerJoin(festivalAccounts, eq(lcmBrandMembers.festivalAccountId, festivalAccounts.id))
       .orderBy(desc(lcmBrandMembers.updatedAt));
     const products = await db.select().from(lcmProducts).orderBy(desc(lcmProducts.updatedAt));
+    const campaigns = await db.select().from(lcmCampaigns).orderBy(desc(lcmCampaigns.updatedAt));
     const creators = await db.select().from(lcmCreatorProfiles).orderBy(desc(lcmCreatorProfiles.updatedAt));
     const samples = await db.select().from(lcmSampleRequests).orderBy(desc(lcmSampleRequests.updatedAt));
     const wholesale = await db.select().from(lcmWholesaleInquiries).orderBy(desc(lcmWholesaleInquiries.updatedAt));
@@ -1586,7 +1972,7 @@ export const lcmRouter = router({
     const reviews = await db.select({ review: lcmProductReviews, reviewerName: lcmMemberships.displayName, reviewerType: lcmMemberships.memberType })
       .from(lcmProductReviews).innerJoin(lcmMemberships, eq(lcmProductReviews.reviewerAccountId, lcmMemberships.festivalAccountId)).orderBy(desc(lcmProductReviews.updatedAt));
     const reviewReports = await db.select().from(lcmReviewReports).orderBy(desc(lcmReviewReports.updatedAt));
-    return { memberships, brands, brandMembers, products, creators, samples, wholesale, interests, eventParticipations, reviews, reviewReports };
+    return { memberships, brands, brandMembers, products, campaigns, creators, samples, wholesale, interests, eventParticipations, reviews, reviewReports };
   }),
 
   createBrandForMember: lcmAdminProcedure.input(z.object({
@@ -1720,15 +2106,18 @@ export const lcmRouter = router({
       if (!["submitted", "rejected", "published", "suspended"].includes(before.status)) throw new TRPCError({ code: "BAD_REQUEST", message: "本人が公開審査へ提出していません" });
       if (!before.profileImageUrl || !before.bio || !before.tiktokUrl || !(before.categories || []).length || (!before.supportsLive && !before.supportsShortVideo)) throw new TRPCError({ code: "BAD_REQUEST", message: "公開必須項目が不足しています" });
     }
-    await db.update(lcmCreatorProfiles).set({
-      status: input.status,
-      publishedAt: input.status === "published" ? (before.publishedAt ?? new Date()) : before.publishedAt,
-      reviewedBy: ctx.lcmAdmin.id,
-      reviewedAt: new Date(),
-      rejectionReason: input.status === "rejected" ? cleanNullable(input.reason) : null,
-      metricsVerification: input.metricsVerification ?? before.metricsVerification,
-    }).where(eq(lcmCreatorProfiles.id, input.id));
-    await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "creator_profile", entityId: input.id, action: "reviewed", before: { status: before.status, metricsVerification: before.metricsVerification }, after: { status: input.status, metricsVerification: input.metricsVerification ?? before.metricsVerification } });
+    await db.transaction(async (tx: any) => {
+      const result = await tx.update(lcmCreatorProfiles).set({
+        status: input.status,
+        publishedAt: input.status === "published" ? (before.publishedAt ?? new Date()) : before.publishedAt,
+        reviewedBy: ctx.lcmAdmin.id,
+        reviewedAt: new Date(),
+        rejectionReason: input.status === "rejected" ? cleanNullable(input.reason) : null,
+        metricsVerification: input.metricsVerification ?? before.metricsVerification,
+      }).where(and(eq(lcmCreatorProfiles.id, input.id), eq(lcmCreatorProfiles.status, before.status)));
+      if (affectedRows(result) !== 1) throw new TRPCError({ code: "CONFLICT", message: "プロフィールの公開状態が変更されました。画面を更新して確認してください" });
+      await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "creator_profile", entityId: input.id, action: "reviewed", before: { status: before.status, metricsVerification: before.metricsVerification }, after: { status: input.status, metricsVerification: input.metricsVerification ?? before.metricsVerification } }, tx);
+    });
     const email = await accountEmail(db, before.festivalAccountId);
     const statusLabel = input.status === "published" ? "公開承認" : input.status === "rejected" ? "要修正" : "公開停止";
     const notification = email ? await notifyLcm({
@@ -1756,18 +2145,22 @@ export const lcmRouter = router({
       throw new TRPCError({ code: "BAD_REQUEST", message: "公開停止できるのは公開中のブランドだけです" });
     }
     let suspendedProductCount = 0;
+    let suspendedCampaignCount = 0;
     const reviewedAt = new Date();
     await db.transaction(async (tx: any) => {
-      await tx.update(lcmBrandProfiles).set({ status: input.status, publishedAt: input.status === "published" ? (before.publishedAt ?? reviewedAt) : before.publishedAt, reviewedBy: ctx.lcmAdmin.id, reviewedAt, rejectionReason: input.status === "published" ? null : cleanNullable(input.reason) }).where(eq(lcmBrandProfiles.id, input.id));
+      const brandResult = await tx.update(lcmBrandProfiles).set({ status: input.status, publishedAt: input.status === "published" ? (before.publishedAt ?? reviewedAt) : before.publishedAt, reviewedBy: ctx.lcmAdmin.id, reviewedAt, rejectionReason: input.status === "published" ? null : cleanNullable(input.reason) }).where(and(eq(lcmBrandProfiles.id, input.id), eq(lcmBrandProfiles.status, before.status)));
+      if (affectedRows(brandResult) !== 1) throw new TRPCError({ code: "CONFLICT", message: "ブランドの公開状態が変更されました。画面を更新して確認してください" });
       if (input.status === "suspended") {
         const result = await tx.update(lcmProducts).set({ status: "suspended", reviewedBy: ctx.lcmAdmin.id, reviewedAt, rejectionReason: cleanNullable(input.reason) }).where(and(eq(lcmProducts.brandProfileId, input.id), eq(lcmProducts.status, "published")));
         suspendedProductCount = Number((result as any)?.[0]?.affectedRows || (result as any)?.affectedRows || 0);
+        const campaignResult = await tx.update(lcmCampaigns).set({ status: "suspended", reviewedBy: ctx.lcmAdmin.id, reviewedAt, moderationReason: cleanNullable(input.reason) }).where(and(eq(lcmCampaigns.brandProfileId, input.id), eq(lcmCampaigns.status, "published")));
+        suspendedCampaignCount = Number((campaignResult as any)?.[0]?.affectedRows || (campaignResult as any)?.affectedRows || 0);
       }
-      await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "brand", entityId: input.id, action: input.status === "published" ? "republished_by_admin" : "suspended_by_admin", before: { status: before.status }, after: { status: input.status, reason: cleanNullable(input.reason), suspendedProductCount } }, tx);
+      await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "brand", entityId: input.id, action: input.status === "published" ? "republished_by_admin" : "suspended_by_admin", before: { status: before.status }, after: { status: input.status, reason: cleanNullable(input.reason), suspendedProductCount, suspendedCampaignCount } }, tx);
     });
     const owners = await brandOwnerEmails(db, input.id);
     const statusLabel = input.status === "published" ? "公開再開" : input.status === "rejected" ? "非公開" : "公開停止";
-    const notification = await notifyLcm({ to: owners, subject: `【LCM】ブランド公開状態を変更しました：${before.displayName}`, content: input.status === "published" ? `${before.displayName}のブランドページを再公開しました。\n\n公開ページ：\n${LCM_BASE_URL}/brands/${before.slug}\n\nブランド管理：\n${LCM_BASE_URL}/manage?brand=${before.id}` : `${before.displayName}を「${statusLabel}」に変更しました。${suspendedProductCount > 0 ? `\n同ブランドの公開商品${suspendedProductCount}件も非公開にしました。` : ""}${cleanNullable(input.reason) ? `\n\n運営からの連絡：${cleanNullable(input.reason)}` : ""}\n\n${LCM_BASE_URL}/manage?brand=${before.id}`, entityType: "brand", entityId: input.id });
+    const notification = await notifyLcm({ to: owners, subject: `【LCM】ブランド公開状態を変更しました：${before.displayName}`, content: input.status === "published" ? `${before.displayName}のブランドページを再公開しました。\n\n公開ページ：\n${LCM_BASE_URL}/brands/${before.slug}\n\nブランド管理：\n${LCM_BASE_URL}/manage?brand=${before.id}` : `${before.displayName}を「${statusLabel}」に変更しました。${suspendedProductCount > 0 ? `\n同ブランドの公開商品${suspendedProductCount}件も非公開にしました。` : ""}${suspendedCampaignCount > 0 ? `\n同ブランドの公開キャンペーン${suspendedCampaignCount}件も非公開にしました。` : ""}${cleanNullable(input.reason) ? `\n\n運営からの連絡：${cleanNullable(input.reason)}` : ""}\n\n${LCM_BASE_URL}/manage?brand=${before.id}`, entityType: "brand", entityId: input.id });
     return { success: true, notification };
   }),
 
@@ -1781,15 +2174,20 @@ export const lcmRouter = router({
     const action = input.status === "active" ? "formally_approved" : input.status === "rejected" ? "provisional_rejected" : "access_revoked";
     const reviewedAt = new Date();
     await db.transaction(async (tx: any) => {
+      const [lockedBrand] = await tx.select({ id: lcmBrandProfiles.id }).from(lcmBrandProfiles)
+        .where(eq(lcmBrandProfiles.id, before.brandProfileId)).limit(1).for("update");
+      if (!lockedBrand) throw new TRPCError({ code: "NOT_FOUND", message: "ブランドが見つかりません" });
       if (input.status === "active") {
+        const selectedResult = await tx.update(lcmBrandMembers).set({ status: "active", approvedBy: ctx.lcmAdmin.id, approvedAt: reviewedAt })
+          .where(and(eq(lcmBrandMembers.id, input.memberId), eq(lcmBrandMembers.status, "pending")));
+        if (affectedRows(selectedResult) !== 1) throw new TRPCError({ code: "CONFLICT", message: "ブランド管理申請の状態が変更されました。画面を更新して確認してください" });
         await tx.update(lcmBrandMembers).set({ status: "rejected", approvedBy: ctx.lcmAdmin.id, approvedAt: reviewedAt })
           .where(and(eq(lcmBrandMembers.brandProfileId, before.brandProfileId), eq(lcmBrandMembers.status, "pending")));
-        await tx.update(lcmBrandMembers).set({ status: "active", approvedBy: ctx.lcmAdmin.id, approvedAt: reviewedAt })
-          .where(eq(lcmBrandMembers.id, input.memberId));
         await tx.update(lcmBrandProfiles).set({ claimStatus: "claimed" }).where(eq(lcmBrandProfiles.id, before.brandProfileId));
       } else {
-        await tx.update(lcmBrandMembers).set({ status: input.status, approvedBy: ctx.lcmAdmin.id, approvedAt: reviewedAt })
-          .where(eq(lcmBrandMembers.id, input.memberId));
+        const selectedResult = await tx.update(lcmBrandMembers).set({ status: input.status, approvedBy: ctx.lcmAdmin.id, approvedAt: reviewedAt })
+          .where(and(eq(lcmBrandMembers.id, input.memberId), eq(lcmBrandMembers.status, before.status)));
+        if (affectedRows(selectedResult) !== 1) throw new TRPCError({ code: "CONFLICT", message: "ブランド管理申請の状態が変更されました。画面を更新して確認してください" });
         const [remainingActive] = await tx.select({ id: lcmBrandMembers.id }).from(lcmBrandMembers).where(and(
           eq(lcmBrandMembers.brandProfileId, before.brandProfileId),
           eq(lcmBrandMembers.status, "active"),
@@ -1819,11 +2217,40 @@ export const lcmRouter = router({
       assertProductPublishable(before);
     }
     if (input.status === "suspended" && before.status !== "published") throw new TRPCError({ code: "BAD_REQUEST", message: "公開停止できるのは公開中の商品だけです" });
-    await db.update(lcmProducts).set({ status: input.status, publishedAt: input.status === "published" ? (before.publishedAt ?? new Date()) : before.publishedAt, reviewedBy: ctx.lcmAdmin.id, reviewedAt: new Date(), rejectionReason: input.status === "published" ? null : cleanNullable(input.reason) }).where(eq(lcmProducts.id, input.id));
-    await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "product", entityId: input.id, action: input.status === "published" ? "republished_by_admin" : "suspended_by_admin", before: { status: before.status }, after: { status: input.status, reason: cleanNullable(input.reason) } });
+    await db.transaction(async (tx: any) => {
+      const result = await tx.update(lcmProducts).set({ status: input.status, publishedAt: input.status === "published" ? (before.publishedAt ?? new Date()) : before.publishedAt, reviewedBy: ctx.lcmAdmin.id, reviewedAt: new Date(), rejectionReason: input.status === "published" ? null : cleanNullable(input.reason) }).where(and(eq(lcmProducts.id, input.id), eq(lcmProducts.status, before.status)));
+      if (affectedRows(result) !== 1) throw new TRPCError({ code: "CONFLICT", message: "商品の公開状態が変更されました。画面を更新して確認してください" });
+      await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "product", entityId: input.id, action: input.status === "published" ? "republished_by_admin" : "suspended_by_admin", before: { status: before.status }, after: { status: input.status, reason: cleanNullable(input.reason) } }, tx);
+    });
     const owners = await brandOwnerEmails(db, before.brandProfileId);
     const statusLabel = input.status === "published" ? "公開再開" : input.status === "rejected" ? "非公開" : "公開停止";
     const notification = await notifyLcm({ to: owners, subject: `【LCM】商品公開状態を変更しました：${before.name}`, content: input.status === "published" ? `${before.name}を再公開しました。\n\n公開ページ：\n${LCM_BASE_URL}/products/${before.slug}` : `${before.name}を「${statusLabel}」に変更しました。${cleanNullable(input.reason) ? `\n\n運営からの連絡：${cleanNullable(input.reason)}` : ""}\n\n${LCM_BASE_URL}/manage?brand=${before.brandProfileId}`, entityType: "product", entityId: input.id });
+    return { success: true, notification };
+  }),
+
+  reviewCampaign: lcmAdminProcedure.input(z.object({ id: z.number().int().positive(), status: z.enum(["published", "suspended"]), reason: nullableText(5000) }).strict()).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const [before] = await db.select().from(lcmCampaigns).where(eq(lcmCampaigns.id, input.id)).limit(1);
+    if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "キャンペーンが見つかりません" });
+    if (input.status === "suspended" && !cleanNullable(input.reason)) throw new TRPCError({ code: "BAD_REQUEST", message: "公開停止理由を入力してください" });
+    if (input.status === "suspended" && before.status !== "published") throw new TRPCError({ code: "BAD_REQUEST", message: "公開停止できるのは公開中のキャンペーンだけです" });
+    const [brand] = await db.select({ status: lcmBrandProfiles.status }).from(lcmBrandProfiles).where(eq(lcmBrandProfiles.id, before.brandProfileId)).limit(1);
+    if (input.status === "published") {
+      if (before.status === "archived") throw new TRPCError({ code: "BAD_REQUEST", message: "アーカイブ済みキャンペーンは再公開できません" });
+      if (brand?.status !== "published") throw new TRPCError({ code: "BAD_REQUEST", message: "親ブランドを先に公開してください" });
+      const [selectedCountRow] = await db.select({ count: sql<number>`count(*)` }).from(lcmCampaignProducts).where(eq(lcmCampaignProducts.campaignId, before.id));
+      const selectedCount = Number(selectedCountRow?.count || 0);
+      const publishedProductCount = await countPublishedCampaignProducts(db, before.id, before.brandProfileId);
+      if (publishedProductCount !== selectedCount) throw new TRPCError({ code: "BAD_REQUEST", message: "キャンペーンには公開中の商品だけを選択してください" });
+      assertCampaignPublishable(before, publishedProductCount);
+    }
+    await db.transaction(async (tx: any) => {
+      const result = await tx.update(lcmCampaigns).set({ status: input.status, publishedAt: input.status === "published" ? (before.publishedAt ?? new Date()) : before.publishedAt, reviewedBy: ctx.lcmAdmin.id, reviewedAt: new Date(), moderationReason: input.status === "published" ? null : cleanNullable(input.reason) }).where(and(eq(lcmCampaigns.id, before.id), eq(lcmCampaigns.status, before.status)));
+      if (affectedRows(result) !== 1) throw new TRPCError({ code: "CONFLICT", message: "公開状態が変更されました。画面を更新して確認してください" });
+      await writeAudit({ actorAccountId: ctx.lcmAdmin.id, actorRole: "admin", entityType: "campaign", entityId: before.id, action: input.status === "published" ? "republished_by_admin" : "suspended_by_admin", before: { status: before.status }, after: { status: input.status, reason: cleanNullable(input.reason) } }, tx);
+    });
+    const owners = await brandOwnerEmails(db, before.brandProfileId);
+    const notification = await notifyLcm({ to: owners, subject: `【LCM】キャンペーン公開状態を変更しました：${before.title}`, content: input.status === "published" ? `${before.title}を再公開しました。\n\n公開ページ：\n${LCM_BASE_URL}/campaigns/${before.slug}` : `${before.title}を公開停止に変更しました。${cleanNullable(input.reason) ? `\n\n運営からの連絡：${cleanNullable(input.reason)}` : ""}\n\n${LCM_BASE_URL}/manage?brand=${before.brandProfileId}`, entityType: "campaign", entityId: before.id });
     return { success: true, notification };
   }),
 
@@ -1854,16 +2281,21 @@ export const lcmRouter = router({
       : [seed];
     const reviewedAt = new Date();
     await db.transaction(async (tx: any) => {
-      for (const claim of claims) {
+      for (const claim of [...claims].sort((left, right) => Number(left.brand.id) - Number(right.brand.id))) {
+        const [lockedBrand] = await tx.select({ id: lcmBrandProfiles.id }).from(lcmBrandProfiles)
+          .where(eq(lcmBrandProfiles.id, claim.brand.id)).limit(1).for("update");
+        if (!lockedBrand) throw new TRPCError({ code: "NOT_FOUND", message: "ブランドが見つかりません" });
         if (input.status === "active") {
+          const selectedResult = await tx.update(lcmBrandMembers).set({ status: "active", approvedBy: ctx.lcmAdmin.id, approvedAt: reviewedAt })
+            .where(and(eq(lcmBrandMembers.id, claim.member.id), eq(lcmBrandMembers.status, "pending")));
+          if (affectedRows(selectedResult) !== 1) throw new TRPCError({ code: "CONFLICT", message: "ブランド管理申請の状態が変更されました。画面を更新して確認してください" });
           await tx.update(lcmBrandMembers).set({ status: "rejected", approvedBy: ctx.lcmAdmin.id, approvedAt: reviewedAt })
             .where(and(eq(lcmBrandMembers.brandProfileId, claim.brand.id), eq(lcmBrandMembers.status, "pending")));
-          await tx.update(lcmBrandMembers).set({ status: "active", approvedBy: ctx.lcmAdmin.id, approvedAt: reviewedAt })
-            .where(eq(lcmBrandMembers.id, claim.member.id));
           await tx.update(lcmBrandProfiles).set({ claimStatus: "claimed" }).where(eq(lcmBrandProfiles.id, claim.brand.id));
         } else {
-          await tx.update(lcmBrandMembers).set({ status: input.status, approvedBy: ctx.lcmAdmin.id, approvedAt: reviewedAt })
-            .where(eq(lcmBrandMembers.id, claim.member.id));
+          const selectedResult = await tx.update(lcmBrandMembers).set({ status: input.status, approvedBy: ctx.lcmAdmin.id, approvedAt: reviewedAt })
+            .where(and(eq(lcmBrandMembers.id, claim.member.id), eq(lcmBrandMembers.status, claim.member.status)));
+          if (affectedRows(selectedResult) !== 1) throw new TRPCError({ code: "CONFLICT", message: "ブランド管理申請の状態が変更されました。画面を更新して確認してください" });
           const [remainingActive] = await tx.select({ id: lcmBrandMembers.id }).from(lcmBrandMembers).where(and(
             eq(lcmBrandMembers.brandProfileId, claim.brand.id),
             eq(lcmBrandMembers.status, "active"),
@@ -1899,3 +2331,11 @@ export const lcmRouter = router({
     return db.select().from(lcmAuditLogs).orderBy(desc(lcmAuditLogs.createdAt)).limit(input?.limit ?? 200);
   }),
 });
+
+export const __lcmCampaignTestUtils = {
+  campaignInput,
+  assertCampaignPublishable,
+  campaignPeriodState,
+  campaignPublicFieldNames: Object.keys(publicCampaignFields),
+  campaignPublicProductFieldNames: Object.keys(campaignPublicProductFields),
+};

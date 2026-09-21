@@ -3537,3 +3537,13 @@ APIはadmin限定かつアクティブグループ限定で、分析OFF、履歴
 服务端新增 `lcm.unpublishProduct`，只允许该商品所属品牌的 `active` 管理成员操作；`pending`、`rejected`、`revoked` 或其他品牌账号不能调用。仅 `published` 商品可以自助下架，运营侧已经设为 `rejected`／`suspended`／`archived` 的商品不能借此恢复。状态条件更新与 `self_unpublished` 审计记录在同一数据库事务中完成；重复点击或并发状态变化会返回冲突并整体回滚。公开市场、公开详情、样品申请和商谈入口原本都只读取 `published`；成功后同时失效公开商品列表、商品详情、品牌详情和公开统计缓存，因此同一会话也会立即消失，但不会删除历史业务记录。
 
 LCM专项回归7个测试文件共 **61/61** 通过，LCM路由与管理页bundle通过，完整production build成功（仅保留既有sharp warning）。全量TypeScript仍有既有 **721** 条诊断，本次修改文件新增诊断为0。
+
+## 2026-09-21｜LCM ブランドキャンペーンページ・選品導線
+
+`/lcm/manage?workspace=brand`へブランド本人用のキャンペーンeditorを追加した。概要・期間、成果報酬率／購入者向け割引率、成果計測・確定／支払条件、参加条件、制作ガイド／NG表現、キャンペーン単位のサンプル条件、対象商品を5段階で登録し、下書き保存後にブランド本人が事前審査なしで公開できる。公開時は親ブランドが公開中、対象商品が同一ブランドかつ全件公開中、対象商品1件以上、率0〜100%・下限≦上限、開始＜終了、報酬・計測・支払・対象者・制作・NG条件、サンプルありの場合の提供条件をserver側で再検証する。運営は`/lcm/admin`から理由付き停止・条件再検証後の再公開ができ、ブランド停止時は公開商品と公開キャンペーンを同一transactionで停止する。
+
+クリエイター向けに`/lcm/campaigns`と`/lcm/campaigns/:slug`を追加し、LCMトップ、共通navigation、ブランド詳細から選品できるようにした。匿名画面はキャンペーンの一般説明、期間、ブランド、公開対象商品の最小card情報だけを返す。成果報酬率、割引率、計測・支払・参加・制作・NG・応募・キャンペーン単位サンプル条件は承認済みLCM会員だけが取得できる。匿名`getPublicCampaign`の実runtime testで、campaign限定条件および商品creative／NG／卸／在庫fieldがserialized payloadへ存在しないことを確認した。商品単位で既に公開している定価・サンプル対応等の既存LCM仕様は維持する。LCMが報酬・値引きを自動計算、支払、保証せず、閲覧・選品だけでは契約・割引・サンプル提供が確定しないことを一覧・詳細へ明記した。
+
+`lcm_campaigns`と`lcm_campaign_products`をadditive migration `0152`、Drizzle journal、deploy fallback、起動時冪等upgradeへ追加した。作成・更新・公開・下書き戻し・運営停止／再公開を`lcm_audit_logs`へ記録し、率・期間・計測方法・対象商品IDの変更前後snapshotも保持する。ブランド／商品／campaign／ライブコマーサープロフィールのmoderationは読取statusを条件にしたcompare-and-set、affected row検証、audit同一transactionへ統一した。ブランド管理申請は親ブランドrowを`FOR UPDATE`で直列化し、選択申請を期待statusからCASした後だけ他のpending申請を却下する。会社単位一括審査もbrand ID順lockと全件rollbackにより同一ブランドの二重active承認を防ぐ。
+
+最新mainの商品自己非公開化を統合後、LCF-LCM共通portalを含む10ファイル84件成功、production build成功。buildでは既存`receiptMaskingService.ts`のsharp namespace warningと、ローカルDB未起動によるmigration `ECONNREFUSED`のみで、bundle生成は成功した。8GB heapの全量TypeScriptは既存721件で、今回変更対象fileの診断0件。1440px desktop／390px mobileでcampaign一覧を確認し、横overflow、contrast、navigation、検索、期間filter、empty state、免責表示にblocking defectなし。複数回のNO-GOで指摘された匿名payload、campaign sample条件、brand cascade、product／creator moderation、brand claim競合をすべて修正し、最終独立reviewは**GO（release blocker 0件）**。本番DB更新、実会員変更、実campaign公開、メール送信、決済・値引き・sample承認は実施していない。

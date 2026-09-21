@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
-import { lcmBrandProfiles, lcmCreatorProfiles, lcmProducts } from "../drizzle/lcmSchema";
+import { lcmBrandProfiles, lcmCampaigns, lcmCreatorProfiles, lcmProducts } from "../drizzle/lcmSchema";
 import { lcf2026ExhibitorCatalogPages } from "../client/src/data/lcf2026ExhibitorCatalog";
 import { getDb } from "./db";
 
@@ -57,11 +57,13 @@ export function registerLcmSeoRoutes(app: Express) {
     });
   });
 
-  app.get(["/lcm", "/lcm/brands/:slug", "/lcm/products/:slug", "/lcm/creators", "/lcm/creators/:slug"], async (req: Request, res: Response, next: NextFunction) => {
+  app.get(["/lcm", "/lcm/brands/:slug", "/lcm/products/:slug", "/lcm/campaigns", "/lcm/campaigns/:slug", "/lcm/creators", "/lcm/creators/:slug"], async (req: Request, res: Response, next: NextFunction) => {
     try {
       const db = await getDb();
       const brandSlug = req.path.startsWith("/lcm/brands/") ? req.params.slug : null;
       const productSlug = req.path.startsWith("/lcm/products/") ? req.params.slug : null;
+      const campaignSlug = req.path.startsWith("/lcm/campaigns/") ? req.params.slug : null;
+      const campaignDirectory = req.path === "/lcm/campaigns";
       const creatorSlug = req.path.startsWith("/lcm/creators/") ? req.params.slug : null;
       const creatorDirectory = req.path === "/lcm/creators";
       let title = "LCM｜ライブコマースマーケット｜ブランド・商品・サンプル・卸商談";
@@ -72,7 +74,26 @@ export function registerLcmSeoRoutes(app: Express) {
       let body = "ブランドと商品を探し、サンプルや卸商談へ進めます。既存ブランドは商品を当面無料で登録・公開でき、新規ブランドはブランド検索後に公式LINEから申請します。卸条件はLCM会員だけに表示されます。";
       let jsonLd: unknown = [{ "@context": "https://schema.org", "@type": "CollectionPage", name: "LCM｜ライブコマースマーケット", description, url: pageUrl, inLanguage: "ja" }, { "@context": "https://schema.org", "@type": "Organization", name: "LIVE COMMERCE FESTIVAL", url: `${ORIGIN}/` }];
 
-      if (creatorDirectory) {
+      if (campaignDirectory) {
+        title = "キャンペーンを探す｜LCM ライブコマースマーケット";
+        description = "ブランド公式のライブコマースキャンペーンから期間と対象商品を比較。成果報酬率・購入者向け割引率・サンプル条件はLCM会員限定で確認できます。";
+        pageUrl = `${ORIGIN}/lcm/campaigns`;
+        heading = "ブランド公式キャンペーンから選品する";
+        body = "期間と対象商品を比較し、LCM会員は成果報酬率・割引率・計測条件・サンプル条件・配信ガイドを確認できます。";
+        jsonLd = [{ "@context": "https://schema.org", "@type": "CollectionPage", name: "LCM キャンペーン", description, url: pageUrl, inLanguage: "ja" }, { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "LCM", item: `${ORIGIN}/lcm` }, { "@type": "ListItem", position: 2, name: "キャンペーンを探す", item: pageUrl }] }];
+      } else if (campaignSlug) {
+        if (!db) return next();
+        const [row] = await db.select({ campaign: lcmCampaigns, brandName: lcmBrandProfiles.displayName, brandSlug: lcmBrandProfiles.slug }).from(lcmCampaigns).innerJoin(lcmBrandProfiles, eq(lcmCampaigns.brandProfileId, lcmBrandProfiles.id)).where(and(eq(lcmCampaigns.slug, campaignSlug), eq(lcmCampaigns.status, "published"), eq(lcmBrandProfiles.status, "published"))).limit(1);
+        if (!row) return next();
+        const campaign = row.campaign;
+        title = `${campaign.title}｜${row.brandName}｜LCM`;
+        description = (campaign.summary || campaign.description || `${row.brandName}のライブコマースキャンペーン。期間と対象商品を確認できます。`).slice(0, 160);
+        image = campaign.heroImageUrl || FALLBACK_IMAGE;
+        pageUrl = `${ORIGIN}/lcm/campaigns/${campaign.slug}`;
+        heading = campaign.title;
+        body = [row.brandName, campaign.summary, campaign.description].filter(Boolean).join("。 ");
+        jsonLd = [{ "@context": "https://schema.org", "@type": "Event", name: campaign.title, description, image: [image], startDate: campaign.startsAt || undefined, endDate: campaign.endsAt || undefined, organizer: { "@type": "Brand", name: row.brandName }, url: pageUrl }, { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "LCM", item: `${ORIGIN}/lcm` }, { "@type": "ListItem", position: 2, name: "キャンペーン", item: `${ORIGIN}/lcm/campaigns` }, { "@type": "ListItem", position: 3, name: campaign.title, item: pageUrl }] }];
+      } else if (creatorDirectory) {
         title = "ライバーを探す｜LCM ライブコマースマーケット";
         description = "本人の公開同意とLCM運営確認を経たライバー公式プロフィールを、得意カテゴリ・配信形式・所属から検索できます。";
         pageUrl = `${ORIGIN}/lcm/creators`;
@@ -140,6 +161,7 @@ export async function getLcmSitemapEntries(baseUrl: string, lastmod: string): Pr
   const entries = [
     `  <url>\n    <loc>${baseUrl}/lcm</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n    <image:image><image:loc>${FALLBACK_IMAGE}</image:loc><image:title>LCM ライブコマースマーケット</image:title></image:image>\n  </url>`,
     `  <url>\n    <loc>${baseUrl}/lcm/creators</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.8</priority>\n  </url>`,
+    `  <url>\n    <loc>${baseUrl}/lcm/campaigns</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>`,
     ...lcf2026ExhibitorCatalogPages.filter((page) => page.pageType === "出展企業紹介").map((page) => `  <url>\n    <loc>${baseUrl}/lcm/brands/catalog-${page.page}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.7</priority>\n    <image:image><image:loc>${escapeHtml(page.imageUrl)}</image:loc><image:title>${escapeHtml(page.name)}</image:title></image:image>\n  </url>`),
   ];
   try {
@@ -147,9 +169,14 @@ export async function getLcmSitemapEntries(baseUrl: string, lastmod: string): Pr
     if (!db) return entries;
     const brands = await db.select({ slug: lcmBrandProfiles.slug, name: lcmBrandProfiles.displayName, image: lcmBrandProfiles.coverUrl, updatedAt: lcmBrandProfiles.updatedAt }).from(lcmBrandProfiles).where(eq(lcmBrandProfiles.status, "published")).orderBy(desc(lcmBrandProfiles.updatedAt)).limit(500);
     const products = await db.select({ slug: lcmProducts.slug, name: lcmProducts.name, image: lcmProducts.primaryImageUrl, updatedAt: lcmProducts.updatedAt }).from(lcmProducts).where(eq(lcmProducts.status, "published")).orderBy(desc(lcmProducts.updatedAt)).limit(1000);
+    const campaigns = await db.select({ slug: lcmCampaigns.slug, name: lcmCampaigns.title, image: lcmCampaigns.heroImageUrl, updatedAt: lcmCampaigns.updatedAt }).from(lcmCampaigns)
+      .innerJoin(lcmBrandProfiles, eq(lcmCampaigns.brandProfileId, lcmBrandProfiles.id))
+      .where(and(eq(lcmCampaigns.status, "published"), eq(lcmBrandProfiles.status, "published")))
+      .orderBy(desc(lcmCampaigns.updatedAt)).limit(1000);
     const creators = await db.select({ slug: lcmCreatorProfiles.slug, name: lcmCreatorProfiles.displayName, image: lcmCreatorProfiles.profileImageUrl, updatedAt: lcmCreatorProfiles.updatedAt }).from(lcmCreatorProfiles).where(and(eq(lcmCreatorProfiles.status, "published"), isNotNull(lcmCreatorProfiles.publicConsentAt))).orderBy(desc(lcmCreatorProfiles.updatedAt)).limit(1000);
     for (const brand of brands) entries.push(`  <url>\n    <loc>${baseUrl}/lcm/brands/${encodeURIComponent(brand.slug)}</loc>\n    <lastmod>${new Date(brand.updatedAt || lastmod).toISOString().split("T")[0]}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>${brand.image ? `\n    <image:image><image:loc>${escapeHtml(brand.image)}</image:loc><image:title>${escapeHtml(brand.name)}</image:title></image:image>` : ""}\n  </url>`);
     for (const product of products) entries.push(`  <url>\n    <loc>${baseUrl}/lcm/products/${encodeURIComponent(product.slug)}</loc>\n    <lastmod>${new Date(product.updatedAt || lastmod).toISOString().split("T")[0]}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>${product.image ? `\n    <image:image><image:loc>${escapeHtml(product.image)}</image:loc><image:title>${escapeHtml(product.name)}</image:title></image:image>` : ""}\n  </url>`);
+    for (const campaign of campaigns) entries.push(`  <url>\n    <loc>${baseUrl}/lcm/campaigns/${encodeURIComponent(campaign.slug)}</loc>\n    <lastmod>${new Date(campaign.updatedAt || lastmod).toISOString().split("T")[0]}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>${campaign.image ? `\n    <image:image><image:loc>${escapeHtml(campaign.image)}</image:loc><image:title>${escapeHtml(campaign.name)}</image:title></image:image>` : ""}\n  </url>`);
     for (const creator of creators) entries.push(`  <url>\n    <loc>${baseUrl}/lcm/creators/${encodeURIComponent(creator.slug)}</loc>\n    <lastmod>${new Date(creator.updatedAt || lastmod).toISOString().split("T")[0]}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>${creator.image ? `\n    <image:image><image:loc>${escapeHtml(creator.image)}</image:loc><image:title>${escapeHtml(creator.name)}</image:title></image:image>` : ""}\n  </url>`);
   } catch (error) {
     console.warn("[LCM Sitemap] dynamic entries unavailable", error);

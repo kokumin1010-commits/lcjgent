@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   ArrowRight,
+  BadgePercent,
   BadgeJapaneseYen,
   CheckCircle2,
   Clock3,
@@ -82,6 +83,7 @@ export default function LcmMarket() {
   const [sampleOnly, setSampleOnly] = useState(false);
   const [creatorQuickViewOpen, setCreatorQuickViewOpen] = useState(false);
   const liveProducts = trpc.lcm.listPublicProducts.useQuery({ limit: 60 }, { retry: false });
+  const liveCampaigns = trpc.lcm.listPublicCampaigns.useQuery({ limit: 6 }, { retry: false });
   const liveStats = trpc.lcm.publicStats.useQuery(undefined, { retry: false });
   const accessQuery = trpc.lcm.getMyAccess.useQuery(undefined, { retry: false });
   const engagementQuery = trpc.lcm.getMyEngagementSummary.useQuery(undefined, { enabled: Boolean(accessQuery.data), retry: false });
@@ -174,6 +176,8 @@ export default function LcmMarket() {
             </div>
           </div>
         </section>
+
+        {(liveCampaigns.data || []).some((campaign) => ["active", "upcoming"].includes(campaign.periodState)) && <section className="border-b border-black/15 bg-[#171714] px-5 py-10 text-white md:px-8 md:py-14"><div className="mx-auto max-w-[1440px]"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="flex items-center gap-2 text-xs font-black tracking-[0.18em] text-[#f7cc35]"><BadgePercent className="h-4 w-4" />BRAND CAMPAIGNS</p><h2 className="mt-2 text-3xl font-black tracking-tight md:text-5xl">条件から、売りたい商品を選ぶ。</h2><p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">期間と対象商品を比較。正確な成果報酬率・割引率・計測条件・サンプル条件はLCM会員ログイン後に確認できます。</p></div><Link href="/lcm/campaigns" className="inline-flex items-center bg-[#f7cc35] px-5 py-3 text-sm font-black text-black">すべてのキャンペーン<ArrowRight className="ml-2 h-4 w-4" /></Link></div><div className="mt-7 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{(liveCampaigns.data || []).filter((campaign) => ["active", "upcoming"].includes(campaign.periodState)).slice(0, 6).map((campaign) => <Link key={campaign.id} href={`/lcm/campaigns/${campaign.slug}`} className="group grid grid-cols-[120px_1fr] overflow-hidden border border-white/15 bg-white/5 transition hover:border-[#f7cc35]"><div className="aspect-square bg-white/10"><LcmProductImage src={campaign.heroImageUrl} alt="" className="h-full w-full object-cover" /></div><div className="min-w-0 p-4"><div className="flex items-center justify-between gap-2"><p className="truncate text-[10px] font-black text-[#f7cc35]">{campaign.brandName}</p><span className="shrink-0 text-[9px] font-black text-white/45">{campaign.periodState === "active" ? "実施中" : "開始前"}</span></div><h3 className="mt-2 line-clamp-2 text-base font-black leading-5">{campaign.title}</h3><p className="mt-3 text-[10px] font-bold text-white/45">対象 {campaign.productCount}商品｜条件は会員限定</p></div></Link>)}</div></div></section>}
 
         <section aria-labelledby="lcm-entry-heading" className="border-b border-black/15 bg-[#f4f1e9] px-5 py-8 md:px-8 md:py-10">
           <div className="mx-auto max-w-[1440px]">

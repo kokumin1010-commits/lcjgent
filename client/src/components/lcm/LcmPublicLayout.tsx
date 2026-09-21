@@ -4,7 +4,7 @@
  */
 import type { ReactNode } from "react";
 import { Link, useLocation, useSearch } from "wouter";
-import { LayoutDashboard, LogIn, PackageSearch, ShoppingCart, Users } from "lucide-react";
+import { BadgePercent, LayoutDashboard, LogIn, PackageSearch, ShoppingCart, Users } from "lucide-react";
 import { FestivalWorkspaceNav } from "@/components/lcf/FestivalWorkspaceNav";
 import { buildFestivalLoginUrl, getRequestedFestivalWorkspace } from "@/lib/festivalPortal";
 import { trpc } from "@/lib/trpc";
@@ -39,6 +39,9 @@ export function LcmPublicLayout({ children }: { children: ReactNode }) {
             <Link href="/lcm" className="hidden px-3 py-2 hover:bg-black/5 sm:inline-flex">
               <PackageSearch className="mr-1.5 h-4 w-4" />商品を探す
             </Link>
+            <Link href="/lcm/campaigns" className="hidden px-3 py-2 hover:bg-black/5 sm:inline-flex">
+              <BadgePercent className="mr-1.5 h-4 w-4" />キャンペーン
+            </Link>
             <Link href="/lcm/creators" className="hidden px-3 py-2 hover:bg-black/5 md:inline-flex">
               <Users className="mr-1.5 h-4 w-4" />ライブコマーサーを探す
             </Link>
@@ -68,6 +71,7 @@ export function LcmPublicLayout({ children }: { children: ReactNode }) {
             <Link href="/livecommercefestival">LCF公式サイト</Link>
             <Link href="/livecommercefestival/2026/report">第1回開催レポート</Link>
             <Link href={me.data?.portal?.defaultPath || (me.data ? "/lcf/mypage" : loginUrl)}>{me.data ? "マイページ" : "ログイン"}</Link>
+            <Link href="/lcm/campaigns">キャンペーンを探す</Link>
             <Link href="/lcm/creators">ライブコマーサーを探す</Link>
           </div>
         </div>
