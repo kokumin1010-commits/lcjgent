@@ -3578,9 +3578,9 @@ LCM专项回归7个测试文件共 **61/61** 通过，LCM路由与管理页bundl
 
 ユーザー提示のLINEグループ履歴を踏まえ、`/master/line`で履歴保存状態を明示し、既存active groupと今後の新規・再招待groupについて、`@LCJ返信`、会話分析、AI提案、自動追いを既定ONへ変更した。既存groupは`line_group_automation_rollouts`の一意markerをclaimするtransactionで一度だけ更新するため、配備後に管理者が個別OFFへ変更しても再起動時には上書きしない。新規・再招待groupは親group rowと`line_group_settings`を同一transactionでON初期化する。
 
-過去履歴に対する即時一斉送信を防ぐため、軽量な`line_group_automation_states.autoFollowUpEnabledAt`を追加し、follow-up候補・送信直前claimの双方で`lastMessageAt`、`createdAt`、`autoFollowUpEnabledAt`の最大値を共通activity anchorとして使う。既存大テーブル`line_groups`へcolumnを追加せずCREATE-onlyのstate tableへ分離した。独立reviewではcandidate/claimのanchor不一致P1に加え、rollout完了前に旧follow-upやlive suggestion、ranking、weekly/monthly report、group reminderが送信可能なP0を検出した。anchorは候補payloadからlocked claimへ同一値を渡し、全group push schedulerの唯一の起動箇所はrollout成功branchへ統合した。失敗時は1つも起動せずretryする。最終独立reviewはGO（blocker 0件）。ON直前、既定2日経過の1ms前は対象外、境界時刻で対象となるunit testも追加し、明示的`@LCJ`、連携済み有効ライブコマーサー、営業時間、active、最新会話revision、送信監査・retry key等の既存送信guardを維持している。
+過去履歴に対する即時一斉送信を防ぐため`line_groups.autoFollowUpEnabledAt`を追加し、follow-up候補・送信直前claimの双方で`lastMessageAt`、`createdAt`、`autoFollowUpEnabledAt`の最大値を共通activity anchorとして使う。独立初回reviewでcandidateが新anchorを計算してもschedulerが旧`lastMessageAt`をclaimへ渡すP1を検出し、候補payloadの`followUpActivityAt`をそのままlocked claimへ渡すよう修正した。ON直前、既定2日経過の1ms前は対象外、境界時刻で対象となるunit testを追加した。最終独立reviewはGO（blocker 0件）。明示的`@LCJ`、連携済み有効ライブコマーサー、営業時間、active、最新会話revision、送信監査・retry key等の既存送信guardは維持している。
 
-グループtextはメンション有無に関係なくLINE message ID一意で返信判定前に保存する。UIには「履歴保存: 有効」と全自動ON案内を表示し、公式LINE参加後の新着だけ保存可能で、参加前の過去会話はLINE Messaging APIから取得できないことをgroup一覧・会話Dialogへ明記した。focused回帰は9ファイル120件成功。最新main統合後のLINE関連全体は35ファイル317件中307件成功し、残る5ファイル10件は本番DB、LINE Login／Messaging API credentials、APP_URL依存の既知環境failureだった。client Vite・server esbuildは成功し、ローカル`pnpm build`全体はDB未接続のmigration段階だけで終了した。全量TypeScriptは既存診断でexit 2だが、今回変更範囲に新規診断はない。実LINE送信・本番DB直接更新は行っていない。
+グループtextはメンション有無に関係なくLINE message ID一意で返信判定前に保存する。UIには「履歴保存: 有効」と全自動ON案内を表示し、公式LINE参加後の新着だけ保存可能で、参加前の過去会話はLINE Messaging APIから取得できないことをgroup一覧・会話Dialogへ明記した。focused回帰は9ファイル120件成功。LINE関連全体は29ファイル300件成功し、既知の固定repository path、Stripe、LINE Login／Messaging API credentials、APP_URL依存による5ファイル10件だけ失敗。production build成功。全量TypeScriptは既存診断でexit 2だが、今回変更範囲に新規診断はない。実LINE送信・本番DB直接更新は行っていない。
 ## 2026-09-21｜品牌管理域新增“品牌 BD 指挥塔”（本番反映前）
 
 按照已确认方案，在品牌管理域新增 `/master/brand-bd-command`，并同时加入品牌管理页头部和商务部侧边栏入口。页面提供品牌BD进度、逾期跟进、缺少下一步、未来会议、洽谈时间线、全部日程和老板视角；现有 `brand_business_deals` 状态机继续作为唯一阶段主数据，坑位费、保证ROI 1:2、纯佣和签约条件不另建第二套阶段口径。
@@ -3596,3 +3596,17 @@ AI商务副驾使用实时目录中可用的 `gpt-5-mini` 和严格JSON Schema�
 修复并合并最新LINE并行提交后，品牌BD、品牌商务、LCJ Brain权限、绩效策略与LINE相关跨模块回归共8文件125项通过；新服务、路由、提醒调度器和页面esbuild通过；LINE 0154共4条、品牌BD 0155共8条幂等SQL及journal顺序校验通过；8GB堆完整 `pnpm build` 成功，仅保留既有 `receiptMaskingService.ts` sharp namespace warning。全量 `pnpm check` 仍因仓库既有723条诊断返回2，但本次新增品牌BD服务、路由、提醒、共享规则和页面诊断为0。第二次独立只读复审结论为 **GO，P0/P1阻断0项**。
 
 首个品牌BD候选提交在GitHub CI通过后Railway部署失败，随即按规则以独立revert提交撤回，生产始终保留上一正常版本。提交状态审计确认首次失败从并行LINE自动化提交开始，品牌BD提交及其revert只是继承同一启动失败；后续LINE启动修复 `4cf64d1c` 已单独Railway成功并恢复安全基线。品牌BD从该成功基线重新应用后再加固：品牌商务v2备份/迁移不再阻塞HTTP监听，而是在listen成功后后台执行并指数退避；所有品牌BD路由仍等待同一upgrade promise，未ready或失败时保持fail-closed；新增无PII `/api/health/brand-bd-command`，只返回版本、迁移状态和是否有错误，供生产确认0155真实完成。
+
+## 2026-09-21｜选品中心一键多选与原子批量更新（本番反映前）
+
+在 `/master/selection-center` 商品表新增逐行复选、本页全选和“当前筛选结果一键全选”；筛选条件变化时自动清空旧选择，避免误更新已隐藏商品。批量编辑对话框采用逐字段显式勾选，支持价格、市场价、历史最低价、库存、佣金类型/数值和状态；未勾选字段保持原值。桌面和移动端均可滚动查看，批量提交成功后清空选择并刷新商品、价格历史与价格保护数据。
+
+服务端新增最多2,000件的原子批量事务和稳定UUID幂等键：全部主商品先锁行并校验活动状态，任一商品不存在、已删除或变成子SKU即整批回滚；同一请求只能由同一操作者重放相同payload。每次成功写入操作者、patch、before/after快照的不可变审计。价格、市场价、历史最低价及固定佣金限制两位小数；百分比佣金限制0–100；库存只接受非负整数。任何价格更新都会追加`bulk_price`历史，历史最低价以旧列值、未归档历史、显式最低价和新价格四者最小值为准；批量写入前会把尚未进入历史表的旧最低价补成`legacy_snapshot`，仅下调当前价格也会在同一事务中同步下调历史最低价。
+
+新增服务端选品中心RBAC：系统管理员直接允许；自定义角色按 `/master/selection-center` 或商品tab的 `canView/canEdit` 判定。ProductsTab的商品列表、一键全选、工作簿预览/导入、商品创建/编辑、状态/归档、图片AI、品牌批量上下架、子SKU、价格历史与父子关系入口全部使用同一view/edit权限过程；前端同步隐藏只读角色的全部商品写控件。原“删除价格历史”改为锁行、记录操作者/原因/时间的软归档，并在同一事务内回算最低价；归档其他记录时不会抬高缺少历史行的旧最低价。所有商品、子SKU、保护状态和恢复回算只使用未归档历史。
+
+批量审计表及价格历史软归档列复用选品模块既有的进程级运行时schema确保：标准`CREATE TABLE IF NOT EXISTS`和普通`ADD COLUMN/ADD INDEX`只执行一次，只吞TiDB/MySQL明确的重复列/索引错误，其他错误清空promise后向请求返回失败；商品列表会先确保schema，批量写入和价格历史归档也在事务前显式等待同一promise，因此审计存储缺失时保持fail-closed。为避免构建阶段数据库差异阻断整站部署，没有新增deploy-time migration或修改最新main的Beauty Wallet关键迁移。
+
+本地验证：选品中心相关28个测试文件160项全部通过；并行Beauty Wallet/账户链路8个文件54项通过、1项既有跳过；production build成功，仅保留仓库既有`receiptMaskingService.ts` sharp namespace warning。全量`pnpm check`因仓库既有1,164条诊断返回2，本次新增的批量服务、RBAC、软归档服务、对话框诊断为0，修改目标的规范化诊断集合相对本次加固前未增加。1280×900与390×844的Mock视觉/交互验收均完成，批量提交成功，对话框边界正常，无console、page或request error。本地测试未访问生产数据库、未修改生产商品、价格、库存或历史记录。
+
+独立只读发布复审初次指出同页旧写入口RBAC绕过、仅更新价格时最低价不同步、deploy-time schema语法兼容三项P1；逐项修复并补回归后结论为 **GO，P0/P1阻断0项**。首个候选提交`990fc789`的GitHub CI通过，但Railway在新增部署迁移窗口失败；已立即以`6f5a0af7`恢复上一正常代码树，失败候选未替换既有production实例。后续候选基于Railway成功的并行迁移热修复`9bef6475`，移除新增deploy-time migration，改为上述写入口前运行时幂等保障；再次独立只读复审仍为 **GO，P0/P1阻断0项**。复审建议的“非重复DDL失败后清空共享promise并从首条语句完整重试”也已补为可执行回归。

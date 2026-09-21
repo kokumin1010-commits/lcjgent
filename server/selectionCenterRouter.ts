@@ -27,6 +27,14 @@ import {
   updateEntityChildSku,
 } from "./selectionChildSkuPersistence";
 import { ensureSelectionCategoryCatalog } from "./selectionCategoryCatalog";
+import {
+  bulkUpdateSelectionProducts,
+  hasAtMostTwoDecimalPlaces,
+  listSelectionProductIds,
+  MAX_SELECTION_PRODUCT_BULK_UPDATE,
+} from "./selectionProductBulkUpdate";
+import { requireSelectionCenterAccess } from "./selectionCenterAccess";
+import { archiveSelectionPriceHistory } from "./selectionPriceHistoryService";
 
 // Direct mysql2 connection pool (bypass drizzle issues on Railway)
 let _pool: mysql.Pool | null = null;
@@ -57,6 +65,31 @@ const embeddedSkuTargetSchema = z.object({
   fallbackIndex: z.number().int().nonnegative().optional(),
   expectedName: z.string().max(200).optional(),
   expectedSkuCode: z.string().max(100).nullable().optional(),
+});
+
+const positiveBulkMoneySchema = z.number().positive().max(99_999_999.99).refine(hasAtMostTwoDecimalPlaces, {
+  message: "金额最多保留两位小数 / 金額は小数点以下2桁までです",
+});
+const nonNegativeBulkDecimalSchema = z.number().nonnegative().max(99_999_999.99).refine(hasAtMostTwoDecimalPlaces, {
+  message: "数值最多保留两位小数 / 小数点以下2桁までです",
+});
+
+const bulkProductPatchSchema = z.object({
+  price: positiveBulkMoneySchema.optional(),
+  marketPrice: positiveBulkMoneySchema.optional(),
+  historicalLowestPrice: positiveBulkMoneySchema.optional(),
+  stock: z.number().int().nonnegative().max(2_147_483_647).optional(),
+  commission: z.object({
+    type: z.enum(["percentage", "fixed"]),
+    value: nonNegativeBulkDecimalSchema,
+  }).superRefine((commission, ctx) => {
+    if (commission.type === "percentage" && commission.value > 100) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["value"], message: "佣金比例必须在0到100之间" });
+    }
+  }).optional(),
+  status: z.enum(["draft", "online", "offline"]).optional(),
+}).refine(patch => Object.keys(patch).length > 0, {
+  message: "至少选择一个要更新的字段 / 更新項目を1つ以上選択してください",
 });
 
 function validateExpectedArrivalDate(orderDate: string, expectedArrivalDate?: string | null): void {
@@ -178,6 +211,9 @@ async function queryLiverAvailableProducts(
         source VARCHAR(50) DEFAULT 'manual',
         note VARCHAR(255) DEFAULT NULL,
         createdBy INT DEFAULT 0,
+        archivedAt TIMESTAMP NULL DEFAULT NULL,
+        archivedBy INT DEFAULT NULL,
+        archiveReason VARCHAR(255) DEFAULT NULL,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_product (productId),
         INDEX idx_price (price)
@@ -200,6 +236,16 @@ async function queryLiverAvailableProducts(
     console.log('[SelectionCenter] Auto-init tables skipped:', e.message);
   }
 })();
+
+const selectionCenterViewProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  await requireSelectionCenterAccess(ctx.user, "view", getPool());
+  return next();
+});
+
+const selectionCenterEditProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  await requireSelectionCenterAccess(ctx.user, "edit", getPool());
+  return next();
+});
 
 export const selectionCenterRouter = router({
   // ========== Setup / Migration ==========
@@ -323,6 +369,9 @@ export const selectionCenterRouter = router({
         source VARCHAR(50) DEFAULT 'manual',
         note VARCHAR(255) DEFAULT NULL,
         createdBy INT DEFAULT 0,
+        archivedAt TIMESTAMP NULL DEFAULT NULL,
+        archivedBy INT DEFAULT NULL,
+        archiveReason VARCHAR(255) DEFAULT NULL,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_product (productId),
         INDEX idx_price (price)
@@ -464,7 +513,7 @@ export const selectionCenterRouter = router({
   }),
 
   // ========== Products ==========
-  getProducts: protectedProcedure.input(z.object({
+  getProducts: selectionCenterViewProcedure.input(z.object({
     search: z.string().optional(),
     status: z.enum(["draft", "online", "offline"]).optional(),
     categoryId: z.number().optional(),
@@ -505,6 +554,7 @@ export const selectionCenterRouter = router({
         LEFT JOIN (
           SELECT productId, MIN(price) AS minPrice
           FROM selection_price_history
+          WHERE archivedAt IS NULL
           GROUP BY productId
         ) ph ON ph.productId = sp.id
         ${where}
@@ -528,6 +578,7 @@ export const selectionCenterRouter = router({
         LEFT JOIN (
           SELECT productId, MIN(price) AS minPrice
           FROM selection_price_history
+          WHERE archivedAt IS NULL
           GROUP BY productId
         ) ph ON ph.productId = sp.id
         ${where}
@@ -552,6 +603,7 @@ export const selectionCenterRouter = router({
          LEFT JOIN (
            SELECT productId, MIN(price) AS minPrice
            FROM selection_price_history
+           WHERE archivedAt IS NULL
            GROUP BY productId
          ) ph ON ph.productId = sp.id
          WHERE sp.deletedAt IS NULL AND sp.parentProductId IN (${parentIds.map(() => '?').join(',')})
@@ -567,7 +619,17 @@ export const selectionCenterRouter = router({
     return { items, total: Number(countResult[0]?.count || 0) };
   }),
 
-  previewProductWorkbook: protectedProcedure.input(z.object({
+  getProductIdsForBulkSelection: selectionCenterViewProcedure.input(z.object({
+    search: z.string().max(255).optional(),
+    status: z.enum(["draft", "online", "offline"]).optional(),
+    brandName: z.string().max(255).optional(),
+  })).query(async ({ input }) => {
+    const pool = getPool();
+    const ids = await listSelectionProductIds(pool, input);
+    return { ids, total: ids.length, max: MAX_SELECTION_PRODUCT_BULK_UPDATE };
+  }),
+
+  previewProductWorkbook: selectionCenterEditProcedure.input(z.object({
     fileName: z.string().min(1).max(255),
     base64Data: z.string().min(1),
   })).mutation(async ({ input }) => {
@@ -582,7 +644,7 @@ export const selectionCenterRouter = router({
     }
   }),
 
-  commitProductWorkbook: protectedProcedure.input(z.object({
+  commitProductWorkbook: selectionCenterEditProcedure.input(z.object({
     fileName: z.string().min(1).max(255),
     base64Data: z.string().min(1),
     fileSha256: z.string().regex(/^[a-f0-9]{64}$/),
@@ -611,7 +673,7 @@ export const selectionCenterRouter = router({
     }
   }),
 
-  createProduct: protectedProcedure.input(z.object({
+  createProduct: selectionCenterEditProcedure.input(z.object({
     productName: z.string(),
     productNameCn: z.string().optional(),
     productId: z.string().optional(),
@@ -671,7 +733,7 @@ export const selectionCenterRouter = router({
     return { id: result.id };
   }),
 
-  updateProduct: protectedProcedure.input(z.object({
+  updateProduct: selectionCenterEditProcedure.input(z.object({
     id: z.number(),
     productName: z.string().optional(),
     productNameCn: z.string().nullable().optional(),
@@ -732,7 +794,17 @@ export const selectionCenterRouter = router({
     );
   }),
 
-  updateEntityChildSku: protectedProcedure.input(z.object({
+  bulkUpdateProducts: selectionCenterEditProcedure.input(z.object({
+    requestId: z.string().uuid(),
+    productIds: z.array(z.number().int().positive()).min(1).max(MAX_SELECTION_PRODUCT_BULK_UPDATE),
+    patch: bulkProductPatchSchema,
+  })).mutation(async ({ input, ctx }) => {
+    const pool = getPool();
+    await ensureSelectionProductPersistenceSchema(pool);
+    return bulkUpdateSelectionProducts(pool, input, Number(ctx.user.id));
+  }),
+
+  updateEntityChildSku: selectionCenterEditProcedure.input(z.object({
     childId: z.number().int().positive(),
     expectedParentId: z.number().int().positive(),
     data: childSkuPatchSchema,
@@ -744,17 +816,17 @@ export const selectionCenterRouter = router({
     Number((ctx.user as any)?.id || 0),
   )),
 
-  updateEmbeddedChildSku: protectedProcedure.input(embeddedSkuTargetSchema.extend({
+  updateEmbeddedChildSku: selectionCenterEditProcedure.input(embeddedSkuTargetSchema.extend({
     data: childSkuPatchSchema.omit({ barcode: true }),
   })).mutation(async ({ input }) => {
     const { data, ...target } = input;
     return updateEmbeddedChildSku(getPool(), target, data);
   }),
 
-  deleteEmbeddedChildSku: protectedProcedure.input(embeddedSkuTargetSchema)
+  deleteEmbeddedChildSku: selectionCenterEditProcedure.input(embeddedSkuTargetSchema)
     .mutation(async ({ input }) => deleteEmbeddedChildSku(getPool(), input)),
 
-  updateProductStatus: protectedProcedure.input(z.object({
+  updateProductStatus: selectionCenterEditProcedure.input(z.object({
     id: z.number(),
     status: z.enum(["draft", "online", "offline"]),
   })).mutation(async ({ input }) => {
@@ -763,7 +835,7 @@ export const selectionCenterRouter = router({
     return { success: true };
   }),
 
-  deleteProduct: protectedProcedure.input(z.object({
+  deleteProduct: selectionCenterEditProcedure.input(z.object({
     id: z.number(),
   })).mutation(async ({ input }) => {
     const pool = getPool();
@@ -1084,7 +1156,7 @@ export const selectionCenterRouter = router({
   }),
 
   // ========== Image Upload ==========
-  uploadProductImage: protectedProcedure.input(z.object({
+  uploadProductImage: selectionCenterEditProcedure.input(z.object({
     fileName: z.string(),
     mimeType: z.string(),
     base64Data: z.string(),
@@ -1538,7 +1610,7 @@ export const selectionCenterRouter = router({
   }),
 
   // AI画像認識で商品情報を自動抽出
-  analyzeProductImage: protectedProcedure
+  analyzeProductImage: selectionCenterEditProcedure
     .input(z.object({
       base64Data: z.string(),
       mimeType: z.string().default('image/jpeg'),
@@ -2948,7 +3020,7 @@ export const selectionCenterRouter = router({
       return { success: true, itemCount: input.items.length };
     }),
   // ブランド一括上下架
-  bulkUpdateBrandStatus: protectedProcedure.input(z.object({
+  bulkUpdateBrandStatus: selectionCenterEditProcedure.input(z.object({
     brandName: z.string(),
     status: z.enum(["online", "offline"]),
   })).mutation(async ({ input }) => {
@@ -2961,13 +3033,14 @@ export const selectionCenterRouter = router({
   }),
 
   // ========== Price History ==========
-  getPriceHistory: protectedProcedure.input(z.object({
+  getPriceHistory: selectionCenterViewProcedure.input(z.object({
     productId: z.number(),
   })).query(async ({ input }) => {
     try {
       const pool = getPool();
+      await ensureSelectionProductPersistenceSchema(pool);
       const [rows] = await pool.query(
-        `SELECT id, productId, price, source, note, createdBy, createdAt FROM selection_price_history WHERE productId = ? ORDER BY price ASC, createdAt DESC LIMIT 50`,
+        `SELECT id, productId, price, source, note, createdBy, createdAt FROM selection_price_history WHERE productId = ? AND archivedAt IS NULL ORDER BY price ASC, createdAt DESC LIMIT 50`,
         [input.productId]
       ) as any;
       return rows;
@@ -2977,11 +3050,12 @@ export const selectionCenterRouter = router({
     }
   }),
   // Get price protection status for products (batch)
-  getPriceProtectionStatus: protectedProcedure.input(z.object({
+  getPriceProtectionStatus: selectionCenterViewProcedure.input(z.object({
     productIds: z.array(z.number()).optional(),
   }).optional()).query(async ({ input }) => {
     try {
       const pool = getPool();
+      await ensureSelectionProductPersistenceSchema(pool);
       // Get the latest price change for each product
       let query = `
         SELECT ph.productId, ph.price, ph.createdAt as lastChangedAt, ph.note
@@ -2989,12 +3063,14 @@ export const selectionCenterRouter = router({
         INNER JOIN (
           SELECT productId, MAX(createdAt) as maxDate
           FROM selection_price_history
+          WHERE archivedAt IS NULL
           GROUP BY productId
         ) latest ON ph.productId = latest.productId AND ph.createdAt = latest.maxDate
+        WHERE ph.archivedAt IS NULL
       `;
       const params: any[] = [];
       if (input?.productIds && input.productIds.length > 0) {
-        query += ` WHERE ph.productId IN (${input.productIds.map(() => '?').join(',')})`;
+        query += ` AND ph.productId IN (${input.productIds.map(() => '?').join(',')})`;
         params.push(...input.productIds);
       }
       const [rows] = await pool.query(query, params) as any;
@@ -3021,7 +3097,7 @@ export const selectionCenterRouter = router({
     }
   }),
 
-  getDiscountHistory: protectedProcedure.input(z.object({
+  getDiscountHistory: selectionCenterViewProcedure.input(z.object({
     productId: z.number(),
   })).query(async ({ input }) => {
     try {
@@ -3036,19 +3112,18 @@ export const selectionCenterRouter = router({
       return [];
     }
   }),
-  deletePriceHistory: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+  deletePriceHistory: selectionCenterEditProcedure.input(z.object({
+    id: z.number().int().positive(),
+    reason: z.string().trim().min(1).max(255).optional(),
+  })).mutation(async ({ input, ctx }) => {
     const pool = getPool();
-    const [row] = await pool.query("SELECT productId FROM selection_price_history WHERE id = ?", [input.id]) as any;
-    const productId = row?.[0]?.productId;
-    await pool.query("DELETE FROM selection_price_history WHERE id = ?", [input.id]);
-    if (productId) {
-      const [minRows] = await pool.query("SELECT MIN(price) as minPrice FROM selection_price_history WHERE productId = ?", [productId]) as any;
-      const newMin = minRows?.[0]?.minPrice || null;
-      await pool.query("UPDATE selection_products SET historicalLowestPrice = ? WHERE id = ?", [newMin, productId]);
-    }
-    return { success: true };
+    await ensureSelectionProductPersistenceSchema(pool);
+    return archiveSelectionPriceHistory(pool, {
+      id: input.id,
+      reason: input.reason || "manual_correction",
+    }, Number(ctx.user.id));
   }),
-  deleteDiscountHistory: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+  deleteDiscountHistory: selectionCenterEditProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
     const pool = getPool();
     const [row] = await pool.query("SELECT productId FROM selection_discount_history WHERE id = ?", [input.id]) as any;
     const productId = row?.[0]?.productId;
@@ -3062,7 +3137,7 @@ export const selectionCenterRouter = router({
   }),
 
   // 親子SKU管理
-  setParentProduct: protectedProcedure
+  setParentProduct: selectionCenterEditProcedure
     .input(z.object({ childId: z.number(), parentId: z.number() }))
     .mutation(async ({ input }) => {
       const pool = await getPool();
@@ -3077,11 +3152,11 @@ export const selectionCenterRouter = router({
       return { success: true };
     }),
 
-  removeParentProduct: protectedProcedure
+  removeParentProduct: selectionCenterEditProcedure
     .input(z.object({ childId: z.number().int().positive(), expectedParentId: z.number().int().positive() }))
     .mutation(async ({ input }) => removeEntityChildParent(getPool(), input.childId, input.expectedParentId)),
 
-  getChildProducts: protectedProcedure
+  getChildProducts: selectionCenterViewProcedure
     .input(z.object({ parentId: z.number() }))
     .query(async ({ input }) => {
       const pool = await getPool();

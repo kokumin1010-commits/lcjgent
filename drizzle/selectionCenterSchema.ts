@@ -1,4 +1,4 @@
-import { mysqlTable, int, varchar, text, decimal, timestamp, mysqlEnum, json, date, tinyint, uniqueIndex } from "drizzle-orm/mysql-core";
+import { mysqlTable, int, bigint, varchar, text, decimal, timestamp, mysqlEnum, json, date, tinyint, uniqueIndex, index } from "drizzle-orm/mysql-core";
 
 // 選品商品プール (actual DB structure)
 export const selectionProducts = mysqlTable("selection_products", {
@@ -29,6 +29,38 @@ export const selectionProducts = mysqlTable("selection_products", {
   talentExclusive: tinyint("talentExclusive").default(0),
   exclusiveLiverIds: json("exclusiveLiverIds"),
 });
+
+export const selectionProductBulkUpdates = mysqlTable("selection_product_bulk_updates", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  requestId: varchar("requestId", { length: 36 }).notNull(),
+  actorUserId: int("actorUserId").notNull(),
+  inputHash: varchar("inputHash", { length: 64 }).notNull(),
+  productCount: int("productCount").notNull(),
+  patchJson: json("patchJson").notNull(),
+  beforeState: json("beforeState").notNull(),
+  afterState: json("afterState").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  requestIdUnique: uniqueIndex("uq_selection_product_bulk_request").on(table.requestId),
+  actorCreatedIndex: index("idx_selection_product_bulk_actor_created").on(table.actorUserId, table.createdAt),
+}));
+
+export const selectionPriceHistory = mysqlTable("selection_price_history", {
+  id: int("id").primaryKey().autoincrement(),
+  productId: int("productId").notNull(),
+  price: decimal("price", { precision: 12, scale: 2 }).notNull(),
+  source: varchar("source", { length: 50 }).default("manual"),
+  note: varchar("note", { length: 255 }),
+  createdBy: int("createdBy").default(0),
+  archivedAt: timestamp("archivedAt"),
+  archivedBy: int("archivedBy"),
+  archiveReason: varchar("archiveReason", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  productIndex: index("idx_product").on(table.productId),
+  priceIndex: index("idx_price").on(table.price),
+  activeIndex: index("idx_selection_price_active").on(table.productId, table.archivedAt, table.price),
+}));
 
 // 選品カテゴリ (actual DB structure)
 export const selectionCategories = mysqlTable("selection_categories", {

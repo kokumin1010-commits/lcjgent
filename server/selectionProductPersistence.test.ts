@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type mysql from "mysql2/promise";
 import {
   createSelectionProduct,
+  ensureSelectionProductPersistenceSchema,
   resetSelectionProductSchemaEnsureForTests,
   updateSelectionProduct,
 } from "./selectionProductPersistence";
@@ -32,8 +33,9 @@ function createFakePool(options: {
   existing?: boolean;
   insertAffectedRows?: number;
   updateAffectedRows?: number;
-  failOnProductWrite?: boolean;
-  failOnHistoryWrite?: boolean;
+    failOnProductWrite?: boolean;
+    failOnHistoryWrite?: boolean;
+    failSchemaOnce?: boolean;
 } = {}) {
   const state = {
     schemaQueries: [] as Array<{ sql: string; params?: unknown[] }>,
@@ -46,8 +48,8 @@ function createFakePool(options: {
     release: vi.fn(),
     query: vi.fn(async (sql: string, params?: unknown[]) => {
       state.transactionQueries.push({ sql, params });
-      if (sql.startsWith("SELECT id FROM selection_products")) {
-        return [options.existing === false ? [] : [{ id: 7 }], []];
+      if (sql.startsWith("SELECT id, historicalLowestPrice FROM selection_products")) {
+        return [options.existing === false ? [] : [{ id: 7, historicalLowestPrice: 1200 }], []];
       }
       if (sql.startsWith("INSERT INTO selection_products")) {
         if (options.failOnProductWrite) throw new Error("simulated insert failure");
@@ -68,6 +70,9 @@ function createFakePool(options: {
   const pool = {
     query: vi.fn(async (sql: string, params?: unknown[]) => {
       state.schemaQueries.push({ sql, params });
+      if (options.failSchemaOnce && state.schemaQueries.length === 1) {
+        throw new Error("simulated schema failure");
+      }
       return [[], []];
     }),
     getConnection: vi.fn(async () => connection),
@@ -78,6 +83,30 @@ function createFakePool(options: {
 describe("selection product SKU persistence", () => {
   beforeEach(() => {
     resetSelectionProductSchemaEnsureForTests();
+  });
+
+  it("ensures bulk audit and price-history archive schema once per process", async () => {
+    const { pool, state } = createFakePool();
+    await Promise.all([
+      ensureSelectionProductPersistenceSchema(pool),
+      ensureSelectionProductPersistenceSchema(pool),
+    ]);
+    const firstRunCount = state.schemaQueries.length;
+    await ensureSelectionProductPersistenceSchema(pool);
+    expect(state.schemaQueries).toHaveLength(firstRunCount);
+    const schemaSql = state.schemaQueries.map(query => query.sql).join("\n");
+    expect(schemaSql).toContain("CREATE TABLE IF NOT EXISTS selection_product_bulk_updates");
+    expect(schemaSql).toContain("ALTER TABLE selection_price_history ADD COLUMN archivedAt");
+    expect(schemaSql).toContain("ALTER TABLE selection_price_history ADD INDEX idx_selection_price_active");
+  });
+
+  it("clears the shared schema promise after a non-duplicate error and retries from the first statement", async () => {
+    const { pool, state } = createFakePool({ failSchemaOnce: true });
+    await expect(ensureSelectionProductPersistenceSchema(pool)).rejects.toThrow("simulated schema failure");
+    const firstStatement = state.schemaQueries[0].sql;
+    await ensureSelectionProductPersistenceSchema(pool);
+    expect(state.schemaQueries.filter(query => query.sql === firstStatement)).toHaveLength(2);
+    expect(state.schemaQueries.some(query => query.sql.includes("CREATE TABLE IF NOT EXISTS selection_product_bulk_updates"))).toBe(true);
   });
 
   it("creates a new product with canonical tags and multiple SKU variants in one transaction", async () => {
