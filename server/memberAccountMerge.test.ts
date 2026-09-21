@@ -109,6 +109,35 @@ describe("member account merge authorization and operator safety", () => {
     expect(router).toContain("expectedSourceBalance");
   });
 
+  it("exposes the Beauty Wallet ledger audit only to admins", () => {
+    const router = read("server/memberIdentityRouter.ts");
+    const apiClient = read("server/bw-api.ts");
+    const auditStart = apiClient.indexOf(
+      "export async function bwAuditCentralLedgerByEmail"
+    );
+    const auditEnd = apiClient.indexOf(
+      "/**\n * BW側にトークンを付与",
+      auditStart
+    );
+    const auditSource = apiClient.slice(auditStart, auditEnd);
+    expect(router).toContain("auditBeautyWalletLedger: protectedProcedure");
+    expect(router).toContain('ctx.user.role !== "admin"');
+    expect(router).toContain("bwAuditCentralLedgerByEmail(input.email)");
+    expect(auditSource).toContain("bwLookupCustomerReadOnly");
+    expect(auditSource).toContain("/api/tokens/balance`");
+    expect(auditSource).toContain('searchParams.set("unified", "true")');
+    expect(auditSource).not.toContain('searchParams.set("sync_email"');
+    expect(auditSource).not.toContain('searchParams.set("sync_name"');
+    expect(auditSource).not.toContain("ensureIntegrationSecretTable");
+    expect(auditSource).not.toMatch(/\b(INSERT|UPDATE|DELETE|CREATE TABLE)\b/);
+    expect(auditSource).toContain("transactionMap.has(transactionId)");
+    expect(apiClient).not.toContain("storeBreakdown");
+    expect(apiClient).not.toContain("migrationEvidence");
+    expect(apiClient).not.toContain("kyogokuMigrationLike");
+    expect(apiClient).not.toContain("totalBalance:");
+    expect(apiClient).not.toContain("totalBonusPoints:");
+  });
+
   it.each([
     "client/src/pages/MemberDetail.tsx",
     "client/src/pages/MallMembers.tsx",

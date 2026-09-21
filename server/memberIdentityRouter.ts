@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
+import { bwAuditCentralLedgerByEmail } from "./bw-api";
 import { mergeEmailAndLineMemberAccounts } from "./memberAccountMergeService";
 import { recoverMemberPointsAndHeldReceipts } from "./memberPointReceiptRecoveryService";
 import {
@@ -25,6 +26,17 @@ export const memberIdentityRouter = router({
       logs: await getMemberIdentityActionLogs(input.memberId),
     })),
   health: protectedProcedure.query(() => getMemberIdentityUpgradeHealth()),
+  auditBeautyWalletLedger: protectedProcedure
+    .input(z.object({ email: z.string().trim().email().max(320) }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "管理者権限が必要です",
+        });
+      }
+      return bwAuditCentralLedgerByEmail(input.email);
+    }),
   mergeEmailAndLineAccounts: protectedProcedure
     .input(
       z.object({
