@@ -13842,7 +13842,7 @@ ${conversationText}
 
         await sdb.transaction(async tx => {
           const lockedGroupResult: any = await tx.execute(sql`
-            SELECT lineGroupId, isActive, autoFollowUpEnabled, autoFollowUpEnabledAt
+            SELECT lineGroupId, isActive, autoFollowUpEnabled
             FROM line_groups
             WHERE lineGroupId = ${input.lineGroupId}
             LIMIT 1
@@ -13855,6 +13855,14 @@ ${conversationText}
               message: "対象のアクティブなLINEグループが見つかりません",
             });
           }
+          const automationStateResult: any = await tx.execute(sql`
+            SELECT autoFollowUpEnabledAt
+            FROM line_group_automation_states
+            WHERE lineGroupId = ${input.lineGroupId}
+            LIMIT 1
+            FOR UPDATE
+          `);
+          const automationState = automationStateResult?.[0]?.[0];
           await tx.execute(sql`
               INSERT INTO line_group_settings (lineGroupId)
               VALUES (${input.lineGroupId})
@@ -13907,19 +13915,21 @@ ${conversationText}
             input.autoFollowUpDays !== undefined ||
             input.autoFollowUpMessage !== undefined
           ) {
-            const autoFollowUpEnabledAt = input.autoFollowUpEnabled === undefined
-              ? undefined
-              : input.autoFollowUpEnabled
-                ? (Number(lockedGroup.autoFollowUpEnabled) === 1 && lockedGroup.autoFollowUpEnabledAt
-                    ? new Date(lockedGroup.autoFollowUpEnabledAt)
-                    : new Date())
-                : null;
             await tx.update(lineGroups).set({
               autoFollowUpEnabled: input.autoFollowUpEnabled,
               autoFollowUpDays: input.autoFollowUpDays,
               autoFollowUpMessage: input.autoFollowUpMessage,
-              autoFollowUpEnabledAt,
             }).where(eq(lineGroups.lineGroupId, input.lineGroupId));
+            if (input.autoFollowUpEnabled) {
+              const autoFollowUpEnabledAt = Number(lockedGroup.autoFollowUpEnabled) === 1 && automationState?.autoFollowUpEnabledAt
+                ? new Date(automationState.autoFollowUpEnabledAt)
+                : new Date();
+              await tx.execute(sql`
+                INSERT INTO line_group_automation_states (lineGroupId, autoFollowUpEnabledAt)
+                VALUES (${input.lineGroupId}, ${autoFollowUpEnabledAt})
+                ON DUPLICATE KEY UPDATE autoFollowUpEnabledAt = VALUES(autoFollowUpEnabledAt)
+              `);
+            }
           }
         });
         return { success: true };

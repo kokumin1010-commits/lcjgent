@@ -985,7 +985,6 @@ export const lineGroups = mysqlTable("line_groups", {
   autoFollowUpEnabled: boolean("autoFollowUpEnabled").default(true).notNull(), // Enabled by default; admins can opt out per group
   autoFollowUpDays: int("autoFollowUpDays").default(2), // Days of inactivity before sending follow-up (default: 2 days)
   autoFollowUpMessage: text("autoFollowUpMessage"), // Custom follow-up message template
-  autoFollowUpEnabledAt: timestamp("autoFollowUpEnabledAt"), // Grace-period anchor when automation is enabled
   lastAutoFollowUpAt: timestamp("lastAutoFollowUpAt"), // Last auto follow-up sent timestamp
   lastMessageAt: timestamp("lastMessageAt"),
   conversationRevision: bigint("conversationRevision", { mode: "number", unsigned: true }).default(0).notNull(),
@@ -995,6 +994,13 @@ export const lineGroups = mysqlTable("line_groups", {
 
 export type LineGroup = typeof lineGroups.$inferSelect;
 export type InsertLineGroup = typeof lineGroups.$inferInsert;
+
+/** Grace-period anchor kept outside the large line_groups table. */
+export const lineGroupAutomationStates = mysqlTable("line_group_automation_states", {
+  lineGroupId: varchar("lineGroupId", { length: 64 }).primaryKey(),
+  autoFollowUpEnabledAt: timestamp("autoFollowUpEnabledAt").notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
 
 /**
  * One-time, transactional operational rollouts for LINE group automation.

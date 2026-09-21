@@ -150,10 +150,11 @@ describe("LINE outbound audit reliability", () => {
       direction: "outgoing",
       responseStatus: "pending",
     }));
-    expect(fake.execute).toHaveBeenCalledTimes(4);
+    expect(fake.execute).toHaveBeenCalledTimes(5);
     expect(fake.execute.mock.invocationCallOrder[1]).toBeLessThan(fake.values.mock.invocationCallOrder[0]);
     expect(fake.execute.mock.invocationCallOrder[2]).toBeLessThan(fake.values.mock.invocationCallOrder[0]);
-    expect(fake.values.mock.invocationCallOrder[0]).toBeLessThan(fake.execute.mock.invocationCallOrder[3]);
+    expect(fake.execute.mock.invocationCallOrder[3]).toBeLessThan(fake.values.mock.invocationCallOrder[0]);
+    expect(fake.values.mock.invocationCallOrder[0]).toBeLessThan(fake.execute.mock.invocationCallOrder[4]);
     expect(fake.transaction).toHaveBeenCalledTimes(1);
   });
 
@@ -174,7 +175,7 @@ describe("LINE outbound audit reliability", () => {
       created: false,
       status: "responded",
     });
-    expect(fake.execute).toHaveBeenCalledTimes(3);
+    expect(fake.execute).toHaveBeenCalledTimes(4);
   });
 
   it("rejects the same request UUID with different content or target", async () => {
@@ -422,10 +423,11 @@ describe("LINE group inbound persistence and activity", () => {
     await expect(__lineDbTestUtils.saveLineGroupInboundMessageAndActivityWithDb(fake.db, data))
       .resolves.toEqual({ id: 77, ...data });
     expect(fake.transaction).toHaveBeenCalledTimes(1);
-    expect(fake.execute).toHaveBeenCalledTimes(4);
+    expect(fake.execute).toHaveBeenCalledTimes(5);
     expect(fake.execute.mock.invocationCallOrder[1]).toBeLessThan(fake.values.mock.invocationCallOrder[0]);
     expect(fake.execute.mock.invocationCallOrder[2]).toBeLessThan(fake.values.mock.invocationCallOrder[0]);
-    expect(fake.values.mock.invocationCallOrder[0]).toBeLessThan(fake.execute.mock.invocationCallOrder[3]);
+    expect(fake.execute.mock.invocationCallOrder[3]).toBeLessThan(fake.values.mock.invocationCallOrder[0]);
+    expect(fake.values.mock.invocationCallOrder[0]).toBeLessThan(fake.execute.mock.invocationCallOrder[4]);
   });
 
   it("does not move activity for a duplicate webhook message", async () => {
@@ -438,7 +440,7 @@ describe("LINE group inbound persistence and activity", () => {
       content: "再配信",
       lineTimestamp: Date.parse("2026-09-20T02:00:00.000Z"),
     })).resolves.toBeNull();
-    expect(fake.execute).toHaveBeenCalledTimes(3);
+    expect(fake.execute).toHaveBeenCalledTimes(4);
   });
 });
 

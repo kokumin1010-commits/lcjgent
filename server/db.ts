@@ -23,7 +23,7 @@ import {
 } from "../shared/brandMetrics";
 import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallProductVariants, InsertMallProductVariant, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport, liveSuggestions, InsertLiveSuggestion, livestreamPromotions, InsertLivestreamPromotion, masterSetSuggestions, InsertMasterSetSuggestion, masterSetSuggestionItems, InsertMasterSetSuggestionItem, masterSetAdoptions, InsertMasterSetAdoption, masterSetFeedback, InsertMasterSetFeedback, masterSetReviews, InsertMasterSetReview, megaChannelSettings, InsertMegaChannelSetting, megaChannelQualifications, InsertMegaChannelQualification, megaChannelHistory, InsertMegaChannelHistoryRecord, featuredProducts, InsertFeaturedProduct, featuredProductTargets, InsertFeaturedProductTarget, featuredProductAcknowledgements, InsertFeaturedProductAcknowledgement, featuredProductProgress, InsertFeaturedProductProgress, featuredProductPenalties, InsertFeaturedProductPenalty, brandShortVideos, InsertBrandShortVideo, brandAdReports, InsertBrandAdReport, brandAdEmailRecipients, InsertBrandAdEmailRecipient, callLogs, InsertCallLog, salesActivities, InsertSalesActivity, brandAnalysisCache, InsertBrandAnalysisCache, leadCollectionHistory, InsertLeadCollectionHistory, salesEmailLogs, InsertSalesEmailLog, salesEmailReplies, InsertSalesEmailReply, festivalCompanyApplications, InsertFestivalCompanyApplication, festivalLiverApplications, InsertFestivalLiverApplication, festivalGeneralApplications, InsertFestivalGeneralApplication, referralBonusOffers, InsertReferralBonusOffer, reportAttachments, InsertReportAttachment } from "../drizzle/schema";
 
-import { lineGroupLifecycleStates } from "../drizzle/schema";
+import { lineGroupAutomationStates, lineGroupLifecycleStates } from "../drizzle/schema";
 import { taskExecutionFeedbacks, taskNotificationOutbox } from "../drizzle/schema";
 import { shouldApplyLineGroupLifecycleEvent } from "./lineGroupLifecycleOrder";
 
@@ -3475,8 +3475,11 @@ export async function createOrUpdateLineGroup(data: {
         brandId: data.brandId,
         autoFollowUpEnabled: true,
         autoFollowUpDays: 2,
-        autoFollowUpEnabledAt: enabledAt,
         lastMessageAt: enabledAt,
+      });
+      await tx.insert(lineGroupAutomationStates).values({
+        lineGroupId: data.lineGroupId,
+        autoFollowUpEnabledAt: enabledAt,
       });
       await tx.execute(sql`
         INSERT INTO line_group_settings
@@ -3584,11 +3587,15 @@ export async function updateLineGroupActive(
       .set(isActive ? {
         isActive: true,
         autoFollowUpEnabled: true,
-        autoFollowUpEnabledAt: new Date(),
       } : { isActive: false })
       .where(eq(lineGroups.lineGroupId, lineGroupId));
 
     if (isActive) {
+      await tx.execute(sql`
+        INSERT INTO line_group_automation_states (lineGroupId, autoFollowUpEnabledAt)
+        VALUES (${lineGroupId}, CURRENT_TIMESTAMP)
+        ON DUPLICATE KEY UPDATE autoFollowUpEnabledAt = VALUES(autoFollowUpEnabledAt)
+      `);
       await tx.execute(sql`
         INSERT INTO line_group_settings
           (lineGroupId, autoReplyEnabled, analysisEnabled, proactiveAiEnabled, relationshipObjective)
@@ -3685,16 +3692,19 @@ export async function updateLineGroupAutoFollowUp(lineGroupId: string, settings:
 }) {
   const db = await getDb();
   if (!db) return;
-  const nextSettings = settings.autoFollowUpEnabled === undefined
-    ? settings
-    : {
-        ...settings,
-        autoFollowUpEnabledAt: settings.autoFollowUpEnabled ? new Date() : null,
-      };
-  await db
-    .update(lineGroups)
-    .set(nextSettings)
-    .where(eq(lineGroups.lineGroupId, lineGroupId));
+  await db.transaction(async tx => {
+    await tx
+      .update(lineGroups)
+      .set(settings)
+      .where(eq(lineGroups.lineGroupId, lineGroupId));
+    if (settings.autoFollowUpEnabled) {
+      await tx.execute(sql`
+        INSERT INTO line_group_automation_states (lineGroupId, autoFollowUpEnabledAt)
+        VALUES (${lineGroupId}, CURRENT_TIMESTAMP)
+        ON DUPLICATE KEY UPDATE autoFollowUpEnabledAt = VALUES(autoFollowUpEnabledAt)
+      `);
+    }
+  });
 }
 
 function getLineGroupFollowUpActivityAt(group: {
@@ -3738,15 +3748,26 @@ export async function getGroupsNeedingFollowUp() {
   if (!db) return [];
   
   // Get all active groups with auto follow-up enabled
-  const groups = await db
-    .select()
+  const groupRows = await db
+    .select({
+      group: lineGroups,
+      autoFollowUpEnabledAt: lineGroupAutomationStates.autoFollowUpEnabledAt,
+    })
     .from(lineGroups)
+    .leftJoin(
+      lineGroupAutomationStates,
+      eq(lineGroupAutomationStates.lineGroupId, lineGroups.lineGroupId),
+    )
     .where(
       and(
         eq(lineGroups.isActive, true),
         eq(lineGroups.autoFollowUpEnabled, true)
       )
     );
+  const groups = groupRows.map(row => ({
+    ...row.group,
+    autoFollowUpEnabledAt: row.autoFollowUpEnabledAt,
+  }));
   
   // Get all active LINE follow-ups (reminders) for groups
   const activeFollowUps = await db
@@ -3827,11 +3848,14 @@ async function withLineGroupFollowUpClaimUsingDb<T>(
   const now = params.now || new Date();
   const claim = await db.transaction(async tx => {
     const groupResult = await tx.execute(sql`
-      SELECT lineGroupId, groupName, isActive, autoFollowUpEnabled,
-        autoFollowUpDays, autoFollowUpMessage, autoFollowUpEnabledAt, lastAutoFollowUpAt,
-        lastMessageAt, createdAt
-      FROM line_groups
-      WHERE lineGroupId = ${params.lineGroupId}
+      SELECT groups.lineGroupId, groups.groupName, groups.isActive, groups.autoFollowUpEnabled,
+        groups.autoFollowUpDays, groups.autoFollowUpMessage,
+        automation.autoFollowUpEnabledAt AS autoFollowUpEnabledAt,
+        groups.lastAutoFollowUpAt, groups.lastMessageAt, groups.createdAt
+      FROM line_groups AS groups
+      LEFT JOIN line_group_automation_states AS automation
+        ON automation.lineGroupId = groups.lineGroupId
+      WHERE groups.lineGroupId = ${params.lineGroupId}
       LIMIT 1
       FOR UPDATE
     `);
@@ -3970,9 +3994,9 @@ export async function lockLineGroupConversationUsingExecutor(
   if (ensureRow) {
     await executor.execute(sql`
       INSERT IGNORE INTO line_groups
-        (lineGroupId, groupName, isActive, notificationsEnabled, autoFollowUpEnabled, autoFollowUpEnabledAt)
+        (lineGroupId, groupName, isActive, notificationsEnabled, autoFollowUpEnabled)
       VALUES
-        (${lineGroupId}, 'LINE Group', true, true, true, CURRENT_TIMESTAMP)
+        (${lineGroupId}, 'LINE Group', true, true, true)
     `);
   }
   const lockedResult = await executor.execute(sql`
@@ -3986,6 +4010,10 @@ export async function lockLineGroupConversationUsingExecutor(
     throw new Error("LINE_GROUP_CONVERSATION_LOCK_UNAVAILABLE");
   }
   if (ensureRow) {
+    await executor.execute(sql`
+      INSERT IGNORE INTO line_group_automation_states (lineGroupId, autoFollowUpEnabledAt)
+      VALUES (${lineGroupId}, CURRENT_TIMESTAMP)
+    `);
     await executor.execute(sql`
       INSERT INTO line_group_settings
         (lineGroupId, autoReplyEnabled, analysisEnabled, proactiveAiEnabled, relationshipObjective)

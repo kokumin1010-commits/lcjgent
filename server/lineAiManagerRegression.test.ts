@@ -103,7 +103,8 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(manager).toContain("センシティブ属性・性格・親密度を推測しない");
     expect(groupAutomationMigration).not.toContain("MODIFY COLUMN");
     expect(groupAutomationMigration).not.toContain("ALTER TABLE");
-    expect(manager).toContain("ADD COLUMN `autoFollowUpEnabledAt`");
+    expect(groupAutomationMigration).toContain("CREATE TABLE IF NOT EXISTS `line_group_automation_states`");
+    expect(manager).toContain("INSERT INTO line_group_automation_states");
     expect(manager).toContain("SET autoFollowUpEnabled = true");
     expect(manager).toContain("autoReplyEnabled = true");
     expect(manager).toContain("analysisEnabled = true");
@@ -145,7 +146,8 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(db).toContain('reason: "group_activity_changed"');
     expect(db).toContain('reason: "follow_up_mode_changed"');
     expect(schema).toContain('autoFollowUpEnabled: boolean("autoFollowUpEnabled").default(true)');
-    expect(schema).toContain('autoFollowUpEnabledAt: timestamp("autoFollowUpEnabledAt")');
+    expect(schema).toContain('lineGroupAutomationStates = mysqlTable("line_group_automation_states"');
+    expect(schema).toContain('autoFollowUpEnabledAt: timestamp("autoFollowUpEnabledAt").notNull()');
     expect(db).toContain("autoFollowUpEnabled: true");
     expect(db).toContain("getLineGroupFollowUpActivityAt(group)");
     expect(db).toContain("followUpActivityAt: eligibility.lastActivityAt");
@@ -154,6 +156,25 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(manager).toContain("INSERT IGNORE INTO line_group_automation_rollouts");
     expect(manager).toContain('getLineGroupAutomationDefaultsHealth(): Promise<"ready" | "pending">');
     expect(server).toContain("groupAutomationDefaults");
+    const rolloutReadyIndex = server.indexOf("ensureLineGroupAutomationDefaults().then");
+    const groupSchedulerStartIndex = server.indexOf("startGroupFollowUpScheduler()", rolloutReadyIndex);
+    const rolloutFailureIndex = server.indexOf("}).catch(error =>", rolloutReadyIndex);
+    expect(rolloutReadyIndex).toBeGreaterThanOrEqual(0);
+    expect(groupSchedulerStartIndex).toBeGreaterThan(rolloutReadyIndex);
+    expect(groupSchedulerStartIndex).toBeLessThan(rolloutFailureIndex);
+    expect(server.match(/startGroupFollowUpScheduler\(\)/g)).toHaveLength(1);
+    for (const schedulerStart of [
+      "startLiveSuggestionScheduler()",
+      "startDailyRankingScheduler()",
+      "startWeeklyReportScheduler()",
+      "startScheduleReminderScheduler()",
+      "startMonthlyReportScheduler()",
+    ]) {
+      const schedulerStartIndex = server.indexOf(schedulerStart, rolloutReadyIndex);
+      expect(schedulerStartIndex).toBeGreaterThan(rolloutReadyIndex);
+      expect(schedulerStartIndex).toBeLessThan(rolloutFailureIndex);
+      expect(server.match(new RegExp(schedulerStart.replace(/[()]/g, "\\$&"), "g"))).toHaveLength(1);
+    }
     expect(manager).toContain("autoReplyEnabled = true");
     expect(manager).toContain("analysisEnabled = true");
     expect(manager).toContain("proactiveAiEnabled = true");

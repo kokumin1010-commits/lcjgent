@@ -328,6 +328,7 @@ describe("LCJ LINE AI manager", () => {
       .mockResolvedValueOnce([{ affectedRows: 1 }])
       .mockResolvedValueOnce([{ affectedRows: 4 }])
       .mockResolvedValueOnce([{ affectedRows: 4 }])
+      .mockResolvedValueOnce([{ affectedRows: 4 }])
       .mockResolvedValueOnce([[{ activeGroupCount: 4, settingsRowCount: 4 }]])
       .mockResolvedValueOnce([{ affectedRows: 1 }]);
     const db = {
@@ -339,7 +340,7 @@ describe("LCJ LINE AI manager", () => {
       activeGroupCount: 4,
       settingsRowCount: 4,
     });
-    expect(execute).toHaveBeenCalledTimes(5);
+    expect(execute).toHaveBeenCalledTimes(6);
 
     const alreadyClaimedExecute = vi.fn().mockResolvedValueOnce([{ affectedRows: 0 }]);
     const alreadyClaimedDb = {

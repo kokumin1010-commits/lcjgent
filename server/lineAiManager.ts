@@ -2709,9 +2709,15 @@ async function applyLineGroupAutomationDefaultsRolloutUsingDb(
 
     await tx.execute(sql`
       UPDATE line_groups
-      SET autoFollowUpEnabled = true,
-          autoFollowUpEnabledAt = CURRENT_TIMESTAMP
+      SET autoFollowUpEnabled = true
       WHERE isActive = true
+    `);
+    await tx.execute(sql`
+      INSERT INTO line_group_automation_states (lineGroupId, autoFollowUpEnabledAt)
+      SELECT lineGroupId, CURRENT_TIMESTAMP
+      FROM line_groups
+      WHERE isActive = true
+      ON DUPLICATE KEY UPDATE lineGroupId = VALUES(lineGroupId)
     `);
     await tx.execute(sql`
       INSERT INTO line_group_settings
@@ -2757,13 +2763,6 @@ export async function ensureLineGroupAutomationDefaults(): Promise<{
 }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available while applying LINE group automation defaults");
-  try {
-    await db.execute(sql.raw(
-      "ALTER TABLE `line_groups` ADD COLUMN `autoFollowUpEnabledAt` timestamp NULL AFTER `autoFollowUpMessage`",
-    ));
-  } catch (error) {
-    if (!isDuplicateMysqlColumn(error)) throw error;
-  }
   return applyLineGroupAutomationDefaultsRolloutUsingDb(db);
 }
 
@@ -2819,6 +2818,12 @@ export async function ensureLineAiManagerStorage(): Promise<void> {
     \`settingsRowCount\` int NOT NULL DEFAULT 0,
     \`appliedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (\`rolloutKey\`)
+  )`));
+  await db.execute(sql.raw(`CREATE TABLE IF NOT EXISTS \`line_group_automation_states\` (
+    \`lineGroupId\` varchar(64) NOT NULL,
+    \`autoFollowUpEnabledAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    \`updatedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (\`lineGroupId\`)
   )`));
   await db.execute(sql.raw(`CREATE TABLE IF NOT EXISTS \`line_ai_manager_settings\` (
     \`id\` int AUTO_INCREMENT NOT NULL,
@@ -2906,6 +2911,11 @@ export async function checkLineAiManagerStorage(): Promise<boolean> {
   await db.execute(sql`
     SELECT rolloutKey, activeGroupCount, settingsRowCount, appliedAt
     FROM line_group_automation_rollouts
+    LIMIT 1
+  `);
+  await db.execute(sql`
+    SELECT lineGroupId, autoFollowUpEnabledAt, updatedAt
+    FROM line_group_automation_states
     LIMIT 1
   `);
   await db.select({

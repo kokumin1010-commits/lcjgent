@@ -4246,6 +4246,12 @@ async function startServer() {
           settingsRowCount: rollout.settingsRowCount,
         });
         startLineAiManagerScheduler();
+        startGroupFollowUpScheduler();
+        startLiveSuggestionScheduler();
+        startDailyRankingScheduler();
+        startWeeklyReportScheduler();
+        startScheduleReminderScheduler();
+        startMonthlyReportScheduler();
       }).catch(error => {
         const delayMs = Math.min(60_000, 5_000 * attempt);
         console.error("[LINE AI Manager] Group automation defaults unavailable; scheduler remains stopped", {
@@ -4379,15 +4385,10 @@ async function startServer() {
     // Encrypted offsite backup: startup safety snapshot + daily 03:15 JST.
     startDatabaseBackupScheduler();
     
-    // Start group follow-up scheduler (checks for inactive groups every 6 hours)
-    startGroupFollowUpScheduler();
-    
-    // Note: startResponseReminderScheduler is disabled because groupFollowUpScheduler already handles inactive group follow-ups
+    // Note: groupFollowUpScheduler is started only after LINE group automation defaults are ready.
+    // startResponseReminderScheduler is disabled because groupFollowUpScheduler already handles inactive group follow-ups.
     // This was causing duplicate messages to be sent
     // startResponseReminderScheduler();
-    
-    // Start schedule reminder scheduler (sends reminders for upcoming schedules every 5 minutes)
-    startScheduleReminderScheduler();
     
     // Start LINE reminder scheduler (sends LINE reminders every 1 minute)
     startLineReminderScheduler();
@@ -4410,21 +4411,9 @@ async function startServer() {
     // Start step email scheduler (sends step emails every 1 hour)
     startStepEmailScheduler();
     
-    // Start AI live suggestion scheduler (sends daily suggestions at JST 07:00)
-    startLiveSuggestionScheduler();
-    
     // Start peer bonus monthly reset scheduler (resets pool on 1st of each month JST)
     startPeerBonusResetScheduler();
-
-    // Start daily ranking scheduler (sends daily ranking to LINE at JST 00:00)
-    startDailyRankingScheduler();
     
-    // Start weekly report scheduler (sends weekly report every Monday at JST 09:00)
-    startWeeklyReportScheduler();
-    
-    // Start monthly report scheduler (sends monthly report on 1st of each month)
-    startMonthlyReportScheduler();
-
     // Start pre-briefing scheduler (sends briefing 1h before and 5min before stream)
         startPreBriefingScheduler();
     // Start Feishu auto-sync scheduler (syncs brands from Lark every 6 hours)
