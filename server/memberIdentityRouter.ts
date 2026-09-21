@@ -28,7 +28,7 @@ export const memberIdentityRouter = router({
   health: protectedProcedure.query(() => getMemberIdentityUpgradeHealth()),
   auditBeautyWalletLedger: protectedProcedure
     .input(z.object({ email: z.string().trim().email().max(320) }))
-    .query(async ({ ctx, input }) => {
+    .mutation(async ({ ctx, input }) => {
       if (ctx.user.role !== "admin") {
         throw new TRPCError({
           code: "FORBIDDEN",
