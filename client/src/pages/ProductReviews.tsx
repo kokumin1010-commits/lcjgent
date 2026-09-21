@@ -530,12 +530,12 @@ export default function ProductReviews() {
           <div className="text-center py-12">
             <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500">この商品のレビューはまだありません</p>
-            <p className="text-sm text-gray-400 mt-1">最初のレビュアーになりませんか？</p>
+            <p className="text-sm text-gray-400 mt-1">新規レシート受付は現在停止中です</p>
             <Button
-              className="mt-4 bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 shadow-md"
-              onClick={() => setLocation("/receipt-upload")}
+              className="mt-4"
+              disabled
             >
-              レシートを送ってレビューする
+              受付停止中
             </Button>
           </div>
         )}
@@ -547,14 +547,14 @@ export default function ProductReviews() {
           <div className="relative z-10 p-6 md:p-8 text-center text-white">
             <h3 className="font-bold text-lg mb-2">この商品を使ったことがありますか？</h3>
             <p className="text-sm text-gray-300 mb-5 leading-relaxed">
-              レシートを送るだけでポイント還元＋あなたのリアルな口コミを共有できます
+              過去の購入証明付きレビューは引き続き閲覧できます。新規LCJポイント申請は停止中です。
             </p>
             <Button
               className="bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white shadow-lg shadow-rose-500/30"
-              onClick={() => setLocation("/receipt-upload")}
+              onClick={() => setLocation("/beauty-wallet")}
             >
               <Receipt className="h-4 w-4 mr-1.5" />
-              レシートを送ってレビューする
+              Beauty Walletを確認する
             </Button>
           </div>
         </div>

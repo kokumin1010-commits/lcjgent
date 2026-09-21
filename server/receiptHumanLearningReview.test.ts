@@ -145,10 +145,12 @@ describe("human learning production contracts", () => {
     expect(pageSource).toContain('"learning_review"');
     expect(pageSource).toContain("<HumanLearningReviewPanel />");
     expect(panelSource).toContain("const reasonReady = form.humanReason.trim().length > 0");
-    expect(panelSource).toContain("disabled={isPending || !reasonReady || !evidenceReady}");
+    expect(panelSource).toContain("disabled={isPending || !reasonReady || !evidenceReady || !rejectionCategoryReady}");
+    expect(panelSource).toContain('approve: "ポイント承認停止中"');
+    expect(panelSource).toContain('className="bg-emerald-600 hover:bg-emerald-700" disabled');
     expect(panelSource).toContain("getHumanLearningActionGuard(item.reasonCode)");
     expect(panelSource).toContain("提交时会实时复核订单号");
-    expect(panelSource).toContain("若没有已通过/已发积分记录，当前证据完整的订单可以通过");
+    expect(panelSource).toContain("Beauty Wallet迁移期间，LCJ积分批准已暂停");
     expect(panelSource).not.toContain("该订单只能拒绝");
     expect(panelSource).not.toContain("已自动选择“重复冲突”和“重复订单”");
     expect(panelSource).toContain("理由可以简短；只要不是空白即可提交");

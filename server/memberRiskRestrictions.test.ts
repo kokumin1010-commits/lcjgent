@@ -68,12 +68,13 @@ describe('server-side enforcement and audit contracts', () => {
     expect(db).toContain('assertMemberActionAllowed(restrictedMemberId, ["points"])');
   });
 
-  it('enforces all checkout variants and admin point adjustment in routers', () => {
+  it('keeps cash orders risk-checked and fails closed for point checkout or adjustment', () => {
     const routers = source('server/routers.ts');
     expect((routers.match(/assertMemberActionAllowed\(lineUser\.id, \['order'\]\)/g) || []).length).toBeGreaterThanOrEqual(2);
-    expect((routers.match(/\['order', 'points'\]/g) || []).length).toBeGreaterThanOrEqual(2);
-    expect(routers).toContain("assertMemberActionAllowed(lineUser.id, ['receipt'])");
-    expect(routers).toContain("assertMemberActionAllowed(restrictedMemberId, ['points'])");
+    expect(routers).toContain('purchaseWithPoints: publicProcedure');
+    expect(routers).toContain('adminAdjustPoints: protectedProcedure');
+    expect(routers).toContain('adminApproveLineReceipt: protectedProcedure');
+    expect((routers.match(/message: LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE/g) || []).length).toBeGreaterThanOrEqual(10);
   });
 
   it('records create, release and extend actions inside transactions', () => {

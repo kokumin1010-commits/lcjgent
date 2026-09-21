@@ -18,12 +18,11 @@ import { startBrandBdMeetingReminderScheduler } from "../brandBdMeetingReminderS
 import { startGroupFollowUpScheduler } from "../groupFollowUpScheduler";
 import { startResponseReminderScheduler } from "../responseReminderScheduler";
 import { startScheduleReminderScheduler } from "../scheduleReminderScheduler";
-import { startAiAutoApproveScheduler, startAmountReocrScheduler } from "../aiAutoApproveScheduler";
+import { startAmountReocrScheduler } from "../aiAutoApproveScheduler";
 import { startLineReminderScheduler } from "../lineReminderScheduler";
 import { startAutoPostScheduler } from "../autoPostScheduler";
 import { startSeoMonitor } from "../seoMonitor";
 import { startArticleRewriter } from "../articleRewriter";
-import { initPointExpiryScheduler } from "../pointExpiryScheduler";
 import { startStepEmailScheduler } from "../stepEmailScheduler";
 import { startLiveSuggestionScheduler } from "../liveSuggestionScheduler";
 import { startWeeklyReportScheduler } from "../weeklyReportScheduler";
@@ -56,6 +55,7 @@ import { runStoreDataRetentionUpgradeSetup } from "../storeDataRetentionUpgrade"
 import { runStoreDailyShopUpgradeSetup } from "../storeDailyShopUpgrade";
 import { runMemberRiskUpgradeSetup } from "../memberRiskUpgrade";
 import { runMemberIdentityUpgradeSetup } from "../memberIdentityUpgrade";
+import { ensureBeautyWalletMemberLinkSchema } from "../beautyWalletMemberLinkService";
 import { runStoreProductUpgradeSetup } from "../storeProductUpgrade";
 import { runLcmMarketplaceUpgradeSetup } from "../lcmMarketplaceUpgrade";
 import { ensureBrandDayNativeTables } from "../brandDaySchemaUpgrade";
@@ -99,10 +99,7 @@ import { runAccountBrandDataRecovery } from "../accountBrandDataRecovery";
 import { runReportsAccountsProductsRecovery } from "../reportsAccountsProductsRecovery";
 import { runSelectionProductDeepRecovery } from "../selectionProductDeepRecovery";
 import { runKgProductRecovery } from "../kgProductRecovery";
-import { runMallPointMemberRecovery } from "../mallPointMemberRecovery";
 import { runMallBusinessReferenceRecovery } from "../mallBusinessReferenceRecovery";
-import { runPointBalanceLinkRecovery } from "../pointBalanceLinkRecovery";
-import { startAiAutoApproveScheduledTrigger } from "../aiAutoApproveScheduledTrigger";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
 
@@ -3981,6 +3978,13 @@ async function startServer() {
     throw error;
   }
 
+  try {
+    await ensureBeautyWalletMemberLinkSchema();
+  } catch (error) {
+    console.error("[BeautyWalletMemberLink] pre-listen setup failed", error);
+    throw error;
+  }
+
   // Procurement mutations require the extended order columns. Run the encrypted,
   // idempotent schema upgrade before accepting submissions instead of altering on click.
   try {
@@ -4364,29 +4368,12 @@ async function startServer() {
       console.error("[KgProductRecovery] startup verification failed", error);
     }
 
-    // Restore the verified 2026-03-13 point snapshot and its member identity keys.
-    // Existing current balances are always preserved; only missing keys are inserted.
-    try {
-      await runMallPointMemberRecovery();
-    } catch (error) {
-      console.error("[MallPointMemberRecovery] startup verification failed", error);
-    }
-
     // Repair member references carried by surviving orders, addresses and point exchanges.
     // Only the numeric ID evidenced by the surviving business row is restored.
     try {
       await runMallBusinessReferenceRecovery();
     } catch (error) {
       console.error("[MallBusinessReferenceRecovery] startup verification failed", error);
-    }
-
-    // Keep evidence-backed point components on the verified LINE key.
-    // Healthy startup is read-only; drift repair is encrypted-backup protected and audited.
-    try {
-      await runPointBalanceLinkRecovery();
-    } catch (error) {
-      console.error("[PointBalanceLinkRecovery] startup verification failed", error);
-      throw error;
     }
 
     // Encrypted offsite backup: startup safety snapshot + daily 03:15 JST.
@@ -4414,14 +4401,8 @@ async function startServer() {
     // Start article rewriter (rewrites weak articles weekly on Monday JST 03:00)
     startArticleRewriter();
     
-    // Start point expiry scheduler (processes expired points daily, sends LINE notifications)
-    initPointExpiryScheduler();
-    
-    // Start AI auto-approve scheduler (server-side autonomous batch processing)
-    startAiAutoApproveScheduler();
-    
-    // Start AI auto-approve scheduled trigger (auto-triggers at JST 9:00, 12:00, 18:00)
-    startAiAutoApproveScheduledTrigger();
+    // Beauty Wallet is the sole live ledger. LCJ point expiry remains disabled so
+    // the compatibility snapshot cannot mutate or send misleading notifications.
     
     // Start amount re-OCR scheduler (re-recognizes amounts for approved receipts with totalAmount=0)
     startAmountReocrScheduler();

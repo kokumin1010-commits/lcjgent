@@ -165,13 +165,14 @@ describe("member account merge central-ledger gate", () => {
     expect(mocks.merge).not.toHaveBeenCalled();
   });
 
-  it("allows the existing audited merge only when the unified total matches", async () => {
+  it("keeps the local merge disabled even when the previous audit totals would match", async () => {
     const caller = memberIdentityRouter.createCaller(
       context({ id: 1, role: "admin" })
     );
-    await expect(caller.mergeEmailAndLineAccounts(mergeInput)).resolves.toEqual({
-      success: true,
-    });
-    expect(mocks.merge).toHaveBeenCalledOnce();
+    await expect(caller.mergeEmailAndLineAccounts(mergeInput)).rejects.toMatchObject(
+      { code: "PRECONDITION_FAILED" }
+    );
+    expect(mocks.audit).not.toHaveBeenCalled();
+    expect(mocks.merge).not.toHaveBeenCalled();
   });
 });

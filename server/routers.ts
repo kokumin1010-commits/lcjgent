@@ -122,7 +122,9 @@ import {
 } from "./manualDataLossRecovery";
 import { memberRiskRouter } from "./memberRiskRouter";
 import { memberIdentityRouter } from "./memberIdentityRouter";
-import { assertMemberActionAllowed, resolveMemberIdFromPointKey } from "./memberRestrictionService";
+import { beautyWalletMemberRouter } from "./beautyWalletMemberRouter";
+import { assertMemberActionAllowed } from "./memberRestrictionService";
+import { LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE } from "./pointLedgerPolicy";
 import { storeProductRouter } from "./storeProductRouter";
 import { maskReceiptImage, maskMultipleImages } from "./receiptMaskingService";
 import {
@@ -721,15 +723,9 @@ import {
   bulkUpdateProductSourceUrls,
   getProductMasterImageByName,
   getBwLinkedAccount,
-  createBwLinkToken,
-  completeBwLink,
-  unlinkBwAccount,
-  exchangePointsToBw,
-  updateBwTransferStatus,
   getPointExchangeHistory,
   getMonthlyExchangeSummary,
   getAllPointExchanges,
-  getPendingExchanges,
   createPopupVariant,
   getAllPopupVariants,
   getActivePopupVariants,
@@ -875,12 +871,13 @@ import {
 } from "./lineAiManager";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { users, lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos, brandMonthlyGmvTargets, livestreamProducts, livestreamRealtimeRecords, livestreamRealtimeSnapshots, livestreamLuckyBagImages, livestreamCsvSnapshots, livestreamCsvProducts, brandProducts, brandActivities, brandMemos, brandFiles } from "../drizzle/schema";
+import { users, lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos, brandMonthlyGmvTargets, livestreamProducts, livestreamRealtimeRecords, livestreamRealtimeSnapshots, livestreamLuckyBagImages, livestreamCsvSnapshots, livestreamCsvProducts, brandProducts, brandActivities, brandMemos, brandFiles } from "../drizzle/schema";
 import { eq, and, or, not, isNotNull, isNull, desc, gt, gte, lte, like, inArray, sql as sqlTag, sum, count, max } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
-import { createLineMemberSessionToken, verifyLineMemberSessionToken } from "./lineMemberSession";
+import { createLineMemberSessionToken, LINE_MEMBER_SESSION_TTL_MS } from "./lineMemberSession";
+import { getLineUserFromSession } from "./lineMemberAuth";
 import { authRouter } from "./auth";
 import { getLiverToken, liverRouter, verifyLiverToken } from "./liverRouter";
 import { setApplicationRouter } from "./setApplicationRouter";
@@ -935,64 +932,12 @@ import { setImageRouter } from "./setImageRouter";
 import { invoiceRouter } from "./invoiceRouter";
 import { sendEmail } from "./emailService";
 import { transcribeAudio } from "./_core/voiceTranscription";
-import { bwExchangeTokens, bwLookupCustomer } from "./bw-api";
 import { sendEmailViaSES, isSESConfigured } from "./ses";
 import { rundownRouter } from "./rundownRouter";
 
 // ============================================
 // LINE Login API for MALL (General User Authentication)
 // ============================================
-
-// Helper function to get LINE session from the HttpOnly cookie or a signed fallback token.
-// Legacy unsigned Base64 bearer tokens are intentionally rejected.
-async function getLineSession(ctx: { req: { cookies?: { line_session?: string }; headers: { authorization?: string; cookie?: string } } }): Promise<string | null> {
-  const sessionCookie = getRequestCookie(ctx.req, "line_session");
-  if (sessionCookie) return sessionCookie;
-
-  const authHeader = ctx.req.headers.authorization;
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  const verified = await verifyLineMemberSessionToken(authHeader.substring(7));
-  return verified ? JSON.stringify(verified) : null;
-}
-
-// Helper function to get LINE user from session
-async function getLineUserFromSession(ctx: { req: { cookies?: { line_session?: string }; headers: { authorization?: string; cookie?: string } } }): Promise<{
-  lineUser: Awaited<ReturnType<typeof getLineUserByLineId>> | Awaited<ReturnType<typeof getLineUserById>>;
-  session: { lineUserId?: string; userId?: number; expiresAt?: number };
-} | null> {
-  const sessionCookie = await getLineSession(ctx);
-  if (!sessionCookie) {
-    return null;
-  }
-  
-  try {
-    const session = JSON.parse(sessionCookie);
-    
-    // Check session expiration
-    if (session.expiresAt && session.expiresAt < Date.now()) {
-      return null;
-    }
-    
-    // Support both LINE login (lineUserId) and email login (userId)
-    let lineUser = null;
-    if (session.lineUserId && !session.lineUserId.startsWith('email_')) {
-      lineUser = await getLineUserByLineId(session.lineUserId);
-    } else if (session.userId) {
-      lineUser = await getLineUserById(session.userId);
-    } else if (session.lineUserId) {
-      // email login with email_ prefix
-      lineUser = await getLineUserById(parseInt(session.lineUserId.replace('email_', '')));
-    }
-    
-    if (!lineUser) {
-      return null;
-    }
-    
-    return { lineUser, session };
-  } catch {
-    return null;
-  }
-}
 
 // LINE Login configuration
 const LINE_LOGIN_CHANNEL_ID = process.env.LINE_LOGIN_CHANNEL_ID || "";
@@ -1146,19 +1091,18 @@ export const lineLoginRouter = router({
         displayName: profile.displayName,
         pictureUrl: profile.pictureUrl,
         createdAt: Date.now(),
-        expiresAt: Date.now() + 3650 * 24 * 60 * 60 * 1000, // 10 years for persistent login
+        expiresAt: Date.now() + LINE_MEMBER_SESSION_TTL_MS, // 30-day signed session
       };
       const sessionToken = await createLineMemberSessionToken(sessionData);
       
-      // Set session cookie (10 years for persistent login)
-      ctx.res.cookie("line_session", JSON.stringify(sessionData), {
+      // Set a bounded signed member session cookie.
+      ctx.res.cookie("line_session", sessionToken, {
         ...getSessionCookieOptions(ctx.req),
-        maxAge: 3650 * 24 * 60 * 60 * 1000, // 10 years for persistent login
+        maxAge: LINE_MEMBER_SESSION_TTL_MS, // 30-day signed session
       });
       
       return {
         success: true,
-        sessionToken,
         user: {
           lineUserId: profile.userId,
           displayName: profile.displayName,
@@ -1169,50 +1113,20 @@ export const lineLoginRouter = router({
   
   // Get current LINE user session
   me: publicProcedure.query(async ({ ctx }) => {
-    const sessionCookie = await getLineSession(ctx);
-    if (!sessionCookie) return null;
-    
-    try {
-      const session = JSON.parse(sessionCookie);
-      if (session.expiresAt < Date.now()) {
-        return null;
-      }
-      
-      // Get fresh user data from database
-      // Support both LINE login (lineUserId) and email login (userId)
-      let lineUser = null;
-      if (session.lineUserId && !session.lineUserId.startsWith('email_')) {
-        lineUser = await getLineUserByLineId(session.lineUserId);
-      } else if (session.userId) {
-        lineUser = await getLineUserById(session.userId);
-      }
-      
-      if (!lineUser) {
-        return null;
-      }
-      
-      // Get point balance - use lineUserId or email_${id} fallback for email-only users
-      const pointLookupId = lineUser.lineUserId || `email_${lineUser.id}`;
-      const pointBalance = await getLinePointBalance(pointLookupId);
-      
-      // Generate sessionToken for localStorage sync
-      // This ensures that even if the user logged in via cookie,
-      // the frontend can save the token to localStorage for cross-page navigation
-      const sessionToken = await createLineMemberSessionToken(session);
-      
-      return {
-        id: lineUser.id, // line_users.id (int)
-        lineUserId: lineUser.lineUserId || `email_${lineUser.id}`,
-        displayName: lineUser.displayName,
-        pictureUrl: lineUser.pictureUrl,
-        email: lineUser.email,
-        points: pointBalance?.balance || 0,
-        lifetimePoints: pointBalance?.totalEarned || 0,
-        sessionToken, // Always return session token for localStorage sync
-      };
-    } catch {
-      return null;
-    }
+    const sessionResult = await getLineUserFromSession(ctx);
+    if (!sessionResult?.lineUser) return null;
+
+    const lineUser = sessionResult.lineUser;
+    return {
+      id: lineUser.id,
+      lineUserId: lineUser.lineUserId || `email_${lineUser.id}`,
+      displayName: lineUser.displayName,
+      pictureUrl: lineUser.pictureUrl,
+      email: lineUser.email,
+      points: 0,
+      lifetimePoints: 0,
+      pointLedger: "beauty_wallet" as const,
+    };
   }),
   
   // LIFF callback - authenticate using LIFF access token or ID token
@@ -1274,7 +1188,7 @@ export const lineLoginRouter = router({
       // Register pending referral if code provided (points awarded on first purchase)
       if (input.referralCode) {
         try {
-          const { getReferralCodeByCode, registerPendingReferral, hasUsedReferralCode, getLiverById, createLinePointTransaction } = await import("./db");
+          const { getReferralCodeByCode, registerPendingReferral, hasUsedReferralCode, getLiverById } = await import("./db");
           const alreadyUsed = await hasUsedReferralCode(lineUser.id);
           if (!alreadyUsed) {
             const referralResult = await getReferralCodeByCode(input.referralCode);
@@ -1289,16 +1203,6 @@ export const lineLoginRouter = router({
                   200
                 );
                 
-                // Award 500pt to new user immediately at registration
-                await createLinePointTransaction({
-                  lineUserId: lineUser.lineUserId || `email_${lineUser.id}`,
-                  type: "earn",
-                  amount: 500,
-                  referenceType: "system",
-                  description: `紹介コード特典: 500ポイント獲得（新規登録ボーナス）`,
-                });
-                console.log(`[Referral] 500pt awarded to LINE user ${lineUser.id} at registration via code ${input.referralCode}`);
-                
                 // ライバーにLINE通知を送信（紹介コードが使われた）
                 try {
                   if (liver?.lineUserId) {
@@ -1306,7 +1210,7 @@ export const lineLoginRouter = router({
                     const appUrl = process.env.APP_URL || "https://lcjmall.com";
                     await pushMessage(liver.lineUserId, [{
                       type: "text",
-                      text: `🎉 紹介コードが使われました！\n\nあなたの紹介コード「${input.referralCode}」で新しいユーザーが登録しました。\n\n※ あなたへの200ptはこのユーザーが初回購入を完了した時点で付与されます。\n\n📊 紹介実績を確認\n${appUrl}/liver-mypage`
+                      text: `🎉 紹介コードが使われました！\n\nあなたの紹介コード「${input.referralCode}」で新しいユーザーが登録しました。\n\n※ ポイント特典はBeauty Wallet連携後、中央台帳で安全に処理されます。\n\n📊 紹介実績を確認\n${appUrl}/liver-mypage`
                     }]);
                   }
                 } catch (notifyErr: any) {
@@ -1327,23 +1231,22 @@ export const lineLoginRouter = router({
         displayName: profile.displayName,
         pictureUrl: profile.pictureUrl,
         createdAt: Date.now(),
-        expiresAt: Date.now() + 3650 * 24 * 60 * 60 * 1000, // 10 years for persistent login
+        expiresAt: Date.now() + LINE_MEMBER_SESSION_TTL_MS, // 30-day signed session
       };
       
-      // Create session token for localStorage fallback
+      // Create a signed token for the HttpOnly cookie only.
       const sessionToken = await createLineMemberSessionToken(sessionData);
       
-      // Set session cookie (10 years for persistent login)
-      ctx.res.cookie("line_session", JSON.stringify(sessionData), {
+      // Set a bounded signed member session cookie.
+      ctx.res.cookie("line_session", sessionToken, {
         ...getSessionCookieOptions(ctx.req),
-        maxAge: 3650 * 24 * 60 * 60 * 1000, // 10 years for persistent login
+        maxAge: LINE_MEMBER_SESSION_TTL_MS, // 30-day signed session
       });
       
       return {
         success: true,
-        sessionToken, // Return token for localStorage fallback
         referralApplied: !!input.referralCode,
-        referralPoints: input.referralCode ? 500 : 0,
+        referralPoints: 0,
         user: {
           lineUserId: profile.userId,
           displayName: profile.displayName,
@@ -1455,7 +1358,7 @@ export const lineLoginRouter = router({
       let referralPoints = 0;
       if (referralData) {
         try {
-          const { registerPendingReferral, createLinePointTransaction } = await import("./db");
+          const { registerPendingReferral } = await import("./db");
           await registerPendingReferral(
             referralData.referralCode.id,
             referralData.referralCode.liverId,
@@ -1463,18 +1366,8 @@ export const lineLoginRouter = router({
             500,
             200
           );
-          
-          // Award 500pt to new user immediately at registration
-          await createLinePointTransaction({
-            lineUserId: `email_${newUser.id}`,
-            type: "earn",
-            amount: 500,
-            referenceType: "system",
-            description: `紹介コード特典: 500ポイント獲得（新規登録ボーナス）`,
-          });
           referralApplied = true;
-          referralPoints = 500;
-          console.log(`[Referral] 500pt awarded to user ${newUser.id} at registration via liver code ${input.referralCode}`);
+          console.log(`[Referral] Benefit queued for Beauty Wallet after registration via liver code ${input.referralCode}`);
           
           // ライバーにLINE通知を送信
           try {
@@ -1485,7 +1378,7 @@ export const lineLoginRouter = router({
               const appUrl = process.env.APP_URL || "https://lcjmall.com";
               await pushMessage(liver.lineUserId, [{
                 type: "text",
-                text: `🎉 紹介コードが使われました！\n\nあなたの紹介コード「${input.referralCode}」で新しいユーザーが登録しました。\n\n※ あなたへの200ptはこのユーザーが初回購入を完了した時点で付与されます。\n\n📊 紹介実績を確認\n${appUrl}/liver-mypage`
+                text: `紹介コード経由の新規登録がありました。\n\n紹介経路は履歴として記録しました。Beauty Wallet主台帳への移行中のため、新しいLCJポイント特典の付与は停止しています。\n\n📊 紹介実績を確認\n${appUrl}/liver-mypage`
               }]);
             }
           } catch (notifyErr: any) {
@@ -1496,181 +1389,10 @@ export const lineLoginRouter = router({
         }
       }
       
-      // Handle FRIEND CHALLENGE referral codes (alphanumeric like 7H6RJF)
       if (friendChallengeCode) {
-        try {
-          const { 
-            getUserProgressByReferralCode, getActiveReferralCampaign, getLineUserById, 
-            createLinePointTransaction, getOrCreateUserReferralProgress, getCampaignStages,
-            recordFriendReferral, updateUserReferralProgress, addReferralActivity,
-            hasAlreadyBeenReferred, getTodayReferralCount, calculateTitleLevel
-          } = await import("./db");
-          const referrerProgress = await getUserProgressByReferralCode(friendChallengeCode);
-          const campaign = await getActiveReferralCampaign();
-          if (referrerProgress && campaign) {
-            // Check if already referred (shouldn't happen for new user, but safety check)
-            const alreadyReferred = await hasAlreadyBeenReferred(newUser.id, campaign.id);
-            if (!alreadyReferred) {
-              // Award invitee bonus to new user
-              const inviteeBonus = campaign.inviteeBonus || 50;
-              await createLinePointTransaction({
-                lineUserId: `email_${newUser.id}`,
-                type: "earn",
-                amount: inviteeBonus,
-                referenceType: "system",
-                description: `友達招待チャレンジ 招待ボーナス`,
-              });
-              referralApplied = true;
-              referralPoints = inviteeBonus;
-              console.log(`[FriendChallenge] ${inviteeBonus}pt awarded to new user ${newUser.id} via friend code ${friendChallengeCode}`);
-
-              // === CRITICAL: Record referral for the REFERRER (inviter) ===
-              // This was previously missing - the referrer's stats/points/history were never updated
-              
-              // Get referrer's current progress
-              const currentProgress = await getOrCreateUserReferralProgress(referrerProgress.lineUserId, campaign.id);
-              
-              // Calculate stage progression
-              const stages = await getCampaignStages(campaign.id);
-              const newTotalReferrals = currentProgress.totalReferrals + 1;
-              let stageReward = 0;
-              let newSpins = 0;
-              let newSpecialSpins = 0;
-              let newStage = currentProgress.currentStage;
-
-              for (const stage of stages) {
-                if (stage.stageNumber > currentProgress.currentStage && newTotalReferrals >= stage.requiredReferrals) {
-                  stageReward += stage.fixedReward;
-                  if (stage.isSpecialSpin) {
-                    newSpecialSpins += stage.spinCount;
-                  } else {
-                    newSpins += stage.spinCount;
-                  }
-                  newStage = stage.stageNumber;
-                }
-              }
-
-              // Record the referral in history
-              await recordFriendReferral({
-                referrerLineUserId: referrerProgress.lineUserId,
-                inviteeLineUserId: newUser.id,
-                campaignId: campaign.id,
-                referrerPointsAwarded: stageReward,
-                inviteePointsAwarded: inviteeBonus,
-              });
-
-              // Award stage reward points to referrer
-              if (stageReward > 0) {
-                const referrerUser = await getLineUserById(referrerProgress.lineUserId);
-                const referrerPointId = referrerUser?.lineUserId || `email_${referrerProgress.lineUserId}`;
-                await createLinePointTransaction({
-                  lineUserId: referrerPointId,
-                  type: "earn",
-                  amount: stageReward,
-                  referenceType: "system",
-                  description: `友達招待チャレンジ ステージ${newStage}達成報酬`,
-                });
-                // Extend ALL existing point expiry for referrer (friend referral benefit)
-                await extendLinePointExpiry(referrerPointId);
-              } else {
-                // Even without stage reward, extend expiry for successful referral
-                const referrerUser2 = await getLineUserById(referrerProgress.lineUserId);
-                const referrerPointId2 = referrerUser2?.lineUserId || `email_${referrerProgress.lineUserId}`;
-                await extendLinePointExpiry(referrerPointId2);
-              }
-
-              // Update referrer's progress
-              const titleLevel = calculateTitleLevel(newTotalReferrals);
-              await updateUserReferralProgress(currentProgress.id, {
-                totalReferrals: newTotalReferrals,
-                currentStage: newStage,
-                totalPointsEarned: currentProgress.totalPointsEarned + stageReward,
-                pendingSpins: currentProgress.pendingSpins + newSpins,
-                pendingSpecialSpins: currentProgress.pendingSpecialSpins + newSpecialSpins,
-                titleLevel,
-                monthlyPointsEarned: currentProgress.monthlyPointsEarned + stageReward,
-              });
-
-              // Add activity feed entry
-              const referrerUser = await getLineUserById(referrerProgress.lineUserId);
-              if (newStage > currentProgress.currentStage) {
-                const stageInfo = stages.find(s => s.stageNumber === newStage);
-                await addReferralActivity({
-                  lineUserId: referrerProgress.lineUserId,
-                  activityType: "stage_clear",
-                  message: `${referrerUser?.displayName || "ユーザー"}さんが「${stageInfo?.stageName || `ステージ${newStage}`}」を達成しました！ ${stageInfo?.stageEmoji || "🎉"}`,
-                  pointsAmount: stageReward,
-                });
-              }
-
-              console.log(`[FriendChallenge] Referrer ${referrerProgress.lineUserId} updated: totalReferrals=${newTotalReferrals}, stage=${newStage}, stageReward=${stageReward}, spins=${newSpins}, specialSpins=${newSpecialSpins}`);
-
-              // === Send exciting LINE notification to the referrer ===
-              try {
-                const referrerUserForNotif = referrerUser || await getLineUserById(referrerProgress.lineUserId);
-                const referrerLineId = referrerUserForNotif?.lineUserId;
-                if (referrerLineId && referrerLineId.startsWith("U")) {
-                  const { pushMessage } = await import("./line");
-                  const inviteeName = input.name || "新しい友達";
-                  const appUrl = process.env.APP_URL || "https://lcjmall.com";
-                  
-                  // Build exciting notification message
-                  let notifMessage = `🎉🎉🎉 おめでとうございます！🎉🎉🎉\n\n`;
-                  notifMessage += `✨ ${inviteeName}さんがあなたの招待で登録しました！\n\n`;
-                  notifMessage += `🏆 招待実績: ${newTotalReferrals}人目！\n`;
-                  
-                  if (stageReward > 0) {
-                    notifMessage += `💰 ステージ報酬: +${stageReward}pt GET！\n`;
-                  }
-                  if (newSpins > 0) {
-                    notifMessage += `🎰 ルーレット ${newSpins}回分 GET！\n`;
-                  }
-                  if (newSpecialSpins > 0) {
-                    notifMessage += `🌟 スペシャルルーレット ${newSpecialSpins}回分 GET！\n`;
-                  }
-                  if (newStage > currentProgress.currentStage) {
-                    const stageInfo = stages.find(s => s.stageNumber === newStage);
-                    notifMessage += `\n🚀 ステージアップ！\n`;
-                    notifMessage += `${stageInfo?.stageEmoji || "🎯"} 「${stageInfo?.stageName || `ステージ${newStage}`}」達成！\n`;
-                  }
-                  
-                  notifMessage += `\n✅ 保有中の全ポイントの有効期限が6ヶ月延長されました！\n`;
-                  notifMessage += `\n📣 この調子でどんどん友達を招待して\n最大5,000ptをGETしよう！🔥\n\n`;
-                  notifMessage += `👉 招待チャレンジを確認\n${appUrl}/friend-challenge`;
-                  
-                  await pushMessage(referrerLineId, [{ type: "text", text: notifMessage }]);
-                  console.log(`[FriendChallenge] LINE notification sent to referrer ${referrerLineId}`);
-                }
-              } catch (notifErr: any) {
-                // Notification failure should not block the registration
-                console.error(`[FriendChallenge] Failed to send LINE notification:`, notifErr.message);
-              }
-            }
-          }
-        } catch (err: any) {
-          console.error(`[FriendChallenge] Failed to apply friend challenge referral:`, err.message);
-        }
+        console.info("[FriendChallenge] Referral benefit remains paused until Beauty Wallet central writes are idempotent");
       }
-      
-      // Award roulette welcome bonus points (if not already awarded via referral)
-      let roulettePointsAwarded = 0;
-      if (input.wonPoints && input.wonPoints > 0 && !referralApplied) {
-        try {
-          const { createLinePointTransaction: createPtTxn } = await import("./db");
-          await createPtTxn({
-            lineUserId: `email_${newUser.id}`,
-            type: "earn",
-            amount: input.wonPoints,
-            referenceType: "system",
-            description: `新規登録ボーナスルーレット: ${input.wonPoints}ポイント獲得`,
-          });
-          roulettePointsAwarded = input.wonPoints;
-          console.log(`[Roulette] ${input.wonPoints}pt awarded to new user ${newUser.id} as welcome bonus`);
-        } catch (err: any) {
-          console.error(`[Roulette] Failed to award welcome bonus points:`, err.message);
-        }
-      }
-      
+
       // Auto-login: create session after registration
       const sessionData = {
         lineUserId: `email_${newUser.id}`,
@@ -1679,14 +1401,14 @@ export const lineLoginRouter = router({
         pictureUrl: null,
         email: normalizedEmail,
         createdAt: Date.now(),
-        expiresAt: Date.now() + 3650 * 24 * 60 * 60 * 1000,
+        expiresAt: Date.now() + LINE_MEMBER_SESSION_TTL_MS,
       };
       
       const sessionToken = await createLineMemberSessionToken(sessionData);
       
-      ctx.res.cookie("line_session", JSON.stringify(sessionData), {
+      ctx.res.cookie("line_session", sessionToken, {
         ...getSessionCookieOptions(ctx.req),
-        maxAge: 3650 * 24 * 60 * 60 * 1000,
+        maxAge: LINE_MEMBER_SESSION_TTL_MS,
       });
       
       return {
@@ -1694,9 +1416,7 @@ export const lineLoginRouter = router({
         userId: newUser.id,
         referralApplied,
         referralPoints,
-        roulettePointsAwarded,
-        friendChallengeCode: friendChallengeCode || undefined,
-        sessionToken,
+        roulettePointsAwarded: 0,
       };
     }),
 
@@ -1736,20 +1456,19 @@ export const lineLoginRouter = router({
         pictureUrl: user.pictureUrl,
         email: user.email,
         createdAt: Date.now(),
-        expiresAt: Date.now() + 3650 * 24 * 60 * 60 * 1000, // 10 years for persistent login
+        expiresAt: Date.now() + LINE_MEMBER_SESSION_TTL_MS, // 30-day signed session
       };
       
-      // Create session token for localStorage fallback
+      // Create a signed token for the HttpOnly cookie only.
       const sessionToken = await createLineMemberSessionToken(sessionData);
       
-      ctx.res.cookie("line_session", JSON.stringify(sessionData), {
+      ctx.res.cookie("line_session", sessionToken, {
         ...getSessionCookieOptions(ctx.req),
-        maxAge: 3650 * 24 * 60 * 60 * 1000, // 10 years for persistent login
+        maxAge: LINE_MEMBER_SESSION_TTL_MS, // 30-day signed session
       });
       
       return {
         success: true,
-        sessionToken, // Return token for localStorage fallback
         user: {
           id: user.id,
           displayName: user.displayName,
@@ -2193,6 +1912,10 @@ export const lineLoginRouter = router({
           message: "ログインが必要です",
         });
       }
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Beauty Wallet主台帳への移行中のため、新規LCJポイント申請は停止中です",
+      });
       
       const { lineUser } = result;
       const lineUserId = lineUser.lineUserId || `email_${lineUser.id}`;
@@ -3045,6 +2768,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           message: "ログインが必要です",
         });
       }
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE,
+      });
 
       const { lineUser } = sessionResult;
 
@@ -3128,35 +2855,15 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
   // 新規登録特典ルーレットポイント付与
   awardRegistrationBonus: publicProcedure
     .input(z.object({ points: z.number().int().min(1).max(1000) }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ ctx }) => {
       const sessionResult = await getLineUserFromSession(ctx);
       if (!sessionResult || !sessionResult.lineUser) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
       }
-      const user = sessionResult.lineUser;
-      const pointId = user.lineUserId || `email_${user.id}`;
-
-      // Check if already awarded (prevent double award)
-      const { getLinePointTransactions } = await import("./db");
-      const existingTxns = await getLinePointTransactions(pointId);
-      const alreadyAwarded = existingTxns.some(
-        (t: { description: string | null }) => t.description?.includes("新規登録特典ルーレット")
-      );
-      if (alreadyAwarded) {
-        return { awarded: false, message: "既に登録特典ポイントは付与済みです" };
-      }
-
-      // Award points
-      const { createLinePointTransaction } = await import("./db");
-      await createLinePointTransaction({
-        lineUserId: pointId,
-        type: "earn",
-        amount: input.points,
-        referenceType: "system",
-        description: `新規登録特典ルーレット: ${input.points}ポイント獲得`,
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE,
       });
-      console.log(`[RegistrationBonus] ${input.points}pt awarded to user ${user.id}`);
-      return { awarded: true, points: input.points };
     }),
 
   // ===== プロフィール編集API =====
@@ -14283,20 +13990,12 @@ ${conversationText}
         amount: z.number(), // 正の値=付与、負の値=削除
         description: z.string().min(1),
       }))
-      .mutation(async ({ ctx, input }) => {
+      .mutation(async ({ ctx }) => {
         assertLineManagementAdmin(ctx.user);
-        const restrictedMemberId = await resolveMemberIdFromPointKey(input.lineUserId);
-        if (restrictedMemberId) await assertMemberActionAllowed(restrictedMemberId, ['points']);
-        const { createLinePointTransaction } = await import("./db");
-        const type = input.amount >= 0 ? "earn" : "use";
-        const result = await createLinePointTransaction({
-          lineUserId: input.lineUserId,
-          type: type === "earn" ? "earn" : "adjustment",
-          amount: input.amount,
-          referenceType: "manual",
-          description: `[管理者操作] ${input.description}`,
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE,
         });
-        return { success: true, balanceAfter: result.balanceAfter };
       }),
 
     // Get member point history (for admin)
@@ -19554,8 +19253,13 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
     
     // Get current user's point balance
     getBalance: protectedProcedure.query(async ({ ctx }) => {
-      const { getOrCreatePointBalance, getExpiringPoints } = await import("./db");
-      const balance = await getOrCreatePointBalance(ctx.user.id);
+      const { getPointBalance, getExpiringPoints } = await import("./db");
+      const balance = (await getPointBalance(ctx.user.id)) ?? {
+        userId: ctx.user.id,
+        balance: 0,
+        totalEarned: 0,
+        totalUsed: 0,
+      };
       const expiring = await getExpiringPoints(ctx.user.id);
       return {
         ...balance,
@@ -19597,6 +19301,10 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         mimeType: z.string(),
       }))
       .mutation(async ({ ctx, input }) => {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Beauty Wallet主台帳への移行中のため、新規LCJポイント申請は停止中です",
+        });
         const crypto = await import("crypto");
         const { 
           checkDuplicateReceiptByHash,
@@ -19896,6 +19604,10 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE,
+        });
         const { getReceiptById, updateReceiptStatus, awardPointsForReceipt, confirmPendingReferral, getKakuhenResultByReceiptId } = await import("./db");
         const receipt = await getReceiptById(input.id);
         if (!receipt) {
@@ -20611,6 +20323,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE,
+        });
         const { getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt, getLinePointBalance, confirmPendingReferral, getLineUserByLineId, updateLineReceiptOcr, getKakuhenResultByReceiptId } = await import("./db");
         const { pushMessage } = await import("./line");
         const receipt = await getLineReceiptById(input.id);
@@ -21074,6 +20790,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE,
+        });
         
         if (input.receiptType === "line_receipt") {
           const { getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt, getLinePointBalance } = await import("./db");
@@ -21167,6 +20887,12 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        if (!input.dryRun) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE,
+          });
         }
         const { awardPointsForLineReceipt, getLinePointBalance } = await import("./db");
         const { pushMessage } = await import("./line");
@@ -21310,6 +21036,12 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        if (!input.dryRun) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE,
+          });
         }
         
         const {
@@ -22270,6 +22002,12 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (input.decision === "approved") {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE,
+          });
+        }
         if (input.decision === "rejected" && !input.rejectionCategory) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "拒绝时必须选择拒绝类别" });
         }
@@ -22300,6 +22038,12 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (input.humanOverride === "approved") {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE,
+          });
+        }
         const {
           overrideAiAutoReviewLog,
           getAiAutoReviewLogById,
@@ -22401,6 +22145,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     startServerAutoApprove: protectedProcedure
       .mutation(async ({ ctx }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE,
+        });
         const { getAiAutoApproveSetting, updateAiAutoApproveSetting } = await import("./db");
         const { triggerAiAutoApprove } = await import("./aiAutoApproveScheduler");
         
@@ -22634,6 +22382,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE,
+        });
         const { startPass2InBackground, isPass2Running } = await import("./services/aiPass2ManualQueueReview");
         if (isPass2Running()) {
           return { success: false, message: "AI Pass 2は既に実行中です" };
@@ -23467,91 +23219,16 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           address: z.string().min(1),
         }).optional(),
       }))
-      .mutation(async ({ ctx, input }) => {
+      .mutation(async ({ ctx }) => {
         // LINEセッションからユーザー情報を取得
         const result = await getLineUserFromSession(ctx);
         if (!result || !result.lineUser) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
-        const lineUserId = result.lineUser.lineUserId || `email_${result.lineUser.id}`;
-        await assertMemberActionAllowed(result.lineUser.id, ['order', 'points']);
-
-        // 商品情報を取得
-        const product = await getMallProductById(input.productId);
-        if (!product) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "商品が見つかりません" });
-        }
-
-        if (product.status !== "active") {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "この商品は現在購入できません" });
-        }
-
-        if (product.stock < input.quantity) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "在庫が不足しています" });
-        }
-
-        if (!product.pointPrice) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "この商品はポイント購入に対応していません" });
-        }
-
-        const subtotalPoints = product.pointPrice * input.quantity;
-
-        // 送料計算: 5,000pt未満は880pt、5,000pt以上は送料無料
-        const SHIPPING_FEE = 880;
-        const FREE_SHIPPING_THRESHOLD = 5000;
-        const shippingFee = subtotalPoints < FREE_SHIPPING_THRESHOLD ? SHIPPING_FEE : 0;
-        const totalPoints = subtotalPoints + shippingFee;
-
-        // ポイント残高を確認
-        const balance = await getLinePointBalance(lineUserId);
-        if (!balance || balance.balance < totalPoints) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: `ポイントが不足しています（必要: ${totalPoints.toLocaleString()} pt${shippingFee > 0 ? `（送料${shippingFee} pt含む）` : ""} / 残高: ${(balance?.balance || 0).toLocaleString()} pt）` });
-        }
-
-        // 注文レコードを作成（ポイント消費・在庫減算・注文履歴作成を一括で実行）
-        const orderResult = await createMallOrder({
-          lineUserId: result.lineUser.id,
-          pointLineUserId: lineUserId, // email_${id} または LINE userId
-          items: [{
-            productId: input.productId,
-            quantity: input.quantity,
-            usePoints: true,
-            variantId: input.variantId || undefined,
-          }],
-          pointsToUse: totalPoints,
-          isFullPointPurchase: true, // ポイント全額購入
-          shippingInfo: input.shippingInfo,
-          shippingFee,
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Beauty Wallet主台帳での安全なポイント決済準備中です。カード決済をご利用ください",
         });
-
-        // 注文確認通知を送信
-        try {
-          const lineUser = result.lineUser;
-          const orderDate = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
-          const shippingText = shippingFee > 0 ? `\n■ 送料: ${shippingFee.toLocaleString()} pt` : "\n■ 送料: 無料";
-          const notificationText = `📦 注文確認\n\nご注文ありがとうございます！\n\n■ 商品: ${product.name}\n■ 数量: ${input.quantity}\n■ 小計: ${subtotalPoints.toLocaleString()} pt${shippingText}\n■ 合計: ${totalPoints.toLocaleString()} pt\n■ 注文番号: ${orderResult.orderNumber}\n■ 注文日時: ${orderDate}\n\n発送準備ができ次第、お知らせいたします。`;
-
-          // LINE通知（LINEユーザーの場合）
-          if (lineUser.lineUserId && !lineUser.lineUserId.startsWith('email_')) {
-            const { pushMessage } = await import("./line");
-            await pushMessage(lineUser.lineUserId, [{ type: "text", text: notificationText }]);
-          }
-
-          // メール通知（メールアドレスがある場合）
-          if (lineUser.email) {
-            const { sendEmail } = await import("./emailService");
-            await sendEmail({
-              to: [lineUser.email],
-              subject: `【LCJ MALL】注文確認 - ${orderResult.orderNumber}`,
-              content: `${lineUser.displayName || lineUser.email} 様\n\nご注文ありがとうございます。\n\n■ 商品: ${product.name}\n■ 数量: ${input.quantity}\n■ 小計: ${subtotalPoints.toLocaleString()} pt${shippingText}\n■ 合計: ${totalPoints.toLocaleString()} pt\n■ 注文番号: ${orderResult.orderNumber}\n■ 注文日時: ${orderDate}\n\n発送準備ができ次第、お知らせいたします。\n\n---\nLCJ MALL`,
-            });
-          }
-        } catch (notifyError) {
-          console.error("[PurchaseWithPoints] 通知送信エラー:", notifyError);
-          // 通知失敗でも購入自体は成功とする
-        }
-
-        return { success: true, pointsUsed: totalPoints, shippingFee, subtotal: subtotalPoints, orderNumber: orderResult.orderNumber };
       }),
 
     // 商品画像アップロード（管理者のみ）
@@ -24208,7 +23885,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         };
       }),
 
-    // カートからポイント一括購入
+    // Legacy LCJ point checkout is disabled while Beauty Wallet is the sole live ledger.
     cartCheckoutPoints: publicProcedure
       .input(z.object({
         shippingInfo: z.object({
@@ -24218,108 +23895,16 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           address: z.string().min(1),
         }).optional(),
       }))
-      .mutation(async ({ ctx, input }) => {
+      .mutation(async ({ ctx }) => {
         const result = await getLineUserFromSession(ctx);
         if (!result || !result.lineUser) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
-        const lineUser = result.lineUser;
-        const lineUserId = lineUser.lineUserId || `email_${lineUser.id}`;
-        await assertMemberActionAllowed(lineUser.id, ['order', 'points']);
-
-        // カート内容を取得
-        const cartItems = await getMallCart(lineUser.id);
-        if (cartItems.length === 0) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "カートが空です" });
-        }
-
-        // 全商品がポイント購入対応か確認 & 合計ポイント計算
-        let totalPoints = 0;
-        const orderItemsData: Array<{
-          productId: number;
-          quantity: number;
-          usePoints: boolean;
-        }> = [];
-
-                for (const item of cartItems) {
-          const product = item.product;
-          const variant = item.variant;
-          const qty = item.cart.quantity;
-          if (product.status !== "active") {
-            throw new TRPCError({ code: "BAD_REQUEST", message: `${product.name} は現在販売中ではありません` });
-          }
-          if (product.stock < qty) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: `${product.name} の在庫が不足しています（残り${product.stock}点）` });
-          }
-          if (!product.pointPrice) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: `${product.name} はポイント購入に対応していません` });
-          }
-          totalPoints += product.pointPrice * qty;
-          orderItemsData.push({
-            productId: product.id,
-            quantity: qty,
-            usePoints: true,
-            variantId: item.cart.variantId || undefined,
-          });
-        }
-        // 送料計算: 5,000pt未満は880pt、5,000pt以上は送料無料
-        const SHIPPING_FEE = 880;
-        const FREE_SHIPPING_THRESHOLD = 5000;
-        const subtotalPoints = totalPoints;
-        const shippingFee = subtotalPoints < FREE_SHIPPING_THRESHOLD ? SHIPPING_FEE : 0;
-        totalPoints = subtotalPoints + shippingFee;
-
-        // ポイント残高を確認
-        const balance = await getLinePointBalance(lineUserId);
-        if (!balance || balance.balance < totalPoints) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: `ポイントが不足しています（必要: ${totalPoints.toLocaleString()} pt${shippingFee > 0 ? `（送料${shippingFee} pt含む）` : ""} / 残高: ${(balance?.balance || 0).toLocaleString()} pt）` });
-        }
-
-        // 注文レコードを作成（ポイント消費・在庫減算・注文履歴作成を一括で実行）
-        const orderResult = await createMallOrder({
-          lineUserId: lineUser.id,
-          pointLineUserId: lineUserId,
-          items: orderItemsData,
-          pointsToUse: totalPoints,
-          isFullPointPurchase: true,
-          shippingInfo: input.shippingInfo,
-          shippingFee,
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Beauty Wallet主台帳での安全なポイント決済準備中です。カード決済をご利用ください",
         });
-
-        // 注文確認通知を送信
-        try {
-          const itemNames = cartItems.map(i => `${i.product.name} ×${i.cart.quantity}`).join("\n  ");
-          const orderDate = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
-          const shippingText = shippingFee > 0 ? `\n■ 送料: ${shippingFee.toLocaleString()} pt` : "\n■ 送料: 無料";
-          const notificationText = `📦 注文確認\n\nご注文ありがとうございます！\n\n■ 商品:\n  ${itemNames}\n■ 小計: ${subtotalPoints.toLocaleString()} pt${shippingText}\n■ 合計: ${totalPoints.toLocaleString()} pt\n■ 注文番号: ${orderResult.orderNumber}\n■ 注文日時: ${orderDate}\n\n発送準備ができ次第、お知らせいたします。`;
-
-          if (lineUser.lineUserId && !lineUser.lineUserId.startsWith('email_')) {
-            const { pushMessage } = await import("./line");
-            await pushMessage(lineUser.lineUserId, [{ type: "text", text: notificationText }]);
-          }
-
-          if (lineUser.email) {
-            const { sendEmail } = await import("./emailService");
-            await sendEmail({
-              to: [lineUser.email],
-              subject: `【LCJ MALL】注文確認 - ${orderResult.orderNumber}`,
-              content: `${lineUser.displayName || lineUser.email} 様\n\nご注文ありがとうございます。\n\n■ 商品:\n  ${itemNames}\n■ 小計: ${subtotalPoints.toLocaleString()} pt${shippingText}\n■ 合計: ${totalPoints.toLocaleString()} pt\n■ 注文番号: ${orderResult.orderNumber}\n■ 注文日時: ${orderDate}\n\n発送準備ができ次第、お知らせいたします。\n\n---\nLCJ MALL`,
-            });
-          }
-        } catch (notifyError) {
-          console.error("[CartCheckoutPoints] 通知送信エラー:", notifyError);
-        }
-
-        return {
-          success: true,
-          pointsUsed: totalPoints,
-          shippingFee,
-          subtotal: subtotalPoints,
-          orderNumber: orderResult.orderNumber,
-          itemCount: cartItems.length,
-        };
       }),
-
     // カートの合計情報取得（チェックアウト画面用）
     getCartSummary: publicProcedure
       .query(async ({ ctx }) => {
@@ -24328,26 +23913,18 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           return { items: [], subtotal: 0, totalPoints: 0, shippingFee: 0, allPointEligible: false, pointBalance: 0 };
         }
         const lineUser = result.lineUser;
-        const lineUserId = lineUser.lineUserId || `email_${lineUser.id}`;
 
         const cartItems = await getMallCart(lineUser.id);
         let subtotal = 0;
-        let totalPoints = 0;
-        let allPointEligible = cartItems.length > 0;
 
         const items = cartItems.map((item: any) => {
           const price = item.product.price * item.cart.quantity;
           subtotal += price;
-          if (item.product.pointPrice) {
-            totalPoints += item.product.pointPrice * item.cart.quantity;
-          } else {
-            allPointEligible = false;
-          }
           return {
             productId: item.product.id,
             name: item.product.name,
             price: item.product.price,
-            pointPrice: item.product.pointPrice,
+            pointPrice: null,
             quantity: item.cart.quantity,
             imageUrl: item.product.imageUrl,
           };
@@ -24357,15 +23934,13 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         const FREE_SHIPPING_THRESHOLD = 5000;
         const shippingFee = subtotal < FREE_SHIPPING_THRESHOLD ? SHIPPING_FEE : 0;
 
-        const balance = await getLinePointBalance(lineUserId);
-
         return {
           items,
           subtotal,
-          totalPoints,
+          totalPoints: 0,
           shippingFee,
-          allPointEligible,
-          pointBalance: balance?.balance || 0,
+          allPointEligible: false,
+          pointBalance: 0,
         };
       }),
 
@@ -24411,6 +23986,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         }).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Beauty Wallet主台帳への移行中のため、新規LCJポイント申請は停止中です",
+        });
         // 1日5件の上限チェック
         const todayCount = await countTodayPointRequestsByUser(ctx.user.id);
         if (todayCount >= 5) {
@@ -24559,6 +24138,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE,
+        });
 
         const request = await getPointRequestById(input.requestId);
         if (!request) {
@@ -24726,6 +24309,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         if (!userId && !lineUserId) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE,
+        });
 
         // ===== 制限チェック =====
         const { getDb } = await import("./db");
@@ -27744,24 +27331,17 @@ ${topProductsContext}
   friendReferral: router({
     // キャンペーン情報取得
     getCampaign: publicProcedure.query(async () => {
-      const campaign = await getActiveReferralCampaign();
-      if (!campaign) return null;
-      const stages = await getCampaignStages(campaign.id);
-      return { campaign, stages };
+      return null;
     }),
 
     // 自分の進捗取得
     getMyProgress: publicProcedure.query(async ({ ctx }) => {
       const result = await getLineUserFromSession(ctx);
       if (!result || !result.lineUser) throw new TRPCError({ code: "UNAUTHORIZED" });
-      const lineUser = result.lineUser;
-      const campaign = await getActiveReferralCampaign();
-      if (!campaign) throw new TRPCError({ code: "NOT_FOUND", message: "キャンペーンが見つかりません" });
-      const progress = await getOrCreateUserReferralProgress(lineUser.id, campaign.id);
-      const stages = await getCampaignStages(campaign.id);
-      const history = await getUserReferralHistory(lineUser.id, campaign.id);
-      const spinHistory = await getUserSpinHistoryList(lineUser.id, 10);
-      return { progress, stages, campaign, history, spinHistory };
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Beauty Wallet主台帳への移行中のため、友達紹介ポイントは停止中です",
+      });
     }),
 
     // 招待コードで招待を記録
@@ -27770,6 +27350,10 @@ ${topProductsContext}
       .mutation(async ({ ctx, input }) => {
         const result = await getLineUserFromSession(ctx);
         if (!result || !result.lineUser) throw new TRPCError({ code: "UNAUTHORIZED" });
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Beauty Wallet主台帳への移行中のため、友達紹介ポイントは停止中です",
+        });
         const inviteeLineUser = result.lineUser;
         const inviteeId = inviteeLineUser.id;
         const campaign = await getActiveReferralCampaign();
@@ -27962,6 +27546,10 @@ ${topProductsContext}
       .mutation(async ({ ctx, input }) => {
         const result = await getLineUserFromSession(ctx);
         if (!result || !result.lineUser) throw new TRPCError({ code: "UNAUTHORIZED" });
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Beauty Wallet主台帳への移行中のため、ポイント抽選は停止中です",
+        });
         const spinLineUser = result.lineUser;
         const campaign = await getActiveReferralCampaign();
         if (!campaign) throw new TRPCError({ code: "NOT_FOUND" });
@@ -28044,22 +27632,19 @@ ${topProductsContext}
 
     // ランキング
     getLeaderboard: publicProcedure.query(async () => {
-      const campaign = await getActiveReferralCampaign();
-      if (!campaign) return [];
-      return await getReferralLeaderboard(campaign.id);
+      return [];
     }),
 
     // アクティビティフィード
     getActivityFeed: publicProcedure.query(async () => {
-      return await getReferralActivityFeed(30);
+      return [];
     }),
 
     // スピン報酬テーブル取得
     getSpinItems: publicProcedure
       .input(z.object({ isSpecial: z.boolean().default(false) }))
-      .query(async ({ input }) => {
-        const items = await getSpinRewardItems(input.isSpecial);
-        return items.map(i => ({ id: i.id, label: i.label, emoji: i.emoji, points: i.points, color: i.color, probability: parseFloat(String(i.probability)) }));
+      .query(async () => {
+        return [];
       }),
     // 管理画面用: 紹介統計
     adminStats: protectedProcedure.query(async () => {
@@ -28091,10 +27676,13 @@ ${topProductsContext}
   // Beauty Wallet連携
   // ============================================
   beautyWallet: router({
-    // BWアカウント連携状態を取得
+    // Legacy admin-only lookup. Member self-service uses beautyWalletMember.
     getLinkStatus: protectedProcedure
       .input(z.object({ lineUserId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
         const linked = await getBwLinkedAccount(input.lineUserId);
         return {
           isLinked: !!linked,
@@ -28106,49 +27694,23 @@ ${topProductsContext}
         };
       }),
 
-    // BW連携開始（メールベース自動連携 + リンクURL生成）
+    // 旧連携入口：本人確認のないメール自動連携は停止済み
     startLink: protectedProcedure
       .input(z.object({
         lineUserId: z.number(),
-        email: z.string().email().optional(), // メールアドレスで自動連携を試みる
+        email: z.string().email().optional(),
       }))
-      .mutation(async ({ input }) => {
-        // メールアドレスが提供された場合、BW側で顧客検索を試みる
-        if (input.email) {
-          try {
-            const lookupResult = await bwLookupCustomer(input.email);
-            if (lookupResult.success && lookupResult.found && lookupResult.customer) {
-              // BW側にアカウントが見つかった→自動連携
-              const linked = await completeBwLink({
-                lineUserId: input.lineUserId,
-                bwUserId: lookupResult.customer.id.toString(),
-                bwDisplayName: lookupResult.customer.name || input.email,
-                bwEmail: input.email, // BW APIはemailを返さないので入力値を使用
-                bwCustomerId: lookupResult.customer.id,
-              });
-              return {
-                autoLinked: true,
-                linkUrl: null,
-                token: null,
-                account: {
-                  bwDisplayName: lookupResult.customer.name || input.email,
-                  bwEmail: input.email,
-                },
-              };
-            }
-          } catch (err) {
-            console.error("[BW Link] Auto-link lookup failed:", err);
-            // 自動連携失敗時は手動連携にフォールバック
-          }
+      .mutation(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
         }
-
-        // 自動連携できなかった場合はリンクURLを生成
-        const token = await createBwLinkToken(input.lineUserId);
-        const bwLinkUrl = `https://beautypass.ai/link?token=${token}&source=lcj`;
-        return { autoLinked: false, linkUrl: bwLinkUrl, token };
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "会員本人のメール確認が必要です。Beauty Wallet連携画面から手続きしてください",
+        });
       }),
 
-    // BWコールバック処理
+    // 旧公開コールバック：外部IDを自己申告できるため停止済み
     completeLink: publicProcedure
       .input(z.object({
         linkToken: z.string(),
@@ -28156,126 +27718,43 @@ ${topProductsContext}
         bwDisplayName: z.string().optional(),
         bwEmail: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
-        const lineUserId = await completeBwLink(
-          input.linkToken,
-          input.bwUserId,
-          input.bwDisplayName,
-          input.bwEmail,
-        );
-        return { success: true, lineUserId };
+      .mutation(async () => {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "この連携方法は利用できません",
+        });
       }),
 
-    // BW連携解除
+    // Legacy unlink is disabled so the one-to-one ownership invariant cannot be bypassed.
     unlink: protectedProcedure
       .input(z.object({ lineUserId: z.number() }))
-      .mutation(async ({ input }) => {
-        await unlinkBwAccount(input.lineUserId);
-        return { success: true };
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        void input;
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "本人確認済みの主台帳連携は監査付きサポート手続きでのみ変更できます",
+        });
       }),
 
-    // ポイント交換実行
+    // Legacy LCJ-to-BW conversion is disabled to prevent duplicate ledger writes.
     exchange: protectedProcedure
       .input(z.object({
         lineUserId: z.number(),
-        lineUserIdStr: z.string(), // linePointBalancesのlineUserId（varchar）
-        lcjPoints: z.number().min(100, "最低100ポイントから交換可能です"),
+        lineUserIdStr: z.string(),
+        lcjPoints: z.number().min(100),
       }))
-      .mutation(async ({ input }) => {
-        // BW連携チェック
-        const linked = await getBwLinkedAccount(input.lineUserId);
-        if (!linked) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Beauty Walletアカウントが連携されていません",
-          });
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
         }
-
-        // 100ポイント単位チェック
-        if (input.lcjPoints % 100 !== 0) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "100ポイント単位で交換してください",
-          });
-        }
-
-        const result = await exchangePointsToBw(
-          input.lineUserId,
-          input.lineUserIdStr,
-          input.lcjPoints,
-          linked.id,
-        );
-
-        // BW側APIにトークン付与をリクエスト
-        let bwCustId = linked.bwCustomerId ? Number(linked.bwCustomerId) : null;
-        
-        // bwCustomerIdがnullの場合、メールで再 lookupして取得を試みる
-        if (!bwCustId) {
-          // まずbwEmailを確認、なければline_usersから取得
-          let lookupEmail = linked.bwEmail;
-          if (!lookupEmail) {
-            const db = await getDb();
-            if (db) {
-              const lineUser = await db.select({ email: lineUsers.email })
-                .from(lineUsers)
-                .where(eq(lineUsers.id, input.lineUserId))
-                .limit(1);
-              if (lineUser.length > 0 && lineUser[0].email) {
-                lookupEmail = lineUser[0].email;
-              }
-            }
-          }
-          
-          if (lookupEmail) {
-            try {
-              const lookupResult = await bwLookupCustomer(lookupEmail);
-              if (lookupResult.success && lookupResult.found && lookupResult.customer) {
-                bwCustId = lookupResult.customer.id;
-                // DBも更新しておく
-                const db = await getDb();
-                if (db) {
-                  await db.update(bwLinkedAccounts)
-                    .set({ bwCustomerId: bwCustId, bwEmail: lookupEmail })
-                    .where(eq(bwLinkedAccounts.id, linked.id));
-                }
-                console.log(`[BW Exchange] Resolved bwCustomerId=${bwCustId} via email lookup (${lookupEmail}) for linked account ${linked.id}`);
-              }
-            } catch (lookupErr) {
-              console.error("[BW Exchange] Fallback lookup failed:", lookupErr);
-            }
-          }
-        }
-        
-        if (bwCustId) {
-          try {
-            await updateBwTransferStatus(result.exchangeId, "processing");
-            const bwResult = await bwExchangeTokens({
-              bwCustomerId: bwCustId,
-              tokens: result.bwTokens,
-              lcjExchangeId: result.exchangeId,
-              lcjPointsUsed: input.lcjPoints,
-            });
-
-            if (bwResult.success && bwResult.exchangeId) {
-              await updateBwTransferStatus(result.exchangeId, "completed", bwResult.exchangeId);
-            } else {
-              await updateBwTransferStatus(result.exchangeId, "failed", undefined, bwResult.error || "Unknown error");
-            }
-          } catch (err) {
-            console.error("[BW Exchange] API call failed:", err);
-            await updateBwTransferStatus(result.exchangeId, "failed", undefined, (err as Error).message);
-          }
-        } else {
-          console.error(`[BW Exchange] No bwCustomerId available for linked account ${linked.id}, exchange ${result.exchangeId} remains pending`);
-          await updateBwTransferStatus(result.exchangeId, "failed", undefined, "BW customer ID not found");
-        }
-
-        return {
-          exchangeId: result.exchangeId,
-          lcjPointsUsed: input.lcjPoints,
-          bwTokensReceived: result.bwTokens,
-          balanceAfter: result.balanceAfter,
-        };
+        void input;
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Beauty Walletを唯一の主台帳として照合するため、旧ポイント交換は停止中です",
+        });
       }),
 
     // 交換履歴取得
@@ -28285,7 +27764,10 @@ ${topProductsContext}
         limit: z.number().optional(),
         offset: z.number().optional(),
       }))
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
         return getPointExchangeHistory(input.lineUserId, {
           limit: input.limit,
           offset: input.offset,
@@ -28295,10 +27777,11 @@ ${topProductsContext}
     // 交換レート情報
     getExchangeRate: publicProcedure.query(() => {
       return {
+        enabled: false,
         rate: 0.4, // 100 LCJポイント = 40 Beauty Token
         minPoints: 100,
         unit: 100, // 100ポイント単位
-        description: "100 LCJポイント = 40 Beauty Token",
+        description: "Beauty Wallet主台帳への移行に伴い、旧ポイント交換は停止中です",
       };
     }),
 
@@ -28327,54 +27810,16 @@ ${topProductsContext}
         return getAllPointExchanges(input);
       }),
 
-    // 管理者用：pending交換をBW側に送信（手動トリガー）
-    adminProcessPending: protectedProcedure
-      .mutation(async ({ ctx }) => {
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN" });
-        }
-        const pending = await getPendingExchanges();
-        let processed = 0;
-        let succeeded = 0;
-        let failed = 0;
-        const errors: string[] = [];
-
-        for (const exchange of pending) {
-          try {
-            await updateBwTransferStatus(exchange.id, "processing");
-            const bwResult = await bwExchangeTokens({
-              bwCustomerId: Number(exchange.bwUserId),
-              tokens: exchange.bwTokensReceived,
-              lcjExchangeId: exchange.id,
-              lcjPointsUsed: exchange.bwTokensReceived / 0.4, // 逆算
-            });
-
-            if (bwResult.success && bwResult.exchangeId) {
-              await updateBwTransferStatus(exchange.id, "completed", bwResult.exchangeId);
-              succeeded++;
-            } else {
-              await updateBwTransferStatus(exchange.id, "failed", undefined, bwResult.error || "Unknown error");
-              failed++;
-              errors.push(`Exchange #${exchange.id}: ${bwResult.error}`);
-            }
-            processed++;
-          } catch (err) {
-            await updateBwTransferStatus(exchange.id, "failed", undefined, (err as Error).message);
-            failed++;
-            errors.push(`Exchange #${exchange.id}: ${(err as Error).message}`);
-            processed++;
-          }
-        }
-
-        return {
-          pendingCount: pending.length,
-          processed,
-          succeeded,
-          failed,
-          errors: errors.length > 0 ? errors : undefined,
-          message: `${succeeded}件成功、${failed}件失敗（全${pending.length}件中）`,
-        };
-      }),
+    // Legacy retry is disabled because it can duplicate historical transfers.
+    adminProcessPending: protectedProcedure.mutation(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Beauty Wallet主台帳への二重加算防止のため、旧交換の再送信は停止中です",
+      });
+    }),
   }),
 
   // ===== Beauty Wallet ポップアップ ABテスト =====
@@ -31909,6 +31354,7 @@ JSON形式で推薦順序を返してください。`;
   hrRoleReview: hrRoleReviewRouter,
   memberRisk: memberRiskRouter,
   memberIdentity: memberIdentityRouter,
+  beautyWalletMember: beautyWalletMemberRouter,
   storeProducts: storeProductRouter,
 });
 export type AppRouter = typeof appRouter;

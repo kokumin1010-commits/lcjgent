@@ -135,11 +135,9 @@ export default function OrderManagement({ onMemberClick, initialStatusFilter }: 
       const statusLabel: Record<string, string> = { shipped: "発送済み", delivered: "配達完了", cancelled: "キャンセル", refunded: "返金" };
       const label = statusLabel[variables.status] || "更新";
       
-      // ポイント返還・在庫戻しの通知
+      // Status and inventory notification. Legacy LCJ points are audit-only and
+      // are never automatically refunded here.
       const messages: string[] = [`ステータスを${label}に変更しました`];
-      if (data?.pointsRefunded > 0) {
-        messages.push(`${data.pointsRefunded.toLocaleString()}ポイントを返還しました`);
-      }
       if (data?.stockRestored) {
         messages.push(`在庫を戻しました`);
       }
@@ -1111,7 +1109,7 @@ export default function OrderManagement({ onMemberClick, initialStatusFilter }: 
                   キャンセル時の自動処理
                 </p>
                 <ul className="text-xs text-red-600 space-y-1 ml-5 list-disc">
-                  <li>ポイント決済の場合、使用ポイントが自動で返還されます</li>
+                  <li>旧LCJポイント利用分は自動返還せず、Beauty Wallet主台帳との照合対象になります</li>
                   <li>商品の在庫が自動で戻されます</li>
                   <li>Stripe決済の場合、返金はStripe管理画面から手動で行ってください</li>
                 </ul>

@@ -105,8 +105,9 @@ describe("restored point opening history", () => {
 });
 
 describe("login and exchange user experience", () => {
-  it("stores the signed callback token before navigating and never displays OAuth secrets", () => {
-    expect(callbackSource).toContain('localStorage.setItem("lcj_session_token", data.sessionToken)');
+  it("relies on the signed HttpOnly cookie before navigating and never displays OAuth secrets", () => {
+    expect(callbackSource).not.toContain('localStorage.setItem("lcj_session_token"');
+    expect(callbackSource).not.toContain("data.sessionToken");
     expect(callbackSource).toContain('window.location.replace("/mypage")');
     expect(callbackSource).not.toContain("code=${code}");
     expect(callbackSource).not.toContain("state=${state}");
@@ -114,9 +115,9 @@ describe("login and exchange user experience", () => {
   });
 
   it("does not accept unsigned bearer sessions on the server", () => {
-    expect(routersSource).toContain("verifyLineMemberSessionToken");
     expect(routersSource).not.toContain("Buffer.from(token, 'base64').toString('utf-8')");
-    expect(routersSource).toContain("sessionToken,");
+    expect(routersSource).toContain('ctx.res.cookie("line_session", sessionToken');
+    expect(routersSource).not.toMatch(/return\s*\{[^}]*sessionToken/s);
   });
 
   it("recovers safely from stale member sessions and explains LINE-only login", () => {

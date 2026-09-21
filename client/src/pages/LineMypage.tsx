@@ -1,12 +1,11 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect, useMemo } from "react";
-import BeautyWalletPopup from "@/components/BeautyWalletPopup";
 import haptic from "@/lib/haptic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw, ExternalLink, Upload, Package, Truck, ChevronDown, ChevronUp, CreditCard, Gift, X, Heart, MapPin, User, Users, Pencil, Trash2, Star, Plus, Phone, Mail, Image, Filter, Eye, BarChart3 } from "lucide-react";
+import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw, ExternalLink, Upload, Package, Truck, ChevronDown, ChevronUp, CreditCard, Gift, X, Heart, MapPin, User, Users, Pencil, Trash2, Star, Plus, Phone, Mail, Image, Filter, Eye, BarChart3, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -20,37 +19,12 @@ export default function LineMypage() {
   const [, setLocation] = useLocation();
   const [historyFilter, setHistoryFilter] = useState<"all" | "earn" | "use">("all");
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
-  const [referralBonusBanner, setReferralBonusBanner] = useState<number | null>(null);
   const [cancelOrderId, setCancelOrderId] = useState<number | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [orderStatusFilter, setOrderStatusFilter] = useState<"all" | "active" | "shipped" | "delivered" | "cancelled">("all");
   const [receiptStatusFilter, setReceiptStatusFilter] = useState<"all" | "approved" | "rejected" | "pending" | "on_hold">("all");
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
-  const [showBwPopup, setShowBwPopup] = useState(false);
-  
-  // Beauty Wallet popup - show once per session
-  useEffect(() => {
-    const alreadyShown = sessionStorage.getItem('bw_popup_shown');
-    if (!alreadyShown) {
-      const timer = setTimeout(() => {
-        setShowBwPopup(true);
-        sessionStorage.setItem('bw_popup_shown', '1');
-      }, 1200);
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
-  // Check for referral bonus banner on mount
-  useEffect(() => {
-    const bonus = localStorage.getItem('lcj_referral_bonus');
-    if (bonus) {
-      setReferralBonusBanner(parseInt(bonus, 10));
-      localStorage.removeItem('lcj_referral_bonus');
-      haptic.celebration();
-    }
-  }, []);
-  
   const { data: user, isLoading: userLoading, isSuccess: userQuerySucceeded } = trpc.lineLogin.me.useQuery();
 
   // 旧形式や失効済みのフォールバックトークンが残っている場合は除去し、
@@ -62,22 +36,17 @@ export default function LineMypage() {
     }
   }, [userQuerySucceeded, user]);
   
-  // セッショントークンをlocalStorageに自動保存（永久ログイン対応）
-  // cookieでログインできている場合でも、localStorageにトークンを保存しておくことで
-  // /receipt-uploadなど他ページに遷移した際にも認証が通るようにする
-  useEffect(() => {
-    if (user?.sessionToken) {
-      localStorage.setItem('lcj_session_token', user.sessionToken);
-    }
-  }, [user?.sessionToken]);
-  
   const { data: pointsData, isLoading: pointsLoading } = trpc.lineLogin.getMyPoints.useQuery(undefined, {
     enabled: !!user,
   });
-  const { data: receipts, isLoading: receiptsLoading } = trpc.lineLogin.getMyReceipts.useQuery(undefined, {
+  const { data: bwLinkStatus, isLoading: bwLinkLoading } = trpc.beautyWalletMember.status.useQuery(undefined, {
     enabled: !!user,
   });
-  const { data: unplayedKakuhen } = trpc.lineLogin.getUnplayedKakuhenReceipts.useQuery(undefined, {
+  const { data: bwLedger, isLoading: bwLedgerLoading } = trpc.beautyWalletMember.centralLedger.useQuery(undefined, {
+    enabled: !!user && !!bwLinkStatus?.linked,
+    staleTime: 60_000,
+  });
+  const { data: receipts, isLoading: receiptsLoading } = trpc.lineLogin.getMyReceipts.useQuery(undefined, {
     enabled: !!user,
   });
   const { data: orders, isLoading: ordersLoading, refetch: refetchOrders } = trpc.mall.getMyOrders.useQuery(undefined, {
@@ -296,15 +265,6 @@ export default function LineMypage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white">
-      {/* Beauty Wallet Popup */}
-      {showBwPopup && (
-        <BeautyWalletPopup
-          points={pointsData?.balance ?? 0}
-          lineUserId={user?.id}
-          onClose={() => setShowBwPopup(false)}
-        />
-      )}
-
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -339,211 +299,32 @@ export default function LineMypage() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        {/* レシート申請 - トップに目立つCTA */}
-        <Card className="mb-6 border-rose-300 bg-gradient-to-r from-rose-500 to-pink-500 shadow-lg overflow-hidden">
-          <CardContent className="pt-6 pb-6">
-            <div className="flex items-center gap-4">
-              <div className="flex-shrink-0 h-14 w-14 bg-white/20 rounded-full flex items-center justify-center">
-                <Receipt className="h-7 w-7 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-lg font-bold text-white">レシート申請</h3>
-                <p className="text-rose-100 text-sm mt-0.5">購入レシートを送ってポイントをGET！</p>
-              </div>
-              <Button
-                className="flex-shrink-0 bg-white text-rose-600 hover:bg-rose-50 font-bold shadow-md"
-                onClick={() => {
-                  const token = localStorage.getItem('lcj_session_token');
-                  if (token) {
-                    setLocation(`/receipt-upload?token=${encodeURIComponent(token)}`);
-                  } else {
-                    setLocation('/receipt-upload');
-                  }
-                }}
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                申請する
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 確変チャンス未参加バナー */}
-        {unplayedKakuhen && Array.isArray(unplayedKakuhen) && unplayedKakuhen.length > 0 && (
-          <Card className="mb-6 border-orange-300 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 shadow-lg overflow-hidden cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all"
-            onClick={() => {
-              const token = localStorage.getItem('lcj_session_token');
-              const receiptId = (unplayedKakuhen[0] as any).id;
-              if (token) {
-                setLocation(`/receipt-upload?token=${encodeURIComponent(token)}&kakuhenReceiptId=${receiptId}`);
-              } else {
-                setLocation(`/receipt-upload?kakuhenReceiptId=${receiptId}`);
-              }
-            }}>
-            <CardContent className="py-4">
-              <div className="flex items-center gap-3">
-                <div className="h-14 w-14 bg-white/25 rounded-full flex items-center justify-center flex-shrink-0 shadow-inner">
-                  <span className="text-3xl animate-bounce">🎰</span>
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <h3 className="text-base font-bold text-white">確変チャンスが{unplayedKakuhen.length}件待っています！</h3>
-                    <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">無料</span>
-                  </div>
-                  <p className="text-white/90 text-xs">還元率1.5%UP ＋ 全額キャッシュバック抽選に参加！</p>
-                  <p className="text-yellow-100/80 text-[10px] mt-0.5">タップして今すぐ参加 ※30秒で完了</p>
-                </div>
-                <div className="text-white/90">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Friend Referral Challenge Banner */}
-        <Card className="mb-6 border-purple-300 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-all"
-          onClick={() => setLocation("/friend-challenge")}>
-          <CardContent className="py-4">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-2xl">🎰</span>
-              </div>
-              <div className="flex-1">
-                <h3 className="text-base font-bold text-white">友達招待チャレンジ</h3>
-                <p className="text-purple-100 text-xs mt-0.5">友達を招待してルーレットを回そう！ポイントGET✨</p>
-              </div>
-              <div className="text-white/80">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                </svg>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Referral Welcome Banner - Temu-style */}
-        {referralBonusBanner && (
-          <div
-            className="mb-6 rounded-2xl shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700"
-            style={{
-              background: 'linear-gradient(135deg, #1a0a0a 0%, #3d0c0c 30%, #6b1111 60%, #1a0a0a 100%)',
-            }}
-          >
-            {/* Animated gold sparkle overlay */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              {[...Array(12)].map((_, i) => (
-                <div
-                  key={i}
-                  className="absolute rounded-full"
-                  style={{
-                    width: `${4 + (i % 3) * 2}px`,
-                    height: `${4 + (i % 3) * 2}px`,
-                    background: `radial-gradient(circle, ${['#ffd700', '#ffaa00', '#fff5cc'][i % 3]} 0%, transparent 70%)`,
-                    left: `${(i * 8 + 5) % 95}%`,
-                    top: `${(i * 11 + 10) % 85}%`,
-                    animation: `sparkle ${1.5 + (i % 3) * 0.7}s ease-in-out ${(i % 5) * 0.4}s infinite`,
-                  }}
-                />
-              ))}
-            </div>
-            {/* Gold border glow */}
-            <div className="absolute inset-0 rounded-2xl" style={{ boxShadow: 'inset 0 0 20px rgba(255,215,0,0.15)' }} />
-            
-            <button
-              onClick={() => {
-                haptic.dismiss();
-                setReferralBonusBanner(null);
-              }}
-              className="absolute top-3 right-3 text-yellow-400/60 hover:text-yellow-300 z-20 transition-colors"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            
-            <div className="relative z-10 p-5">
-              {/* Top badge */}
-              <div className="flex justify-center mb-3">
-                <span
-                  className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-bold tracking-wider"
-                  style={{
-                    background: 'linear-gradient(90deg, #ffd700, #ffaa00)',
-                    color: '#1a0a0a',
-                    boxShadow: '0 0 12px rgba(255,215,0,0.4)',
-                  }}
-                >
-                  <Gift className="h-3.5 w-3.5" />
-                  WELCOME BONUS
-                </span>
-              </div>
-              
-              {/* Points display */}
-              <div className="text-center mb-3">
-                <div className="inline-flex items-baseline gap-1">
-                  <span
-                    className="text-4xl font-black tracking-tight"
-                    style={{
-                      background: 'linear-gradient(180deg, #ffd700 0%, #ffaa00 50%, #ff8800 100%)',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      filter: 'drop-shadow(0 2px 4px rgba(255,170,0,0.3))',
-                    }}
-                  >
-                    {referralBonusBanner}
-                  </span>
-                  <span className="text-xl font-bold text-yellow-400">pt</span>
-                </div>
-                <p className="text-yellow-100 font-bold text-lg mt-0.5">
-                  プレゼント！
+        <Card className="mb-6 border-sky-200 bg-sky-50">
+          <CardContent className="py-5">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-sky-700" />
+              <div>
+                <h3 className="font-bold text-sky-950">Beauty Walletが唯一の公式ポイント残高です</h3>
+                <p className="mt-1 text-sm leading-6 text-sky-800">
+                  LCJ側の新規ポイント申請・抽選・利用は停止中です。既存のレシートとポイント履歴は照合用として保持されます。
                 </p>
               </div>
-              
-              {/* Description */}
-              <p className="text-center text-yellow-200/70 text-xs">
-                招待特典ポイントが付与されました。お買い物にご利用いただけます。
-              </p>
-              
-              {/* CTA button */}
-              <div className="flex justify-center mt-4">
-                <button
-                  onClick={() => {
-                    haptic.doubleTap();
-                    setReferralBonusBanner(null);
-                  }}
-                  className="px-6 py-2 rounded-full text-sm font-bold transition-all hover:scale-105 active:scale-95"
-                  style={{
-                    background: 'linear-gradient(90deg, #ff3333, #cc0000)',
-                    color: '#fff',
-                    boxShadow: '0 4px 15px rgba(255,0,0,0.3)',
-                  }}
-                >
-                  お買い物を始める
-                </button>
-              </div>
             </div>
-            
-            {/* CSS animation for sparkles */}
-            <style>{`
-              @keyframes sparkle {
-                0%, 100% { opacity: 0; transform: scale(0.5); }
-                50% { opacity: 1; transform: scale(1.2); }
-              }
-            `}</style>
-          </div>
-        )}
-        {/* Points Summary - 改善されたデザイン */}
+          </CardContent>
+        </Card>
+
+        {/* Beauty Wallet is the sole live ledger; LCJ is reference-only. */}
         <Card className="mb-8 border-rose-200 bg-gradient-to-br from-rose-50 to-pink-50 shadow-lg">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-rose-700">
               <div className="h-10 w-10 bg-gradient-to-br from-rose-500 to-pink-500 rounded-full flex items-center justify-center">
                 <Coins className="h-5 w-5 text-white" />
               </div>
-              保有ポイント
+              Beauty Wallet 統合残高
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {pointsLoading ? (
+            {pointsLoading || bwLinkLoading || (bwLinkStatus?.linked && bwLedgerLoading) ? (
               <div className="flex justify-center py-4">
                 <Loader2 className="h-8 w-8 animate-spin text-rose-500" />
               </div>
@@ -551,96 +332,53 @@ export default function LineMypage() {
               <>
                 <div className="flex items-baseline gap-2 mb-6">
                   <span className="text-5xl font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">
-                    {pointsData?.balance.toLocaleString() || 0}
+                    {bwLedger?.centralLedgerAvailable && bwLedger.unifiedTotal !== null
+                      ? bwLedger.unifiedTotal.toLocaleString()
+                      : bwLinkStatus?.linked ? "確認中" : "未連携"}
                   </span>
-                  <span className="text-xl text-rose-600 font-medium">ポイント</span>
+                  {bwLedger?.centralLedgerAvailable && bwLedger.unifiedTotal !== null && (
+                    <span className="text-xl text-rose-600 font-medium">ポイント</span>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-white/60 rounded-lg p-3">
                     <div className="flex items-center gap-2 mb-1">
-                      <TrendingUp className="h-4 w-4 text-green-500" />
-                      <p className="text-sm text-muted-foreground">累計獲得</p>
+                      <Coins className="h-4 w-4 text-slate-500" />
+                      <p className="text-sm text-muted-foreground">LCJ参考残高</p>
                     </div>
-                    <p className="text-lg font-bold text-green-600">+{pointsData?.lifetimeEarned.toLocaleString() || 0} pt</p>
+                    <p className="text-lg font-bold text-slate-700">
+                      {pointsData?.balance.toLocaleString() || 0} pt
+                    </p>
                   </div>
                   <div className="bg-white/60 rounded-lg p-3">
                     <div className="flex items-center gap-2 mb-1">
-                      <TrendingDown className="h-4 w-4 text-blue-500" />
-                      <p className="text-sm text-muted-foreground">累計利用</p>
+                      <ShieldCheck className="h-4 w-4 text-violet-500" />
+                      <p className="text-sm text-muted-foreground">主台帳</p>
                     </div>
-                    <p className="text-lg font-bold text-blue-600">-{pointsData?.lifetimeUsed.toLocaleString() || 0} pt</p>
+                    <p className="text-lg font-bold text-violet-700">Beauty Wallet</p>
                   </div>
                 </div>
-                {/* Expiring Points Warning */}
-                {pointsData?.expiring && (pointsData.expiring.in7Days > 0 || pointsData.expiring.in30Days > 0) && (
-                  <div className="mt-4 space-y-2">
-                    {pointsData.expiring.in7Days > 0 && (
-                      <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                        <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
-                        <span className="text-sm text-red-700">
-                          <strong>{pointsData.expiring.in7Days.toLocaleString()}pt</strong> が7日以内に失効
-                        </span>
-                      </div>
-                    )}
-                    {pointsData.expiring.in30Days > 0 && pointsData.expiring.in7Days !== pointsData.expiring.in30Days && (
-                      <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
-                        <Clock className="h-4 w-4 text-yellow-500 flex-shrink-0" />
-                        <span className="text-sm text-yellow-700">
-                          <strong>{pointsData.expiring.in30Days.toLocaleString()}pt</strong> が30日以内に失効予定
-                        </span>
-                      </div>
-                    )}
-                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-lg p-3">
-                      <p className="text-sm font-medium text-emerald-800 mb-1">
-                        🌟 友達を招待して有効期限を延長しよう！
-                      </p>
-                      <p className="text-xs text-emerald-700 mb-2">
-                        友達を招待すると、保有中の全ポイントの有効期限が招待日から6ヶ月にリセットされます。
-                      </p>
-                      <Button
-                        size="sm"
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
-                        onClick={() => setLocation("/friend-challenge")}
-                      >
-                        <Users className="h-3.5 w-3.5" />
-                        友達を招待する
-                      </Button>
-                    </div>
+                {!bwLinkStatus?.linked && (
+                  <div className="mt-4 rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm text-violet-800">
+                    正式残高を表示するにはBeauty Walletを連携してください。LCJ参考残高は自動加算されず、履歴照合後に扱われます。
                   </div>
                 )}
-                {/* Point Expiry Info (always shown) */}
-                <div className="mt-3 bg-gray-50 rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Clock className="h-3.5 w-3.5 text-gray-500" />
-                    <span className="text-xs font-medium text-gray-600">ポイント有効期限について</span>
+                {bwLinkStatus?.linked && !bwLedger?.centralLedgerAvailable && (
+                  <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    Beauty Walletの履歴を完全照合できないため、正式残高を表示していません。ポイントは変更されていません。
                   </div>
-                  <p className="text-xs text-gray-500">
-                    ※ ポイントは付与日から6ヶ月で失効します
-                  </p>
-                  <p className="text-xs text-emerald-600 mt-1">
-                    ※ 友達招待で全ポイントの有効期限が招待日から6ヶ月に延長されます
-                  </p>
-                  {pointsData?.expiring?.breakdown && pointsData.expiring.breakdown.length > 0 && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      次回失効日: {new Date(pointsData.expiring.breakdown[0].expiresAt).toLocaleDateString('ja-JP')}
-                    </p>
-                  )}
+                )}
+                <div className="mt-3 bg-gray-50 rounded-lg p-3 text-xs text-gray-600">
+                  LCJ参考残高と履歴は過去データの照合用です。現在の利用可能残高と有効期限はBeauty Walletで確認してください。
                 </div>
                 <div className="mt-4 pt-4 border-t border-rose-200 space-y-2">
-                  <Button 
-                    className="w-full bg-rose-500 hover:bg-rose-600 gap-2"
-                    onClick={() => setLocation("/mall/products")}
-                  >
-                    <ShoppingBag className="h-4 w-4" />
-                    ポイントで商品を購入
-                  </Button>
-                  <Button 
+                  <Button
                     variant="outline"
                     className="w-full border-violet-300 text-violet-700 hover:bg-violet-50 gap-2"
                     onClick={() => setLocation("/beauty-wallet")}
                   >
                     <CreditCard className="h-4 w-4" />
-                    Beauty Walletに交換
+                    {bwLinkStatus?.linked ? "Beauty Walletを確認" : "Beauty Walletを連携"}
                   </Button>
                 </div>
               </>
@@ -1068,9 +806,9 @@ export default function LineMypage() {
                   <div>
                     <CardTitle className="text-lg flex items-center gap-2">
                       <History className="h-5 w-5 text-rose-500" />
-                      ポイント履歴
+                      LCJ旧ポイント記録
                     </CardTitle>
-                    <CardDescription>ポイントの獲得・利用履歴</CardDescription>
+                    <CardDescription>過去互換ログ（現在残高・利用可否の根拠ではありません）</CardDescription>
                   </div>
                   <Select value={historyFilter} onValueChange={(v) => setHistoryFilter(v as "all" | "earn" | "use")}>
                     <SelectTrigger className="w-[140px]">
@@ -1126,7 +864,7 @@ export default function LineMypage() {
                               {tx.amount > 0 ? "+" : ""}{tx.amount.toLocaleString()} pt
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              残高: {tx.balanceAfter?.toLocaleString() || "-"} pt
+                              旧記録残高: {tx.balanceAfter?.toLocaleString() || "-"} pt
                             </div>
                           </div>
                         </div>
@@ -1152,37 +890,18 @@ export default function LineMypage() {
           </TabsContent>
 
           <TabsContent value="receipts">
-            {/* Webフォームへの誘導カード */}
-            <Card className="mb-4 border-rose-200 bg-gradient-to-r from-rose-50 to-pink-50">
+            {/* Historical receipt audit notice */}
+            <Card className="mb-4 border-sky-200 bg-gradient-to-r from-sky-50 to-cyan-50">
               <CardContent className="pt-6">
                 <div className="text-center space-y-4">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-rose-100">
-                    <Upload className="h-8 w-8 text-rose-500" />
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-sky-100">
+                    <ShieldCheck className="h-8 w-8 text-sky-600" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-gray-900">Webフォームでレシートを申請</h3>
+                    <h3 className="text-lg font-bold text-gray-900">レシート履歴は照合用です</h3>
                     <p className="text-sm text-muted-foreground mt-1">
-                      高精度AI解析で確実にポイントが付与されます
+                      新規LCJポイント申請は停止中です。過去の申請は監査用として表示します。
                     </p>
-                  </div>
-                  <Button
-                    className="w-full bg-rose-500 hover:bg-rose-600 text-white"
-                    onClick={() => {
-                      const token = localStorage.getItem('lcj_session_token');
-                      if (token) {
-                        setLocation(`/receipt-upload?token=${encodeURIComponent(token)}`);
-                      } else {
-                        setLocation('/receipt-upload');
-                      }
-                    }}
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    レシートをアップロードする
-                  </Button>
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <p>1. レシート画像をアップロード</p>
-                    <p>2. AIが自動で解析</p>
-                    <p>3. 内容を確認して申請完了</p>
                   </div>
                 </div>
               </CardContent>
@@ -1436,19 +1155,11 @@ export default function LineMypage() {
                         )}
                         {isRejected && (
                           <Button
-                            className="mt-3 w-full bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white"
+                            className="mt-3 w-full"
                             size="sm"
-                            onClick={() => {
-                              const token = localStorage.getItem('lcj_session_token');
-                              if (token) {
-                                setLocation(`/receipt-upload?token=${encodeURIComponent(token)}`);
-                              } else {
-                                setLocation('/receipt-upload');
-                              }
-                            }}
+                            disabled
                           >
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            再申請する
+                            新規申請は現在停止中
                           </Button>
                         )}
                       </div>
@@ -1467,7 +1178,7 @@ export default function LineMypage() {
                   <div className="text-center py-8 text-muted-foreground">
                     <Receipt className="h-12 w-12 mx-auto mb-2 opacity-50" />
                     <p>レシート申請履歴がありません</p>
-                    <p className="text-sm mt-2">上のボタンからレシートをアップロードしてポイントを獲得しましょう</p>
+                    <p className="text-sm mt-2">新規LCJポイント申請は現在停止中です</p>
                   </div>
                 )}
               </CardContent>
@@ -1639,9 +1350,8 @@ export default function LineMypage() {
                     </span>
                   </div>
                   {targetOrder.pointsUsed > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>返還予定ポイント</span>
-                      <span className="font-medium">+{targetOrder.pointsUsed.toLocaleString()} pt</span>
+                    <div className="rounded-md bg-amber-50 p-2 text-xs leading-5 text-amber-800">
+                      旧LCJポイント利用分は自動返還されません。注文キャンセル後、Beauty Wallet主台帳との照合対象として扱われます。
                     </div>
                   )}
                 </div>

@@ -49,7 +49,7 @@ function createAnonContext(): { ctx: TrpcContext } {
 }
 
 describe("friendReferral.getSpinItems", () => {
-  it("returns normal spin items with correct format", async () => {
+  it("returns no normal spin items while local rewards are stopped", async () => {
     const { ctx } = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
@@ -57,21 +57,10 @@ describe("friendReferral.getSpinItems", () => {
 
     expect(result).toBeDefined();
     expect(Array.isArray(result)).toBe(true);
-    expect(result.length).toBeGreaterThan(0);
-
-    for (const item of result) {
-      expect(item).toHaveProperty("id");
-      expect(item).toHaveProperty("label");
-      expect(item).toHaveProperty("emoji");
-      expect(item).toHaveProperty("points");
-      expect(typeof item.label).toBe("string");
-      expect(typeof item.emoji).toBe("string");
-      expect(typeof item.points).toBe("number");
-      expect(item.points).toBeGreaterThanOrEqual(0);
-    }
+    expect(result).toEqual([]);
   });
 
-  it("returns special spin items with correct format", async () => {
+  it("returns no special spin items while local rewards are stopped", async () => {
     const { ctx } = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
@@ -79,14 +68,7 @@ describe("friendReferral.getSpinItems", () => {
 
     expect(result).toBeDefined();
     expect(Array.isArray(result)).toBe(true);
-    expect(result.length).toBeGreaterThan(0);
-
-    for (const item of result) {
-      expect(item).toHaveProperty("id");
-      expect(item).toHaveProperty("label");
-      expect(item).toHaveProperty("emoji");
-      expect(item).toHaveProperty("points");
-    }
+    expect(result).toEqual([]);
   });
 });
 

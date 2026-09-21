@@ -3,7 +3,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Route, Switch, Redirect } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useReferralCapture } from "./hooks/useReferralCapture";
-import RandomSpinProvider from "./components/RandomSpinProvider";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
 import ProtectedLiverRoute from "./components/ProtectedLiverRoute";
@@ -110,7 +109,6 @@ const ProductRanking = lazy(() => import("./pages/ProductRanking"));
 const ProductRequestsAdmin = lazy(() => import("./pages/ProductRequestsAdmin"));
 const FriendReferralChallenge = lazy(() => import("./pages/FriendReferralChallenge"));
 const Register = lazy(() => import("./pages/Register"));
-const SpinDemo = lazy(() => import("./pages/SpinDemo"));
 const ChatRegister = lazy(() => import("./pages/ChatRegister"));
 const RegistrationBonus = lazy(() => import("./pages/RegistrationBonus"));
 const MemberDetail = lazy(() => import("./pages/MemberDetail"));
@@ -127,7 +125,6 @@ const RecruitmentManagement = lazy(() => import("./pages/RecruitmentManagement")
 const ReviewDatabase = lazy(() => import("./pages/ReviewDatabase"));
 const ProductReviews = lazy(() => import("./pages/ProductReviews"));
 const BeautyWallet = lazy(() => import("./pages/BeautyWallet"));
-const KakuhenTest = lazy(() => import("./pages/KakuhenTest"));
 const SetApplicationsAdmin = lazy(() => import("./pages/SetApplicationsAdmin"));
 const MasterSetSuggestions = lazy(() => import("./pages/MasterSetSuggestions"));
 const SampleRequestsAdmin = lazy(() => import("./pages/SampleRequestsAdmin"));
@@ -248,12 +245,12 @@ function Router() {
         <Route path="/receipt-upload" component={ReceiptUpload} />
         <Route path="/buyback" component={BuybackPage} />
         <Route path="/buyback/:id" component={BuybackPage} />
-        <Route path="/kakuhen-test" component={KakuhenTest} />
+        <Route path="/kakuhen-test"><Redirect to="/beauty-wallet" /></Route>
         <Route path="/ranking" component={ProductRanking} />
         <Route path="/reviews" component={ReviewDatabase} />
         <Route path="/reviews/product/:name" component={ProductReviews} />
         <Route path="/friend-challenge" component={FriendReferralChallenge} />
-        <Route path="/spin-demo" component={SpinDemo} />
+        <Route path="/spin-demo"><Redirect to="/beauty-wallet" /></Route>
         <Route path="/register/:code" component={Register} />
         <Route path="/register" component={Register} />
         <Route path="/chat-register" component={ChatRegister} />
@@ -872,12 +869,10 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
-        <TooltipProvider>
-          <Toaster />
-          <RandomSpinProvider>
+          <TooltipProvider>
+            <Toaster />
             <Router />
-          </RandomSpinProvider>
-        </TooltipProvider>
+          </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

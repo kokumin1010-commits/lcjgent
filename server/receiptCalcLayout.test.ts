@@ -19,13 +19,13 @@ describe("Receipt Management 2-Column Layout with Calculator", () => {
   describe("2-Column Layout Structure", () => {
     it("should have a multi-column flex layout", () => {
       // Main container should use flex with gap
-      expect(content).toContain("flex gap-4");
+      expect(content).toContain("flex flex-col gap-4 xl:flex-row");
     });
 
     it("should have a left column with fixed width for calculator", () => {
       // Left column should be fixed width and sticky
-      expect(content).toContain("w-[300px]");
-      expect(content).toContain("sticky top-2");
+      expect(content).toContain("xl:w-[300px]");
+      expect(content).toContain("xl:sticky xl:top-2");
     });
 
     it("should have a right column that fills remaining space", () => {
@@ -37,7 +37,7 @@ describe("Receipt Management 2-Column Layout with Calculator", () => {
   describe("Calculator Panel", () => {
     it("should have Calculator icon and title", () => {
       expect(content).toContain("Calculator");
-      expect(content).toContain("審査パネル");
+      expect(content).toContain('t("lr.reviewPanel")');
     });
 
     it("should have calcReceiptId state for tracking selected receipt", () => {
@@ -56,7 +56,7 @@ describe("Receipt Management 2-Column Layout with Calculator", () => {
     });
 
     it("should show placeholder when no receipt is selected", () => {
-      expect(content).toContain("右の一覧からレシートを選択");
+      expect(content).toContain('t("lr.selectReceipt")');
     });
 
     it("should have amount input with yen prefix", () => {
@@ -72,7 +72,7 @@ describe("Receipt Management 2-Column Layout with Calculator", () => {
     });
 
     it("should display auto-calculated points prominently", () => {
-      expect(content).toContain("1%ポイント");
+      expect(content).toContain("旧LCJ算出参考（監査）");
       expect(content).toContain("calcPoints");
     });
   });
@@ -82,17 +82,20 @@ describe("Receipt Management 2-Column Layout with Calculator", () => {
       expect(content).toContain("handleCalcApprove");
     });
 
-    it("should pass calcPoints as pointsOverride when approving", () => {
-      expect(content).toContain("pointsOverride: calcPoints > 0 ? calcPoints : undefined");
+    it("should not submit calcPoints while LCJ point approval is stopped", () => {
+      const start = content.indexOf("const handleCalcApprove");
+      const end = content.indexOf("// Handle hold", start);
+      const handler = content.slice(start, end);
+      expect(handler).toContain("LCJポイント承認は停止中です");
+      expect(handler).not.toContain("approveMutation.mutate");
     });
 
-    it("should have a prominent approve button showing points to award", () => {
-      expect(content).toContain("承認（");
-      expect(content).toContain("pt付与）");
+    it("should show the approval button as stopped", () => {
+      expect(content).toContain("LCJポイント承認停止中");
     });
 
-    it("should only disable approve button when mutation is pending", () => {
-      expect(content).toContain("disabled={approveMutation.isPending}");
+    it("should keep the point approval button disabled", () => {
+      expect(content).toMatch(/<Button[\s\S]{0,240}\bdisabled[\s\S]{0,180}LCJポイント承認停止中/);
     });
 
     it("should clear calculator state after successful approval", () => {

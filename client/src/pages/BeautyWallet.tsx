@@ -1,160 +1,119 @@
 import { trpc } from "@/lib/trpc";
-import { useState, useMemo, useEffect } from "react";
+import { useEffect, useState } from "react";
 import haptic from "@/lib/haptic";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
-import { format } from "date-fns";
-import { ja } from "date-fns/locale";
 import {
-  ArrowLeft,
-  Wallet,
-  ArrowRightLeft,
-  Link2,
-  Link2Off,
-  Loader2,
-  CheckCircle,
-  Clock,
-  XCircle,
   AlertCircle,
-  Coins,
-  Sparkles,
+  ArrowLeft,
+  CheckCircle,
   ExternalLink,
-  History,
-  ChevronRight,
   Info,
+  Link2,
+  Loader2,
+  LockKeyhole,
+  MailCheck,
+  RefreshCw,
+  ShieldCheck,
+  Wallet,
 } from "lucide-react";
+
+const BEAUTY_WALLET_REGISTER_URL = "https://www.beautypass.ai/register";
+const BEAUTY_WALLET_URL = "https://www.beautypass.ai/wallet";
 
 export default function BeautyWallet() {
   const [, setLocation] = useLocation();
-  const [exchangeAmount, setExchangeAmount] = useState("");
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [showUnlinkDialog, setShowUnlinkDialog] = useState(false);
+  const utils = trpc.useUtils();
+  const [email, setEmail] = useState("");
+  const [challengeToken, setChallengeToken] = useState("");
+  const [maskedEmail, setMaskedEmail] = useState("");
+  const [code, setCode] = useState("");
 
-  // ユーザー情報
   const { data: user, isLoading: userLoading } = trpc.lineLogin.me.useQuery();
-
-  // セッショントークンをlocalStorageに同期（ページリフレッシュ時のセッション維持用）
   useEffect(() => {
-    if (user?.sessionToken) {
-      localStorage.setItem('lcj_session_token', user.sessionToken);
-    }
-  }, [user?.sessionToken]);
+    if (user?.email && !email) setEmail(user.email);
+  }, [user?.email, email]);
 
-  // ポイント残高
-  const { data: pointsData, isLoading: pointsLoading } = trpc.lineLogin.getMyPoints.useQuery(undefined, {
-    enabled: !!user,
+  const { data: localPoints } = trpc.lineLogin.getMyPoints.useQuery(undefined, {
+    enabled: Boolean(user),
+  });
+  const {
+    data: linkStatus,
+    isLoading: linkLoading,
+    error: linkError,
+  } = trpc.beautyWalletMember.status.useQuery(undefined, {
+    enabled: Boolean(user),
+  });
+  const {
+    data: ledger,
+    isLoading: ledgerLoading,
+    refetch: refetchLedger,
+  } = trpc.beautyWalletMember.centralLedger.useQuery(undefined, {
+    enabled: Boolean(user && linkStatus?.linked),
+    staleTime: 60_000,
   });
 
-  // BW連携状態
-  const { data: linkStatus, isLoading: linkLoading, refetch: refetchLinkStatus } = trpc.beautyWallet.getLinkStatus.useQuery(
-    { lineUserId: user?.id ?? 0 },
-    { enabled: !!user?.id }
-  );
-
-  // 交換レート
-  const { data: rateInfo } = trpc.beautyWallet.getExchangeRate.useQuery();
-
-  // 交換履歴
-  const { data: exchangeHistory, isLoading: historyLoading, refetch: refetchHistory } = trpc.beautyWallet.getExchangeHistory.useQuery(
-    { lineUserId: user?.id ?? 0 },
-    { enabled: !!user?.id }
-  );
-
-  // BW連携開始
-  const startLinkMutation = trpc.beautyWallet.startLink.useMutation({
-    onSuccess: (data) => {
+  const requestCode = trpc.beautyWalletMember.requestLinkCode.useMutation({
+    onSuccess: result => {
       haptic.doubleTap();
-      if (data.autoLinked) {
-        // メールベースで自動連携成功
-        toast.success(
-          `${data.account?.bwDisplayName || "Beauty Wallet"} のアカウントと連携しました`
-        );
-        // 連携ステータスを再取得して交換セクションを表示
-        refetchLinkStatus();
-      } else if (data.linkUrl) {
-        // 手動連携（BWページを開く）
-        window.open(data.linkUrl, "_blank");
-        toast.info("Beauty Walletの連携ページを開きました");
-      }
+      setChallengeToken(result.challengeToken);
+      setMaskedEmail(result.maskedEmail);
+      setCode("");
+      toast.success("確認コードを送信しました");
     },
-    onError: (error) => {
-      toast.error(`連携に失敗しました: ${error.message}`);
-    },
+    onError: error => toast.error(error.message),
   });
 
-  // BW連携解除
-  const unlinkMutation = trpc.beautyWallet.unlink.useMutation({
-    onSuccess: () => {
-      haptic.warning();
-      toast.success("Beauty Walletの連携を解除しました");
-      setShowUnlinkDialog(false);
-      refetchLinkStatus();
-    },
-    onError: (error) => {
-      toast.error(`連携解除に失敗しました: ${error.message}`);
-    },
-  });
-
-  // ポイント交換
-  const exchangeMutation = trpc.beautyWallet.exchange.useMutation({
-    onSuccess: (data) => {
+  const confirmLink = trpc.beautyWalletMember.confirmLink.useMutation({
+    onSuccess: async result => {
       haptic.celebration();
-      toast.success(
-        `${data.lcjPointsUsed.toLocaleString()}pt → ${data.bwTokensReceived.toLocaleString()}BT に交換しました！`,
-        {
-          description: "Beauty Walletにトークンが付与されました",
-          duration: 5000,
-        }
-      );
-      setShowConfirmDialog(false);
-      setExchangeAmount("");
-      refetchHistory();
-      // 交換完了後にBeauty Walletページへ自動遷移（2秒後）
-      setTimeout(() => {
-        window.open("https://beautypass.ai/wallet", "_blank");
-      }, 2000);
+      setChallengeToken("");
+      setCode("");
+      await Promise.all([
+        utils.beautyWalletMember.status.invalidate(),
+        utils.beautyWalletMember.centralLedger.invalidate(),
+      ]);
+      toast.success("Beauty Walletと安全に連携しました", {
+        description:
+          result.unifiedTotal === null
+            ? "残高はBeauty Walletで確認できます"
+            : `統合残高 ${result.unifiedTotal.toLocaleString()} pt`,
+      });
     },
-    onError: (error) => {
-      toast.error(`交換に失敗しました: ${error.message}`);
-    },
+    onError: error => toast.error(error.message),
   });
 
-  // 計算値
-  const lcjPoints = parseInt(exchangeAmount) || 0;
-  const bwTokens = useMemo(() => {
-    if (!rateInfo || lcjPoints < rateInfo.minPoints) return 0;
-    return Math.floor(lcjPoints * rateInfo.rate);
-  }, [lcjPoints, rateInfo]);
-
-  const balance = pointsData?.balance ?? 0;
-  const canExchange = lcjPoints >= (rateInfo?.minPoints ?? 100) && lcjPoints <= balance && lcjPoints % 100 === 0;
-
-  // ローディング
   if (userLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-violet-50 to-pink-50 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+      <div className="min-h-screen bg-gradient-to-b from-violet-50 to-white flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
       </div>
     );
   }
 
-  // 未ログイン
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-violet-50 to-pink-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-b from-violet-50 to-white flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardContent className="pt-6 text-center">
-            <Wallet className="h-12 w-12 mx-auto mb-4 text-violet-500" />
+            <Wallet className="h-12 w-12 mx-auto mb-4 text-violet-600" />
             <h2 className="text-xl font-bold mb-2">ログインが必要です</h2>
             <p className="text-muted-foreground mb-4">
               Beauty Wallet連携にはLCJ MALLへのログインが必要です
             </p>
-            <Button onClick={() => setLocation("/line-login")} className="bg-violet-600 hover:bg-violet-700">
+            <Button
+              onClick={() => setLocation("/line-login")}
+              className="bg-violet-600 hover:bg-violet-700"
+            >
               ログインする
             </Button>
           </CardContent>
@@ -163,428 +122,291 @@ export default function BeautyWallet() {
     );
   }
 
+  const centralBalance = ledger?.centralLedgerAvailable
+    ? ledger.unifiedTotal
+    : null;
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-violet-50 via-pink-50 to-white">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b">
+    <div className="min-h-screen bg-gradient-to-b from-violet-50 via-white to-white">
+      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b">
         <div className="container max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
-          <button onClick={() => setLocation("/mypage")} className="p-1 hover:bg-gray-100 rounded-full transition-colors">
+          <button
+            type="button"
+            onClick={() => setLocation("/mypage")}
+            className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+            aria-label="マイページに戻る"
+          >
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 bg-gradient-to-br from-violet-500 to-pink-500 rounded-lg flex items-center justify-center">
+            <div className="h-8 w-8 bg-gradient-to-br from-violet-600 to-fuchsia-500 rounded-lg flex items-center justify-center">
               <Wallet className="h-4 w-4 text-white" />
             </div>
-            <h1 className="text-lg font-bold">Beauty Wallet</h1>
+            <div>
+              <h1 className="text-lg font-bold leading-tight">Beauty Wallet</h1>
+              <p className="text-[11px] text-muted-foreground">
+                すべてのポイントの唯一のリアルタイム主台帳
+              </p>
+            </div>
           </div>
         </div>
       </header>
 
       <main className="container max-w-lg mx-auto px-4 py-6 space-y-6">
-        {/* BW連携カード */}
-        <Card className="border-violet-200 bg-gradient-to-br from-violet-50 to-pink-50 shadow-lg overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-violet-200/30 to-transparent rounded-bl-full" />
-          <CardHeader className="relative">
-            <CardTitle className="flex items-center gap-2 text-violet-700">
-              <Link2 className="h-5 w-5" />
-              アカウント連携
-            </CardTitle>
-            <CardDescription>
-              LCJポイントをBeauty Tokenに交換するには、Beauty Walletアカウントとの連携が必要です
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="relative">
-            {linkLoading ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin text-violet-500" />
-              </div>
-            ) : linkStatus?.isLinked ? (
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 bg-white/60 rounded-lg p-3">
-                  <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-green-700">連携済み</p>
-                    {linkStatus.account?.bwDisplayName && (
-                      <p className="text-sm text-muted-foreground truncate">
-                        {linkStatus.account.bwDisplayName}
-                      </p>
-                    )}
-                    {linkStatus.account?.bwEmail && (
-                      <p className="text-xs text-muted-foreground truncate">
-                        {linkStatus.account.bwEmail}
-                      </p>
-                    )}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                    onClick={() => setShowUnlinkDialog(true)}
-                  >
-                    <Link2Off className="h-4 w-4" />
-                  </Button>
-                </div>
-                <Button
-                  className="w-full bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700 gap-2"
-                  onClick={() => window.open("https://beautypass.ai/wallet", "_blank")}
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Beauty Wallet を開く
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-start gap-3 bg-white/60 rounded-lg p-3">
-                  <AlertCircle className="h-5 w-5 text-violet-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium">まだ連携されていません</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Beauty Walletアカウントを連携して、LCJポイントをBeauty Tokenに交換しましょう
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  className="w-full bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700 gap-2"
-                  onClick={() => {
-                    haptic.doubleTap();
-                    if (user?.id) {
-                      startLinkMutation.mutate({ 
-                        lineUserId: user.id,
-                        email: user.email || undefined,
-                      });
-                    }
-                  }}
-                  disabled={startLinkMutation.isPending}
-                >
-                  {startLinkMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ExternalLink className="h-4 w-4" />
-                  )}
-                  Beauty Walletと連携する
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* 交換レート情報 */}
-        <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50">
+        <Card className="border-violet-200 bg-gradient-to-br from-violet-700 to-fuchsia-600 text-white shadow-xl overflow-hidden">
           <CardContent className="pt-6">
-            <div className="flex items-center justify-center gap-4">
-              <div className="text-center">
-                <div className="h-12 w-12 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-1">
-                  <Coins className="h-6 w-6 text-rose-500" />
-                </div>
-                <p className="text-sm font-medium">LCJポイント</p>
-                <p className="text-2xl font-bold text-rose-600">100</p>
-              </div>
-              <div className="flex flex-col items-center">
-                <ArrowRightLeft className="h-6 w-6 text-amber-600" />
-                <p className="text-xs text-muted-foreground mt-1">交換</p>
-              </div>
-              <div className="text-center">
-                <div className="h-12 w-12 bg-violet-100 rounded-full flex items-center justify-center mx-auto mb-1">
-                  <Sparkles className="h-6 w-6 text-violet-500" />
-                </div>
-                <p className="text-sm font-medium">Beauty Token</p>
-                <p className="text-2xl font-bold text-violet-600">40</p>
-              </div>
+            <div className="flex items-center gap-2 text-violet-100 text-sm font-medium">
+              <ShieldCheck className="h-4 w-4" />
+              Beauty Wallet 統合残高
             </div>
-            <p className="text-center text-xs text-muted-foreground mt-3">
-              ※ 100ポイント単位で交換可能 ・ 最低100ポイントから
+            <div className="mt-3 flex items-baseline gap-2">
+              {linkStatus?.linked && ledgerLoading ? (
+                <Loader2 className="h-9 w-9 animate-spin" />
+              ) : centralBalance !== null && centralBalance !== undefined ? (
+                <>
+                  <span className="text-5xl font-bold tracking-tight">
+                    {centralBalance.toLocaleString()}
+                  </span>
+                  <span className="text-lg font-semibold">pt</span>
+                </>
+              ) : (
+                <span className="text-2xl font-bold">
+                  {linkStatus?.linked ? "確認できません" : "未連携"}
+                </span>
+              )}
+            </div>
+            <p className="mt-3 text-xs leading-relaxed text-violet-100">
+              ブランド別・LINE・メールの表示を合算するのではなく、Beauty
+              Walletの統合残高だけを正式残高として表示します。
             </p>
           </CardContent>
         </Card>
 
-        {/* ポイント交換セクション */}
-        {linkStatus?.isLinked && (
-          <Card className="border-rose-200 shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-rose-700">
-                <ArrowRightLeft className="h-5 w-5" />
-                ポイント交換
-              </CardTitle>
-              <CardDescription>
-                保有ポイント: <span className="font-bold text-rose-600">{balance.toLocaleString()}</span> pt
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* 交換額入力 */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">交換するLCJポイント</label>
-                <div className="relative">
-                  <Input
-                    type="number"
-                    placeholder="100"
-                    value={exchangeAmount}
-                    onChange={(e) => setExchangeAmount(e.target.value)}
-                    min={100}
-                    step={100}
-                    className="pr-8 text-lg"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">pt</span>
-                </div>
-                {/* クイック選択ボタン */}
-                <div className="flex gap-2 flex-wrap">
-                  {[100, 500, 1000, 5000].map((amount) => (
-                    <Button
-                      key={amount}
-                      variant="outline"
-                      size="sm"
-                      className="text-xs"
-                      onClick={() => setExchangeAmount(String(amount))}
-                      disabled={amount > balance}
-                    >
-                      {amount.toLocaleString()}pt
-                    </Button>
-                  ))}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs"
-                    onClick={() => {
-                      const max = Math.floor(balance / 100) * 100;
-                      setExchangeAmount(String(max));
-                    }}
-                    disabled={balance < 100}
-                  >
-                    全額
-                  </Button>
-                </div>
-              </div>
-
-              {/* 交換プレビュー */}
-              {lcjPoints > 0 && (
-                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">使用ポイント</span>
-                    <span className="font-bold text-rose-600">-{lcjPoints.toLocaleString()} pt</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">受取トークン</span>
-                    <span className="font-bold text-violet-600">+{bwTokens.toLocaleString()} BT</span>
-                  </div>
-                  <div className="border-t pt-2 flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">交換後残高</span>
-                    <span className="font-medium">{(balance - lcjPoints).toLocaleString()} pt</span>
-                  </div>
-                </div>
-              )}
-
-              {/* バリデーションメッセージ */}
-              {lcjPoints > 0 && !canExchange && (
-                <div className="flex items-center gap-2 text-sm text-red-600">
-                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                  {lcjPoints > balance
-                    ? "ポイント残高が不足しています"
-                    : lcjPoints % 100 !== 0
-                    ? "100ポイント単位で入力してください"
-                    : "最低100ポイントから交換可能です"}
-                </div>
-              )}
-
-              {/* 交換ボタン */}
-              <Button
-                className="w-full bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 gap-2 text-lg py-6"
-                disabled={!canExchange || exchangeMutation.isPending}
-                onClick={() => setShowConfirmDialog(true)}
-              >
-                <ArrowRightLeft className="h-5 w-5" />
-                交換する
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* 交換履歴 */}
-        <Card>
+        <Card className="border-violet-200 shadow-lg">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-gray-700">
-              <History className="h-5 w-5" />
-              交換履歴
+            <CardTitle className="flex items-center gap-2 text-violet-800">
+              <Link2 className="h-5 w-5" />
+              アカウント連携
             </CardTitle>
+            <CardDescription>
+              ご本人のメール確認後、同じメールのBeauty
+              Walletを安全に連携します。
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            {historyLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin" />
+            {linkLoading ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="h-6 w-6 animate-spin text-violet-600" />
               </div>
-            ) : exchangeHistory && exchangeHistory.length > 0 ? (
-              <div className="space-y-3">
-                {exchangeHistory.map((ex: any) => (
-                  <div key={ex.id} className="flex items-center justify-between py-3 border-b last:border-0">
-                    <div className="flex items-start gap-3">
-                      <div className="h-10 w-10 rounded-full flex items-center justify-center bg-violet-100">
-                        <ArrowRightLeft className="h-5 w-5 text-violet-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">
-                          {Number(ex.lcjPointsUsed).toLocaleString()}pt → {Number(ex.bwTokensReceived).toLocaleString()}BT
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(ex.createdAt), "yyyy年M月d日 HH:mm", { locale: ja })}
-                        </p>
-                      </div>
-                    </div>
-                    <div>
-                      {ex.bwTransferStatus === "completed" ? (
-                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          完了
-                        </Badge>
-                      ) : ex.bwTransferStatus === "processing" ? (
-                        <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          処理中
-                        </Badge>
-                      ) : ex.bwTransferStatus === "pending" ? (
-                        <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100">
-                          <Clock className="h-3 w-3 mr-1" />
-                          待機中
-                        </Badge>
-                      ) : ex.bwTransferStatus === "failed" ? (
-                        <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
-                          <XCircle className="h-3 w-3 mr-1" />
-                          失敗
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline">
-                          {ex.bwTransferStatus}
-                        </Badge>
-                      )}
-                    </div>
+            ) : linkError ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                連携状態を確認できません。再読み込みしてお試しください。
+              </div>
+            ) : linkStatus?.linked ? (
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="font-bold text-emerald-800">連携済み</p>
+                    {linkStatus.displayName && (
+                      <p className="text-sm text-emerald-800 truncate">
+                        {linkStatus.displayName}
+                      </p>
+                    )}
+                    <p className="text-xs text-emerald-700 truncate">
+                      {linkStatus.maskedEmail}
+                    </p>
                   </div>
-                ))}
+                </div>
+                {ledger && !ledger.centralLedgerAvailable && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                    Beauty
+                    Walletの履歴を完全照合できなかったため、残高は表示していません。ポイントは変更されていません。
+                  </div>
+                )}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => refetchLedger()}
+                    disabled={ledgerLoading}
+                  >
+                    <RefreshCw
+                      className={`h-4 w-4 ${ledgerLoading ? "animate-spin" : ""}`}
+                    />
+                    残高を再確認
+                  </Button>
+                  <Button
+                    className="bg-violet-600 hover:bg-violet-700 gap-2"
+                    onClick={() =>
+                      window.open(
+                        BEAUTY_WALLET_URL,
+                        "_blank",
+                        "noopener,noreferrer"
+                      )
+                    }
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Walletを開く
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  誤連携防止のため、ご本人による連携解除・別アカウントへの変更はサポート確認が必要です。
+                </p>
               </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <History className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>交換履歴がありません</p>
+              <div className="space-y-5">
+                <div className="rounded-xl border border-violet-200 bg-violet-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <LockKeyhole className="h-5 w-5 text-violet-700 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-violet-900">
+                        安全な本人確認
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-violet-800">
+                        Beauty
+                        Walletに登録したメールアドレスへ6桁コードを送ります。メールアドレスだけでは連携されません。
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {!challengeToken ? (
+                  <>
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="bw-link-email"
+                        className="text-sm font-medium"
+                      >
+                        Beauty Walletのメールアドレス
+                      </label>
+                      <Input
+                        id="bw-link-email"
+                        type="email"
+                        inputMode="email"
+                        autoComplete="email"
+                        value={email}
+                        onChange={event => setEmail(event.target.value)}
+                        placeholder="name@example.com"
+                      />
+                    </div>
+                    <Button
+                      className="w-full bg-violet-600 hover:bg-violet-700 gap-2"
+                      disabled={!email.trim() || requestCode.isPending}
+                      onClick={() =>
+                        requestCode.mutate({ email: email.trim() })
+                      }
+                    >
+                      {requestCode.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <MailCheck className="h-4 w-4" />
+                      )}
+                      確認コードを送る
+                    </Button>
+                  </>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      <strong>{maskedEmail}</strong>{" "}
+                      に送信した6桁コードを入力してください。
+                    </p>
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="bw-link-code"
+                        className="text-sm font-medium"
+                      >
+                        確認コード
+                      </label>
+                      <Input
+                        id="bw-link-code"
+                        value={code}
+                        onChange={event =>
+                          setCode(
+                            event.target.value.replace(/\D/g, "").slice(0, 6)
+                          )
+                        }
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        placeholder="000000"
+                        className="text-center text-2xl tracking-[0.35em]"
+                      />
+                    </div>
+                    <Button
+                      className="w-full bg-violet-600 hover:bg-violet-700 gap-2"
+                      disabled={code.length !== 6 || confirmLink.isPending}
+                      onClick={() =>
+                        confirmLink.mutate({ challengeToken, code })
+                      }
+                    >
+                      {confirmLink.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <ShieldCheck className="h-4 w-4" />
+                      )}
+                      本人確認して連携する
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-full"
+                      onClick={() => {
+                        setChallengeToken("");
+                        setCode("");
+                      }}
+                    >
+                      メールアドレスを変更する
+                    </Button>
+                  </div>
+                )}
+
+                <div className="border-t pt-4">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Beauty Walletをまだお持ちでない方
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2"
+                    onClick={() =>
+                      window.open(
+                        BEAUTY_WALLET_REGISTER_URL,
+                        "_blank",
+                        "noopener,noreferrer"
+                      )
+                    }
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Beauty Walletを新規登録
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Beauty Walletとは？ */}
-        <Card className="border-gray-200">
+        <Card className="border-slate-200 bg-slate-50">
           <CardContent className="pt-6">
             <div className="flex items-start gap-3">
-              <Info className="h-5 w-5 text-violet-500 mt-0.5 flex-shrink-0" />
+              <Info className="h-5 w-5 text-slate-600 mt-0.5" />
               <div className="space-y-2">
-                <h3 className="font-bold text-sm">Beauty Walletとは？</h3>
+                <h2 className="font-bold text-sm">LCJ旧ポイント記録について</h2>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Beauty Walletは、美容サロンで使えるデジタルウォレットです。
-                  LCJポイントをBeauty Tokenに交換して、提携サロンでのお支払いにご利用いただけます。
+                  現在のLCJ側参考残高は
+                  <strong className="mx-1 text-slate-800">
+                    {(localPoints?.balance ?? 0).toLocaleString()} pt
+                  </strong>
+                  です。これは監査・移行確認用の参考記録で、Beauty
+                  Wallet残高へ自動加算しません。
                 </p>
-                <a
-                  href="https://beautypass.ai/customer-guide"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-violet-600 hover:text-violet-700 font-medium"
-                >
-                  詳しくはこちら
-                  <ChevronRight className="h-3 w-3" />
-                </a>
+                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  過去に移行済みのポイントを二重加算しないため、差額は履歴を照合してから反映します。
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
       </main>
-
-      {/* 交換確認ダイアログ */}
-      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>ポイント交換の確認</DialogTitle>
-            <DialogDescription>
-              以下の内容で交換しますか？
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-4">
-            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">使用ポイント</span>
-                <span className="font-bold text-rose-600">-{lcjPoints.toLocaleString()} pt</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">受取トークン</span>
-                <span className="font-bold text-violet-600">+{bwTokens.toLocaleString()} BT</span>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              ※ 交換後のポイントの返還はできません
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={() => setShowConfirmDialog(false)}
-            >
-              キャンセル
-            </Button>
-            <Button
-              className="flex-1 bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700"
-              disabled={exchangeMutation.isPending}
-              onClick={() => {
-                if (user?.id && user?.lineUserId) {
-                  exchangeMutation.mutate({
-                    lineUserId: user.id,
-                    lineUserIdStr: user.lineUserId,
-                    lcjPoints,
-                  });
-                }
-              }}
-            >
-              {exchangeMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "交換する"
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* 連携解除確認ダイアログ */}
-      <Dialog open={showUnlinkDialog} onOpenChange={setShowUnlinkDialog}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>連携解除の確認</DialogTitle>
-            <DialogDescription>
-              Beauty Walletとの連携を解除しますか？解除後もBeauty Wallet側の残高は保持されます。
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex gap-2 pt-4">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={() => setShowUnlinkDialog(false)}
-            >
-              キャンセル
-            </Button>
-            <Button
-              variant="destructive"
-              className="flex-1"
-              disabled={unlinkMutation.isPending}
-              onClick={() => {
-                if (user?.id) {
-                  unlinkMutation.mutate({ lineUserId: user.id });
-                }
-              }}
-            >
-              {unlinkMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "連携解除"
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -127,15 +127,15 @@ export function HumanLearningReviewPanel() {
     store: "店铺",
     rejectCategory: "拒绝类别（拒绝时必填）",
     choose: "请选择",
-    approve: "通过并学习",
+    approve: "积分批准已暂停",
     reject: "拒绝并学习",
-    confirmApprove: "确认通过该暂挂订单？通过后将发放积分并从暂挂队列移除。",
+    confirmApprove: "Beauty Wallet迁移期间不能批准积分。",
     confirmReject: "确认拒绝该暂挂订单？拒绝后将从暂挂队列移除。",
     image: "查看原图",
     ruleset: "学习流程版本",
     conflictReviewTitle: "提交时会实时复核订单号",
     conflictReviewDescription: "AI此前发现同账户还有一条未结束记录，但这可能是同一笔实物订单的另一条待审上传。若没有已通过/已发积分记录，当前证据完整的订单可以通过；系统会在订单号锁内最终确认。",
-    approvalWillRecheck: "通过时实时检查是否已发积分",
+    approvalWillRecheck: "历史记录实时复核",
   } : {
     title: "学習審査",
     subtitle: "AIが独立判断できなかった保留注文だけを表示します。人間の決定後は保留から外れ、審査方法が疑難学習例として保存されます。",
@@ -160,15 +160,15 @@ export function HumanLearningReviewPanel() {
     store: "店舗",
     rejectCategory: "却下カテゴリ（却下時必須）",
     choose: "選択してください",
-    approve: "承認して学習",
+    approve: "ポイント承認停止中",
     reject: "却下して学習",
-    confirmApprove: "この保留注文を承認しますか？ポイント付与後、保留キューから除外されます。",
+    confirmApprove: "Beauty Wallet移行中はポイント承認できません。",
     confirmReject: "この保留注文を却下しますか？保留キューから除外されます。",
     image: "原画像を表示",
     ruleset: "学習フローバージョン",
     conflictReviewTitle: "送信時に注文番号を再確認します",
     conflictReviewDescription: "AIは同一アカウントの未完了記録を検出しましたが、同じ実注文の別の審査待ちアップロードの場合があります。承認済み・ポイント付与済み記録がなければ、証拠が揃った現在の注文を承認できます。注文番号ロック内で最終確認します。",
-    approvalWillRecheck: "承認時にポイント付与済みか再確認",
+    approvalWillRecheck: "履歴記録をリアルタイム再確認",
   }, [zh]);
 
   const updateForm = (logId: number, patch: Partial<ReviewForm>) => {
@@ -179,6 +179,10 @@ export function HumanLearningReviewPanel() {
   };
 
   const submit = (item: any, decision: "approved" | "rejected") => {
+    if (decision === "approved") {
+      toast.info(zh ? "Beauty Wallet迁移期间，LCJ积分批准已暂停" : "Beauty Wallet移行中のため、LCJポイント承認は停止中です");
+      return;
+    }
     const form = forms[item.logId] || initialForm(item);
     if (!form.humanReason.trim()) {
       toast.error(zh ? "请填写人工审核理由" : "人工審査理由を入力してください");
@@ -188,19 +192,19 @@ export function HumanLearningReviewPanel() {
       toast.error(zh ? "请至少选择一项判断依据" : "判断根拠を1つ以上選択してください");
       return;
     }
-    if (decision === "rejected" && !form.rejectionCategory) {
+    if (!form.rejectionCategory) {
       toast.error(zh ? "拒绝时必须选择拒绝类别" : "却下時は却下カテゴリを選択してください");
       return;
     }
-    if (!window.confirm(decision === "approved" ? copy.confirmApprove : copy.confirmReject)) return;
+    if (!window.confirm(copy.confirmReject)) return;
 
     const amount = form.correctedAmount.trim() ? Number(form.correctedAmount) : null;
     resolveMutation.mutate({
       logId: item.logId,
-      decision,
+      decision: "rejected",
       humanReason: form.humanReason,
       evidenceKeys: form.evidenceKeys,
-      rejectionCategory: decision === "rejected" ? form.rejectionCategory as RejectionCategory : undefined,
+      rejectionCategory: form.rejectionCategory as RejectionCategory,
       correctedOrderNumber: form.correctedOrderNumber.trim() || null,
       correctedAmount: Number.isFinite(amount) ? amount : null,
       correctedStoreName: form.correctedStoreName.trim() || null,
@@ -309,7 +313,7 @@ export function HumanLearningReviewPanel() {
             </div>
             <div className="flex flex-col justify-end gap-3 sm:flex-row">
               <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" disabled={isPending || !reasonReady || !evidenceReady || !rejectionCategoryReady} onClick={() => submit(item, "rejected")}><XCircle className="mr-2 h-4 w-4" />{copy.reject}</Button>
-              <Button className="bg-emerald-600 hover:bg-emerald-700" disabled={isPending || !reasonReady || !evidenceReady} onClick={() => submit(item, "approved")}>{isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}{copy.approve}</Button>
+              <Button className="bg-emerald-600 hover:bg-emerald-700" disabled><CheckCircle className="mr-2 h-4 w-4" />{copy.approve}</Button>
             </div>
           </div>
         </CardContent>

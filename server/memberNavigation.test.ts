@@ -63,10 +63,10 @@ describe("会員詳細フルページ機能", () => {
     expect(memberDetailContent).toContain("getMemberReceiptHistory");
   });
 
-  it("MemberDetailにポイント操作機能があること", () => {
-    expect(memberDetailContent).toContain("adminAdjustPoints");
-    expect(memberDetailContent).toContain("ポイントを付与");
-    expect(memberDetailContent).toContain("ポイントを削除");
+  it("MemberDetailのLCJポイント操作が停止され、履歴だけ参照できること", () => {
+    expect(memberDetailContent).toContain("LCJポイント操作は停止中です");
+    expect(memberDetailContent).toContain("Beauty Walletが唯一のリアルタイム主台帳です");
+    expect(memberDetailContent).not.toContain("adminAdjustPoints");
   });
 
   it("MemberDetailに戻るボタンがあること", () => {
@@ -82,8 +82,8 @@ describe("会員詳細フルページ機能", () => {
     expect(memberDetailContent).toContain("totalPurchaseAmount");
   });
 
-  it("MemberDetailにサマリー統計カード（現在ポイント・累計獲得・累計使用・注文数・レシート申請）があること", () => {
-    expect(memberDetailContent).toContain("現在ポイント");
+  it("MemberDetailに履歴サマリー（LCJ互換残高・累計獲得・累計使用・注文数・レシート申請）があること", () => {
+    expect(memberDetailContent).toContain("LCJ互換残高");
     expect(memberDetailContent).toContain("累計獲得");
     expect(memberDetailContent).toContain("累計使用");
     expect(memberDetailContent).toContain("注文数");
@@ -93,7 +93,7 @@ describe("会員詳細フルページ機能", () => {
   // === App.tsx ルーティング ===
 
   it("App.tsxにMemberDetailのimportがあること", () => {
-    expect(appContent).toContain('import MemberDetail from "./pages/MemberDetail"');
+    expect(appContent).toContain('const MemberDetail = lazy(() => import("./pages/MemberDetail"))');
   });
 
   it("App.tsxに/master/mall/member/:idルートが登録されていること", () => {

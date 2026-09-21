@@ -17,6 +17,7 @@ import {
   type Pass2BatchSize,
 } from "../receiptPass2V2Policy";
 import { withPass2GlobalLock } from "../receiptPass2BatchLock";
+import { assertLocalPointLedgerWritable } from "../pointLedgerPolicy";
 import { checkLevel3SameImage } from "./duplicateCheckService";
 
 export interface Pass2Config {
@@ -554,6 +555,7 @@ export function isPass2Running(): boolean {
 }
 
 export function startPass2InBackground(config: Pass2Config): { batchId: string } {
+  assertLocalPointLedgerWritable("receipt_ai_pass2_approval");
   if (_pass2Running) throw new Error("AI Pass 2 is already running");
   const batchId = config.batchId || `pass2v2_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   _pass2Running = true;

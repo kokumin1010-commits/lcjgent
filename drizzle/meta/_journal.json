@@ -1058,6 +1058,13 @@
       "when": 1789980320710,
       "tag": "0155_brand_bd_command_center",
       "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "5",
+      "when": 1789981320710,
+      "tag": "0156_bw_member_self_link",
+      "breakpoints": true
     }
   ]
 }

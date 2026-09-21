@@ -1,6 +1,7 @@
 import { normalizeReceiptOrderNumber } from "./receiptOrderNumberPolicy";
 import { claimReceiptOrderNumber } from "./receiptOrderNumberGuard";
 import { withHumanLearningReviewLock } from "./receiptPass2BatchLock";
+import { assertLocalPointLedgerWritable } from "./pointLedgerPolicy";
 import {
   HUMAN_LEARNING_REVIEW_VERSION,
   buildHumanLearningErrorType,
@@ -108,6 +109,9 @@ async function rejectHumanLearningReceipt(input: {
 }
 
 export async function resolveHumanLearningReview(input: ResolveHumanLearningReviewInput) {
+  if (input.decision === "approved") {
+    assertLocalPointLedgerWritable("receipt_human_learning_approval");
+  }
   return withHumanLearningReviewLock(input.logId, async () => {
     const {
       getAiAutoReviewLogById,

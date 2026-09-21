@@ -30,7 +30,7 @@ describe("Order Number Display in Receipt Management", () => {
 
     it("should show input field when order number is missing", () => {
       // When no order number, an input field is shown for entry
-      expect(lineReceiptMgmt).toContain("注文番号を入力");
+      expect(lineReceiptMgmt).toContain('placeholder={t("lr.enterOrderNumber")}');
       expect(lineReceiptMgmt).toContain("calcOrderNumber");
     });
 
@@ -70,7 +70,7 @@ describe("Order Number Display in Receipt Management", () => {
     });
 
     it("should display order number in detail dialog", () => {
-      expect(receiptMgmt).toContain("extractOrderNumber(selectedReceipt.receipt.ocrRawText)");
+      expect(receiptMgmt).toContain("extractOrderNumber(selectedReceipt.receipt)");
     });
   });
 });

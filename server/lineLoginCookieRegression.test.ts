@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { getSessionCookieOptions } from "./_core/cookies";
 import { getRequestCookie } from "./requestCookies";
 import { lineLoginRouter } from "./routers";
 
@@ -28,6 +29,15 @@ afterEach(() => {
 });
 
 describe("LCJ member request cookie parsing", () => {
+  it("fails closed with Secure cookies on a deployed host when proxy HTTPS metadata is absent", () => {
+    const options = getSessionCookieOptions({
+      protocol: "http",
+      hostname: "lcjmall.com",
+      headers: {},
+    } as any);
+    expect(options).toMatchObject({ httpOnly: true, secure: true, sameSite: "lax" });
+  });
+
   it("reads an Express-encoded LINE member session from the raw Cookie header", () => {
     const session = JSON.stringify({ lineUserId: "Uoriginal", expiresAt: Date.now() + 60_000 });
     const req = { headers: { cookie: `other=1; line_session=${encodeURIComponent(session)}` } };

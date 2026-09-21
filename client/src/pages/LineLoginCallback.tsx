@@ -18,10 +18,7 @@ export default function LineLoginCallback() {
   const [errorCode, setErrorCode] = useState("");
 
   const callbackMutation = trpc.lineLogin.callback.useMutation({
-    onSuccess: (data) => {
-      if (data.sessionToken) {
-        localStorage.setItem("lcj_session_token", data.sessionToken);
-      }
+    onSuccess: () => {
       setStatus("success");
       window.setTimeout(() => {
         window.location.replace("/mypage");
@@ -29,7 +26,6 @@ export default function LineLoginCallback() {
     },
     onError: (error) => {
       const message = error.message || "ログインに失敗しました";
-      localStorage.removeItem("lcj_session_token");
       setStatus("error");
       setErrorMessage(message);
       setErrorCode(classifyLoginError(message));
@@ -42,9 +38,6 @@ export default function LineLoginCallback() {
     const code = urlObj.searchParams.get("code") || hashParams.get("code");
     const state = urlObj.searchParams.get("state") || hashParams.get("state");
     const oauthError = urlObj.searchParams.get("error") || hashParams.get("error");
-
-    // A new OAuth callback must never inherit a stale fallback session.
-    localStorage.removeItem("lcj_session_token");
 
     if (oauthError) {
       setStatus("error");
@@ -64,7 +57,6 @@ export default function LineLoginCallback() {
   }, []);
 
   const retryLogin = () => {
-    localStorage.removeItem("lcj_session_token");
     window.location.replace("/line-login?retry=1");
   };
 
@@ -75,7 +67,7 @@ export default function LineLoginCallback() {
           <>
             <Loader2 className="h-16 w-16 text-rose-500 animate-spin mx-auto mb-4" />
             <h1 className="text-xl font-bold mb-2">ログイン中...</h1>
-            <p className="text-muted-foreground">LINEアカウントとポイント情報を確認しています</p>
+            <p className="text-muted-foreground">LINEアカウントを安全に確認しています</p>
             <p className="text-xs text-muted-foreground mt-3">この画面を閉じずにお待ちください</p>
           </>
         )}
@@ -84,7 +76,7 @@ export default function LineLoginCallback() {
           <>
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
             <h1 className="text-xl font-bold mb-2">ログイン成功</h1>
-            <p className="text-muted-foreground mb-4">ポイント情報を引き継いでマイページに移動します</p>
+            <p className="text-muted-foreground mb-4">マイページに移動します</p>
             <Button onClick={() => window.location.replace("/mypage")} className="bg-rose-500 hover:bg-rose-600">
               今すぐマイページへ
             </Button>

@@ -64,17 +64,17 @@ describe("Batch AI Recognition Feature", () => {
 
   describe("Batch progress UI", () => {
     it("should show progress bar during batch processing", () => {
-      expect(lineReceiptMgmt).toContain("AI自動認識中...");
-      expect(lineReceiptMgmt).toContain("件処理済み");
+      expect(lineReceiptMgmt).toContain('t("lr.aiAutoRecognizing")');
+      expect(lineReceiptMgmt).toContain('t("lr.processed")');
     });
 
     it("should show completion message after batch finishes", () => {
-      expect(lineReceiptMgmt).toContain("AI自動認識完了");
-      expect(lineReceiptMgmt).toContain("件の画像を解析しました");
+      expect(lineReceiptMgmt).toContain('t("lr.aiAutoRecognizeComplete")');
+      expect(lineReceiptMgmt).toContain('t("lr.imagesAnalyzed")');
     });
 
     it("should have cancel button for batch processing", () => {
-      expect(lineReceiptMgmt).toContain("中止");
+      expect(lineReceiptMgmt).toContain('t("lr.abort")');
       expect(lineReceiptMgmt).toContain("batchAiAbortRef.current = true");
     });
 
@@ -113,12 +113,13 @@ describe("Batch AI Recognition Feature", () => {
   });
 
   describe("Toast notifications", () => {
-    it("should show success toast on approval", () => {
-      expect(lineReceiptMgmt).toContain('toast.success("承認完了"');
+    it("should not show a successful LCJ point approval toast", () => {
+      expect(lineReceiptMgmt).not.toContain('toast.success(t("lr.toast.approveComplete")');
+      expect(lineReceiptMgmt).toContain("LCJポイント承認停止中");
     });
 
     it("should show success toast on rejection", () => {
-      expect(lineReceiptMgmt).toContain('toast.success(`却下完了（LINE送信済み）理由: ${rejectionCategory || "other"}');
+      expect(lineReceiptMgmt).toContain('toast.success(`${t("lr.toast.rejectComplete")} ${rejectionCategory || "other"}');
     });
   });
 
@@ -307,21 +308,16 @@ describe("Batch processing sequential execution", () => {
   });
 });
 
-describe("Order number clear on approve/reject/hold (bug fix)", () => {
+describe("Order number clear on reject/hold and approval shutdown", () => {
   const lineReceiptMgmt = readFileSync(
     join(__dirname, "../client/src/pages/LineReceiptManagement.tsx"),
     "utf-8"
   );
 
-  describe("Approve mutation clears order number", () => {
-    it("should clear calcOrderNumber after approval", () => {
-      // In approveMutation onSuccess, calcOrderNumber should be reset
-      const approveSection = lineReceiptMgmt.slice(
-        lineReceiptMgmt.indexOf("const approveMutation"),
-        lineReceiptMgmt.indexOf("const rejectMutation") || lineReceiptMgmt.indexOf("// Track the last rejected")
-      );
-      expect(approveSection).toContain('setCalcOrderNumber("")');
-      expect(approveSection).toContain("setIsOrderNumberEditing(false)");
+  describe("Approval mutation is removed", () => {
+    it("should not define an LCJ point approval mutation", () => {
+      expect(lineReceiptMgmt).not.toContain("adminApproveLineReceipt.useMutation");
+      expect(lineReceiptMgmt).not.toContain("adminManualAwardPoints.useMutation");
     });
   });
 

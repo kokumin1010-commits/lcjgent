@@ -1,19 +1,5 @@
 import { invokeLLM } from "./_core/llm";
 import { containsReminderKeyword, createReminderFromMessage, getReminderListMessage } from "./lineReminder";
-import { createLineMemberSessionToken } from "./lineMemberSession";
-import { storagePut } from "./storage";
-import crypto from "crypto";
-import {
-  createLineReceipt,
-  updateLineReceiptStatus,
-  updateLineReceiptOcr,
-  updateLineReceiptFraudFlags,
-  checkDuplicateLineReceiptByHash,
-  getRecentLineReceiptsCount,
-  createLineFraudDetectionLog,
-  checkDuplicateOrderNumberGlobal,
-  deleteLineReceipt,
-} from "./db";
 import {
   createOrUpdateLineUser,
   getLineUserByLineId,
@@ -231,63 +217,6 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000);
 
-// ============================================
-// Pending Image Session Management (for multiple images)
-// ============================================
-// When a user sends an image, we wait for additional images for 10 seconds
-// This allows users to send multiple screenshots that together form one order
-
-interface PendingImageData {
-  messageId: string;
-  imageData: Buffer;
-  contentType: string;
-  imageUrl: string;
-  imageKey: string;
-  imageHash: string;
-  receiptId: number;
-}
-
-interface PendingImageSession {
-  userId: string;
-  replyToken: string;
-  images: PendingImageData[];
-  startedAt: number;
-  timeoutId: NodeJS.Timeout | null;
-}
-
-// In-memory pending image sessions (key: userId)
-const pendingImageSessions = new Map<string, PendingImageSession>();
-
-// Image session timeout in milliseconds (10 seconds)
-const IMAGE_SESSION_TIMEOUT_MS = 10 * 1000;
-
-// Get or create pending image session
-function getOrCreatePendingImageSession(userId: string, replyToken: string): PendingImageSession {
-  let session = pendingImageSessions.get(userId);
-  
-  if (!session) {
-    session = {
-      userId,
-      replyToken,
-      images: [],
-      startedAt: Date.now(),
-      timeoutId: null,
-    };
-    pendingImageSessions.set(userId, session);
-  }
-  
-  return session;
-}
-
-// Clear pending image session
-function clearPendingImageSession(userId: string): void {
-  const session = pendingImageSessions.get(userId);
-  if (session?.timeoutId) {
-    clearTimeout(session.timeoutId);
-  }
-  pendingImageSessions.delete(userId);
-}
-
 // Check if user has an active conversation session in the group
 function hasActiveSession(groupId: string, userId: string): boolean {
   const key = `${groupId}:${userId}`;
@@ -377,37 +306,6 @@ async function getUserProfile(userId: string): Promise<{
   }
 }
 
-async function getMessageContent(messageId: string): Promise<{
-  data: Buffer;
-  contentType: string;
-} | null> {
-  try {
-    const response = await fetch(
-      `https://api-data.line.me/v2/bot/message/${messageId}/content`,
-      {
-        signal: AbortSignal.timeout(LINE_CONTENT_TIMEOUT_MS),
-        headers: {
-          Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      console.error("[LINE Agent] Failed to get message content:", response.status);
-      return null;
-    }
-
-    const contentType = response.headers.get("content-type") || "application/octet-stream";
-    const arrayBuffer = await response.arrayBuffer();
-    const data = Buffer.from(arrayBuffer);
-
-    return { data, contentType };
-  } catch (error) {
-    console.error("[LINE Agent] Error getting message content:", error);
-    return null;
-  }
-}
-
 // Keywords that trigger the agent
 // TRIGGER_KEYWORDS and GREETING_KEYWORDS are now ONLY used in combination with @LCJ mention
 // They should NOT trigger responses on their own in group chats
@@ -439,70 +337,11 @@ function containsPointsHistoryKeyword(text: string): boolean {
   return POINTS_HISTORY_KEYWORDS.some((keyword) => lowerText.includes(keyword.toLowerCase()));
 }
 
-// Get points history for a user
-async function getPointsHistoryMessage(lineUserId: string): Promise<string> {
-  try {
-    // Get user's LINE receipts
-    const { getDb } = await import("./db");
-    const { lineReceipts, lineUsers } = await import("../drizzle/schema");
-    const { eq, desc } = await import("drizzle-orm");
-    
-    const db = await getDb();
-    if (!db) {
-      return "データベースに接続できません。";
-    }
-    
-    // Get user info
-    const userResult = await db
-      .select()
-      .from(lineUsers)
-      .where(eq(lineUsers.lineUserId, lineUserId))
-      .limit(1);
-    
-    if (userResult.length === 0) {
-      return "ユーザー情報が見つかりません。";
-    }
-    
-    // Get recent receipts (last 10)
-    const receipts = await db
-      .select()
-      .from(lineReceipts)
-      .where(eq(lineReceipts.lineUserId, lineUserId))
-      .orderBy(desc(lineReceipts.createdAt))
-      .limit(10);
-    
-    // Calculate total approved points
-    const approvedReceipts = receipts.filter((r: any) => r.status === "approved");
-    const totalPoints = approvedReceipts.reduce((sum: number, r: any) => sum + (r.pointsAwarded || 0), 0);
-    
-    // Build message
-    let message = `📊 ポイント履歴\n\n`;
-    message += `💰 現在のポイント残高: ${totalPoints}pt\n`;
-    message += `📝 申請件数: ${receipts.length}件\n\n`;
-    
-    if (receipts.length === 0) {
-      message += "まだ申請履歴がありません。";
-    } else {
-      message += "【最近の申請】\n";
-      for (const receipt of receipts.slice(0, 5)) {
-        const statusEmoji = 
-          receipt.status === "approved" ? "✅" :
-          receipt.status === "rejected" ? "❌" :
-          receipt.status === "on_hold" ? "⏸️" : "⏳";
-        
-        const date = receipt.createdAt ? new Date(receipt.createdAt).toLocaleDateString("ja-JP") : "不明";
-        const amount = receipt.totalAmount ? `¥${receipt.totalAmount.toLocaleString()}` : "金額不明";
-        const points = receipt.status === "approved" ? `+${receipt.pointsAwarded}pt` : "";
-        
-        message += `${statusEmoji} ${date} ${amount} ${points}\n`;
-      }
-    }
-    
-    return message;
-  } catch (error) {
-    console.error("[LINE Agent] Error getting points history:", error);
-    return "ポイント履歴の取得中にエラーが発生しました。";
-  }
+// Beauty Wallet is the only live balance. Never derive a current balance from
+// the legacy receipt subset because that can be incomplete or identity-split.
+async function getPointsHistoryMessage(_lineUserId: string): Promise<string> {
+  const appUrl = process.env.APP_URL || "https://lcjmall.com";
+  return `ポイントの現在残高はBeauty Walletが唯一の主台帳です。\n\nLCJへログイン後、Beauty Wallet画面でメール認証・連携状況・統一残高をご確認ください。\n${appUrl}/beauty-wallet\n\nLCJ内の過去の申請・取引表示は照合用の履歴であり、現在残高ではありません。`;
 }
 
 // Process text message from LINE
@@ -525,7 +364,7 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
     return;
   }
 
-  console.log(`[LINE Agent] Processing message from ${userId}: ${messageText.substring(0, 50)}...`);
+  console.log(`[LINE Agent] Processing ${event.source.type} text message`);
 
   let capturedGroupProfile: CapturedGroupProfile = null;
   if (isGroupChat && groupId) {
@@ -538,7 +377,7 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
   }
 
   if (isGroupChat && !isExplicitGroupMention) {
-    console.log(`[LINE Agent] Stored group message without replying (no @LCJ mention): ${messageText.substring(0, 30)}...`);
+    console.log("[LINE Agent] Stored group message without replying (no explicit mention)");
     return;
   }
 
@@ -591,7 +430,7 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       } = await import("./lineAiManager");
       const canReply = await canLineAiManagerReplyInGroup(groupId!, userId);
       if (!canReply) {
-        console.log(`[LINE Agent] Ignoring ineligible @LCJ group mention in ${groupId}`);
+        console.log("[LINE Agent] Ignoring ineligible explicit group mention");
         return;
       }
       if (isDirectCommand) {
@@ -699,7 +538,7 @@ export async function processVideoMessage(event: LineWebhookEvent): Promise<void
     return;
   }
 
-  console.log(`[LINE Agent] Processing video from ${userId}`);
+  console.log("[LINE Agent] Processing video message");
 
   try {
     // Get user profile
@@ -810,8 +649,7 @@ async function sendPhotoGuide(userId: string): Promise<void> {
 
 /**
  * Process receipt image message from LINE
- * LINEから送信されたレシート画像を処理してポイント申請を行う
- * 複数画像対応: 10秒間のバッファリングで複数画像を1セットとして処理
+ * LINEから送信された画像を履歴として保存し、主台帳移行中であることを案内する
  */
 export async function processReceiptImageMessage(event: LineWebhookEvent): Promise<void> {
   // Check if this is an image message
@@ -833,13 +671,13 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
     return;
   }
   
-  console.log(`[LINE Agent] Image received from ${userId}, redirecting to Web form`);
+  console.log("[LINE Agent] Image received; sending migration notice");
   
   // 5分以内に既に案内メッセージを送信済みの場合はスキップ
   const now = Date.now();
   const lastSentAt = agentImageCooldowns.get(userId);
   if (lastSentAt && (now - lastSentAt) < AGENT_IMAGE_COOLDOWN_MS) {
-    console.log(`[LINE Agent] Image from ${userId} - skipping reply (cooldown active, last sent ${Math.round((now - lastSentAt) / 1000)}s ago)`);
+    console.log(`[LINE Agent] Image reply skipped during cooldown (${Math.round((now - lastSentAt) / 1000)}s)`);
     return;
   }
   
@@ -855,7 +693,7 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
       console.error("[LINE Agent] Failed to get user profile:", error);
     }
     
-    const member = await createOrUpdateLineUser({
+    await createOrUpdateLineUser({
       lineUserId: userId,
       displayName: profile?.displayName,
       pictureUrl: profile?.pictureUrl,
@@ -866,8 +704,7 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
     await updateLineUserLastMessage(userId);
 
     // Keep the image event visible to staff even though the binary is not treated
-    // as a completed receipt application. Message persistence must not block the
-    // customer from receiving the authenticated Web-form hand-off.
+    // as a completed receipt application. Keep it as historical evidence only.
     try {
       await saveLineMessage({
         messageId: event.message.id,
@@ -875,33 +712,26 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
         lineUserId: userId,
         senderName: profile?.displayName,
         messageType: "image",
-        content: "【レシート画像】LINE送信のみでは申請未完了（Webフォーム案内済み）",
+        content: "【レシート画像】LCJポイント申請停止中（履歴保存のみ）",
         direction: "incoming",
         lineTimestamp: event.timestamp,
         needsResponse: false,
         responseStatus: "responded",
-        responseSummary: "署名済みのWebフォーム案内を自動送信。フォーム完了前はポイント申請として扱わない。",
+        responseSummary: "Beauty Wallet主台帳への移行案内を自動送信。新規LCJポイント申請は作成しない。",
       });
     } catch (messageError) {
       console.error("[LINE Agent] Failed to persist receipt image hand-off:", messageError);
     }
     
-    // Redirect user to Web form instead of processing image
+    // Never issue a member bearer URL. Member authentication stays bound to the
+    // HttpOnly cookie and new LCJ receipt point applications remain paused.
     const appUrl = process.env.APP_URL || 'https://lcjmall.com';
-    // LINEアプリ→外部ブラウザでも認証を引き継げるよう、サーバーが検証できる
-    // 署名済み会員トークンだけを発行する。旧Base64 bearer tokenは使用しない。
-    const sessionToken = await createLineMemberSessionToken({
-      lineUserId: userId,
-      userId: member?.id,
-      expiresAt: Date.now() + 3650 * 24 * 60 * 60 * 1000,
-    });
-    const receiptUploadUrl = `${appUrl}/receipt-upload?token=${encodeURIComponent(sessionToken)}`;
     
     if (event.replyToken) {
       await replyMessage(event.replyToken, [
         {
           type: "text",
-          text: `📷 画像を確認しました\n\n⚠️ このLINEへの画像送信だけでは、ポイント申請はまだ完了していません。\n下の専用フォームから同じ画像をアップロードしてください。\n\n👇 ポイント申請フォーム\n${receiptUploadUrl}\n\n【申請完了までの手順】\n1️⃣ 上のリンクをタップ\n2️⃣ レシート画像をアップロード\n3️⃣ 「申請を受け付けました！」画面と受付番号が表示されたことを確認\n4️⃣ 問い合わせに備えて受付番号を保存\n\n※ 3️⃣の画面が表示されるまでは申請記録は作成されません。`,
+          text: `画像を確認しました。\n\nBeauty Walletを唯一のリアルタイム主台帳へ移行しているため、新しいLCJレシートポイント申請は停止中です。この画像から申請・ポイント付与は行いません。\n\nBeauty Walletの残高と連携状況は、LCJへログイン後に確認してください。\n${appUrl}/beauty-wallet`,
         },
       ]);
     }
@@ -913,402 +743,6 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
         { type: "text", text: "エラーが発生しました。しばらくしてからもう一度お試しください。" },
       ]);
     }
-  }
-}
-
-/**
- * Process multiple images together using OCR
- * 複数の画像を統合して解析する
- */
-async function processMultipleImagesOcr(
-  images: PendingImageData[],
-  lineUserId: string
-): Promise<void> {
-  console.log(`[LINE Agent] Starting multi-image OCR for ${images.length} images`);
-  
-  // Build image content array for LLM
-  const imageContents: any[] = [];
-  for (const img of images) {
-    const base64Image = img.imageData.toString("base64");
-    imageContents.push({
-      type: "image_url",
-      image_url: {
-        url: `data:${img.contentType};base64,${base64Image}`,
-        detail: "high", // Use high resolution for better OCR
-      },
-    });
-  }
-  
-  // Add text prompt
-  imageContents.push({
-    type: "text",
-    text: `これらの${images.length}枚の画像はTikTok Shopの注文詳細画面のスクリーンショットです。
-
-【最重要】まず注文番号（16〜19桁の数字、「5」か「6」で始まる）を探してください。
-画面の下部に「注文番号」というラベルと共に表示されていることが多いです。
-「さらに表示」ボタンの直上や、合計金額の下にも表示されます。
-
-すべての画像を統合して情報を抽出してください。`,
-  });
-  
-  try {
-    console.log(`[LINE Agent] Calling LLM for OCR analysis with ${images.length} images`);
-    console.log(`[LINE Agent] Image sizes: ${images.map(img => `${(img.imageData.length / 1024).toFixed(1)}KB`).join(', ')}`);
-    console.log(`[LINE Agent] Image content types: ${images.map(img => img.contentType).join(', ')}`);
-    console.log(`[LINE Agent] Image URLs: ${images.map(img => img.imageUrl).join(', ')}`);
-    
-    // Validate image data before sending to LLM
-    for (const img of images) {
-      if (!img.imageData || img.imageData.length === 0) {
-        console.error(`[LINE Agent] Empty image data for message ${img.messageId}`);
-        throw new Error(`Empty image data for message ${img.messageId}`);
-      }
-      if (img.imageData.length > 10 * 1024 * 1024) {
-        console.error(`[LINE Agent] Image too large: ${(img.imageData.length / 1024 / 1024).toFixed(2)}MB`);
-        throw new Error(`Image too large: ${(img.imageData.length / 1024 / 1024).toFixed(2)}MB`);
-      }
-    }
-    
-    console.log(`[LINE Agent] Starting LLM invocation...`);
-    const llmStartTime = Date.now();
-    
-    // Run OCR analysis with LLM - NO response_format to avoid compatibility issues
-    const ocrResult = await invokeLLM({
-      messages: [
-        {
-          role: "system",
-          content: `あなたはTikTok Shopの注文詳細画面のスクリーンショットを解析する専門AIです。
-複数の画像が送信された場合、すべての画像を統合して情報を抽出してください。
-
-以下の情報を抽出してJSON形式で返してください：
-
-{
-  "isTikTokShop": true/false,
-  "isDelivered": true/false,
-  "orderNumber": "string",
-  "totalAmount": number,
-  "orderDate": "string",
-  "shopName": "string",
-  "productName": "string",
-  "orderNumberSource": "string"
-}
-
-=== 最重要タスク: 注文番号の抽出 ===
-
-注文番号の抽出が最も重要なタスクです。他の全フィールドより優先してください。
-
-TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数字列です。
-例: 5819000585822879​71, 5824489836811172498, 682307265940784437
-
-【ステップ1: 画像全体をスキャンして長い数字列を全て列挙する】
-画像内に存在する10桁以上の数字列を全て見つけてください。
-特に以下の場所を重点的にチェック：
-- 画面の最下部（「さらに表示」の直上、スクロール可能エリアの末端）
-- 「注文番号」「注文番号:」というラベルの右側
-- 「合計金額（税込）」の行の下
-- コピーアイコン（📋 🔗 ⧉）の左側
-- 画面上部のヘッダー付近
-
-【ステップ2: 注文番号を特定する】
-見つけた数字列の中から、以下の条件に合うものを注文番号として選択：
-- 16〜19桁の数字列
-- 「5」または「6」で始まる
-- 「注文番号」ラベルの近くにある
-- 電話番号（080/090/070で始まる11桁）ではない
-- 郵便番号（3桁-4桁）ではない
-- 商品価格（4〜6桁）ではない
-
-【ステップ3: どうしても見つからない場合】
-- 画像内で最も長い数字列（15桁以上）を注文番号として採用
-- それでも見つからない場合のみnullを返す
-
-「orderNumberSource」には注文番号をどこで見つけたか記載（例: "画面下部の注文番号ラベル横", "合計金額の下"）
-
-=== 配達済みの判定 ===
-以下のいずれかが確認できれば isDelivered = true：
-- 「配達済み」という文字
-- 「X月X日に配達」（例：「1月27日に配達」）
-- 「お荷物が最終目的地に到着しました」
-- 「已签收」「Delivered」
-- プログレスバーで「配達済み」が完了（緑/ティールのチェックマーク）
-
-=== 金額の抽出 ===
-- 「合計金額（税込）」「合計」「支払い金額」の横の金額 → totalAmount
-- 通貨記号（¥￥）とカンマを除去して数値のみ（例: ¥2,832 → 2832）
-
-=== 出力ルール ===
-- 注文番号の抽出を最優先。画像を隅々までスキャンすること
-- 抽出できない項目はnullを返す
-- 必ずJSON形式のみで回答（説明文は不要）
-- 複数画像がある場合は統合して回答`,
-        },
-        {
-          role: "user",
-          content: imageContents,
-        },
-      ],
-      // NO response_format - use natural JSON parsing instead
-    });
-    
-    const llmEndTime = Date.now();
-    console.log(`[LINE Agent] LLM invocation completed in ${llmEndTime - llmStartTime}ms`);
-    console.log(`[LINE Agent] LLM response structure:`, {
-      hasChoices: !!ocrResult.choices,
-      choicesLength: ocrResult.choices?.length,
-      hasMessage: !!ocrResult.choices?.[0]?.message,
-      contentType: typeof ocrResult.choices?.[0]?.message?.content,
-    });
-    
-    const messageContent = ocrResult.choices[0].message.content;
-    console.log(`[LINE Agent] LLM raw response (first 500 chars): ${typeof messageContent === 'string' ? messageContent.substring(0, 500) : JSON.stringify(messageContent).substring(0, 500)}`);
-    
-    // Parse JSON from response (handle markdown code blocks)
-    let ocrData: any;
-    try {
-      let jsonStr = typeof messageContent === "string" ? messageContent : "{}";
-      
-      // Remove markdown code blocks if present
-      if (jsonStr.includes("```json")) {
-        jsonStr = jsonStr.replace(/```json\s*/g, "").replace(/```\s*/g, "");
-      } else if (jsonStr.includes("```")) {
-        jsonStr = jsonStr.replace(/```\s*/g, "");
-      }
-      
-      // Trim whitespace
-      jsonStr = jsonStr.trim();
-      
-      ocrData = JSON.parse(jsonStr);
-      console.log(`[LINE Agent] Parsed OCR data:`, ocrData);
-    } catch (parseError: any) {
-      console.error("[LINE Agent] Failed to parse LLM response as JSON:", {
-        error: parseError?.message,
-        rawResponseLength: typeof messageContent === 'string' ? messageContent.length : 0,
-        rawResponsePreview: typeof messageContent === 'string' ? messageContent.substring(0, 200) : JSON.stringify(messageContent).substring(0, 200),
-      });
-      console.error("[LINE Agent] Full raw response:", messageContent);
-      throw new Error(`LLM response is not valid JSON: ${parseError?.message}`);
-    }
-    
-    // Use the first receipt ID as the primary record
-    const primaryReceiptId = images[0].receiptId;
-    
-    // Delete other receipt records (keep only the primary one)
-    for (let i = 1; i < images.length; i++) {
-      try {
-        await deleteLineReceipt(images[i].receiptId);
-        console.log(`[LINE Agent] Deleted secondary receipt record ${images[i].receiptId}`);
-      } catch (deleteError) {
-        console.error(`[LINE Agent] Failed to delete receipt ${images[i].receiptId}:`, deleteError);
-      }
-    }
-    
-    const { pushMessage } = await import("./line");
-    
-    // 1. TikTok Shopの注文詳細画面かどうか確認
-    if (!ocrData.isTikTokShop) {
-      await pushMessage(lineUserId, [
-        {
-          type: "text",
-          text: `❌ この画像はTikTok Shopの注文詳細画面ではありません。\n\nTikTok Shopアプリの注文履歴から、注文詳細画面のスクリーンショットを送信してください。`,
-        },
-      ]);
-      await updateLineReceiptStatus(primaryReceiptId, "rejected", 0, "自動拒否: TikTok Shopの注文詳細画面ではない");
-      return;
-    }
-    
-    // 2. 配達済みステータスの確認（必須）
-    if (!ocrData.isDelivered) {
-      await pushMessage(lineUserId, [
-        {
-          type: "text",
-          text: `❌ この注文はまだ「配達済み」になっていません。\n\nポイント申請は商品が配達された後に行ってください。\n\n【確認方法】\n・「X月X日に配達」または「配達済み」の表示があるか確認\n・配達ステータスのプログレスバーが完了しているか確認\n\n配達完了後、再度スクリーンショットを送信してください。`,
-        },
-      ]);
-      await updateLineReceiptStatus(primaryReceiptId, "rejected", 0, "自動拒否: 配達済みステータスではない");
-      return;
-    }
-    
-    // 3. 注文番号と金額の確認
-    if (!ocrData.orderNumber || !ocrData.totalAmount) {
-      await pushMessage(lineUserId, [
-        {
-          type: "text",
-          text: `⚠️ 注文情報を読み取れませんでした。\n\n以下を確認して再送信してください：\n・注文番号（17桁の数字）が見えるか\n・合計金額が見えるか\n・画像が鮮明か\n\n1枚に収まらない場合は、2〜3枚に分けて送信してください。`,
-        },
-      ]);
-      // Delete receipt record to allow resubmission
-      await deleteLineReceipt(primaryReceiptId);
-      return;
-    }
-    
-    // Calculate points (1% return)
-    const pointsCalculated = Math.floor(ocrData.totalAmount * 0.01);
-    
-    // Update receipt with OCR data
-    await updateLineReceiptOcr(primaryReceiptId, {
-      storeName: ocrData.shopName || "TikTok Shop",
-      purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
-      totalAmount: ocrData.totalAmount,
-      currency: "JPY",
-      ocrRawText: JSON.stringify({
-        orderNumber: ocrData.orderNumber,
-        shopName: ocrData.shopName,
-        productName: ocrData.productName,
-        isDelivered: ocrData.isDelivered,
-        imageCount: images.length,
-      }),
-      ocrConfidence: "high",
-      pointsCalculated,
-    });
-    
-    // Run fraud detection
-    const fraudFlags: string[] = [];
-    let fraudScore = 0;
-    
-    // Check for expired order (older than 30 days for TikTok Shop)
-    if (ocrData.orderDate) {
-      const orderDate = new Date(ocrData.orderDate);
-      const daysSinceOrder = (Date.now() - orderDate.getTime()) / (1000 * 60 * 60 * 24);
-      if (daysSinceOrder > 30) {
-        fraudFlags.push("expired_order");
-        fraudScore += 50;
-        await createLineFraudDetectionLog({
-          receiptId: primaryReceiptId,
-          lineUserId,
-          checkType: "expired_receipt",
-          detected: true,
-          severity: "high",
-          details: `注文日から${Math.floor(daysSinceOrder)}日経過（30日以内のみ有効）`,
-        });
-      }
-    }
-    
-    // Check for duplicate order number across ALL users (global check)
-    if (ocrData.orderNumber) {
-      const duplicateOrder = await checkDuplicateOrderNumberGlobal(
-        ocrData.orderNumber,
-        primaryReceiptId
-      );
-      if (duplicateOrder) {
-        // 全ユーザー間で重複が見つかった
-        const isSameUser = duplicateOrder.lineUserId === lineUserId;
-        fraudFlags.push("duplicate_order");
-        fraudScore += 100; // 同じ注文番号は完全に重複
-        await createLineFraudDetectionLog({
-          receiptId: primaryReceiptId,
-          lineUserId,
-          checkType: "duplicate_receipt",
-          detected: true,
-          severity: "high",
-          details: isSameUser 
-            ? `あなたは既にこの注文でポイント申請済みです: ${ocrData.orderNumber}`
-            : `この注文番号は他のユーザーが既に申請済みです: ${ocrData.orderNumber}`,
-          relatedReceiptId: duplicateOrder.id,
-        });
-        
-        // 即座に拒否してユーザーに通知
-        await updateLineReceiptStatus(primaryReceiptId, "rejected", 0, 
-          isSameUser 
-            ? "自動拒否: 同じ注文番号での重複申請"
-            : "自動拒否: 他ユーザーが既に申請済みの注文番号"
-        );
-        
-        await pushMessage(lineUserId, [
-          {
-            type: "text",
-            text: isSameUser
-              ? `❌ この注文は既にポイント申請済みです。\n\n注文番号: ${ocrData.orderNumber}\n\n同じ注文での重複申請はできません。`
-              : `❌ この注文番号は既に他の方が申請済みです。\n\n注文番号: ${ocrData.orderNumber}\n\n同じ注文での重複申請はできません。\nご自身の注文詳細画面を送信してください。`,
-          },
-        ]);
-        return; // 重複の場合はここで終了
-      }
-      
-      // Check for similar order numbers (1-2 digits different)
-      const { findSimilarOrderNumbers } = await import("./db");
-      const similarOrders = await findSimilarOrderNumbers(ocrData.orderNumber, primaryReceiptId);
-      if (similarOrders.length > 0) {
-        fraudFlags.push("similar_order_number");
-        fraudScore += 40;
-        await createLineFraudDetectionLog({
-          receiptId: primaryReceiptId,
-          lineUserId,
-          checkType: "similar_order_number",
-          detected: true,
-          severity: "medium",
-          details: `類似注文番号検出: ${similarOrders.map(s => `${s.orderNumber}(diff:${s.diffCount})`).join(", ")}`,
-        });
-        console.log(`[LINE Agent] Similar order numbers detected for ${ocrData.orderNumber}: ${similarOrders.map(s => `${s.orderNumber}(diff:${s.diffCount})`).join(", ")}`);
-      }
-    }
-    
-    // Check for unusually high amount (over 100,000 JPY)
-    if (ocrData.totalAmount > 100000) {
-      fraudFlags.push("high_amount");
-      fraudScore += 20;
-      await createLineFraudDetectionLog({
-        receiptId: primaryReceiptId,
-        lineUserId,
-        checkType: "high_amount",
-        detected: true,
-        severity: "low",
-        details: `高額購入: ¥${ocrData.totalAmount.toLocaleString()}`,
-      });
-    }
-    
-    // Update fraud flags
-    if (fraudFlags.length > 0) {
-      await updateLineReceiptFraudFlags(primaryReceiptId, fraudFlags, fraudScore);
-      
-      // Auto-hold if fraud score is high
-      if (fraudScore >= 50) {
-        await updateLineReceiptStatus(primaryReceiptId, "on_hold", 0, "自動保留: 不正検知スコアが高いため");
-      }
-    }
-    
-    console.log(`[LINE Agent] TikTok Shop OCR completed for ${primaryReceiptId}:`, {
-      orderNumber: ocrData.orderNumber,
-      shopName: ocrData.shopName,
-      totalAmount: ocrData.totalAmount,
-      pointsCalculated,
-      fraudScore,
-      imageCount: images.length,
-    });
-    
-    // Send OCR completion notification to user
-    if (fraudScore >= 50 && !fraudFlags.includes("duplicate_order")) {
-      // High fraud score - notify user about hold status
-      const holdReasons: string[] = [];
-      if (fraudFlags.includes("expired_order")) {
-        holdReasons.push("・注文日から30日以上経過しています");
-      }
-      
-      await pushMessage(lineUserId, [
-        {
-          type: "text",
-          text: `⚠️ 注文を確認中です\n\n以下の理由で保留となりました：\n${holdReasons.join("\n")}\n\nスタッフが確認後、結果をお知らせします。`,
-        },
-      ]);
-    } else if (fraudScore < 50) {
-      // Successful OCR - notify user with extracted info
-      await pushMessage(lineUserId, [
-        {
-          type: "text",
-          text: `✅ 注文の確認が完了しました！\n\n📝 注文番号: ${ocrData.orderNumber}\n🏪 ショップ: ${ocrData.shopName || "TikTok Shop"}\n📦 商品: ${ocrData.productName || "不明"}\n💰 購入金額: ¥${ocrData.totalAmount.toLocaleString()}\n⭐ 獲得予定ポイント: ${pointsCalculated}pt\n\nスタッフが確認後、ポイントが付与されます。`,
-        },
-      ]);
-    }
-    
-  } catch (error: any) {
-    console.error("[LINE Agent] Multi-image OCR analysis failed:", error);
-    console.error("[LINE Agent] Error name:", error?.name);
-    console.error("[LINE Agent] Error message:", error?.message);
-    console.error("[LINE Agent] Error stack:", error?.stack);
-    if (error?.response) {
-      console.error("[LINE Agent] API response status:", error.response?.status);
-      console.error("[LINE Agent] API response data:", JSON.stringify(error.response?.data, null, 2));
-    }
-    throw error; // Re-throw to be handled by caller
   }
 }
 

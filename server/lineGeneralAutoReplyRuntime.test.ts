@@ -64,10 +64,6 @@ vi.mock("./db", async () => {
 });
 
 import { containsExplicitLcjMention, processLineMessage, processReceiptImageMessage, type LineWebhookEvent } from "./lineAgent";
-import { verifyLineMemberSessionToken } from "./lineMemberSession";
-
-const TEST_SECRET = "line-receipt-handoff-test-secret-at-least-32-chars";
-const previousJwtSecret = process.env.JWT_SECRET;
 
 const makeEvent = (): LineWebhookEvent => ({
   type: "message",
@@ -86,7 +82,6 @@ const makeEvent = (): LineWebhookEvent => ({
 
 describe("LINE general AI auto-reply runtime behavior", () => {
   beforeEach(() => {
-    process.env.JWT_SECRET = TEST_SECRET;
     vi.clearAllMocks();
     mocks.createOrUpdateLineUser.mockResolvedValue(undefined);
     mocks.getLineUserByLineId.mockResolvedValue(null);
@@ -110,8 +105,6 @@ describe("LINE general AI auto-reply runtime behavior", () => {
   });
 
   afterEach(() => {
-    if (previousJwtSecret === undefined) delete process.env.JWT_SECRET;
-    else process.env.JWT_SECRET = previousJwtSecret;
     vi.unstubAllGlobals();
   });
 
@@ -384,7 +377,7 @@ describe("LINE general AI auto-reply runtime behavior", () => {
     expect(mocks.tryHandleLineAiManagerMessage).not.toHaveBeenCalled();
   });
 
-  it("hands LINE receipt images to the Web form with a valid signed session and an explicit incomplete warning", async () => {
+  it("stores LINE receipt images as history and replies with a token-free migration notice", async () => {
     const lineUserId = "U11111111111111111111111111111111";
     mocks.createOrUpdateLineUser.mockResolvedValueOnce({ id: 77, lineUserId });
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -413,7 +406,7 @@ describe("LINE general AI auto-reply runtime behavior", () => {
     expect(mocks.saveLineMessage).toHaveBeenCalledWith(expect.objectContaining({
       messageId: "receipt-image-message",
       messageType: "image",
-      content: expect.stringContaining("申請未完了"),
+      content: expect.stringContaining("申請停止中"),
       needsResponse: false,
       responseStatus: "responded",
     }));
@@ -422,14 +415,9 @@ describe("LINE general AI auto-reply runtime behavior", () => {
     expect(replyCall).toBeDefined();
     const replyBody = JSON.parse(String((replyCall?.[1] as RequestInit | undefined)?.body || "{}"));
     const replyText = String(replyBody.messages?.[0]?.text || "");
-    expect(replyText).toContain("ポイント申請はまだ完了していません");
-    expect(replyText).toContain("受付番号を保存");
-    expect(replyText).not.toContain("レシート画像を受け取りました！");
-
-    const tokenMatch = replyText.match(/receipt-upload\?token=([^\s]+)/);
-    expect(tokenMatch).not.toBeNull();
-    const session = await verifyLineMemberSessionToken(decodeURIComponent(tokenMatch![1]));
-    expect(session?.lineUserId).toBe(lineUserId);
-    expect(session?.userId).toBe(77);
+    expect(replyText).toContain("新しいLCJレシートポイント申請は停止中です");
+    expect(replyText).toContain("/beauty-wallet");
+    expect(replyText).not.toContain("receipt-upload?token=");
+    expect(replyText).not.toContain("受付番号");
   });
 });

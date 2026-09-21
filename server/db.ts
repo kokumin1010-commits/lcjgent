@@ -14,6 +14,7 @@ import { batchResolveProductImages } from "./productImageCache";
 import { currentStaffCondition, visibleCanonicalStaffCondition } from "./staffIdentityQuery";
 import { filterStaffScheduleCandidates } from "../shared/staffScheduleCandidate";
 import { summarizePersonalTaskRows } from "./taskStatistics";
+import { assertLocalPointLedgerWritable } from "./pointLedgerPolicy";
 import {
   resolveExplicitBrandAllocations,
   resolveBrandLivestreamGmv,
@@ -7033,6 +7034,7 @@ export async function getAllAdProposals() {
  * Get or create point balance for a user
  */
 export async function getOrCreatePointBalance(userId: number) {
+  assertLocalPointLedgerWritable("point_balance_create");
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -7082,6 +7084,7 @@ export async function updatePointBalance(
   balanceChange: number,
   type: "earn" | "use"
 ) {
+  assertLocalPointLedgerWritable("point_balance_update");
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -7124,6 +7127,7 @@ export async function createPointTransaction(data: {
   referenceId?: number;
   description?: string;
 }) {
+  assertLocalPointLedgerWritable("point_transaction");
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -7348,6 +7352,9 @@ export async function updateReceiptStatus(
   reviewedBy: number,
   reviewNote?: string
 ) {
+  if (status === "approved") {
+    assertLocalPointLedgerWritable("receipt_approval");
+  }
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -7366,6 +7373,7 @@ export async function updateReceiptStatus(
  * Award points for an approved receipt
  */
 export async function awardPointsForReceipt(receiptId: number, points: number) {
+  assertLocalPointLedgerWritable("receipt_point_award");
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -7577,6 +7585,7 @@ export async function getReceiptStatistics() {
  * Get or create LINE user point balance
  */
 export async function getOrCreateLinePointBalance(lineUserId: string) {
+  assertLocalPointLedgerWritable("line_point_balance_create");
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -7619,72 +7628,10 @@ export async function getLinePointBalance(lineUserId: string) {
     .from(linePointBalances)
     .where(eq(linePointBalances.lineUserId, lineUserId))
     .limit(1);
-  
-  const primaryBalance = result[0] || null;
-  
-  // Safety net: If lineUserId is a real LINE userId (starts with "U"),
-  // also check for any orphaned email_${id} balance that wasn't merged during LINE linking.
-  // This prevents points from "disappearing" if the merge failed or was skipped.
-  if (lineUserId.startsWith("U")) {
-    try {
-      // Find the line_users record for this LINE userId to get the email user id
-      const lineUserResult = await db
-        .select({ id: lineUsers.id })
-        .from(lineUsers)
-        .where(eq(lineUsers.lineUserId, lineUserId))
-        .limit(1);
-      
-      if (lineUserResult[0]) {
-        const emailKey = `email_${lineUserResult[0].id}`;
-        const emailBalanceResult = await db
-          .select()
-          .from(linePointBalances)
-          .where(eq(linePointBalances.lineUserId, emailKey))
-          .limit(1);
-        
-        const emailBalance = emailBalanceResult[0];
-        
-                if (emailBalance) {
-          const hasComponents = emailBalance.balance !== 0 || emailBalance.totalEarned !== 0 || emailBalance.totalUsed !== 0;
-          if (hasComponents) {
-            console.log(`[PointBalance] Auto-merging orphaned point components: ${emailKey} (${emailBalance.balance}pt) -> verified LINE key`);
-            if (primaryBalance) {
-              await db.update(linePointBalances)
-                .set({
-                  balance: primaryBalance.balance + emailBalance.balance,
-                  totalEarned: primaryBalance.totalEarned + emailBalance.totalEarned,
-                  totalUsed: primaryBalance.totalUsed + emailBalance.totalUsed,
-                })
-                .where(eq(linePointBalances.lineUserId, lineUserId));
-              primaryBalance.balance += emailBalance.balance;
-              primaryBalance.totalEarned += emailBalance.totalEarned;
-              primaryBalance.totalUsed += emailBalance.totalUsed;
-              await db.update(linePointBalances)
-                .set({ balance: 0, totalEarned: 0, totalUsed: 0 })
-                .where(eq(linePointBalances.lineUserId, emailKey));
-            } else {
-              await db.update(linePointBalances)
-                .set({ lineUserId })
-                .where(eq(linePointBalances.lineUserId, emailKey));
-              await db.update(linePointTransactions)
-                .set({ lineUserId })
-                .where(eq(linePointTransactions.lineUserId, emailKey));
-              return { ...emailBalance, lineUserId };
-            }
-          }
-          // Move any ledger rows even when the legacy email balance is already zero.
-          await db.update(linePointTransactions)
-            .set({ lineUserId })
-            .where(eq(linePointTransactions.lineUserId, emailKey));
-        }
-      }
-    } catch (err) {
-      // Don't let the safety net break normal operation
-      console.error(`[PointBalance] Auto-merge check failed for ${lineUserId}:`, err);
-    }
-  }
-  
-  return primaryBalance;
+
+  // The LCJ ledger is historical reference data. Never merge email/LINE keys
+  // during a read; split identities remain an explicit audited review queue.
+  return result[0] || null;
 }
 
 /**
@@ -7695,6 +7642,7 @@ export async function updateLinePointBalance(
   balanceChange: number,
   type: "earn" | "use"
 ) {
+  assertLocalPointLedgerWritable("line_point_balance_update");
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -7739,6 +7687,7 @@ export async function createLinePointTransaction(data: {
   referenceId?: number;
   description?: string;
 }) {
+  assertLocalPointLedgerWritable("line_point_transaction");
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -8059,6 +8008,9 @@ export async function updateLineReceiptStatus(
   reviewedBy: number,
   reviewNote?: string
 ) {
+  if (status === "approved") {
+    assertLocalPointLedgerWritable("line_receipt_approval");
+  }
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -8092,6 +8044,7 @@ export async function deleteLineReceipt(id: number) {
  * Award points for an approved LINE receipt
  */
 export async function awardPointsForLineReceipt(receiptId: number, points: number) {
+  assertLocalPointLedgerWritable("line_receipt_point_award");
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -8932,6 +8885,9 @@ export async function createMallOrder(data: {
   shippingFee?: number; // 送料
   notes?: string;
 }) {
+  if (data.pointsToUse > 0 || data.items.some(item => item.usePoints)) {
+    assertLocalPointLedgerWritable("mall_order_point_use");
+  }
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const { assertMemberActionAllowed } = await import("./memberRestrictionService");
@@ -9138,36 +9094,11 @@ export async function cancelMallOrder(
       .where(eq(mallProducts.id, item.productId));
   }
 
-  // 2. ポイントを返還（ポイント使用があった場合）
-  let pointsRefunded = 0;
+  // 2. Legacy LCJ point refunds are not written. Keep the historical ledger
+  // immutable while allowing the order cancellation and any card refund to proceed.
+  const pointsRefunded = 0;
   if (order.pointsUsed > 0) {
-    // ユーザーのlineUserIdを取得
-    const [lineUser] = await db.select().from(lineUsers).where(eq(lineUsers.id, order.lineUserId)).limit(1);
-    if (lineUser) {
-      const pointLineUserId = lineUser.lineUserId || `email_${lineUser.id}`;
-      
-      // ポイント残高を戻す
-      await db.update(linePointBalances)
-        .set({
-          balance: sql`${linePointBalances.balance} + ${order.pointsUsed}`,
-          totalUsed: sql`${linePointBalances.totalUsed} - ${order.pointsUsed}`,
-        })
-        .where(eq(linePointBalances.lineUserId, pointLineUserId));
-
-      // ポイント取引履歴に返還記録を追加
-      const currentBalance = await db.select().from(linePointBalances).where(eq(linePointBalances.lineUserId, pointLineUserId)).limit(1);
-      await db.insert(linePointTransactions).values({
-        lineUserId: pointLineUserId,
-        type: "refund",
-        amount: order.pointsUsed,
-        balanceAfter: currentBalance[0]?.balance ?? order.pointsUsed,
-        description: `注文キャンセルによるポイント返還 (注文番号: ${order.orderNumber})`,
-        referenceType: "order",
-        referenceId: orderId,
-      });
-
-      pointsRefunded = order.pointsUsed;
-    }
+    console.warn("[PointLedger] Legacy point refund skipped; reconciliation remains pending");
   }
 
   // 3. Stripe自動返金（カード決済済みの場合）
@@ -9184,9 +9115,9 @@ export async function cancelMallOrder(
         reason: "requested_by_customer",
       });
       stripeRefunded = true;
-      console.log(`[CancelOrder] Stripe返金成功: 注文${order.orderNumber}, PaymentIntent: ${order.stripePaymentIntentId}`);
+      console.log("[CancelOrder] Stripe refund completed");
     } catch (stripeErr) {
-      console.error(`[CancelOrder] Stripe返金エラー: 注文${order.orderNumber}:`, stripeErr);
+      console.error("[CancelOrder] Stripe refund failed", stripeErr instanceof Error ? stripeErr.name : "unknown_error");
       // Stripe返金失敗でもキャンセル自体は続行する
     }
   }
@@ -9280,7 +9211,7 @@ export async function updateMallOrderStatus(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  let pointsRefunded = 0;
+  const pointsRefunded = 0;
   let stockRestored = false;
 
   // キャンセル・返金時のポイント返還・在庫戻し・Stripe返金処理
@@ -9298,34 +9229,10 @@ export async function updateMallOrderStatus(
       }
       stockRestored = items.length > 0;
 
-      // 2. ポイントを返還（ポイント使用があった場合）
+      // 2. Keep legacy LCJ point records immutable. Order/stock/card handling must
+      // continue independently of the paused point-refund path.
       if (order.pointsUsed > 0) {
-        const [lineUser] = await db.select().from(lineUsers).where(eq(lineUsers.id, order.lineUserId)).limit(1);
-        if (lineUser) {
-          const pointLineUserId = lineUser.lineUserId || `email_${lineUser.id}`;
-
-          // ポイント残高を戻す
-          await db.update(linePointBalances)
-            .set({
-              balance: sql`${linePointBalances.balance} + ${order.pointsUsed}`,
-              totalUsed: sql`${linePointBalances.totalUsed} - ${order.pointsUsed}`,
-            })
-            .where(eq(linePointBalances.lineUserId, pointLineUserId));
-
-          // ポイント取引履歴に返還記録を追加
-          const currentBalance = await db.select().from(linePointBalances).where(eq(linePointBalances.lineUserId, pointLineUserId)).limit(1);
-          await db.insert(linePointTransactions).values({
-            lineUserId: pointLineUserId,
-            type: "refund",
-            amount: order.pointsUsed,
-            balanceAfter: currentBalance[0]?.balance ?? order.pointsUsed,
-            description: `管理者による注文${status === "cancelled" ? "キャンセル" : "返金"}でのポイント返還 (注文番号: ${order.orderNumber})`,
-            referenceType: "order",
-            referenceId: id,
-          });
-
-          pointsRefunded = order.pointsUsed;
-        }
+        console.warn("[PointLedger] Legacy point refund skipped; reconciliation remains pending");
       }
 
       // 3. Stripe自動返金（カード決済済みの場合）
@@ -9341,9 +9248,9 @@ export async function updateMallOrderStatus(
             reason: "requested_by_customer",
           });
           stripeRefunded = true;
-          console.log(`[AdminOrderStatus] Stripe返金成功: 注文${order.orderNumber}, PaymentIntent: ${order.stripePaymentIntentId}`);
+          console.log("[AdminOrderStatus] Stripe refund completed");
         } catch (stripeErr) {
-          console.error(`[AdminOrderStatus] Stripe返金エラー: 注文${order.orderNumber}:`, stripeErr);
+          console.error("[AdminOrderStatus] Stripe refund failed", stripeErr instanceof Error ? stripeErr.name : "unknown_error");
           // Stripe返金失敗でもステータス更新は続行する
         }
       }
@@ -10012,71 +9919,8 @@ export async function linkLineAccountToEmailUser(emailUserId: number, lineUserId
     })
     .where(eq(lineUsers.id, emailUserId));
   
-  // === Merge point balances: email_${id} → LINE userId ===
-  const emailPointId = `email_${emailUserId}`;
-  const emailBalance = await db.select()
-    .from(linePointBalances)
-    .where(eq(linePointBalances.lineUserId, emailPointId))
-    .limit(1);
-  
-  if (emailBalance.length > 0 && emailBalance[0].balance > 0) {
-    // Get or create LINE userId balance
-    let lineBalance = await db.select()
-      .from(linePointBalances)
-      .where(eq(linePointBalances.lineUserId, lineUserId))
-      .limit(1);
-    
-    if (lineBalance.length === 0) {
-      // Create new balance record for LINE userId
-      await db.insert(linePointBalances).values({
-        lineUserId,
-        balance: 0,
-        totalEarned: 0,
-        totalUsed: 0,
-      });
-      lineBalance = await db.select()
-        .from(linePointBalances)
-        .where(eq(linePointBalances.lineUserId, lineUserId))
-        .limit(1);
-    }
-    
-    // Transfer balance from email_ to LINE userId
-    const transferAmount = emailBalance[0].balance;
-    const transferTotalEarned = emailBalance[0].totalEarned;
-    const transferTotalUsed = emailBalance[0].totalUsed;
-    
-    // Add to LINE userId balance
-    await db.update(linePointBalances)
-      .set({
-        balance: sql`${linePointBalances.balance} + ${transferAmount}`,
-        totalEarned: sql`${linePointBalances.totalEarned} + ${transferTotalEarned}`,
-        totalUsed: sql`${linePointBalances.totalUsed} + ${transferTotalUsed}`,
-      })
-      .where(eq(linePointBalances.lineUserId, lineUserId));
-    
-    // Zero out email_ balance
-    await db.update(linePointBalances)
-      .set({
-        balance: 0,
-        totalEarned: 0,
-        totalUsed: 0,
-      })
-      .where(eq(linePointBalances.lineUserId, emailPointId));
-    
-    // Migrate all transactions from email_ to LINE userId
-    await db.update(linePointTransactions)
-      .set({ lineUserId })
-      .where(eq(linePointTransactions.lineUserId, emailPointId));
-    
-    console.log(`[LINE Link] Merged point balance: email_${emailUserId} (${transferAmount} pt) → ${lineUserId}`);
-  } else if (emailBalance.length > 0) {
-    // Balance is 0 but record exists - just migrate transactions
-    await db.update(linePointTransactions)
-      .set({ lineUserId })
-      .where(eq(linePointTransactions.lineUserId, emailPointId));
-    
-    console.log(`[LINE Link] Migrated point transactions: email_${emailUserId} → ${lineUserId}`);
-  }
+  // Do not merge email_/LINE point rows here. They are immutable historical
+  // evidence and remain split until an explicit Beauty Wallet reconciliation.
   
   return true;
 }
@@ -10328,6 +10172,7 @@ export async function countTodayPointRequestsByUser(userId: number): Promise<num
  * Approve a point request
  */
 export async function approvePointRequest(id: number, adminUserId: number, pointsApproved: number) {
+  assertLocalPointLedgerWritable("point_request_approval");
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -10374,6 +10219,7 @@ export async function rejectPointRequest(id: number, adminUserId: number, reason
  * Add points to user's balance
  */
 export async function addPointsToUser(userId: number, points: number, pointRequestId: number | null, description: string) {
+  assertLocalPointLedgerWritable("point_request_credit");
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -15726,6 +15572,7 @@ export async function applyReferralCode(
   newUserPoints: number = 500,
   referrerPoints: number = 200
 ) {
+  assertLocalPointLedgerWritable("referral_point_award");
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -15886,7 +15733,7 @@ export async function registerPendingReferral(
     throw new Error("このユーザーは既に紹介コードを使用済みです");
   }
   
-  // Create referral history record - new user points awarded immediately, referrer points pending
+  // Create referral history record. Benefits stay pending until Beauty Wallet processes them.
   await db.insert(referralHistory).values({
     referralCodeId,
     referrerLiverId,
@@ -15894,8 +15741,8 @@ export async function registerPendingReferral(
     status: "pending", // pending = waiting for first purchase to award referrer points
     newUserPoints,
     referrerPoints,
-    newUserPointAwarded: true, // 500pt awarded immediately at registration
-    referrerPointAwarded: false, // 200pt awarded on first purchase
+    newUserPointAwarded: false,
+    referrerPointAwarded: false,
   });
   
   return { success: true, status: "pending", newUserPoints };
@@ -15909,6 +15756,7 @@ export async function confirmPendingReferral(
   lineUserId: string, // LINE User ID string (for point system)
   referredLineUserDbId: number // line_users.id
 ) {
+  assertLocalPointLedgerWritable("pending_referral_point_award");
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -19445,6 +19293,7 @@ export async function getExpiringLinePoints(lineUserId: string): Promise<{
  * Returns number of users affected.
  */
 export async function processExpiredPoints(): Promise<{ usersAffected: number; totalExpired: number }> {
+  assertLocalPointLedgerWritable("point_expiry");
   const db = await getDb();
   if (!db) return { usersAffected: 0, totalExpired: 0 };
   
@@ -19519,6 +19368,7 @@ export async function processExpiredPoints(): Promise<{ usersAffected: number; t
  * Process expired points for all LINE users.
  */
 export async function processExpiredLinePoints(): Promise<{ usersAffected: number; totalExpired: number }> {
+  assertLocalPointLedgerWritable("line_point_expiry");
   const db = await getDb();
   if (!db) return { usersAffected: 0, totalExpired: 0 };
   
@@ -19592,6 +19442,7 @@ export async function processExpiredLinePoints(): Promise<{ usersAffected: numbe
  * Deducts from earn transactions with earliest expiresAt first.
  */
 export async function usePointsFIFO(userId: number, amount: number, description: string, referenceId?: number): Promise<{ success: boolean; balanceAfter: number }> {
+  assertLocalPointLedgerWritable("point_fifo_use");
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -19653,6 +19504,7 @@ export async function usePointsFIFO(userId: number, amount: number, description:
  * Use points with FIFO for LINE user.
  */
 export async function useLinePointsFIFO(lineUserId: string, amount: number, description: string, referenceId?: number): Promise<{ success: boolean; balanceAfter: number }> {
+  assertLocalPointLedgerWritable("line_point_fifo_use");
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -19767,6 +19619,7 @@ export async function getLineUsersWithExpiringPoints(withinDays: number): Promis
  * This incentivizes users to keep inviting friends to keep their points alive.
  */
 export async function extendLinePointExpiry(lineUserId: string): Promise<{ extended: number; newExpiresAt: Date }> {
+  assertLocalPointLedgerWritable("line_point_expiry_extension");
   const db = await getDb();
   if (!db) return { extended: 0, newExpiresAt: new Date() };
   
@@ -19792,6 +19645,7 @@ export async function extendLinePointExpiry(lineUserId: string): Promise<{ exten
  * Called when a friend referral earns points.
  */
 export async function extendWebPointExpiry(userId: number): Promise<{ extended: number; newExpiresAt: Date }> {
+  assertLocalPointLedgerWritable("point_expiry_extension");
   const db = await getDb();
   if (!db) return { extended: 0, newExpiresAt: new Date() };
   
@@ -27083,6 +26937,7 @@ export async function rejectMegaChannelQualification(liverId: number, rejectedBy
  * on earn transactions using FIFO (oldest expiresAt first).
  */
 export async function fixRemainingAmountForPastPurchases(): Promise<{ usersFixed: number; totalAdjusted: number }> {
+  assertLocalPointLedgerWritable("legacy_point_remaining_amount_repair");
   const db = await getDb();
   if (!db) return { usersFixed: 0, totalAdjusted: 0 };
   

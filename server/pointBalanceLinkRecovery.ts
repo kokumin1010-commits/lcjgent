@@ -1,5 +1,6 @@
 import mysql, { type Pool, type PoolConnection, type RowDataPacket } from 'mysql2/promise';
 import { runDatabaseBackup } from './databaseBackupScheduler';
+import { assertLocalPointLedgerWritable } from './pointLedgerPolicy';
 
 const RECOVERY_KEY='point-balance-linked-account-recovery-v1';
 const PRE_BACKUP_REASON='pre-point-link-recovery-v1';
@@ -91,6 +92,7 @@ export async function getPointBalanceLinkRecoveryHealth(){
   }finally{await pool.end();}
 }
 export async function runPointBalanceLinkRecovery(){
+  assertLocalPointLedgerWritable('point_balance_link_recovery');
   const pool=createPool();
   let runId=0;
   try{

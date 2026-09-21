@@ -20,7 +20,6 @@ import {
 import { storagePut } from "./storage";
 import { invokeLLM } from "./_core/llm";
 import { pushMessage } from "./line";
-import { createLinePointTransaction } from "./db";
 
 // Ensure tables exist on first use
 let tablesInitialized = false;
@@ -728,8 +727,9 @@ export const buybackRouter = router({
       const commissionAmount = Math.round(finalAmount * commissionRate / 100);
       const userPayout = finalAmount - commissionAmount;
 
-      // Award points to user (10% bonus as LCJ points)
-      const pointsAwarded = Math.round(userPayout * 0.1);
+      // Beauty Wallet is the sole live ledger. Do not create an LCJ-local
+      // reward while central write idempotency has not been verified.
+      const pointsAwarded = 0;
 
       await db.update(buybackRequests).set({
         status: "completed",
@@ -738,22 +738,6 @@ export const buybackRouter = router({
         pointsAwarded,
         completedAt: new Date(),
       }).where(eq(buybackRequests.id, input.requestId));
-
-      // Award LCJ points
-      if (request.lineUserId && pointsAwarded > 0) {
-        try {
-          await createLinePointTransaction({
-            lineUserId: request.lineUserId,
-            type: "earn",
-            amount: pointsAwarded,
-            referenceType: "system",
-            referenceId: input.requestId,
-            description: `買取完了ボーナス (依頼#${input.requestId})`,
-          });
-        } catch (err: any) {
-          console.error('[BuybackRouter] Point award error:', err.message);
-        }
-      }
 
       await logTransaction(input.requestId, "completed", "partner", String(input.partnerId), {
         finalAmount,
@@ -764,7 +748,7 @@ export const buybackRouter = router({
       // Notify user
       if (request.lineUserId) {
         await notifyUser(request.lineUserId,
-          `【取引完了】\n依頼 #${input.requestId} が完了しました！\n\n買取金額: ¥${userPayout.toLocaleString()}\nボーナスポイント: ${pointsAwarded}pt\n\nご利用ありがとうございました！`
+          `【取引完了】\n依頼 #${input.requestId} が完了しました！\n\n買取金額: ¥${userPayout.toLocaleString()}\nポイント残高はBeauty Walletでご確認ください。現在、買取完了による新規ポイント付与はありません。\n\nご利用ありがとうございました！`
         );
       }
 

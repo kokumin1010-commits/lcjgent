@@ -301,6 +301,35 @@ async function bwLookupCustomerReadOnly(
   }
 }
 
+/**
+ * Resolve a Beauty Wallet customer only after the caller has independently
+ * verified control of the email address. This is GET-only and never creates a
+ * wallet, synchronizes identity fields, or changes a balance.
+ */
+export async function bwResolveCustomerForVerifiedLink(email: string): Promise<{
+  found: boolean;
+  customer: { id: number; name: string; hasWallet: boolean } | null;
+  failureCode?: string;
+}> {
+  const normalizedEmail = email.trim().toLowerCase();
+  const headers = await getReadOnlyHeaders();
+  const lookup = await bwLookupCustomerReadOnly(normalizedEmail, headers);
+  if (!lookup.success) {
+    return { found: false, customer: null, failureCode: "LOOKUP_UNAVAILABLE" };
+  }
+  if (!lookup.found || !lookup.customer) {
+    return { found: false, customer: null, failureCode: "CUSTOMER_NOT_FOUND" };
+  }
+  return {
+    found: true,
+    customer: {
+      id: lookup.customer.id,
+      name: lookup.customer.name,
+      hasWallet: lookup.customer.hasWallet,
+    },
+  };
+}
+
 const BW_AUDIT_HISTORY_PAGE_SIZE = 200;
 const BW_AUDIT_HISTORY_MAX_PAGES = 25;
 
@@ -367,6 +396,54 @@ export async function bwAuditCentralLedgerByEmail(
     });
   }
 
+  const recoverUnifiedTotalFromHistory = async (
+    failureCode: string
+  ): Promise<BwCentralLedgerAuditResponse> => {
+    const historyUrl = new URL(`${getBaseUrl()}/api/bp/history`);
+    historyUrl.searchParams.set("customer_id", String(lookup.customer!.id));
+    historyUrl.searchParams.set("store", "beautypass");
+    historyUrl.searchParams.set("unified", "true");
+    historyUrl.searchParams.set("limit", "1");
+    historyUrl.searchParams.set("offset", "0");
+    try {
+      const response = await fetch(historyUrl.toString(), {
+        method: "GET",
+        headers: readOnlyHeaders,
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) throw new Error("history_unavailable");
+      const history = (await response.json()) as BwHistoryRawResponse;
+      if (
+        history.success !== true ||
+        history.customer_id !== lookup.customer!.id ||
+        !isNonNegativeInteger(history.unified_total)
+      ) {
+        throw new Error("history_invalid");
+      }
+      return {
+        success: true,
+        emailHash,
+        lookupFound: true,
+        walletFound: true,
+        centralLedgerAvailable: true,
+        unifiedTotal: history.unified_total,
+        storeCount: 0,
+        stores: [],
+        historyComplete: false,
+        historyRowsFetched: 0,
+        uniqueTransactionCount: 0,
+        duplicateRowsRemoved: 0,
+        failureCode: "CENTRAL_BALANCE_RECOVERED_FROM_HISTORY",
+      };
+    } catch {
+      return emptyCentralLedgerAudit(emailHash, {
+        lookupFound: true,
+        walletFound: true,
+        failureCode,
+      });
+    }
+  };
+
   const balanceUrl = new URL(`${getBaseUrl()}/api/tokens/balance`);
   balanceUrl.searchParams.set("customer_id", String(lookup.customer.id));
   balanceUrl.searchParams.set("store", "beautypass");
@@ -380,33 +457,22 @@ export async function bwAuditCentralLedgerByEmail(
       signal: AbortSignal.timeout(10_000),
     });
   } catch {
-    return emptyCentralLedgerAudit(emailHash, {
-      lookupFound: true,
-      walletFound: true,
-      failureCode: "CENTRAL_BALANCE_CONNECTION_ERROR",
-    });
+    return recoverUnifiedTotalFromHistory("CENTRAL_BALANCE_CONNECTION_ERROR");
   }
 
   if (!balanceResponse.ok) {
-    return emptyCentralLedgerAudit(emailHash, {
-      lookupFound: true,
-      walletFound: true,
-      failureCode:
-        balanceResponse.status === 401 || balanceResponse.status === 403
-          ? "CENTRAL_BALANCE_AUTH_UNAVAILABLE"
-          : `CENTRAL_BALANCE_HTTP_${balanceResponse.status}`,
-    });
+    return recoverUnifiedTotalFromHistory(
+      balanceResponse.status === 401 || balanceResponse.status === 403
+        ? "CENTRAL_BALANCE_AUTH_UNAVAILABLE"
+        : `CENTRAL_BALANCE_HTTP_${balanceResponse.status}`
+    );
   }
 
   let balance: BwUnifiedBalanceRawResponse;
   try {
     balance = (await balanceResponse.json()) as BwUnifiedBalanceRawResponse;
   } catch {
-    return emptyCentralLedgerAudit(emailHash, {
-      lookupFound: true,
-      walletFound: true,
-      failureCode: "CENTRAL_BALANCE_INVALID_JSON",
-    });
+    return recoverUnifiedTotalFromHistory("CENTRAL_BALANCE_INVALID_JSON");
   }
   const breakdown = Array.isArray(balance.breakdown) ? balance.breakdown : [];
   const totalBalance = balance.balance;
@@ -443,11 +509,7 @@ export async function bwAuditCentralLedgerByEmail(
     breakdown.reduce((sum, item) => sum + item.subtotal, 0) === unifiedTotal;
 
   if (!validBalance) {
-    return emptyCentralLedgerAudit(emailHash, {
-      lookupFound: true,
-      walletFound: true,
-      failureCode: "CENTRAL_LEDGER_VALIDATION_FAILED",
-    });
+    return recoverUnifiedTotalFromHistory("CENTRAL_LEDGER_VALIDATION_FAILED");
   }
 
   const stores = Array.from(new Set(breakdown.map(item => item.store))).sort();

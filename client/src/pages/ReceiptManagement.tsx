@@ -71,10 +71,9 @@ export default function ReceiptManagement({ embedded = false }: { embedded?: boo
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
-  const [actionType, setActionType] = useState<"approve" | "reject" | "hold">("approve");
+  const [actionType, setActionType] = useState<"reject" | "hold">("reject");
   const [reviewNote, setReviewNote] = useState("");
   const [rejectionCategory, setRejectionCategory] = useState<string>("other");
-  const [pointsOverride, setPointsOverride] = useState<number | undefined>();
   const [editData, setEditData] = useState({
     storeName: "",
     purchaseDate: "",
@@ -116,20 +115,6 @@ export default function ReceiptManagement({ embedded = false }: { embedded?: boo
       toast.success("OCRデータを更新しました");
       utils.point.adminGetReceipts.invalidate();
       setEditDialogOpen(false);
-    },
-    onError: (error) => {
-      toast.error(error.message);
-    },
-  });
-
-  const approveMutation = trpc.point.adminApproveReceipt.useMutation({
-    onSuccess: (data) => {
-      toast.success(`承認しました（${data.pointsAwarded}ポイント付与）`);
-      utils.point.adminGetReceipts.invalidate();
-      utils.point.adminGetPendingCount.invalidate();
-      utils.point.adminGetStatistics.invalidate();
-      setActionDialogOpen(false);
-      setSelectedReceipt(null);
     },
     onError: (error) => {
       toast.error(error.message);
@@ -194,12 +179,11 @@ export default function ReceiptManagement({ embedded = false }: { embedded?: boo
     setEditDialogOpen(true);
   };
 
-  const openActionDialog = (receipt: ReceiptData, action: "approve" | "reject" | "hold") => {
+  const openActionDialog = (receipt: ReceiptData, action: "reject" | "hold") => {
     setSelectedReceipt(receipt);
     setActionType(action);
     setReviewNote("");
     setRejectionCategory("other");
-    setPointsOverride(receipt.receipt.pointsCalculated || undefined);
     setActionDialogOpen(true);
   };
 
@@ -207,13 +191,6 @@ export default function ReceiptManagement({ embedded = false }: { embedded?: boo
     if (!selectedReceipt) return;
 
     switch (actionType) {
-      case "approve":
-        approveMutation.mutate({
-          id: selectedReceipt.receipt.id,
-          pointsOverride,
-          note: reviewNote || undefined,
-        });
-        break;
       case "reject":
         if (!reviewNote) {
           toast.error("却下理由を入力してください");
@@ -495,10 +472,10 @@ export default function ReceiptManagement({ embedded = false }: { embedded?: boo
                           variant="outline"
                           size="sm"
                           className="text-green-600 hover:text-green-700"
-                          onClick={() => openActionDialog(item, "approve")}
+                          disabled
                         >
                           <CheckCircle className="w-4 h-4 mr-1" />
-                          {t("receipts.approve")}
+                          LCJポイント承認停止中
                         </Button>
                         <Button
                           variant="outline"
@@ -731,26 +708,11 @@ export default function ReceiptManagement({ embedded = false }: { embedded?: boo
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {actionType === "approve" && "レシートを承認"}
               {actionType === "reject" && "レシートを却下"}
               {actionType === "hold" && "レシートを保留"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {actionType === "approve" && (
-              <div>
-                <Label>{t("receipts.awardedPoints")}</Label>
-                <Input
-                  type="number"
-                  value={pointsOverride ?? ""}
-                  onChange={(e) => setPointsOverride(e.target.value ? parseInt(e.target.value) : undefined)}
-                  placeholder={selectedReceipt?.receipt.pointsCalculated?.toString()}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  空欄の場合、算出ポイント（{selectedReceipt?.receipt.pointsCalculated ?? 0}pt）が付与されます
-                </p>
-              </div>
-            )}
             {actionType === "reject" && (
               <div>
                 <Label>却下理由カテゴリ</Label>
@@ -773,7 +735,7 @@ export default function ReceiptManagement({ embedded = false }: { embedded?: boo
               <Textarea
                 value={reviewNote}
                 onChange={(e) => setReviewNote(e.target.value)}
-                placeholder={actionType === "approve" ? "任意" : "必須"}
+                placeholder="必須"
                 rows={3}
               />
             </div>
@@ -784,13 +746,12 @@ export default function ReceiptManagement({ embedded = false }: { embedded?: boo
             </Button>
             <Button
               onClick={handleAction}
-              disabled={approveMutation.isPending || rejectMutation.isPending || holdMutation.isPending}
+              disabled={rejectMutation.isPending || holdMutation.isPending}
               variant={actionType === "reject" ? "destructive" : "default"}
             >
-              {(approveMutation.isPending || rejectMutation.isPending || holdMutation.isPending) && (
+              {(rejectMutation.isPending || holdMutation.isPending) && (
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
               )}
-              {actionType === "approve" && t("receipts.approve")}
               {actionType === "reject" && t("receipts.reject")}
               {actionType === "hold" && t("receipts.hold")}
             </Button>

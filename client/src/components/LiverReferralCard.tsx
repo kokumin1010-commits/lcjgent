@@ -27,7 +27,7 @@ export default function LiverReferralCard() {
   const shareCode = () => {
     if (!referralCode?.code) return;
     const shareUrl = `https://lcjmall.com/line-login?ref=${referralCode.code}&mode=register`;
-    const text = `LCJ MALLで使える紹介コード: ${referralCode.code}\n新規登録で500ポイントもらえます！\n${shareUrl}`;
+    const text = `LCJ MALL 紹介コード: ${referralCode.code}\n${shareUrl}`;
     if (navigator.share) {
       navigator.share({ title: "LCJ MALL 紹介コード", text }).catch(() => {});
     } else {
@@ -87,7 +87,7 @@ export default function LiverReferralCard() {
                 紹介 <strong className="text-purple-700">{referralCode?.totalReferrals || 0}</strong>人
               </span>
               <span className="text-[11px] text-purple-500">
-                獲得 <strong className="text-purple-700">{(referralCode?.totalPointsEarned || 0).toLocaleString()}</strong>pt
+                旧LCJ記録 <strong className="text-purple-700">{(referralCode?.totalPointsEarned || 0).toLocaleString()}</strong>pt
               </span>
             </div>
             <div className="flex items-center gap-1">
@@ -114,8 +114,9 @@ export default function LiverReferralCard() {
             <div className="mt-2 bg-white/60 rounded-lg p-2.5 border border-purple-100">
               <p className="text-[11px] font-medium text-purple-700 mb-0.5">配信中の宣伝例:</p>
               <p className="text-[11px] text-purple-600 italic leading-relaxed">
-                「LCJ MALLで紹介コード <strong>{referralCode?.code || "XXXX"}</strong> を入力すると500ポイントもらえるよ！」
+                「LCJ MALLの登録時に紹介コード <strong>{referralCode?.code || "XXXX"}</strong> を入力してください」
               </p>
+              <p className="mt-1 text-[10px] text-purple-500">新規LCJポイント特典は停止中です。</p>
             </div>
           )}
         </CardContent>
@@ -154,7 +155,7 @@ export default function LiverReferralCard() {
                   <p className="text-2xl font-bold text-pink-700">
                     {(stats.code?.totalPointsEarned || 0).toLocaleString()}
                   </p>
-                  <p className="text-xs text-pink-500">獲得ポイント</p>
+                  <p className="text-xs text-pink-500">旧LCJポイント記録</p>
                 </div>
               </div>
 
@@ -180,7 +181,7 @@ export default function LiverReferralCard() {
                           </p>
                         </div>
                         <Badge variant="secondary" className="bg-purple-100 text-purple-700">
-                          +{item.referrerPoints}pt
+                          旧記録 +{item.referrerPoints}pt
                         </Badge>
                       </div>
                     ))}

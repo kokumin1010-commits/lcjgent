@@ -1,15 +1,12 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingBag, Gift, ArrowRight, Coins, Receipt, Check, ChevronDown, ChevronUp, ShieldCheck, HelpCircle, Sparkles, MessageCircle, UserPlus, TrendingUp, Crown, Medal, Award, Flame, Heart, Star, X, User, MessageSquare } from "lucide-react";
+import { ShoppingBag, Gift, ArrowRight, Coins, Receipt, Check, ChevronDown, ChevronUp, ShieldCheck, HelpCircle, Sparkles, MessageCircle, UserPlus, TrendingUp, Crown, Medal, Award, Flame, Heart, Star, X, User, MessageSquare, WalletCards } from "lucide-react";
 import { useLocation, Link } from "wouter";
-import LuxurySpinWheel, { Confetti, Fireworks, ScreenFlash, FallingCoins, GlowCard, useCountUp, FloatingParticles } from "@/components/LuxurySpinWheel";
-import sfx from "@/lib/soundEffects";
-import haptic from "@/lib/haptic";
 
 function formatCurrencyShort(amount: number): string {
   return `¥${Math.round(amount).toLocaleString()}`;
@@ -220,11 +217,6 @@ function RecommendedSection() {
                   <span className="text-base font-bold text-rose-500">
                     ¥{product.price?.toLocaleString()}
                   </span>
-                  {product.pointPrice && (
-                    <span className="text-xs text-purple-500 font-medium">
-                      {product.pointPrice.toLocaleString()}pt
-                    </span>
-                  )}
                 </div>
                 {product.categoryName && (
                   <p className="text-[11px] text-gray-400 mt-1">{product.categoryName}</p>
@@ -251,253 +243,42 @@ function RecommendedSection() {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   ROULETTE OVERLAY - トップページ即時ルーレット体験
-   ═══════════════════════════════════════════════════════════════ */
-type RoulettePhase = "intro" | "spinning" | "result" | "hidden";
-
-function RouletteOverlay({ onClose }: { onClose: () => void }) {
-  const [, setLocation] = useLocation();
-  const [phase, setPhase] = useState<RoulettePhase>("spinning");
-  const [showEffects, setShowEffects] = useState(false);
-  const [wonPoints, setWonPoints] = useState(0);
-  const [wonLabel, setWonLabel] = useState("");
-  const [wonEmoji, setWonEmoji] = useState("");
-  const hasStartedRef = useRef(false);
-
-  // New member welcome roulette items (50pt is jackpot, others are smaller)
-  const wheelItems = useMemo(() => [
-    { label: "5pt", emoji: "🎀", points: 5 },
-    { label: "50pt", emoji: "🎁", points: 50 },
-    { label: "10pt", emoji: "✨", points: 10 },
-    { label: "3pt", emoji: "🌟", points: 3 },
-    { label: "20pt", emoji: "💎", points: 20 },
-    { label: "1pt", emoji: "🍀", points: 1 },
-    { label: "15pt", emoji: "🔥", points: 15 },
-    { label: "30pt", emoji: "⭐", points: 30 },
-  ], []);
-
-  // Always land on 50pt (jackpot for new members) - index 1
-  const targetIndex = useMemo(() => 1, []);
-
-  const handleSpinComplete = useCallback(() => {
-    const won = wheelItems[targetIndex];
-    setWonPoints(won.points);
-    setWonLabel(won.label);
-    setWonEmoji(won.emoji);
-    setShowEffects(true);
-    sfx.playCelebration();
-    haptic.celebration();
-    // Store won points for chat register
-    localStorage.setItem("lcj_spin_won_points", String(won.points));
-    localStorage.setItem("lcj_spin_won_label", won.label);
-    setTimeout(() => setPhase("result"), 800);
-  }, [wheelItems, targetIndex]);
-
-  const handleClaim = () => {
-    const hasSession = !!localStorage.getItem('lcj_session_token');
-    if (hasSession) {
-      // Logged in → go to friend challenge
-      setLocation('/friend-challenge');
-    } else {
-      // Not logged in → chat register
-      sessionStorage.setItem('lcj_from_roulette', '1');
-      setLocation('/chat-register');
-    }
-  };
-
-  const handleExistingLogin = () => {
-    setLocation('/line-login?redirect=/friend-challenge');
-  };
-
-  // No intro phase - go straight to spinning
-
-  const countUp = useCountUp(wonPoints, 1500, showEffects ? 300 : 99999);
-
-  if (phase === "hidden") return null;
-
-  return (
-    <div className="fixed inset-0 z-[9999]" style={{ background: "linear-gradient(180deg, #1a0a00 0%, #0a0500 40%, #000 100%)" }}>
-      {showEffects && (
-        <>
-          <Confetti count={100} />
-          <Fireworks count={10} />
-          <ScreenFlash color="#fbbf24" />
-          <FallingCoins />
-        </>
-      )}
-
-      {/* LCJ LOGO - always visible */}
-      <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
-        <ShoppingBag className="h-5 w-5 text-rose-400" />
-        <span className="text-sm font-bold text-white/80">LCJ MALL</span>
-      </div>
-
-      {/* Intro phase - dramatic entrance */}
-      {phase === "intro" && (
-        <div className="flex flex-col items-center justify-center h-full px-6 animate-fadeIn">
-          <div className="text-center">
-            <div className="text-6xl mb-4 animate-bounce">🎰</div>
-            <h1 className="text-3xl font-black text-white mb-2" style={{ textShadow: "0 0 30px rgba(251,191,36,0.5)" }}>
-              ラッキールーレット
-            </h1>
-            <p className="text-yellow-400 text-lg font-bold animate-pulse">新規登録ボーナスルーレット！</p>
-            <div className="mt-6 flex items-center gap-2 justify-center">
-              <div className="w-2 h-2 rounded-full bg-yellow-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-              <div className="w-2 h-2 rounded-full bg-yellow-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-              <div className="w-2 h-2 rounded-full bg-yellow-400 animate-bounce" style={{ animationDelay: "300ms" }} />
-            </div>
-          </div>
-          <style>{`
-            @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
-            .animate-fadeIn { animation: fadeIn 0.5s ease-out; }
-          `}</style>
-        </div>
-      )}
-
-      {/* Spinning phase - the wheel */}
-      {phase === "spinning" && (
-        <div className="h-full flex flex-col items-center justify-center">
-          <FloatingParticles tier="gold" />
-          <LuxurySpinWheel
-            items={wheelItems.map(i => ({ label: i.label, emoji: i.emoji }))}
-            targetIndex={targetIndex}
-            tierColor="#fbbf24"
-            onComplete={handleSpinComplete}
-            autoStart={true}
-          />
-        </div>
-      )}
-
-      {/* Result phase - claim your prize */}
-      {phase === "result" && (
-        <div className="flex flex-col items-center justify-center h-full px-6 animate-fadeIn">
-          <FloatingParticles tier="gold" />
-          <GlowCard glowColor="rgba(251,191,36,0.4)">
-            <div className="text-center py-8 px-6">
-              <div className="text-5xl mb-3">{wonEmoji}</div>
-              <p className="text-yellow-400 text-sm font-bold mb-1">おめでとうございます！</p>
-              <div className="text-5xl font-black text-white my-3" style={{ textShadow: "0 0 30px rgba(251,191,36,0.6)" }}>
-                {countUp.toLocaleString()}<span className="text-2xl text-yellow-400">pt</span>
-              </div>
-              <p className="text-gray-400 text-sm">が当選しました！</p>
-            </div>
-          </GlowCard>
-
-          <div className="w-full max-w-sm mt-8 space-y-3">
-            {/* Main CTA - Claim */}
-            <button
-              onClick={handleClaim}
-              className="w-full py-4 rounded-2xl text-lg font-black text-white active:scale-95 transition-transform relative overflow-hidden"
-              style={{
-                background: "linear-gradient(135deg, #ef4444, #f97316)",
-                boxShadow: "0 4px 20px rgba(239,68,68,0.4)",
-                animation: "btnPulse 2s ease-in-out infinite",
-              }}
-            >
-              <div className="absolute inset-0" style={{
-                background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%)",
-                animation: "shimmer 2.5s ease-in-out infinite",
-              }} />
-              <span className="relative z-10">🎁 ポイントを受け取る（無料登録）</span>
-            </button>
-
-            {/* Secondary - existing account */}
-            <button
-              onClick={handleExistingLogin}
-              className="w-full py-3 rounded-xl text-sm font-medium text-yellow-400 border border-yellow-400/30 hover:bg-yellow-400/10 transition-colors"
-            >
-              すでにアカウントをお持ちの方はこちら
-            </button>
-
-            {/* Skip */}
-            <button
-              onClick={() => { setPhase("hidden"); onClose(); }}
-              className="w-full py-2 text-xs text-gray-600 hover:text-gray-400 transition-colors"
-            >
-              あとで受け取る
-            </button>
-          </div>
-
-          <style>{`
-            @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
-            .animate-fadeIn { animation: fadeIn 0.5s ease-out; }
-            @keyframes btnPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
-            @keyframes shimmer { 0% { transform: translateX(-100%); } 50%, 100% { transform: translateX(100%); } }
-          `}</style>
-        </div>
-      )}
-
-      {/* Close button (always visible except during spin) */}
-      {phase !== "spinning" && (
-        <button
-          onClick={() => { setPhase("hidden"); onClose(); }}
-          className="absolute top-4 right-4 z-50 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
-        >
-          <X className="h-4 w-4 text-white/60" />
-        </button>
-      )}
-    </div>
-  );
-}
-
 export default function MallHome() {
   const [, setLocation] = useLocation();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [showRoulette, setShowRoulette] = useState(false);
 
   usePageSEO({
     title: "LCJ MALL - TikTok Shopで買う。そのすべてが、価値になる。",
-    description: "LCJ Mallは、TikTok Shopで購入したすべての商品を対象に、ポイントが貯まり、LCJモールで使えるLCJ公式ショッピングサービスです。購入金額の1%還元。",
+    description: "LCJ Mallの会員向けショッピングサービスです。公式ポイント残高はBeauty Walletで一元管理し、LCJの旧記録は照合用として表示します。",
     canonical: window.location.origin,
     ogType: "website",
-    keywords: "LCJ MALL, lcjモール, ポイ活, レシート副業, TikTok Shop, ライブコマース, ポイント還元, 美容, シャンプー, KYOGOKU",
+    keywords: "LCJ MALL, lcjモール, TikTok Shop, ライブコマース, Beauty Wallet, 美容, シャンプー, KYOGOKU",
   });
 
   // ログイン状態を確認
   const { data: lineUser } = trpc.lineLogin.me.useQuery();
   const isLoggedIn = !!lineUser;
 
-  // Show roulette once per session on page load (未ログインユーザーのみ)
-  useEffect(() => {
-    if (isLoggedIn) return; // ログイン済みならルーレット不要
-    const hasSeenRoulette = sessionStorage.getItem('lcj_roulette_seen');
-    if (!hasSeenRoulette) {
-      const timer = setTimeout(() => {
-        setShowRoulette(true);
-        sessionStorage.setItem('lcj_roulette_seen', '1');
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [isLoggedIn]);
-  
   // 商品一覧を取得（販売中のもののみ）
   const { data: products, isLoading: productsLoading } = trpc.mall.getProducts.useQuery({ status: "active" });
 
   const faqs = [
     {
       q: "本当にすべての商品が対象ですか？",
-      a: "はい。TikTok Shopで購入した商品であれば、原則すべてがLCJ Mallポイントの対象となります。\n※一部条件・確認事項があります。"
+      a: "購入履歴や旧LCJポイント記録は照合用に保持されます。新たなポイント付与の対象・条件は、Beauty Walletの正式な案内をご確認ください。"
     },
     {
       q: "ポイントはどこで使えますか？",
-      a: "LCJモール内の対象店舗・サービスで、1pt＝1円として利用できます。"
+      a: "公式残高と利用履歴はBeauty Walletで確認できます。LCJ側の旧残高は現在、決済には利用できません。"
     },
     {
       q: "上限はありますか？",
-      a: "一部上限があります（詳細は案内をご確認ください）。"
+      a: "Beauty Walletの最新の利用条件をご確認ください。"
     }
   ];
 
-  const handleRouletteClose = () => {
-    setShowRoulette(false);
-  };
-
   return (
     <div className="min-h-screen bg-white">
-      {/* 豪華ルーレットオーバーレイ - トップページ即時表示 */}
-      {showRoulette && <RouletteOverlay onClose={handleRouletteClose} />}
-
       {/* Header - シンプルで洗練されたデザイン */}
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100">
         <div className="container mx-auto px-4 h-14 md:h-16 flex items-center justify-between">
@@ -559,20 +340,16 @@ export default function MallHome() {
             </span>
           </h1>
           <p className="text-base md:text-lg text-gray-600 mb-6 md:mb-8 leading-relaxed px-2">
-            LCJ Mallは、
-            <br className="sm:hidden" />
-            TikTok Shopで購入したすべての商品を対象に、
+            LCJ Mallの公式ポイント残高は
+            <span className="font-semibold text-gray-800">Beauty Wallet</span>で一元管理します。
             <br />
-            ポイントが貯まり、LCJモールで使える
-            <br className="sm:hidden" />
-            <span className="font-semibold text-gray-800">LCJ公式ショッピングサービス</span>です。
+            LCJ側の旧ポイント記録は、照合用の履歴として安全に保持されます。
           </p>
           
-          {/* 還元率バッジ */}
           <div className="flex justify-center mb-8 md:mb-10">
             <div className="inline-flex items-center gap-2 bg-gradient-to-r from-rose-500 to-pink-500 text-white px-5 py-2.5 md:px-6 md:py-3 rounded-full shadow-lg">
               <Coins className="h-5 w-5 md:h-6 md:w-6" />
-              <span className="text-lg md:text-xl font-bold">購入金額の1%還元</span>
+              <span className="text-lg md:text-xl font-bold">Beauty Walletが唯一の公式残高</span>
             </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center px-4">
@@ -602,7 +379,7 @@ export default function MallHome() {
               onClick={() => setLocation("/mall/products")}
             >
               <ShoppingBag className="h-5 w-5" />
-              使える商品を見る
+              商品を見る
             </Button>
             <Button 
               size="lg" 
@@ -669,17 +446,15 @@ export default function MallHome() {
               <div className="inline-flex items-center justify-center h-14 w-14 md:h-16 md:w-16 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-full mb-4 md:mb-6 text-white text-xl md:text-2xl font-bold">
                 3
               </div>
-              <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3">ポイントが貯まる・使える</h3>
+              <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3">Beauty Walletを確認</h3>
               <p className="text-gray-600 text-sm md:text-base">
-                内容確認後、<span className="font-semibold text-rose-500">購入金額の1%</span>をポイント付与。
+                メール認証でBeauty Walletを安全に連携し、
                 <br />
-                貯まったポイントは、
-                <br />
-                LCJモール内で<span className="font-semibold text-rose-500">1pt＝1円</span>として使えます。
+                公式の統合残高と履歴を確認します。
               </p>
               <div className="mt-4 bg-rose-50 rounded-lg p-3">
-                <p className="text-xs text-gray-500">例：10,000円の購入で</p>
-                <p className="text-xl font-bold text-rose-500">100pt 獲得！</p>
+                <p className="text-xs text-gray-500">旧LCJ記録は自動合算しません</p>
+                <p className="text-base font-bold text-rose-500">本人確認後に安全に照合</p>
               </div>
             </div>
           </div>
@@ -708,7 +483,7 @@ export default function MallHome() {
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 text-sm md:text-base">レシートを送るだけ</h3>
-                <p className="text-gray-600 text-xs md:text-sm">購入金額の<span className="font-semibold text-rose-500">1%</span>がポイントに</p>
+                <p className="text-gray-600 text-xs md:text-sm">購入証明を照合記録として保存</p>
               </div>
             </div>
             <div className="flex items-start gap-3 md:gap-4 p-4 md:p-5 bg-purple-50 rounded-xl">
@@ -716,8 +491,8 @@ export default function MallHome() {
                 <Coins className="h-4 w-4 md:h-5 md:w-5 text-white" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900 text-sm md:text-base">1pt＝1円</h3>
-                <p className="text-gray-600 text-xs md:text-sm">計算いらずで使える</p>
+                <h3 className="font-semibold text-gray-900 text-sm md:text-base">公式残高を一元管理</h3>
+                <p className="text-gray-600 text-xs md:text-sm">Beauty Walletで確認</p>
               </div>
             </div>
             <div className="flex items-start gap-3 md:gap-4 p-4 md:p-5 bg-indigo-50 rounded-xl">
@@ -760,11 +535,11 @@ export default function MallHome() {
         </div>
       </section>
 
-      {/* 友達招待チャレンジバナー - Temu風 */}
+      {/* Beauty Wallet self-service link banner */}
       <section className="py-8 md:py-12 px-4">
         <div className="container mx-auto max-w-4xl">
           <div
-            onClick={() => setLocation("/friend-challenge")}
+            onClick={() => setLocation("/beauty-wallet")}
             className="rounded-2xl p-5 md:p-8 text-white cursor-pointer hover:shadow-xl transition-all relative overflow-hidden group"
             style={{ background: 'linear-gradient(135deg, #b91c1c, #dc2626, #ef4444, #dc2626, #b91c1c)', border: '2px solid #fbbf24', boxShadow: '0 0 30px rgba(255,180,0,0.15)' }}
           >
@@ -774,11 +549,11 @@ export default function MallHome() {
             <div className="absolute bottom-2 right-4 text-xl animate-bounce" style={{ animationDelay: '0.9s' }}>🌟</div>
             <div className="relative z-10 flex items-center gap-4">
               <div className="h-14 w-14 md:h-16 md:w-16 rounded-full flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg, #fbbf24, #f59e0b)', border: '2px solid #fde68a', boxShadow: '0 0 15px rgba(251,191,36,0.3)' }}>
-                <span className="text-3xl md:text-4xl">🎰</span>
+                <WalletCards className="h-8 w-8 text-white" />
               </div>
               <div className="flex-1">
-                <h3 className="text-xl md:text-2xl font-black mb-1" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>友達招待チャレンジ 🎉</h3>
-                <p className="text-yellow-200 text-sm md:text-base font-bold">友達を招待してボーナスポイントをGET！✨</p>
+                <h3 className="text-xl md:text-2xl font-black mb-1" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>Beauty Walletを連携</h3>
+                <p className="text-yellow-200 text-sm md:text-base font-bold">メール認証で公式の統合残高を確認</p>
               </div>
               <ArrowRight className="h-6 w-6 text-yellow-300 group-hover:translate-x-1 transition-transform shrink-0" />
             </div>
@@ -857,12 +632,12 @@ export default function MallHome() {
               TikTok Shopで買ったなら、OK。
             </h2>
             <p className="text-gray-600 text-sm md:text-base leading-relaxed">
-              原則として、TikTok Shopで購入したすべての商品が
+              購入履歴と旧LCJポイント記録は
               <br />
-              LCJ Mallポイントの対象です。
+              照合用の監査記録として保持されます。
             </p>
             <p className="text-xs md:text-sm text-gray-400 mt-3 md:mt-4">
-              ※一部条件・確認事項があります。
+              ※旧残高をBeauty Walletへ自動合算・自動移行することはありません。
             </p>
           </div>
         </div>
@@ -872,7 +647,7 @@ export default function MallHome() {
       <section className="py-12 md:py-16 px-4 bg-white">
         <div className="container mx-auto max-w-2xl text-center">
           <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6">
-            ポイントが使える商品を見てみる
+            商品を見てみる
           </h2>
           <Button 
             size="lg" 
@@ -880,7 +655,7 @@ export default function MallHome() {
             onClick={() => setLocation("/mall/products")}
           >
             <ShoppingBag className="h-5 w-5" />
-            使える商品を見る
+            商品を見る
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
@@ -896,7 +671,7 @@ export default function MallHome() {
             </div>
             <div className="flex items-center gap-2">
               <Receipt className="h-4 w-4 text-gray-400" />
-              <span>購入証明に基づくポイント付与</span>
+              <span>購入証明を照合用に記録</span>
             </div>
             <div className="flex items-center gap-2">
               <Check className="h-4 w-4 text-gray-400" />
@@ -950,7 +725,7 @@ export default function MallHome() {
       <section className="py-12 md:py-16 px-4 bg-gradient-to-b from-white to-rose-50">
         <div className="container mx-auto max-w-2xl text-center">
           <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6 text-gray-900">
-            {isLoggedIn ? "ポイントを使おう" : "今すぐ始めよう"}
+            {isLoggedIn ? "Beauty Walletを確認しよう" : "今すぐ始めよう"}
           </h2>
           <p className="text-gray-600 mb-6 md:mb-8 text-sm md:text-base">
             TikTok Shopでのお買い物を、もっとお得に。
@@ -959,10 +734,10 @@ export default function MallHome() {
             <Button 
               size="lg" 
               className="bg-rose-500 hover:bg-rose-600 text-white gap-2 text-base md:text-lg py-6 md:py-7 px-8 md:px-10 shadow-lg hover:shadow-xl transition-all"
-              onClick={() => setLocation("/mall/products")}
+              onClick={() => setLocation("/beauty-wallet")}
             >
-              <ShoppingBag className="h-5 w-5 md:h-6 md:w-6" />
-              商品を見る
+              <WalletCards className="h-5 w-5 md:h-6 md:w-6" />
+              Beauty Walletを開く
             </Button>
           ) : (
             <Button 

@@ -69,6 +69,17 @@ export function getSessionCookieOptions(
       secure: true,
     };
   }
+
+  if (!isLocalhost) {
+    // Fail closed when a deployed proxy omits or misreports the protocol.
+    // A Secure cookie will not traverse or persist over plain HTTP.
+    return {
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+      secure: true,
+    };
+  }
   
   // HTTP (localhost only): use lax for development
   return {

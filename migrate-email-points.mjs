@@ -1,5 +1,8 @@
 import mysql from 'mysql2/promise';
 
+console.error('[PointLedger] Disabled: email and LINE point rows are historical audit records');
+process.exit(1);
+
 async function main() {
   const conn = await mysql.createConnection(process.env.DATABASE_URL);
   

@@ -14,6 +14,7 @@
  */
 
 import { invokeLLM } from "./_core/llm";
+import { assertLocalPointLedgerWritable } from "./pointLedgerPolicy";
 
 // Delay between batches (ms) - 429エラー防止のため十分な間隔を確保
 const BATCH_DELAY_MS = 10000;
@@ -44,6 +45,7 @@ let checkIntervalId: NodeJS.Timeout | null = null;
  * Checks DB flag periodically and processes when enabled.
  */
 export function startAiAutoApproveScheduler() {
+  assertLocalPointLedgerWritable("receipt_auto_approval_scheduler");
   if (checkIntervalId) {
     console.log("[AI AutoApprove Scheduler] Already running");
     return;
@@ -1450,7 +1452,7 @@ async function runAmountReocr() {
     const { getDb } = await import("./db");
     const { lineReceipts } = await import("../drizzle/schema");
     const { eq, and, sql, isNull, or } = await import("drizzle-orm");
-    const { awardPointsForLineReceipt, updateLineReceiptOcr } = await import("./db");
+    const { updateLineReceiptOcr } = await import("./db");
     
     const db = await getDb();
     if (!db) {
@@ -1495,7 +1497,6 @@ async function runAmountReocr() {
     
     let detectedCount = 0;
     let failedCount = 0;
-    let awardedPoints = 0;
     
     for (const receipt of candidates) {
       try {
@@ -1578,20 +1579,12 @@ async function runAmountReocr() {
             orderNumber: orderNum || receipt.orderNumber || undefined,
           });
           
-          // ポイント補発（既に付与済みの場合はスキップされる - idempotent）
-          if (points > 0 && (!receipt.pointsAwarded || receipt.pointsAwarded === 0)) {
-            const awardResult = await awardPointsForLineReceipt(receipt.id, points);
-            if (awardResult && !awardResult.skipped) {
-              awardedPoints += points;
-            }
-          }
-          
           // マーク済み
           await db.execute(sql`
             UPDATE line_receipts SET reviewNote = CONCAT(COALESCE(reviewNote, ''), ' [reocr_done:${sql.raw(String(amount))}]') WHERE id = ${receipt.id}
           `);
           
-          console.log(`[Amount ReOCR] #${receipt.id} | ¥${amount} → ${points}pt | order: ${orderNum || 'N/A'}`);
+          console.log(`[Amount ReOCR] #${receipt.id} | amount detected | order: ${orderNum ? 'detected' : 'N/A'}`);
         } else {
           // 金額検出できず - マーク済みにする
           await db.execute(sql`
@@ -1614,7 +1607,7 @@ async function runAmountReocr() {
       }
     }
     
-    console.log(`[Amount ReOCR] Batch complete: detected=${detectedCount}, failed=${failedCount}, points_awarded=${awardedPoints}pt`);
+    console.log(`[Amount ReOCR] Batch complete: detected=${detectedCount}, failed=${failedCount}, point_awards=disabled`);
     
   } catch (error: any) {
     console.error("[Amount ReOCR] Fatal error:", error.message);

@@ -228,10 +228,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
   const batchAiAbortRef = useRef(false);
 
   // AI Pass 2 re-review state
-  const [pass2ConfirmOpen, setPass2ConfirmOpen] = useState(false);
   const [pass2Running, setPass2Running] = useState(false);
-  const [pass2BatchSize, setPass2BatchSize] = useState<10 | 25 | 50 | 100>(25);
-  const [pass2ExecutionConfirmed, setPass2ExecutionConfirmed] = useState(false);
   const [pass2Result, setPass2Result] = useState<{
     autoApproved: number;
     autoRejected: number;
@@ -438,18 +435,6 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
 
   // Fetch statistics
   const { data: stats } = trpc.point.adminGetLineStatistics.useQuery();
-  const {
-    data: holdRulesPreview,
-    isFetching: holdRulesPreviewLoading,
-    error: holdRulesPreviewError,
-    refetch: refetchHoldRulesPreview,
-  } = trpc.point.adminPreviewLineHoldRules.useQuery({ batchSize: pass2BatchSize }, {
-    enabled: pass2ConfirmOpen,
-    staleTime: 0,
-    refetchOnMount: "always",
-    retry: (failureCount, error) => !isUnauthorizedTrpcError(error) && failureCount < 2,
-  });
-
   useEffect(() => {
     setReceiptPage(0);
   }, [activeTab, searchText, selectedStatuses.join(","), dateFrom, dateTo]);
@@ -619,53 +604,6 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     },
     onError: (error) => {
       toast.error(`❌ 恢復エラー: ${error.message}`, { duration: 5000 });
-    },
-  });
-
-  // Manual point award (admin override)
-  const manualAwardMutation = trpc.point.adminManualAwardPoints.useMutation({
-    onSuccess: (data) => {
-      utils.point.adminGetLineReceipts.invalidate();
-      utils.point.adminGetLineStatistics.invalidate();
-      toast.success(`手動ポイント付与完了: ${data.pointsAwarded}pt${data.skipped ? " (既に付与済み)" : ""}`);
-      setCalcReceiptId(null);
-      setCalcAmount("");
-      setCalcPoints(0);
-      setActionNote("");
-    },
-    onError: (error) => {
-      toast.error(`❌ ポイント付与エラー: ${error.message}`, { duration: 5000 });
-    },
-  });
-
-  const approveMutation = trpc.point.adminApproveLineReceipt.useMutation({
-    onSuccess: () => {
-      utils.point.adminGetLineReceipts.invalidate();
-      utils.point.adminGetLineStatistics.invalidate();
-      // Track processing count
-      setSessionProcessedCount(prev => prev + 1);
-      toast.success(t("lr.toast.approveComplete"), { duration: 2000 });
-      // Trigger auto-advance to next receipt
-      if (autoAdvanceEnabled) {
-        setLastProcessedId(calcReceiptId);
-      } else {
-        setCalcReceiptId(null);
-        setCalcAmount("");
-        setCalcPoints(0);
-      }
-      setActionNote("");
-      setCalcOrderNumber("");
-      setIsOrderNumberEditing(false);
-    },
-    onError: (error) => {
-      console.error("[Approve Error]", error.message);
-      if (error.message.includes("重複") || error.message.includes("duplicate")) {
-        toast.error(`⚠️ 重複エラー: ${error.message}`, { duration: 8000 });
-      } else if (error.message.includes("注文番号")) {
-        toast.error(`⚠️ 注文番号エラー: ${error.message}`, { duration: 8000 });
-      } else {
-        toast.error(`❌ 承認エラー: ${error.message}`, { duration: 5000 });
-      }
     },
   });
 
@@ -877,18 +815,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     },
   });
 
-  // Server-side AI auto-approve mutations
-  const startServerAutoApproveMutation = trpc.aiReview.startServerAutoApprove.useMutation({
-    onSuccess: (data) => {
-      toast.success(data.message);
-    },
-    onError: (err) => {
-      toast.error(`開始エラー: ${err.message}`);
-      setAiAutoMode(false);
-      aiAutoModeRef.current = false;
-    },
-  });
-
+  // Existing server jobs can be stopped, but new auto-approval runs are disabled.
   const stopServerAutoApproveMutation = trpc.aiReview.stopServerAutoApprove.useMutation({
     onSuccess: (data) => {
       toast.info(data.message);
@@ -898,25 +825,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     },
   });
 
-  // ===== AI Pass 2: Manual Queue Re-review =====
-  const startPass2Mutation = trpc.aiReview.startPass2.useMutation({
-    onSuccess: (data) => {
-      if (data.success) {
-        setPass2Running(true);
-        setPass2Result(null);
-        setPass2ConfirmOpen(false);
-        setPass2ExecutionConfirmed(false);
-        toast.success(t("lr.pass2.started"));
-      } else {
-        toast.warning(data.message);
-      }
-    },
-    onError: (err) => {
-      toast.error(`${t("lr.pass2.error")}: ${err.message}`);
-      setPass2Running(false);
-    },
-  });
-
+  // Existing Pass 2 progress can be observed and stopped, but new runs are disabled.
   const stopPass2Mutation = trpc.aiReview.stopPass2.useMutation({
     onSuccess: () => {
       toast.info(language === "zh" ? "已请求停止，当前订单完成后不再处理下一条。" : "停止を要求しました。現在の1件完了後に終了します。");
@@ -1015,14 +924,8 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
 
   // Handle approve from calculator panel
   const handleCalcApprove = (forceOverride = false) => {
-    if (!calcReceiptId) return;
-    approveMutation.mutate({
-      id: calcReceiptId,
-      pointsOverride: calcPoints > 0 ? calcPoints : undefined,
-      note: actionNote || undefined,
-      orderNumber: calcOrderNumber.trim() || undefined,
-      forceOverrideDuplicate: forceOverride || undefined,
-    });
+    void forceOverride;
+    toast.info("Beauty Wallet主台帳への移行中のため、LCJポイント承認は停止中です");
   };
 
   // Handle hold from action dialog
@@ -1088,8 +991,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       case "Enter": {
         e.preventDefault();
         if (calcReceiptId && calcPoints > 0 && selectedCalcReceipt &&
-            (selectedCalcReceipt.receipt.status === "pending" || selectedCalcReceipt.receipt.status === "on_hold") &&
-            !approveMutation.isPending) {
+            (selectedCalcReceipt.receipt.status === "pending" || selectedCalcReceipt.receipt.status === "on_hold")) {
           handleCalcApprove();
         }
         break;
@@ -1138,7 +1040,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         break;
       }
     }
-  }, [receipts, calcReceiptId, calcPoints, selectedCalcReceipt, approveMutation.isPending, selectedReceipt, actionDialog, imageViewerOpen, orderNumberDialog, showShortcutHelp]);
+  }, [receipts, calcReceiptId, calcPoints, selectedCalcReceipt, selectedReceipt, actionDialog, imageViewerOpen, orderNumberDialog, showShortcutHelp]);
 
   useEffect(() => {
     document.addEventListener("keydown", handleKeyDown);
@@ -1342,45 +1244,23 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           <div className="flex items-center gap-2 flex-1">
             <Brain className="w-5 h-5 text-purple-500" />
             <div>
-              <p className="text-sm font-medium">{t("lr.aiAutoMode")}</p>
-              <p className="text-xs text-muted-foreground">{t("lr.aiAutoModeDesc")}</p>
+              <p className="text-sm font-medium">LCJポイント自動承認（停止中）</p>
+              <p className="text-xs text-muted-foreground">履歴閲覧とAI分析のみ利用できます。新しい付与は行いません。</p>
             </div>
           </div>
           <Switch
-            checked={aiAutoMode}
-            onCheckedChange={(checked) => {
-              if (checked) {
-                setAiAutoMode(true);
-                aiAutoModeRef.current = true;
-                setLiveFeedItems([]);
-                startServerAutoApproveMutation.mutate();
-              } else {
-                setAiAutoMode(false);
-                aiAutoModeRef.current = false;
-                stopServerAutoApproveMutation.mutate();
-              }
-            }}
+            checked={false}
+            disabled
           />
           <div className="border-l pl-3 ml-1">
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5 text-orange-600 border-orange-300 hover:bg-orange-50 hover:text-orange-700"
-              disabled={pass2Running || startPass2Mutation.isPending || (stats?.onHold || 0) === 0}
-              onClick={() => {
-                if ((stats?.onHold || 0) === 0) {
-                  toast.info(t("lr.pass2.noOnHold"));
-                  return;
-                }
-                setPass2ConfirmOpen(true);
-              }}
+              className="gap-1.5 text-orange-600 border-orange-300"
+              disabled
             >
-              {pass2Running ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Shield className="w-4 h-4" />
-              )}
-              {t("lr.pass2.button")} ({stats?.onHold || 0})
+              <Shield className="w-4 h-4" />
+              LCJポイント再審査停止中 ({stats?.onHold || 0})
             </Button>
           </div>
         </div>
@@ -1751,7 +1631,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-blue-500" />
-              <span className="text-sm text-muted-foreground">{t("receipts.totalPoints")}</span>
+              <span className="text-sm text-muted-foreground">旧LCJ付与記録（監査）</span>
             </div>
             <p className="text-2xl font-bold mt-1">{(stats?.totalPointsAwarded || 0).toLocaleString()} pt</p>
           </CardContent>
@@ -1760,7 +1640,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-red-500" />
-              <span className="text-sm text-muted-foreground">失効ポイント</span>
+              <span className="text-sm text-muted-foreground">旧LCJ失効記録（監査）</span>
             </div>
             <p className="text-2xl font-bold mt-1 text-red-600">{(stats?.expiredPoints || 0).toLocaleString()} pt</p>
           </CardContent>
@@ -2229,7 +2109,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                               </div>
                             </div>
                             <div className="bg-green-50 border border-green-200 rounded px-2 py-1 text-center min-w-[80px]">
-                              <p className="text-[9px] text-green-600">{t("lr.pointPercent")}</p>
+                              <p className="text-[9px] text-green-600">旧LCJ算出参考（監査）</p>
                               <p className="text-lg font-bold text-green-700 leading-tight">{calcPoints}<span className="text-[10px] font-normal">pt</span></p>
                             </div>
                           </div>
@@ -2247,17 +2127,10 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                             <div className="space-y-1.5">
                               <Button
                                 className="w-full h-10 bg-green-600 hover:bg-green-700 text-white text-sm font-bold shadow-md"
-                                onClick={() => handleCalcApprove()}
-                                disabled={approveMutation.isPending}
+                                disabled
                               >
-                                {approveMutation.isPending ? (
-                                  t("lr.approving")
-                                ) : (
-                                  <>
-                                    <CheckCircle className="w-4 h-4 mr-1.5" />
-                                    {t("lr.approveWithPoints").replace("{points}", String(calcPoints))}
-                                  </>
-                                )}
+                                <CheckCircle className="w-4 h-4 mr-1.5" />
+                                LCJポイント承認停止中
                               </Button>
                               {/* Rejection category selector */}
                               <Select value={rejectionCategory} onValueChange={setRejectionCategory}>
@@ -2310,9 +2183,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                               <div className="bg-green-50 border border-green-200 rounded p-2 text-center">
                                 <div className="flex items-center justify-center gap-1">
                                   <CheckCircle className="w-4 h-4 text-green-600" />
-                                  <span className="text-xs font-medium text-green-700">{t("lr.approved")}</span>
+                                  <span className="text-xs font-medium text-green-700">過去LCJ承認履歴（監査）</span>
                                   {selectedCalcReceipt.receipt.pointsAwarded != null && (
-                                    <span className="text-xs text-green-600">({selectedCalcReceipt.receipt.pointsAwarded}pt)</span>
+                                    <span className="text-xs text-green-600">(旧LCJ記録: {selectedCalcReceipt.receipt.pointsAwarded}pt)</span>
                                   )}
                                 </div>
                               </div>
@@ -2322,18 +2195,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                   variant="outline"
                                   size="sm"
                                   className="w-full h-8 text-xs border-purple-300 text-purple-700 hover:bg-purple-50"
-                                  onClick={() => {
-                                    if (calcPoints <= 0) { toast.error("ポイントを入力してください"); return; }
-                                    manualAwardMutation.mutate({
-                                      receiptId: selectedCalcReceipt.receipt.id,
-                                      receiptType: "line_receipt",
-                                      points: calcPoints,
-                                      note: actionNote || "管理者手動ポイント付与",
-                                    });
-                                  }}
-                                  disabled={manualAwardMutation.isPending}
+                                  disabled
                                 >
-                                  {manualAwardMutation.isPending ? "付与中..." : <><Zap className="w-3 h-3 mr-1" />手動ポイント付与 ({calcPoints}pt)</>}
+                                  <><Zap className="w-3 h-3 mr-1" />LCJポイント付与停止中</>
                                 </Button>
                               )}
                             </div>
@@ -2352,17 +2216,10 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                               {/* 管理者最高権限ボタン群 */}
                               <Button
                                 className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow-md"
-                                onClick={() => handleCalcApprove(true)}
-                                disabled={approveMutation.isPending}
+                                disabled
                               >
-                                {approveMutation.isPending ? (
-                                  t("lr.reviving")
-                                ) : (
-                                  <>
-                                    <RotateCcw className="w-4 h-4 mr-1.5" />
-                                    {t("lr.reviveApprove").replace("{points}", String(calcPoints))}
-                                  </>
-                                )}
+                                <RotateCcw className="w-4 h-4 mr-1.5" />
+                                LCJポイント承認停止中
                               </Button>
                               <div className="flex gap-1.5">
                                 <Button
@@ -2378,18 +2235,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                   variant="outline"
                                   size="sm"
                                   className="flex-1 h-8 text-xs border-purple-300 text-purple-700 hover:bg-purple-50"
-                                  onClick={() => {
-                                    if (calcPoints <= 0) { toast.error("ポイントを入力してください"); return; }
-                                    manualAwardMutation.mutate({
-                                      receiptId: selectedCalcReceipt.receipt.id,
-                                      receiptType: "line_receipt",
-                                      points: calcPoints,
-                                      note: actionNote || "管理者手動ポイント付与",
-                                    });
-                                  }}
-                                  disabled={manualAwardMutation.isPending}
+                                  disabled
                                 >
-                                  {manualAwardMutation.isPending ? "付与中..." : <><Zap className="w-3 h-3 mr-1" />手動ポイント付与</>}
+                                  <><Zap className="w-3 h-3 mr-1" />付与停止中</>
                                 </Button>
                               </div>
                             </div>
@@ -2567,14 +2415,14 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                 );
                               })()}
                             </div>
-                            {/* Row 2: Amount + Points + Images count */}
+                            {/* Row 2: Amount + legacy LCJ audit reference + image count */}
                             <div className="flex items-center gap-2 text-xs">
                               <span className="font-bold">{formatCurrency(receipt.totalAmount, receipt.currency || "JPY")}</span>
-                              <span className="text-muted-foreground">→</span>
+                              <span className="text-muted-foreground">旧LCJ監査:</span>
                               {receipt.status === "approved" && receipt.pointsAwarded != null ? (
-                                <span className="font-bold text-green-600">{receipt.pointsAwarded}pt</span>
+                                <span className="font-bold text-green-600">旧LCJ付与記録（監査） {receipt.pointsAwarded}pt</span>
                               ) : (
-                                <span className="text-blue-600">{receipt.pointsCalculated || 0}pt</span>
+                                <span className="text-blue-600">旧LCJ算出参考（監査） {receipt.pointsCalculated || 0}pt</span>
                               )}
                               {images.length > 0 && (
                                 <span className="text-muted-foreground ml-auto flex items-center gap-0.5">
@@ -2908,12 +2756,12 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                         <span className="font-medium">{formatCurrency(receiptDetails.receipt.totalAmount, receiptDetails.receipt.currency || "JPY")}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b">
-                        <span className="text-muted-foreground">{t("lr.calculatedPoints")}</span>
+                        <span className="text-muted-foreground">旧LCJ算出参考（監査）</span>
                         <span className="font-medium text-blue-600">{receiptDetails.receipt.pointsCalculated || 0} pt</span>
                       </div>
                       {receiptDetails.receipt.pointsAwarded !== null && (
                         <div className="flex justify-between py-2 border-b">
-                          <span className="text-muted-foreground">{t("lr.awardedPoints")}</span>
+                          <span className="text-muted-foreground">旧LCJ付与記録（監査）</span>
                           <span className="font-medium text-green-600">{receiptDetails.receipt.pointsAwarded} pt</span>
                         </div>
                       )}
@@ -3256,246 +3104,6 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           </div>
         </DialogContent>
       </Dialog>
-      {/* AI Pass 2 Confirm Dialog */}
-      <Dialog
-        open={pass2ConfirmOpen}
-        onOpenChange={(open) => {
-          setPass2ConfirmOpen(open);
-          if (!open) {
-            setPass2ExecutionConfirmed(false);
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Shield className="w-5 h-5 text-orange-500" />
-              {language === "zh" ? "AI再审查 V2：安全分批预演" : "AI再審査 V2：安全な分割プレビュー"}
-            </DialogTitle>
-            <DialogDescription>
-              {language === "zh"
-                ? "这里仅重新审核暂挂订单（on_hold）。每批固定最早的一小批，先查看样本，再确认真实执行；以后规则升级也统一从这里生效。"
-                : "ここでは保留レシート（on_hold）のみを再審査します。古い候補を少量固定し、今後のルール更新もこの統一入口に反映します。"}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg border p-3">
-              <Label className="text-sm font-medium whitespace-nowrap">
-                {language === "zh" ? "本批处理数量" : "今回の処理件数"}
-              </Label>
-              <Select
-                value={String(pass2BatchSize)}
-                onValueChange={(value) => {
-                  setPass2BatchSize(Number(value) as 10 | 25 | 50 | 100);
-                  setPass2ExecutionConfirmed(false);
-                }}
-              >
-                <SelectTrigger className="w-full sm:w-40"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {[10, 25, 50, 100].map(size => (
-                    <SelectItem key={size} value={String(size)}>{size}{language === "zh" ? "条" : "件"}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <span className="text-xs text-muted-foreground">
-                {language === "zh" ? "后端硬限制：每批最多100条" : "サーバー上限：1回100件まで"}
-              </span>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-              <strong>{language === "zh" ? "只读保证：" : "読み取り専用保証："}</strong>
-              {language === "zh"
-                ? "预演只读取固定候选，不写状态、OCR、积分、日志或LINE通知。"
-                : "プレビューは固定候補を読むだけで、状態・OCR・ポイント・ログ・LINE通知を書き込みません。"}
-            </div>
-
-            {holdRulesPreview?.ruleset && (
-              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-sm text-indigo-800">
-                <strong>{language === "zh" ? "本批适用规则：" : "今回の適用ルール："}</strong>
-                {holdRulesPreview.ruleset.label}
-                <span className="ml-2 font-mono text-xs">{holdRulesPreview.ruleset.version}</span>
-                <span className="block mt-1 text-xs">
-                  {language === "zh"
-                    ? "预演令牌与该版本绑定；规则升级后旧预演自动失效，必须按最新方案重新预演。"
-                    : "プレビュートークンはこの版に固定され、更新後は最新ルールで再プレビューが必要です。"}
-                </span>
-              </div>
-            )}
-
-            {holdRulesPreviewLoading && (
-              <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {language === "zh" ? "正在固定本批候选…" : "今回の候補を固定中…"}
-              </div>
-            )}
-            {holdRulesPreviewError && (
-              <div className="space-y-2 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-                {isUnauthorizedTrpcError(holdRulesPreviewError) ? (
-                  <>
-                    <p className="font-medium">
-                      {language === "zh"
-                        ? "登录已过期。预演未执行，也没有修改任何数据。"
-                        : "ログインの有効期限が切れました。プレビューは実行されず、データも変更されていません。"}
-                    </p>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="border-red-300 bg-white text-red-700 hover:bg-red-100"
-                      onClick={() => {
-                        window.location.href = getLoginUrl();
-                      }}
-                    >
-                      {language === "zh" ? "重新登录" : "再ログイン"}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-medium">
-                      {language === "zh" ? "预演读取失败，禁止执行。" : "プレビュー取得に失敗したため実行できません。"}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="border-red-300 bg-white text-red-700 hover:bg-red-100"
-                        onClick={() => {
-                          void refetchHoldRulesPreview();
-                        }}
-                      >
-                        {language === "zh" ? "重新读取" : "再読み込み"}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="border-red-300 bg-white text-red-700 hover:bg-red-100"
-                        onClick={() => {
-                          window.location.href = getLoginUrl();
-                        }}
-                      >
-                        {language === "zh" ? "重新登录" : "再ログイン"}
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-            {holdRulesPreview && (
-              <>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
-                  <div className="bg-slate-50 rounded-lg p-2">
-                    <p className="text-muted-foreground">{language === "zh" ? "暂挂总数" : "保留合計"}</p>
-                    <p className="text-lg font-bold">{holdRulesPreview.queueTotal.toLocaleString()}</p>
-                  </div>
-                  <div className="bg-indigo-50 rounded-lg p-2">
-                    <p className="text-indigo-700">{language === "zh" ? "本批固定" : "今回固定"}</p>
-                    <p className="text-lg font-bold text-indigo-700">{holdRulesPreview.batchTotal}</p>
-                  </div>
-                  <div className="bg-green-50 rounded-lg p-2">
-                    <p className="text-green-700">{language === "zh" ? "预计可通过" : "承認候補"}</p>
-                    <p className="text-lg font-bold text-green-700">{holdRulesPreview.wouldApproveAfterRecheck}</p>
-                  </div>
-                  <div className="bg-red-50 rounded-lg p-2">
-                    <p className="text-red-700">{language === "zh" ? "预计拒绝重传" : "却下・再提出候補"}</p>
-                    <p className="text-lg font-bold text-red-700">{holdRulesPreview.wouldRejectAndResubmit}</p>
-                  </div>
-                  <div className="bg-orange-50 rounded-lg p-2">
-                    <p className="text-orange-700">{language === "zh" ? "预计仍需人工" : "人手確認候補"}</p>
-                    <p className="text-lg font-bold text-orange-700">{holdRulesPreview.wouldRemainManual}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 rounded-lg border p-3 text-xs">
-                  <span>{language === "zh" ? "跨账户冲突" : "別アカウント競合"}: <strong>{holdRulesPreview.categories.cross_account_conflict}</strong></span>
-                  <span>{language === "zh" ? "强制申诉" : "強制申請"}: <strong>{holdRulesPreview.categories.force_appeal}</strong></span>
-                  <span>{language === "zh" ? "硬风险" : "ハードリスク"}: <strong>{holdRulesPreview.categories.hard_risk}</strong></span>
-                  <span>{language === "zh" ? "技术失败" : "技術失敗"}: <strong>{holdRulesPreview.categories.technical_failure}</strong></span>
-                  <span>{language === "zh" ? "缺订单号" : "注文番号不足"}: <strong>{holdRulesPreview.categories.missing_order_number}</strong></span>
-                  <span>{language === "zh" ? "缺金额" : "金額不足"}: <strong>{holdRulesPreview.categories.missing_amount}</strong></span>
-                </div>
-
-                {holdRulesPreview.sampleRows.length > 0 && (
-                  <div className="rounded-lg border overflow-hidden">
-                    <div className="px-3 py-2 bg-slate-50 text-sm font-medium">
-                      {language === "zh" ? "执行前抽样（最多12条）" : "実行前サンプル（最大12件）"}
-                    </div>
-                    <div className="max-h-52 overflow-y-auto divide-y text-xs">
-                      {holdRulesPreview.sampleRows.map(row => (
-                        <div key={row.receiptId} className="grid grid-cols-[72px_1fr_90px_70px] gap-2 px-3 py-2 items-center">
-                          <span className="font-mono">#{row.receiptId}</span>
-                          <span className="truncate">{row.category}</span>
-                          <span>{row.totalAmount ? `¥${row.totalAmount.toLocaleString()}` : "—"}</span>
-                          <span>{row.imageCount}{language === "zh" ? "张图" : "枚"}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
-                  {language === "zh" ? "本批预计积分：" : "今回のポイント見込み："}
-                  <strong>{holdRulesPreview.estimatedPoints.toLocaleString()} pt</strong>
-                  <span className="mx-2">·</span>
-                  {language === "zh" ? "预计通知：" : "通知見込み："}
-                  <strong>{holdRulesPreview.estimatedNotifications}</strong>
-                  <span className="block mt-1 text-xs">
-                    {language === "zh" ? "真实执行会重新识别全部图片，最终结果可能与预演不同。" : "実行時は全画像を再認識するため、最終結果はプレビューと異なる場合があります。"}
-                  </span>
-                </div>
-
-                <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3">
-                  <p className="text-sm font-medium text-red-800">
-                    {language === "zh" ? "执行前最终确认" : "実行前の最終確認"}
-                  </p>
-                  <label className="flex items-start gap-2 text-sm text-red-800 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="mt-1"
-                      checked={pass2ExecutionConfirmed}
-                      onChange={(event) => setPass2ExecutionConfirmed(event.target.checked)}
-                    />
-                    <span>
-                      {language === "zh"
-                        ? `我确认只执行本批${holdRulesPreview.batchTotal}条暂挂订单，并理解系统将按${holdRulesPreview.ruleset.label}重新识别全部图片、修改状态、发放积分及发送通知。`
-                        : `今回の保留${holdRulesPreview.batchTotal}件だけを${holdRulesPreview.ruleset.label}で全画像再認識し、状態変更・ポイント付与・通知を行うことを確認します。`}
-                    </span>
-                  </label>
-                  <p className="text-xs text-red-700">
-                    {language === "zh" ? "令牌10分钟有效；候选状态变化后必须重新预演。" : "トークンは10分有効です。候補が変わった場合は再プレビューが必要です。"}
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setPass2ConfirmOpen(false)}>
-              {t("lr.abort")}
-            </Button>
-            <Button
-              className="bg-orange-600 hover:bg-orange-700 text-white gap-1.5"
-              disabled={
-                startPass2Mutation.isPending ||
-                holdRulesPreviewLoading ||
-                !holdRulesPreview?.confirmationToken ||
-                holdRulesPreview.batchTotal < 1 ||
-                !pass2ExecutionConfirmed
-              }
-              onClick={() => {
-                if (!holdRulesPreview?.confirmationToken) return;
-                startPass2Mutation.mutate({
-                  confirmationToken: holdRulesPreview.confirmationToken,
-                  sendNotifications: true,
-                });
-              }}
-            >
-              {startPass2Mutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-              {language === "zh" ? `执行本批${holdRulesPreview?.batchTotal || 0}条` : `今回${holdRulesPreview?.batchTotal || 0}件を実行`}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -3831,7 +3439,7 @@ function AiReviewLogPanel() {
           { value: "rejected_ai", label: t("lr.aiLog.aiRejected"), icon: ShieldX, count: summaryCounts.rejectedAi },
           { value: "held", label: t("lr.aiLog.aiHeld"), icon: ShieldAlert, count: summaryCounts.held },
           { value: "pending_manual", label: t("lr.aiLog.skipped"), icon: SkipForward, count: summaryCounts.pendingManual, highlight: true },
-          { value: "human_approved", label: "人間承認", icon: UserCheck, count: summaryCounts.humanApproved },
+          { value: "human_approved", label: "過去LCJ人間承認（監査）", icon: UserCheck, count: summaryCounts.humanApproved },
           { value: "human_rejected", label: "人間却下", icon: UserX, count: summaryCounts.humanRejected },
         ].map(({ value, label, icon: Icon, count, highlight }: any) => (
           <Button
@@ -3921,7 +3529,7 @@ function AiReviewLogPanel() {
                       {log.humanOverride && (
                         <Badge variant="outline" className={`text-xs px-1.5 py-0 h-5 ${log.humanOverride === "approved" ? "bg-blue-100 text-blue-700 border-blue-300" : "bg-pink-100 text-pink-700 border-pink-300"}`}>
                           {log.humanOverride === "approved" ? <ThumbsUp className="w-3 h-3 mr-0.5" /> : <ThumbsDown className="w-3 h-3 mr-0.5" />}
-                          {log.humanOverride === "approved" ? t("lr.aiLog.humanApproved") : t("lr.aiLog.humanRejected")}
+                          {log.humanOverride === "approved" ? "過去LCJ承認（監査）" : t("lr.aiLog.humanRejected")}
                         </Badge>
                       )}
                       <span className="text-muted-foreground text-xs ml-auto flex-shrink-0">
@@ -3932,32 +3540,32 @@ function AiReviewLogPanel() {
                       </span>
                     </div>
 
-                    {/* Row 2: Amount + Points (awarded & calculated) */}
+                    {/* Row 2: Amount + legacy LCJ audit reference */}
                     <div className="flex items-center gap-3 text-sm">
                       {log.totalAmount != null ? (
                         <>
                           <span className="font-bold text-base">{"\u00A5"}{Number(log.totalAmount).toLocaleString()}</span>
-                          <span className="text-muted-foreground">→</span>
+                          <span className="text-muted-foreground">旧LCJ監査:</span>
                           {log.aiDecision === "approved" && log.receiptPointsAwarded != null ? (
-                            <span className="font-bold text-green-600 text-base">{log.receiptPointsAwarded}pt</span>
+                            <span className="font-bold text-green-600 text-base">付与記録 {log.receiptPointsAwarded}pt</span>
                           ) : log.receiptPointsCalculated != null && log.receiptPointsCalculated > 0 ? (
                             <span className="text-blue-600 font-semibold">
-                              <span className="text-xs text-muted-foreground mr-0.5">予定</span>{log.receiptPointsCalculated}pt
+                              <span className="text-xs text-muted-foreground mr-0.5">算出参考</span>{log.receiptPointsCalculated}pt
                             </span>
                           ) : (
-                            <span className="text-blue-600 font-semibold">{points}pt</span>
+                            <span className="text-blue-600 font-semibold">算出参考 {points}pt</span>
                           )}
                         </>
                       ) : (
                         <>
                           <span className="text-muted-foreground">-</span>
-                          <span className="text-muted-foreground">→</span>
+                          <span className="text-muted-foreground">旧LCJ監査:</span>
                           {log.receiptPointsCalculated != null && log.receiptPointsCalculated > 0 ? (
                             <span className="text-blue-600 font-semibold">
-                              <span className="text-xs text-muted-foreground mr-0.5">予定</span>{log.receiptPointsCalculated}pt
+                              <span className="text-xs text-muted-foreground mr-0.5">算出参考</span>{log.receiptPointsCalculated}pt
                             </span>
                           ) : (
-                            <span className="text-blue-600 font-semibold">{points}pt</span>
+                            <span className="text-blue-600 font-semibold">算出参考 {points}pt</span>
                           )}
                         </>
                       )}
@@ -4083,17 +3691,12 @@ function AiReviewLogPanel() {
                       AI再認識
                     </Button>
 
-                    {/* Override buttons - 承認と却下の両方を表示 */}
+                    {/* Rejection remains available; LCJ point approval is disabled. */}
                     {!log.humanOverride && (
                       <>
-                        <Button
-                          size="sm"
-                          className="h-7 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                          onClick={() => { const c = prompt(t("lr.aiLog.approveComment")); overrideMutation.mutate({ logId: log.id, humanOverride: "approved", humanComment: c || undefined }); }}
-                          disabled={overrideMutation.isPending}
-                        >
+                        <Button size="sm" className="h-7 text-xs" disabled>
                           <ThumbsUp className="w-3.5 h-3.5" />
-                          {t("lr.approve")}
+                          LCJポイント承認停止中
                         </Button>
                         <Button
                           size="sm"

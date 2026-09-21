@@ -5,7 +5,6 @@ import {
   getEligibleUsersForStepEmail,
   createStepEmailLog,
   hasStepEmailBeenSent,
-  createLinePointTransaction,
 } from "./db";
 
 const STEP_EMAIL_INTERVAL = 60 * 60 * 1000; // 1 hour
@@ -28,6 +27,18 @@ async function processStepEmails() {
     let totalSkipped = 0;
 
     for (const template of templates) {
+      const templateContent = `${template.subject}\n${template.bodyText}\n${template.bodyHtml}`;
+      if (
+        /(ポイント\s*(?:プレゼント|付与|獲得)|(?:30|３０)\s*(?:pt|ポイント))/i.test(
+          templateContent
+        )
+      ) {
+        console.warn(
+          `[Step Email] Skipped legacy welcome-point template ${template.id}; Beauty Wallet is the sole live ledger`
+        );
+        continue;
+      }
+
       const eligibleUsers = await getEligibleUsersForStepEmail(template.id, template.delayDays);
 
       for (const user of eligibleUsers) {
@@ -82,23 +93,6 @@ async function processStepEmails() {
 
           if (result.success) {
             totalSent++;
-
-            // Award welcome bonus points for Day 0 template
-            if (template.delayDays === 0) {
-              try {
-                const pointLineUserId = user.lineUserId || `email_${user.id}`;
-                await createLinePointTransaction({
-                  lineUserId: pointLineUserId,
-                  type: "earn",
-                  amount: 30,
-                  referenceType: "system",
-                  description: "ウェルカム特典: 30ポイントプレゼント",
-                });
-                console.log(`[Step Email] Awarded 30pt welcome bonus to user ${user.id} (${pointLineUserId})`);
-              } catch (ptErr) {
-                console.error(`[Step Email] Failed to award welcome bonus to user ${user.id}:`, ptErr);
-              }
-            }
           } else {
             totalFailed++;
           }

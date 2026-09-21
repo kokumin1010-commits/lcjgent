@@ -1,142 +1,38 @@
-import { describe, it, expect } from "vitest";
-import * as fs from "fs";
-import * as path from "path";
-import { fileURLToPath } from "url";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
 
-const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const read = (path: string) => readFileSync(resolve(path), "utf8");
+const main = read("client/src/main.tsx");
+const receipt = read("client/src/pages/ReceiptUpload.tsx");
+const mypage = read("client/src/pages/LineMypage.tsx");
+const lineAgent = read("server/lineAgent.ts");
 
-/**
- * レシートアップロードページの認証トークン送信テスト
- * 
- * /receipt-uploadページがLCJ MALLページとして認識され、
- * LINEログイン済みユーザーのセッショントークンが正しく送信されることを検証する
- * また、URLパラメータからのセッショントークン復元機能も検証する
- */
-
-describe("Receipt Upload Page Authentication Token", () => {
-  const mainContent = fs.readFileSync(
-    path.join(projectRoot, "client/src/main.tsx"),
-    "utf-8"
-  );
-
-  it("should include /receipt-upload in isLcjMallPage check", () => {
-    expect(mainContent).toContain("currentPath === '/receipt-upload'");
+describe("receipt upload authentication and migration policy", () => {
+  it("uses cookies for tRPC and never sends the LCJ member bearer token", () => {
+    expect(main).toContain('credentials: "include"');
+    expect(main).not.toContain("lcjSessionToken");
+    expect(main).not.toContain("lcj_session_token");
   });
 
-  it("should include /point-request in isLcjMallPage check", () => {
-    expect(mainContent).toContain("currentPath === '/point-request'");
+  it("renders the receipt page as a read-only Beauty Wallet migration notice", () => {
+    expect(receipt).toContain("新規ポイント申請は現在停止中です");
+    expect(receipt).toContain('setLocation("/beauty-wallet")');
+    expect(receipt).not.toContain("params.get('token')");
+    expect(receipt).not.toContain("lcj_session_token");
+    expect(receipt).not.toContain("submitWebReceipt");
   });
 
-  it("should send lcjSessionToken for LCJ MALL pages", () => {
-    expect(mainContent).toContain("lcjSessionToken && isLcjMallPage");
+  it("does not propagate a member token from the member page", () => {
+    expect(mypage).not.toContain("/receipt-upload?token=");
+    expect(mypage).not.toContain("localStorage.getItem('lcj_session_token')");
   });
 
-  it("should use credentials include for cookie-based auth", () => {
-    expect(mainContent).toContain('credentials: "include"');
-  });
-
-  it("should have isLcjMallPage variable that covers all mall-related paths", () => {
-    expect(mainContent).toContain("currentPath === '/mypage'");
-    expect(mainContent).toContain("currentPath.startsWith('/line-')");
-    expect(mainContent).toContain("currentPath === '/'");
-    expect(mainContent).toContain("currentPath.startsWith('/mall')");
-    expect(mainContent).toContain("currentPath === '/receipt-upload'");
-  });
-});
-
-describe("Receipt Upload Page - URL Token Restoration", () => {
-  const receiptContent = fs.readFileSync(
-    path.join(projectRoot, "client/src/pages/ReceiptUpload.tsx"),
-    "utf-8"
-  );
-
-  it("should use lineLogin.me for auth check", () => {
-    expect(receiptContent).toContain("trpc.lineLogin.me.useQuery");
-  });
-
-  it("should read token from URL query parameters", () => {
-    // URLSearchParamsでtokenパラメータを取得する処理があること
-    expect(receiptContent).toContain("params.get('token')");
-  });
-
-  it("should save token to localStorage when received from URL", () => {
-    // URLからのトークンをlcj_session_tokenとしてlocalStorageに保存すること
-    expect(receiptContent).toContain("localStorage.setItem('lcj_session_token', token)");
-  });
-
-  it("should remove token from URL after saving (security)", () => {
-    // セキュリティのためURLからtokenパラメータを削除すること
-    expect(receiptContent).toContain("url.searchParams.delete('token')");
-    expect(receiptContent).toContain("window.history.replaceState");
-  });
-
-  it("should wait for token restoration before querying user", () => {
-    // tokenRestored状態がtrueになるまでクエリを遅延すること
-    expect(receiptContent).toContain("tokenRestored");
-    expect(receiptContent).toContain("enabled: tokenRestored");
-  });
-
-  it("should show loading while token is being restored", () => {
-    // tokenRestored前はローディング表示すること
-    expect(receiptContent).toContain("!tokenRestored || userLoading");
-  });
-
-  it("should display the persisted receipt id as a support reference number", () => {
-    expect(receiptContent).toContain("受付番号 #{analysisResult.receiptId}");
-    expect(receiptContent).toContain("審査結果が届かない場合は、この番号をスタッフへお伝えください");
-    expect(receiptContent).toContain("受付番号 #${result.receiptId}");
-  });
-});
-
-describe("LineMypage - Receipt Upload Link with Token", () => {
-  const mypageContent = fs.readFileSync(
-    path.join(projectRoot, "client/src/pages/LineMypage.tsx"),
-    "utf-8"
-  );
-
-  it("should pass session token in URL when navigating to receipt-upload", () => {
-    // レシートアップロードリンクにセッショントークンを付与すること
-    expect(mypageContent).toContain("localStorage.getItem('lcj_session_token')");
-    expect(mypageContent).toContain("/receipt-upload?token=");
-  });
-
-  it("should fallback to plain URL when no token available", () => {
-    // トークンがない場合はプレーンURLにフォールバックすること
-    expect(mypageContent).toContain("setLocation('/receipt-upload')");
-  });
-});
-
-describe("LINE Agent - Receipt Upload URL with Session Token", () => {
-  const lineAgentContent = fs.readFileSync(
-    path.join(projectRoot, "server/lineAgent.ts"),
-    "utf-8"
-  );
-
-  it("should generate a server-verifiable signed session token for LINE user", () => {
-    expect(lineAgentContent).toContain("createLineMemberSessionToken({");
-    expect(lineAgentContent).not.toContain("Buffer.from(JSON.stringify(sessionData)).toString('base64')");
-  });
-
-  it("should include token in receipt-upload URL", () => {
-    // レシートアップロードURLにトークンを含めること
-    expect(lineAgentContent).toContain("/receipt-upload?token=");
-  });
-
-  it("should include lineUserId in session data", () => {
-    // セッションデータにlineUserIdを含めること
-    expect(lineAgentContent).toContain("lineUserId: userId");
-  });
-
-  it("should say that sending an image in LINE does not complete the application", () => {
-    expect(lineAgentContent).toContain("このLINEへの画像送信だけでは、ポイント申請はまだ完了していません");
-    expect(lineAgentContent).toContain("3️⃣の画面が表示されるまでは申請記録は作成されません");
-    expect(lineAgentContent).toContain("問い合わせに備えて受付番号を保存");
-    expect(lineAgentContent).not.toContain("📷 レシート画像を受け取りました！");
-  });
-
-  it("should preserve an auditable image hand-off in LINE message history", () => {
-    expect(lineAgentContent).toContain("【レシート画像】LINE送信のみでは申請未完了（Webフォーム案内済み）");
-    expect(lineAgentContent).toContain('messageType: "image"');
-    expect(lineAgentContent).toContain('responseStatus: "responded"');
+  it("does not issue a long-lived token or tokenized URL from the LINE assistant", () => {
+    expect(lineAgent).not.toContain("createLineMemberSessionToken");
+    expect(lineAgent).not.toContain("/receipt-upload?token=");
+    expect(lineAgent).not.toContain("3650 * 24 * 60 * 60 * 1000");
+    expect(lineAgent).toContain("新しいLCJレシートポイント申請は停止中です");
+    expect(lineAgent).toContain("${appUrl}/beauty-wallet");
   });
 });

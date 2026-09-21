@@ -220,9 +220,9 @@ function BuybackHome({ lineUserId, displayName }: { lineUserId: string; displayN
             </div>
             <div>
               <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-2">
-                <Coins className="w-6 h-6 text-amber-500" />
+                <Clock className="w-6 h-6 text-amber-500" />
               </div>
-              <p className="text-xs text-gray-600">ポイント還元</p>
+              <p className="text-xs text-gray-600">進捗確認</p>
             </div>
           </div>
         </div>
@@ -958,7 +958,7 @@ function RequestDetail({ requestId, lineUserId }: { requestId: number; lineUserI
             <p className="text-2xl font-bold text-green-700">¥{Number(req.finalAmount).toLocaleString()}</p>
             {req.pointsAwarded && (
               <p className="text-sm text-green-600 mt-1">
-                <Coins className="inline w-3 h-3" /> ボーナスポイント: +{req.pointsAwarded}pt
+                <Coins className="inline w-3 h-3" /> 旧LCJボーナス履歴: +{req.pointsAwarded}pt
               </p>
             )}
           </div>

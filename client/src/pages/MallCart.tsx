@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,7 +11,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -29,11 +27,9 @@ import {
   Trash2,
   X,
   ShoppingBag,
-  Sparkles,
   Loader2,
   AlertCircle,
   Check,
-  Coins,
   Truck,
   Shield,
   ChevronRight,
@@ -43,10 +39,9 @@ import {
   Home,
   Building2,
 } from "lucide-react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { toast } from "sonner";
 
-type PaymentMethod = "points" | "cash";
 type PurchaseStep = "payment" | "address" | "confirm";
 
 interface AddressForm {
@@ -74,14 +69,12 @@ const SHIPPING_FEE = 880;
 const FREE_SHIPPING_THRESHOLD = 5000;
 
 export default function MallCart() {
-  const [, navigate] = useLocation();
   const { data: cartItems = [], isLoading } = trpc.mall.getCartItems.useQuery();
   const utils = trpc.useUtils();
 
   // チェックアウトダイアログ
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [purchaseStep, setPurchaseStep] = useState<PurchaseStep>("payment");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [isPurchasing, setIsPurchasing] = useState(false);
 
   // 配送先
@@ -225,30 +218,11 @@ export default function MallCart() {
     },
   });
 
-  // ポイントチェックアウト
-  const cartCheckoutPoints = trpc.mall.cartCheckoutPoints.useMutation({
-    onSuccess: (data) => {
-      toast.success("購入が完了しました！", {
-        description: `${data.pointsUsed.toLocaleString()}ptを使用しました`,
-      });
-      setIsCheckoutOpen(false);
-      // カートをクリア
-      utils.mall.getCartItems.invalidate();
-      utils.mall.getCartCount.invalidate();
-      navigate("/mypage");
-    },
-    onError: (error) => {
-      toast.error(error.message || "購入に失敗しました");
-    },
-  });
-
   // 合計計算
-  const { subtotal, totalItems, hasOutOfStock, totalPoints, allPointEligible, shippingFee, totalWithShipping } = useMemo(() => {
+  const { subtotal, totalItems, hasOutOfStock, shippingFee, totalWithShipping } = useMemo(() => {
     let subtotal = 0;
     let totalItems = 0;
     let hasOutOfStock = false;
-    let totalPoints = 0;
-    let allPointEligible = cartItems.length > 0;
     for (const item of cartItems) {
       const qty = item.cart?.quantity ?? 0;
       // バリアント価格を優先使用
@@ -257,17 +231,11 @@ export default function MallCart() {
       subtotal += price * qty;
       totalItems += qty;
       if (stock <= 0 || qty > stock) hasOutOfStock = true;
-      if (item.product?.pointPrice) {
-        totalPoints += item.product.pointPrice * qty;
-      } else {
-        allPointEligible = false;
-      }
     }
     const shippingFee = subtotal < FREE_SHIPPING_THRESHOLD ? SHIPPING_FEE : 0;
-    return { subtotal, totalItems, hasOutOfStock, totalPoints, allPointEligible, shippingFee, totalWithShipping: subtotal + shippingFee };
+    return { subtotal, totalItems, hasOutOfStock, shippingFee, totalWithShipping: subtotal + shippingFee };
   }, [cartItems]);
 
-  const canPurchaseWithPoints = lineUser && allPointEligible && lineUser.points >= totalPoints;
   const selectedAddress = savedAddresses?.find(a => a.id === selectedAddressId);
 
   const handleQuantityChange = (productId: number, newQty: number, maxStock: number, variantId?: number | null) => {
@@ -303,7 +271,6 @@ export default function MallCart() {
       return;
     }
     setPurchaseStep("payment");
-    setPaymentMethod(canPurchaseWithPoints ? "points" : "cash");
     setIsCheckoutOpen(true);
   };
 
@@ -317,10 +284,6 @@ export default function MallCart() {
 
   const handleNextStep = async () => {
     if (purchaseStep === "payment") {
-      if (paymentMethod === "points" && !lineUser) {
-        toast.error("ポイント購入にはLINEログインが必要です");
-        return;
-      }
       setPurchaseStep("address");
     } else if (purchaseStep === "address") {
       if (isNewAddress || !savedAddresses || savedAddresses.length === 0) {
@@ -388,11 +351,7 @@ export default function MallCart() {
 
     setIsPurchasing(true);
     try {
-      if (paymentMethod === "points") {
-        await cartCheckoutPoints.mutateAsync({ shippingInfo });
-      } else {
-        await cartCheckoutStripe.mutateAsync({ shippingInfo });
-      }
+      await cartCheckoutStripe.mutateAsync({ shippingInfo });
     } finally {
       setIsPurchasing(false);
     }
@@ -518,16 +477,6 @@ export default function MallCart() {
                           <X className="h-4 w-4" />
                         </button>
                       </div>
-
-                      {/* ポイント交換可能バッジ */}
-                      {product.pointPrice && (
-                        <div className="flex items-center gap-1 mt-1">
-                          <Sparkles className="h-3 w-3 text-amber-500" />
-                          <span className="text-[11px] font-semibold text-amber-600">
-                            {(product.pointPrice * cart.quantity).toLocaleString()} pt
-                          </span>
-                        </div>
-                      )}
 
                       {/* 在庫警告 */}
                       {isOverStock && !isOutOfStock && (
@@ -696,77 +645,19 @@ export default function MallCart() {
           {/* ステップ1: 支払い方法選択 */}
           {purchaseStep === "payment" && (
             <div className="py-4">
-              <RadioGroup value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}>
-                <div className="space-y-3">
-                  {allPointEligible && (
-                    <Label
-                      htmlFor="cart-points"
-                      className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                        paymentMethod === "points" 
-                          ? "border-pink-500 bg-gradient-to-r from-pink-50 to-rose-50 shadow-md" 
-                          : "border-gray-200 hover:border-pink-200 hover:bg-pink-50/50"
-                      } ${!lineUser ? "opacity-60" : ""}`}
-                    >
-                      <RadioGroupItem value="points" id="cart-points" disabled={!lineUser} />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Coins className="h-5 w-5 text-yellow-500" />
-                          <p className="font-bold">ポイントで購入</p>
-                          {canPurchaseWithPoints && (
-                            <Badge className="bg-green-500 text-xs">おすすめ</Badge>
-                          )}
-                        </div>
-                        <p className="text-2xl font-bold text-orange-600">
-                          {totalPoints.toLocaleString()}pt
-                        </p>
-                        {lineUser && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            残高: {lineUser.points.toLocaleString()}pt
-                            {canPurchaseWithPoints ? (
-                              <span className="text-green-600 ml-2">→ 購入後: {(lineUser.points - totalPoints).toLocaleString()}pt</span>
-                            ) : (
-                              <span className="text-red-500 ml-2">（{(totalPoints - lineUser.points).toLocaleString()}pt不足）</span>
-                            )}
-                          </p>
-                        )}
-                        {!lineUser && (
-                          <p className="text-xs text-pink-600 mt-1">
-                            LINEログインが必要です
-                          </p>
-                        )}
-                      </div>
-                    </Label>
+              <div className="rounded-xl border-2 border-pink-500 bg-gradient-to-r from-pink-50 to-rose-50 p-4 shadow-md">
+                <p className="font-bold mb-1">クレジットカード決済</p>
+                <p className="text-2xl font-bold text-pink-600">
+                  ¥{subtotal.toLocaleString()}
+                  {shippingFee > 0 && (
+                    <span className="text-sm font-normal text-muted-foreground ml-1">+ 送料¥{shippingFee.toLocaleString()}</span>
                   )}
-
-                  <Label
-                    htmlFor="cart-cash"
-                    className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                      paymentMethod === "cash" 
-                        ? "border-pink-500 bg-gradient-to-r from-pink-50 to-rose-50 shadow-md" 
-                        : "border-gray-200 hover:border-pink-200 hover:bg-pink-50/50"
-                    }`}
-                  >
-                    <RadioGroupItem value="cash" id="cart-cash" />
-                    <div className="flex-1">
-                      <p className="font-bold mb-1">現金で購入</p>
-                      <p className="text-2xl font-bold text-pink-600">
-                        ¥{subtotal.toLocaleString()}
-                        {shippingFee > 0 && (
-                          <span className="text-sm font-normal text-muted-foreground ml-1">+ 送料¥{shippingFee.toLocaleString()}</span>
-                        )}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        クレジットカード決済（Stripeセキュア決済）
-                      </p>
-                      {shippingFee > 0 ? (
-                        <p className="text-xs text-amber-600 mt-0.5">※ ¥{FREE_SHIPPING_THRESHOLD.toLocaleString()}以上のご購入で送料無料</p>
-                      ) : (
-                        <p className="text-xs text-green-600 mt-0.5">✓ 送料無料</p>
-                      )}
-                    </div>
-                  </Label>
-                </div>
-              </RadioGroup>
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">Stripeセキュア決済</p>
+                <p className="mt-2 text-xs text-sky-700">
+                  LCJポイント決済は停止中です。ポイントのリアルタイム残高はBeauty Walletで確認してください。
+                </p>
+              </div>
 
               {/* カート内容サマリー */}
               <div className="mt-4 bg-gray-50 rounded-xl p-3">
@@ -1000,11 +891,7 @@ export default function MallCart() {
                         <p className="text-xs text-muted-foreground">数量: {item.cart.quantity}</p>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        {paymentMethod === "points" ? (
-                          <p className="font-bold text-sm text-orange-600">{(item.product.pointPrice * item.cart.quantity).toLocaleString()}pt</p>
-                        ) : (
-                          <p className="font-bold text-sm text-pink-600">¥{(((item.variant && item.variant.price != null) ? item.variant.price : item.product.price) * item.cart.quantity).toLocaleString()}</p>
-                        )}
+                        <p className="font-bold text-sm text-pink-600">¥{(((item.variant && item.variant.price != null) ? item.variant.price : item.product.price) * item.cart.quantity).toLocaleString()}</p>
                       </div>
                     </div>
                   ))}
@@ -1047,66 +934,32 @@ export default function MallCart() {
               {/* 支払い方法 */}
               <div className="bg-gray-50 rounded-xl p-4">
                 <h4 className="font-bold mb-2 flex items-center gap-2">
-                  {paymentMethod === "points" ? (
-                    <Coins className="h-4 w-4 text-yellow-500" />
-                  ) : (
-                    <ShoppingCart className="h-4 w-4" />
-                  )}
+                  <ShoppingCart className="h-4 w-4" />
                   お支払い方法
                 </h4>
-                <p className="text-sm">
-                  {paymentMethod === "points" ? "ポイント決済" : "クレジットカード決済（Stripe）"}
-                </p>
+                <p className="text-sm">クレジットカード決済（Stripe）</p>
               </div>
 
               {/* 送料・合計 */}
               <div className="border-t pt-4 space-y-2">
-                {paymentMethod === "points" ? (
-                  <>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">商品小計</span>
-                      <span>{totalPoints.toLocaleString()} pt</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">送料</span>
-                      {totalPoints < FREE_SHIPPING_THRESHOLD ? (
-                        <span>{SHIPPING_FEE.toLocaleString()} pt</span>
-                      ) : (
-                        <span className="text-green-600 font-medium">無料</span>
-                      )}
-                    </div>
-                    {totalPoints < FREE_SHIPPING_THRESHOLD && (
-                      <p className="text-xs text-muted-foreground">※ {FREE_SHIPPING_THRESHOLD.toLocaleString()} pt以上のご購入で送料無料</p>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">小計</span>
-                      <span>¥{subtotal.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">送料</span>
-                      {shippingFee > 0 ? (
-                        <span>¥{shippingFee.toLocaleString()}</span>
-                      ) : (
-                        <span className="text-green-600 font-medium">無料</span>
-                      )}
-                    </div>
-                    {shippingFee > 0 && (
-                      <p className="text-xs text-muted-foreground">※ ¥{FREE_SHIPPING_THRESHOLD.toLocaleString()}以上のご購入で送料無料</p>
-                    )}
-                  </>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">小計</span>
+                  <span>¥{subtotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">送料</span>
+                  {shippingFee > 0 ? (
+                    <span>¥{shippingFee.toLocaleString()}</span>
+                  ) : (
+                    <span className="text-green-600 font-medium">無料</span>
+                  )}
+                </div>
+                {shippingFee > 0 && (
+                  <p className="text-xs text-muted-foreground">※ ¥{FREE_SHIPPING_THRESHOLD.toLocaleString()}以上のご購入で送料無料</p>
                 )}
                 <div className="flex justify-between items-center text-lg font-bold pt-1">
                   <span>合計</span>
-                  {paymentMethod === "points" ? (
-                    <span className="text-orange-600">
-                      {(totalPoints < FREE_SHIPPING_THRESHOLD ? totalPoints + SHIPPING_FEE : totalPoints).toLocaleString()} pt
-                    </span>
-                  ) : (
-                    <span className="text-pink-600">¥{totalWithShipping.toLocaleString()}</span>
-                  )}
+                  <span className="text-pink-600">¥{totalWithShipping.toLocaleString()}</span>
                 </div>
               </div>
 
@@ -1132,7 +985,6 @@ export default function MallCart() {
             {purchaseStep !== "confirm" ? (
               <Button
                 onClick={handleNextStep}
-                disabled={paymentMethod === "points" && !canPurchaseWithPoints}
                 className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600"
               >
                 次へ

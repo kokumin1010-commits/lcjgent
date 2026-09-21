@@ -4049,6 +4049,46 @@ export type BwLinkedAccount = typeof bwLinkedAccounts.$inferSelect;
 export type InsertBwLinkedAccount = typeof bwLinkedAccounts.$inferInsert;
 
 /**
+ * Member-owned, short-lived email challenge used before linking an LCJ identity
+ * to the authoritative Beauty Wallet ledger. Codes are stored only as hashes.
+ */
+export const bwMemberLinkChallenges = mysqlTable("bw_member_link_challenges", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  lineUserId: int("lineUserId").notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  emailHash: varchar("emailHash", { length: 64 }).notNull(),
+  tokenHash: varchar("tokenHash", { length: 64 }).notNull().unique(),
+  codeHash: varchar("codeHash", { length: 64 }).notNull(),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  attemptCount: int("attemptCount").default(0).notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  consumedAt: timestamp("consumedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const bwMemberLinkAuditLogs = mysqlTable("bw_member_link_audit_logs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  lineUserId: int("lineUserId").notNull(),
+  event: varchar("event", { length: 40 }).notNull(),
+  bwCustomerId: int("bwCustomerId"),
+  emailHash: varchar("emailHash", { length: 64 }),
+  details: json("details").$type<Record<string, unknown>>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+/**
+ * Authoritative one-to-one owner relation for an active Beauty Wallet link.
+ * A wallet and an LCJ member can each have only one active counterpart.
+ */
+export const bwWalletActiveOwners = mysqlTable("bw_wallet_active_owners", {
+  bwCustomerId: int("bwCustomerId").primaryKey(),
+  lineUserId: int("lineUserId").notNull().unique(),
+  verifiedEmailHash: varchar("verifiedEmailHash", { length: 64 }).notNull(),
+  linkedAt: timestamp("linkedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+/**
  * ポイント交換履歴テーブル
  * LCJポイント → Beauty Walletトークンの交換記録
  * 交換レート: 100 LCJポイント = 40 Beauty Token（= 0.4円換算）

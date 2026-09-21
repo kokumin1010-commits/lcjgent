@@ -5,6 +5,7 @@ import mysql, {
   type RowDataPacket,
 } from "mysql2/promise";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
+import { assertLocalPointLedgerWritable } from "./pointLedgerPolicy";
 
 const RECOVERY_KEY = "point-recovery-ledger-v1";
 const SOURCE_DATASET_SHA256 = "ab00afcd84f1f082f67e896d4ce334e42186733ad72e3524055dec97ec625953";
@@ -315,6 +316,7 @@ export async function getPointRecoveryLedgerHealth() {
 }
 
 export async function runPointRecoveryLedgerUpgrade(): Promise<{ skipped: boolean; healthy: boolean; details: Record<string, unknown> }> {
+  assertLocalPointLedgerWritable("point_recovery_ledger_upgrade");
   const pool = createPool();
   let lockAcquired = false;
   let lockConnection: PoolConnection | null = null;

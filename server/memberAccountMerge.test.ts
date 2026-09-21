@@ -1,166 +1,45 @@
-import fs from "node:fs";
-import path from "node:path";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { mergePointComponents } from "./memberAccountMergeService";
 
-const root = path.resolve(__dirname, "..");
-const read = (relative: string) =>
-  fs.readFileSync(path.join(root, relative), "utf8");
+const read = (path: string) => readFileSync(resolve(path), "utf8");
 
-describe("member account point merge", () => {
-  it("moves existing components without minting or dropping points", () => {
-    const merged = mergePointComponents(
+describe("member account merge under Beauty Wallet primary-ledger policy", () => {
+  it("retains the deterministic audit calculation without executing a merge", () => {
+    expect(mergePointComponents(
       { balance: 33, totalEarned: 33, totalUsed: 0 },
       { balance: 3500, totalEarned: 3500, totalUsed: 0 }
-    );
-    expect(merged).toEqual({ balance: 3533, totalEarned: 3533, totalUsed: 0 });
+    )).toEqual({ balance: 3533, totalEarned: 3533, totalUsed: 0 });
   });
 
-  it("requires exact identities and balances before the destructive merge", () => {
-    const source = read("server/memberAccountMergeService.ts");
-    expect(source).toContain("target member email changed; merge cancelled");
-    expect(source).toContain("source LINE identity changed; merge cancelled");
-    expect(source).toContain(
-      "target point balance changed; reload before merging"
-    );
-    expect(source).toContain(
-      "source point balance changed; reload before merging"
-    );
-    expect(source).toContain("FOR UPDATE");
-    expect(source).toContain("beginTransaction");
-    expect(source).toContain("rollback");
-  });
-
-  it("allows pending email claims only with explicit exact unique Japanese full-name evidence", () => {
-    const source = read("server/memberAccountMergeService.ts");
+  it("fails closed in both the admin route and merge service", () => {
     const router = read("server/memberIdentityRouter.ts");
-    expect(source).toContain("allowPendingEmailClaim");
-    expect(source).toContain(
-      'target.lineUserId?.startsWith("recovery_email_")'
-    );
-    expect(source).toContain(
-      "input.expectedTargetDisplayName !== target.displayName"
-    );
-    expect(source).toContain(
-      "input.expectedSourceDisplayName !== source.displayName"
-    );
-    expect(source).toContain("target.displayName !== source.displayName");
-    expect(source).toContain("isJapaneseFullName(target.displayName)");
-    expect(source).toContain("emailMatches");
-    expect(source).toContain("lineMatches");
-    expect(source).toContain(
-      "pending email member full-name evidence is not unique"
-    );
-    expect(router).toContain("allowPendingEmailClaim: z.boolean().optional()");
-    expect(router).toContain("expectedTargetDisplayName");
-    expect(router).toContain("expectedSourceDisplayName");
+    const service = read("server/memberAccountMergeService.ts");
+    expect(router).toContain("LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE");
+    expect(service).toContain('assertLocalPointLedgerWritable("member_account_point_merge")');
   });
 
-  it("preserves totals, ledger rows and original expiration evidence instead of issuing replacement points", () => {
-    const source = read("server/memberAccountMergeService.ts");
-    expect(source).toContain("UPDATE line_point_transactions SET lineUserId=?");
-    expect(source).toContain("recalculatePointLedger");
-    expect(source).toContain("point ledger mismatch after merge");
-    expect(source).not.toContain("createLinePointTransaction");
-    expect(source).not.toMatch(/INSERT INTO line_point_transactions/i);
-  });
-
-  it("backs up and audits the identity merge while making retries idempotent", () => {
-    const source = read("server/memberAccountMergeService.ts");
-    expect(source).toContain("pre-member-account-merge-v1");
-    expect(source).toContain("post-member-account-merge-v1");
-    expect(source).toContain(
-      "runDatabaseBackup(reason, { force: true, waitForActive: true })"
-    );
-    expect(source).toContain("member_account_merge_audit");
-    expect(source).toContain("uq_member_account_merge_source");
-    expect(source).toContain("alreadyMerged: true");
-    expect(source).toContain("expectedEmailHash");
-  });
-
-  it("migrates both string point keys and numeric member references before removing the duplicate row", () => {
-    const source = read("server/memberAccountMergeService.ts");
-    const mergeFlow = source.slice(source.indexOf("const stringKeyMigrations"));
-    const migrateStringIndex = mergeFlow.indexOf("migrateStringPointKeys(");
-    const migrateNumericIndex = mergeFlow.indexOf("migrateNumericMemberIds(");
-    const deleteSourceIndex = mergeFlow.indexOf(
-      "DELETE FROM line_users WHERE id=?"
-    );
-    expect(migrateStringIndex).toBeGreaterThanOrEqual(0);
-    expect(migrateNumericIndex).toBeGreaterThanOrEqual(0);
-    expect(deleteSourceIndex).toBeGreaterThan(migrateStringIndex);
-    expect(deleteSourceIndex).toBeGreaterThan(migrateNumericIndex);
-    expect(source).toContain("mergeTrustLevels");
-  });
-});
-
-describe("member account merge authorization and operator safety", () => {
-  it("exposes only an admin-protected merge with risk restrictions", () => {
+  it("keeps the central Beauty Wallet audit read-only and admin protected", () => {
     const router = read("server/memberIdentityRouter.ts");
-    expect(router).toContain("mergeEmailAndLineAccounts: protectedProcedure");
-    expect(router).toContain('ctx.user.role !== "admin"');
-    expect(router).toMatch(
-      /assertMemberActionAllowed\(input\.targetEmailMemberId,\s*\[\s*"points",\s*"order",?\s*\]\)/
-    );
-    expect(router).toMatch(
-      /assertMemberActionAllowed\(input\.sourceLineMemberId,\s*\[\s*"points",\s*"order",?\s*\]\)/
-    );
-    expect(router).toContain("expectedTargetBalance");
-    expect(router).toContain("expectedSourceBalance");
-    expect(router).toContain(
-      "const centralLedger = await bwAuditCentralLedgerByEmail("
-    );
-    expect(router).toContain("!centralLedger.centralLedgerAvailable");
-    expect(router).toContain("!centralLedger.historyComplete");
-    expect(router).toContain(
-      "centralLedger.unifiedTotal !== expectedCombinedBalance"
-    );
-    expect(router).toContain(
-      "Beauty Wallet統一主台帳を完全照合できないため、会員統合を停止しました"
-    );
-  });
-
-  it("exposes the Beauty Wallet ledger audit only to admins", () => {
-    const router = read("server/memberIdentityRouter.ts");
-    const apiClient = read("server/bw-api.ts");
-    const auditStart = apiClient.indexOf(
-      "export async function bwAuditCentralLedgerByEmail"
-    );
-    const auditEnd = apiClient.indexOf(
-      "/**\n * BW側にトークンを付与",
-      auditStart
-    );
-    const auditSource = apiClient.slice(auditStart, auditEnd);
+    const api = read("server/bw-api.ts");
     expect(router).toContain("auditBeautyWalletLedger: protectedProcedure");
     expect(router).toContain('ctx.user.role !== "admin"');
     expect(router).toContain("bwAuditCentralLedgerByEmail(input.email)");
-    expect(auditSource).toContain("bwLookupCustomerReadOnly");
-    expect(auditSource).toContain("/api/tokens/balance`");
-    expect(auditSource).toContain('searchParams.set("unified", "true")');
-    expect(auditSource).not.toContain('searchParams.set("sync_email"');
-    expect(auditSource).not.toContain('searchParams.set("sync_name"');
-    expect(auditSource).not.toContain("ensureIntegrationSecretTable");
-    expect(auditSource).not.toMatch(/\b(INSERT|UPDATE|DELETE|CREATE TABLE)\b/);
-    expect(auditSource).toContain("transactionMap.has(transactionId)");
-    expect(apiClient).not.toContain("storeBreakdown");
-    expect(apiClient).not.toContain("migrationEvidence");
-    expect(apiClient).not.toContain("kyogokuMigrationLike");
-    expect(apiClient).not.toContain("totalBalance:");
-    expect(apiClient).not.toContain("totalBonusPoints:");
+    const start = api.indexOf("export async function bwAuditCentralLedgerByEmail");
+    const end = api.indexOf("/**\n * BW側にトークンを付与", start);
+    const audit = api.slice(start, end);
+    expect(audit).toContain("bwLookupCustomerReadOnly");
+    expect(audit).not.toMatch(/\b(INSERT|UPDATE|DELETE|CREATE TABLE)\b/);
   });
 
-  it.each([
-    "client/src/pages/MemberDetail.tsx",
-    "client/src/pages/MallMembers.tsx",
-  ])(
-    "requires a visible identity confirmation before manual point changes in %s",
+  it.each(["client/src/pages/MemberDetail.tsx", "client/src/pages/MallMembers.tsx"])(
+    "shows the legacy point ledger as read-only in %s",
     file => {
       const page = read(file);
-      expect(page).toContain("window.confirm");
-      expect(page).toContain("会員ID:");
-      expect(page).toContain("メール:");
-      expect(page).toContain("本人確認:");
-      expect(page).toContain("同名の別会員ではないことを確認してください。");
+      expect(page).toContain("Beauty Wallet");
+      expect(page).toMatch(/読み取り専用|過去のLCJ残高と取引履歴のみ確認/);
+      expect(page).not.toContain("adjustPointsMutation.mutate");
     }
   );
 });

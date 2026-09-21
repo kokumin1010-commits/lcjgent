@@ -3,6 +3,7 @@ import {
   claimReceiptOrderNumber,
   type ClaimReceiptOrderNumberResult,
 } from "./receiptOrderNumberGuard";
+import { assertLocalPointLedgerWritable } from "./pointLedgerPolicy";
 
 export type ApproveReceiptFromEvidenceInput = {
   receiptId: number;
@@ -38,6 +39,7 @@ type ApprovalCoreResult = {
 export async function approveReceiptFromEvidence(
   input: ApproveReceiptFromEvidenceInput
 ): Promise<{ success: true; pointsAwarded: number; skipped: boolean }> {
+  assertLocalPointLedgerWritable("receipt_evidence_approval");
   const {
     getLineReceiptById,
     updateLineReceiptOcr,

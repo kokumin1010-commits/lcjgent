@@ -87,6 +87,62 @@ describe("BW API Client", () => {
     });
   });
 
+  describe("bwResolveCustomerForVerifiedLink", () => {
+    it("uses a GET-only lookup and returns only the verified link identity", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: true,
+            found: true,
+            customer_id: 321,
+            name: "Verified Member",
+            has_wallet: true,
+          }),
+      });
+
+      const { bwResolveCustomerForVerifiedLink } = await import("./bw-api");
+      const result = await bwResolveCustomerForVerifiedLink(
+        " Verified@Example.com "
+      );
+
+      expect(result).toEqual({
+        found: true,
+        customer: { id: 321, name: "Verified Member", hasWallet: true },
+      });
+      const [url, request] = (global.fetch as any).mock.calls[0];
+      expect(request.method).toBe("GET");
+      expect(new URL(url).searchParams.get("email")).toBe(
+        "verified@example.com"
+      );
+      expect(new URL(url).searchParams.has("sync_email")).toBe(false);
+      expect(new URL(url).searchParams.has("sync_name")).toBe(false);
+    });
+
+    it("rejects null or non-integer customer ids instead of linking customer zero", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: true,
+            found: true,
+            customer_id: null,
+            name: "Invalid",
+            has_wallet: true,
+          }),
+      });
+
+      const { bwResolveCustomerForVerifiedLink } = await import("./bw-api");
+      await expect(
+        bwResolveCustomerForVerifiedLink("invalid@example.com")
+      ).resolves.toEqual({
+        found: false,
+        customer: null,
+        failureCode: "CUSTOMER_NOT_FOUND",
+      });
+    });
+  });
+
   describe("bwAuditCentralLedgerByEmail", () => {
     it("uses the unified Beauty Wallet balance and deduplicates history by transaction id", async () => {
       global.fetch = vi
@@ -235,6 +291,46 @@ describe("BW API Client", () => {
       expect(result.centralLedgerAvailable).toBe(false);
       expect(result.unifiedTotal).toBeNull();
       expect(result.failureCode).toBe("CENTRAL_BALANCE_AUTH_UNAVAILABLE");
+    });
+
+    it("recovers the authoritative unified total from read-only history when balance is unavailable", async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              success: true,
+              found: true,
+              customer_id: 123,
+              name: "テストユーザー",
+              has_wallet: true,
+            }),
+        })
+        .mockResolvedValueOnce({ ok: false, status: 500 })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              success: true,
+              customer_id: 123,
+              balance: 6255,
+              unified_total: 6255,
+              total_records: 1,
+              transactions: [],
+            }),
+        });
+
+      const { bwAuditCentralLedgerByEmail } = await import("./bw-api");
+      const result = await bwAuditCentralLedgerByEmail("test@example.com");
+
+      expect(result.centralLedgerAvailable).toBe(true);
+      expect(result.unifiedTotal).toBe(6255);
+      expect(result.historyComplete).toBe(false);
+      expect(result.failureCode).toBe("CENTRAL_BALANCE_RECOVERED_FROM_HISTORY");
+      const fallbackUrl = new URL((global.fetch as any).mock.calls[2][0]);
+      expect(fallbackUrl.pathname).toBe("/api/bp/history");
+      expect(fallbackUrl.searchParams.get("unified")).toBe("true");
     });
 
     it("fails closed and suppresses partial evidence when any store history is incomplete", async () => {

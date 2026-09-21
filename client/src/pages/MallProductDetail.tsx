@@ -229,7 +229,7 @@ export default function MallProductDetail() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("points");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
@@ -731,7 +731,7 @@ export default function MallProductDetail() {
   const effectivePointPrice = product.pointPrice; // ポイント価格は商品レベルのまま
   const mustSelectVariant = hasVariants && !selectedVariantId;
 
-  const canPurchaseWithPoints = lineUser && effectivePointPrice && lineUser.points >= (effectivePointPrice * quantity);
+  const canPurchaseWithPoints = false;
   const totalPointPrice = effectivePointPrice ? effectivePointPrice * quantity : 0;
   const totalCashPrice = effectivePrice * quantity;
   const SHIPPING_FEE = 880;
@@ -1006,7 +1006,7 @@ export default function MallProductDetail() {
               </CardContent>
             </Card>
 
-            {/* ポイント購入の案内 */}
+            {/* Beauty Wallet primary-ledger notice */}
             {product.pointPrice && (
               <Card className="bg-gradient-to-br from-yellow-50 via-orange-50 to-pink-50 border-yellow-200 overflow-hidden">
                 <CardContent className="p-5">
@@ -1015,31 +1015,16 @@ export default function MallProductDetail() {
                       <Coins className="h-8 w-8 text-white" />
                     </div>
                     <div className="flex-1">
-                      <p className="font-bold text-lg mb-1">ポイントでお得に購入！</p>
+                      <p className="font-bold text-lg mb-1">Beauty Walletが公式残高です</p>
                       <p className="text-muted-foreground text-sm mb-3">
-                        この商品は<span className="font-bold text-orange-600">{product.pointPrice.toLocaleString()}ポイント</span>で購入できます。
-                        レシートを送るだけでポイントが貯まります！
+                        旧LCJポイント価格は照合用に保持されていますが、現在この画面ではポイント決済できません。
+                        公式の統合残高と履歴はBeauty Walletでご確認ください。
                       </p>
-                      {product.stock <= 0 ? (
-                        <p className="text-sm font-semibold text-amber-700">
-                          現在は在庫確認中です。ポイント残高は保持され、交換操作では減りません。
-                        </p>
-                      ) : !lineUser ? (
-                        <Link href="/line-login">
-                          <Button className="bg-[#06C755] hover:bg-[#05b34c] text-white">
-                            LINEでログインしてポイントを使う
-                          </Button>
-                        </Link>
-                      ) : lineUser.points >= product.pointPrice ? (
-                        <div className="flex items-center gap-2 text-green-600">
-                          <CheckCircle2 className="h-5 w-5" />
-                          <span className="font-semibold">ポイントで購入可能です！</span>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-orange-600">
-                          あと<span className="font-bold">{(product.pointPrice - lineUser.points).toLocaleString()}</span>ポイントで購入できます
-                        </p>
-                      )}
+                      <Link href="/beauty-wallet">
+                        <Button className="bg-gradient-to-r from-pink-500 to-rose-500 text-white">
+                          Beauty Walletを確認する
+                        </Button>
+                      </Link>
                     </div>
                   </div>
                 </CardContent>
@@ -1326,11 +1311,6 @@ export default function MallProductDetail() {
                           <Package className="h-12 w-12 text-gray-300" />
                         </div>
                       )}
-                      {rp.pointPrice && (
-                        <Badge className="absolute top-2 left-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-xs">
-                          <Coins className="h-3 w-3 mr-1" />{rp.pointPrice}pt
-                        </Badge>
-                      )}
                     </div>
                     <CardContent className="p-3">
                       <h3 className="font-semibold text-sm mb-1 line-clamp-2 group-hover:text-pink-500 transition-colors">{rp.name}</h3>
@@ -1403,33 +1383,15 @@ export default function MallProductDetail() {
                           : "border-gray-200 hover:border-pink-200 hover:bg-pink-50/50"
                       } ${!lineUser ? "opacity-60" : ""}`}
                     >
-                      <RadioGroupItem value="points" id="points" disabled={!lineUser} />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Coins className="h-5 w-5 text-yellow-500" />
-                          <p className="font-bold">ポイントで購入</p>
-                          {canPurchaseWithPoints && (
-                            <Badge className="bg-green-500 text-xs">おすすめ</Badge>
-                          )}
-                        </div>
-                        <p className="text-2xl font-bold text-orange-600">
-                          {totalPointPrice.toLocaleString()}pt
-                        </p>
-                        {lineUser && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            残高: {lineUser.points.toLocaleString()}pt
-                            {canPurchaseWithPoints ? (
-                              <span className="text-green-600 ml-2">→ 購入後: {(lineUser.points - totalPointPrice).toLocaleString()}pt</span>
-                            ) : (
-                              <span className="text-red-500 ml-2">（{(totalPointPrice - lineUser.points).toLocaleString()}pt不足）</span>
-                            )}
-                          </p>
-                        )}
-                        {!lineUser && (
-                          <p className="text-xs text-pink-600 mt-1">
-                            LINEログインが必要です
-                          </p>
-                        )}
+                    <RadioGroupItem value="points" id="points" disabled />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Coins className="h-5 w-5 text-yellow-500" />
+                        <p className="font-bold">ポイント決済（現在停止中）</p>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        LCJ旧残高は決済に利用できません。公式残高はBeauty Walletでご確認ください。
+                      </p>
                       </div>
                     </Label>
                   )}

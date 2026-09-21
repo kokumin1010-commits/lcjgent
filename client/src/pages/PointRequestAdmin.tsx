@@ -52,7 +52,6 @@ export default function PointRequestAdmin({ embedded = false }: { embedded?: boo
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectionCategory, setRejectionCategory] = useState<string>("other");
-  const [approvePoints, setApprovePoints] = useState<number>(0);
 
   const utils = trpc.useUtils();
 
@@ -62,18 +61,6 @@ export default function PointRequestAdmin({ embedded = false }: { embedded?: boo
 
   const { data: allRequests, isLoading: allLoading } = trpc.pointRequest.allRequests.useQuery({ limit: 100 }, {
     enabled: !!user && user.role === "admin",
-  });
-
-  const approveMutation = trpc.pointRequest.approve.useMutation({
-    onSuccess: () => {
-      toast.success("申請を承認しました");
-      setSelectedRequest(null);
-      utils.pointRequest.pendingRequests.invalidate();
-      utils.pointRequest.allRequests.invalidate();
-    },
-    onError: (error) => {
-      toast.error(error.message);
-    },
   });
 
   const rejectMutation = trpc.pointRequest.reject.useMutation({
@@ -89,13 +76,6 @@ export default function PointRequestAdmin({ embedded = false }: { embedded?: boo
       toast.error(error.message);
     },
   });
-
-  const handleApprove = (request: PointRequest) => {
-    approveMutation.mutate({
-      requestId: request.id,
-      pointsApproved: approvePoints || request.pointsRequested,
-    });
-  };
 
   const handleReject = () => {
     if (!selectedRequest) return;
@@ -209,20 +189,20 @@ export default function PointRequestAdmin({ embedded = false }: { embedded?: boo
                 <Input
                   type="number"
                   placeholder={String(request.pointsRequested)}
-                  value={approvePoints || ""}
-                  onChange={(e) => setApprovePoints(parseInt(e.target.value) || 0)}
+                  value={request.pointsRequested}
+                  readOnly
                   className="w-24"
+                  disabled
                 />
                 <span className="text-sm text-gray-500">pt</span>
               </div>
               <Button 
                 size="sm" 
                 className="bg-green-500 hover:bg-green-600"
-                onClick={() => handleApprove(request)}
-                disabled={approveMutation.isPending}
+                disabled
               >
                 <CheckCircle className="w-4 h-4 mr-1" />
-                承認
+                LCJポイント承認停止中
               </Button>
               <Button 
                 size="sm" 
@@ -274,7 +254,7 @@ export default function PointRequestAdmin({ embedded = false }: { embedded?: boo
       {!embedded && (
         <div>
           <h1 className="text-2xl font-bold">ポイント申請管理</h1>
-          <p className="text-gray-500">TikTok Shopレシートによるポイント申請の承認・却下</p>
+          <p className="text-gray-500">TikTok Shopレシート申請の履歴確認・却下（LCJポイント承認は停止中）</p>
         </div>
       )}
 

@@ -133,9 +133,6 @@ const customFetch: typeof globalThis.fetch = (input, init) => {
   // Get agency token from localStorage
   const agencyToken = getAgencyToken();
   
-  // Get LCJ MALL session token from localStorage (fallback for cookie issues)
-  const lcjSessionToken = localStorage.getItem('lcj_session_token');
-  
   // Get admin token from localStorage (fallback for browsers with cookie issues)
   const adminToken = localStorage.getItem('lcj_admin_token');
   
@@ -183,20 +180,19 @@ const customFetch: typeof globalThis.fetch = (input, init) => {
   } else if (adminToken && isAdminPage) {
     // Admin pages: use admin token as fallback for cookie issues
     headers.set("Authorization", `Bearer ${adminToken}`);
+  } else if (isLcjMallPage) {
+    // LCJ member pages authenticate only with the signed HttpOnly cookie.
+    headers.delete("Authorization");
   } else if (isMyLcjCoinPage && liverToken) {
     // My LCJ Coin page: use liver token if available (liver login)
     headers.set("Authorization", `Bearer ${liverToken}`);
   } else if (liverToken && (isLiverPage || !isLcjMallPage)) {
     headers.set("Authorization", `Bearer ${liverToken}`);
-  } else if (lcjSessionToken && isLcjMallPage) {
-    headers.set("Authorization", `Bearer ${lcjSessionToken}`);
   } else if (liverToken) {
     headers.set("Authorization", `Bearer ${liverToken}`);
   } else if (adminToken) {
     // Fallback: use admin token for any page if no other token is available
     headers.set("Authorization", `Bearer ${adminToken}`);
-  } else if (lcjSessionToken) {
-    headers.set("Authorization", `Bearer ${lcjSessionToken}`);
   }
   
   return globalThis.fetch(input, {

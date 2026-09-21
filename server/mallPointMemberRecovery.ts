@@ -5,6 +5,7 @@ import mysql, {
 } from "mysql2/promise";
 import pointEvidence from "../scripts/balance_backup_20260313_044002.json";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
+import { assertLocalPointLedgerWritable } from "./pointLedgerPolicy";
 
 const DATASET_SHA256 =
   "ab00afcd84f1f082f67e896d4ce334e42186733ad72e3524055dec97ec625953";
@@ -389,6 +390,7 @@ export async function runMallPointMemberRecovery(): Promise<{
   healthy: boolean;
   details: Record<string, unknown>;
 }> {
+  assertLocalPointLedgerWritable("mall_point_member_recovery");
   const pool = createPool();
   let runId = 0;
   try {

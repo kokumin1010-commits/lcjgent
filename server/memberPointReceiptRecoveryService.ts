@@ -6,6 +6,7 @@ import mysql, {
   type RowDataPacket,
 } from "mysql2/promise";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
+import { assertLocalPointLedgerWritable } from "./pointLedgerPolicy";
 
 const PRE_BACKUP_REASON = "pre-point-receipt-recovery-v1";
 const POST_BACKUP_REASON = "post-point-receipt-recovery-v1";
@@ -331,6 +332,7 @@ async function rejectedReceiptCount(
 export async function recoverMemberPointsAndHeldReceipts(
   input: MemberPointReceiptRecoveryInput
 ) {
+  assertLocalPointLedgerWritable("member_point_receipt_recovery");
   const receiptIds = normalizeRecoveryReceiptIds(input.expectedHeldReceiptIds);
   if (receiptIds.length !== input.expectedHeldReceiptIds.length) {
     throw new Error("held receipt IDs must be unique");

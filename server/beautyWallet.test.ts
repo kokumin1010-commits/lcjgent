@@ -3,6 +3,7 @@ import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
+const dbIt = process.env.DATABASE_URL ? it : it.skip;
 
 function createAdminContext(): TrpcContext {
   const user: AuthenticatedUser = {
@@ -65,10 +66,12 @@ describe("beautyWallet", () => {
       const result = await caller.beautyWallet.getExchangeRate();
 
       expect(result).toEqual({
+        enabled: false,
         rate: 0.4,
         minPoints: 100,
         unit: 100,
-        description: "100 LCJポイント = 40 Beauty Token",
+        description:
+          "Beauty Wallet主台帳への移行に伴い、旧ポイント交換は停止中です",
       });
     });
 
@@ -95,33 +98,36 @@ describe("beautyWallet", () => {
   });
 
   describe("getLinkStatus", () => {
-    it("returns unlinked status for non-existent user", async () => {
-      const ctx = createUserContext();
+    it("returns unlinked status for a non-existent user to an admin", async () => {
+      const ctx = createAdminContext();
       const caller = appRouter.createCaller(ctx);
 
-      const result = await caller.beautyWallet.getLinkStatus({ lineUserId: 999999 });
+      const result = await caller.beautyWallet.getLinkStatus({
+        lineUserId: 999999,
+      });
 
       expect(result).toEqual({
         isLinked: false,
         account: null,
       });
     });
+
+    it("rejects arbitrary member lookup by a non-admin staff user", async () => {
+      const caller = appRouter.createCaller(createUserContext());
+      await expect(
+        caller.beautyWallet.getLinkStatus({ lineUserId: 999999 })
+      ).rejects.toThrow();
+    });
   });
 
   describe("startLink", () => {
-    it("generates a link URL with token", async () => {
-      const ctx = createUserContext();
+    it("rejects the legacy link-token route even for an admin", async () => {
+      const ctx = createAdminContext();
       const caller = appRouter.createCaller(ctx);
 
-      const result = await caller.beautyWallet.startLink({ lineUserId: 1 });
-
-      expect(result).toHaveProperty("linkUrl");
-      expect(result).toHaveProperty("token");
-      expect(result.linkUrl).toContain("beautypass.ai/link");
-      expect(result.linkUrl).toContain("token=");
-      expect(result.linkUrl).toContain("source=lcj");
-      expect(typeof result.token).toBe("string");
-      expect(result.token.length).toBeGreaterThan(0);
+      await expect(
+        caller.beautyWallet.startLink({ lineUserId: 1 })
+      ).rejects.toThrow("会員本人のメール確認が必要です");
     });
   });
 
@@ -158,7 +164,7 @@ describe("beautyWallet", () => {
 
   describe("getExchangeHistory", () => {
     it("returns empty array for user with no exchanges", async () => {
-      const ctx = createUserContext();
+      const ctx = createAdminContext();
       const caller = appRouter.createCaller(ctx);
 
       const result = await caller.beautyWallet.getExchangeHistory({
@@ -171,7 +177,7 @@ describe("beautyWallet", () => {
   });
 
   describe("admin procedures", () => {
-    it("adminGetMonthlySummary returns summary for admin", async () => {
+    dbIt("adminGetMonthlySummary returns summary for admin", async () => {
       const ctx = createAdminContext();
       const caller = appRouter.createCaller(ctx);
 
@@ -185,7 +191,9 @@ describe("beautyWallet", () => {
       expect(result).toHaveProperty("uniqueUsers");
       expect(typeof result.totalExchanges).toBe("number");
       // SQL SUM returns string for decimal columns
-      expect(["number", "string"].includes(typeof result.totalLcjPoints)).toBe(true);
+      expect(["number", "string"].includes(typeof result.totalLcjPoints)).toBe(
+        true
+      );
     });
 
     it("adminGetMonthlySummary rejects non-admin", async () => {
@@ -221,21 +229,16 @@ describe("beautyWallet", () => {
       const ctx = createUserContext();
       const caller = appRouter.createCaller(ctx);
 
-      await expect(
-        caller.beautyWallet.adminProcessPending()
-      ).rejects.toThrow();
+      await expect(caller.beautyWallet.adminProcessPending()).rejects.toThrow();
     });
 
-    it("adminProcessPending returns pending info for admin", async () => {
+    it("adminProcessPending stays disabled even for an admin", async () => {
       const ctx = createAdminContext();
       const caller = appRouter.createCaller(ctx);
 
-      const result = await caller.beautyWallet.adminProcessPending();
-
-      expect(result).toHaveProperty("pendingCount");
-      expect(result).toHaveProperty("exchanges");
-      expect(result).toHaveProperty("message");
-      expect(typeof result.pendingCount).toBe("number");
+      await expect(caller.beautyWallet.adminProcessPending()).rejects.toThrow(
+        "二重加算防止"
+      );
     });
   });
 
@@ -271,12 +274,20 @@ describe("beautyWallet", () => {
   });
 
   describe("unlink", () => {
-    it("succeeds even for non-linked user (idempotent)", async () => {
-      const ctx = createUserContext();
+    it("stays disabled even for an admin", async () => {
+      const ctx = createAdminContext();
       const caller = appRouter.createCaller(ctx);
 
-      const result = await caller.beautyWallet.unlink({ lineUserId: 999999 });
-      expect(result).toEqual({ success: true });
+      await expect(
+        caller.beautyWallet.unlink({ lineUserId: 999999 })
+      ).rejects.toThrow("監査付きサポート手続き");
+    });
+
+    it("rejects unlink by a non-admin staff user", async () => {
+      const caller = appRouter.createCaller(createUserContext());
+      await expect(
+        caller.beautyWallet.unlink({ lineUserId: 999999 })
+      ).rejects.toThrow();
     });
   });
 });

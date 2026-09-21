@@ -4,7 +4,7 @@ import type { TrpcContext } from "./_core/context";
 
 /**
  * Test the welcome banner feature:
- * - emailRegister should return referralApplied/referralPoints when a valid referral code is used
+ * - emailRegister may preserve referral attribution but awards zero local points
  * - emailRegister without referral code should not set referralApplied
  * - No referrerName should be returned (privacy)
  */
@@ -91,6 +91,7 @@ describe("welcome banner - emailRegister", () => {
     expect(result).toHaveProperty("userId");
     expect(result).toHaveProperty("referralApplied");
     expect(result).toHaveProperty("referralPoints");
-    expect(result).toHaveProperty("sessionToken");
+    expect(result).toHaveProperty("roulettePointsAwarded", 0);
+    expect(result).not.toHaveProperty("sessionToken");
   });
 });

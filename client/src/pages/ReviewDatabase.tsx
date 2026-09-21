@@ -1310,17 +1310,17 @@ export default function ReviewDatabase() {
               <Card className="border-0 shadow-lg bg-gradient-to-br from-gray-900 to-gray-800 text-white overflow-hidden relative">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-rose-500/20 via-transparent to-transparent" />
                 <CardContent className="p-5 text-center relative z-10">
-                  <h3 className="font-bold text-base mb-2">あなたもレビュアーに</h3>
+                  <h3 className="font-bold text-base mb-2">Beauty Wallet連携</h3>
                   <p className="text-xs text-gray-300 mb-4 leading-relaxed">
-                    レシートを送るだけでポイント還元＋口コミ投稿。
-                    TikTokで買ったアレの感想を共有しよう！
+                    リアルタイムの公式残高はBeauty Walletで確認できます。
+                    旧レシートと口コミは照合用の履歴として保持されます。
                   </p>
                   <Button
                     className="w-full bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white shadow-lg shadow-rose-500/30"
-                    onClick={() => setLocation("/receipt-upload")}
+                    onClick={() => setLocation("/beauty-wallet")}
                   >
                     <Receipt className="h-4 w-4 mr-1.5" />
-                    レシートを送ってレビューする
+                    Beauty Walletを開く
                   </Button>
                 </CardContent>
               </Card>

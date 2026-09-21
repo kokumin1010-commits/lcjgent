@@ -2,8 +2,6 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
 import { bwAuditCentralLedgerByEmail } from "./bw-api";
-import { mergeEmailAndLineMemberAccounts } from "./memberAccountMergeService";
-import { recoverMemberPointsAndHeldReceipts } from "./memberPointReceiptRecoveryService";
 import {
   getMemberIdentityActionLogs,
   getMemberIdentityById,
@@ -11,7 +9,7 @@ import {
   getMemberIdentityStatistics,
 } from "./memberIdentityService";
 import { getMemberIdentityUpgradeHealth } from "./memberIdentityUpgrade";
-import { assertMemberActionAllowed } from "./memberRestrictionService";
+import { LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE } from "./pointLedgerPolicy";
 
 export const memberIdentityRouter = router({
   directory: protectedProcedure.query(() => getMemberIdentityDirectory()),
@@ -52,56 +50,17 @@ export const memberIdentityRouter = router({
         reason: z.string().trim().min(10).max(500),
       })
     )
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ ctx }) => {
       if (ctx.user.role !== "admin") {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "管理者権限が必要です",
         });
       }
-      await assertMemberActionAllowed(input.targetEmailMemberId, [
-        "points",
-        "order",
-      ]);
-      await assertMemberActionAllowed(input.sourceLineMemberId, [
-        "points",
-        "order",
-      ]);
-      const expectedCombinedBalance =
-        input.expectedTargetBalance + input.expectedSourceBalance;
-      const centralLedger = await bwAuditCentralLedgerByEmail(
-        input.expectedEmail
-      );
-      if (
-        !centralLedger.success ||
-        !centralLedger.centralLedgerAvailable ||
-        !centralLedger.historyComplete ||
-        centralLedger.unifiedTotal !== expectedCombinedBalance
-      ) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message:
-            "Beauty Wallet統一主台帳を完全照合できないため、会員統合を停止しました",
-        });
-      }
-      try {
-        return await mergeEmailAndLineMemberAccounts({
-          ...input,
-          actorId: ctx.user.id,
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        const isPrecondition =
-          /changed|already|must|required|invalid|mismatch|not allowed|differ/i.test(
-            message
-          );
-        throw new TRPCError({
-          code: isPrecondition
-            ? "PRECONDITION_FAILED"
-            : "INTERNAL_SERVER_ERROR",
-          message,
-        });
-      }
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE,
+      });
     }),
   recoverLegacyPointsAndHeldReceipts: protectedProcedure
     .input(
@@ -122,32 +81,16 @@ export const memberIdentityRouter = router({
         reason: z.string().trim().min(10).max(500),
       })
     )
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ ctx }) => {
       if (ctx.user.role !== "admin") {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "管理者権限が必要です",
         });
       }
-      await assertMemberActionAllowed(input.memberId, ["points", "receipt"]);
-      try {
-        const { confirmation: _confirmation, ...recoveryInput } = input;
-        return await recoverMemberPointsAndHeldReceipts({
-          ...recoveryInput,
-          actorId: ctx.user.id,
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        const isPrecondition =
-          /changed|already|must|required|invalid|mismatch|not found|missing|stopped|does not match/i.test(
-            message
-          );
-        throw new TRPCError({
-          code: isPrecondition
-            ? "PRECONDITION_FAILED"
-            : "INTERNAL_SERVER_ERROR",
-          message,
-        });
-      }
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE,
+      });
     }),
 });

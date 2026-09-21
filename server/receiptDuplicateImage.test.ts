@@ -127,10 +127,9 @@ describe("duplicate image integration contract", () => {
     expect(router).not.toContain("hard-risk hold - same image");
   });
 
-  it("shows a direct rejection without opening Kakuhen and uses the canonical admin order number", () => {
-    expect(upload).toContain('result.status === "duplicate"');
-    expect(upload).toContain("重複申請のため自動却下しました");
-    expect(upload).toContain('analysisResult.status !== "duplicate" && analysisResult.receiptId');
+  it("stops new uploads while preserving canonical order evidence in historical admin review", () => {
+    expect(upload).toContain("新規ポイント申請は現在停止中です");
+    expect(upload).not.toContain("submitWebReceipt");
     expect(admin).toContain("normalizeDisplayOrderNumber(receipt?.orderNumber)");
     expect(admin).toContain("data.ocrOrderNumberCandidate || data.orderNumber");
     expect(admin).toContain("OCR候选号:");

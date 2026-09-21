@@ -127,7 +127,7 @@ describe("AI OCR Prompt Improvements", () => {
     });
   });
 
-  describe("LINE Agent OCR Prompt", () => {
+  describe("LINE Agent receipt processing shutdown", () => {
     const filePath = path.join(__dirname, "lineAgent.ts");
     let content: string;
 
@@ -135,20 +135,21 @@ describe("AI OCR Prompt Improvements", () => {
       content = fs.readFileSync(filePath, "utf-8");
     });
 
-    it("should include order number extraction steps in LINE agent", () => {
-      expect(content).toContain("16〜19桁の数字列");
+    it("should not contain the retired order number OCR prompt", () => {
+      expect(content).not.toContain("16〜19桁の数字列");
     });
 
-    it("should specify TikTok Shop order number format in LINE agent", () => {
-      expect(content).toContain("「5」または「6」で始まる");
+    it("should not parse TikTok Shop order numbers in LINE", () => {
+      expect(content).not.toContain("「5」または「6」で始まる");
     });
 
-    it("should include amount extraction section in LINE agent", () => {
-      expect(content).toContain("金額の抽出");
+    it("should not extract receipt amounts in LINE", () => {
+      expect(content).not.toContain("金額の抽出");
     });
 
-    it("should prioritize order number extraction in LINE agent", () => {
-      expect(content).toContain("注文番号の抽出を最優先");
+    it("should direct members to the Beauty Wallet screen without creating a request", () => {
+      expect(content).toContain("新しいLCJレシートポイント申請は停止中です");
+      expect(content).toContain("${appUrl}/beauty-wallet");
     });
   });
 });
@@ -167,10 +168,10 @@ describe("Duplicate Order Number Check", () => {
     expect(content).toContain("claimResult.decision.reason");
   });
 
-  it("should check for duplicate order numbers in LINE agent", () => {
+  it("should not run duplicate order-number checks from the stopped LINE receipt flow", () => {
     const agentPath = path.join(__dirname, "lineAgent.ts");
     const content = fs.readFileSync(agentPath, "utf-8");
-    expect(content).toContain("checkDuplicateOrderNumberGlobal");
+    expect(content).not.toContain("checkDuplicateOrderNumberGlobal");
   });
 
   it("should return distinct cross-account and same-account blocking messages", () => {

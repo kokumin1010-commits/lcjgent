@@ -9,6 +9,7 @@ import {
   classifyMemberIdentity,
   isRealLineUserId,
 } from "./memberIdentityService";
+import { assertLocalPointLedgerWritable } from "./pointLedgerPolicy";
 
 const PRE_BACKUP_REASON = "pre-member-account-merge-v1";
 const POST_BACKUP_REASON = "post-member-account-merge-v1";
@@ -356,6 +357,7 @@ async function recalculatePointLedger(
 export async function mergeEmailAndLineMemberAccounts(
   input: MergeEmailLineAccountsInput
 ) {
+  assertLocalPointLedgerWritable("member_account_point_merge");
   if (input.targetEmailMemberId === input.sourceLineMemberId)
     throw new Error("source and target members must differ");
   if (!isRealLineUserId(input.expectedLineUserId))

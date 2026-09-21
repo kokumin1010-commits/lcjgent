@@ -1,18 +1,15 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Loader2, Users, Mail, Calendar, Coins, UserCheck, UserX,
   Receipt, ArrowUpCircle, ArrowDownCircle, Clock, CheckCircle, XCircle, AlertCircle,
-  Plus, Minus, ArrowLeft, ShoppingBag, Package, CreditCard, Truck, Phone, MapPin,
+  ArrowLeft, ShoppingBag, Package, CreditCard, Truck, Phone, MapPin,
   ChevronDown, ChevronUp, Copy, Hash, Wallet, TrendingUp,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { Label } from "@/components/ui/label";
@@ -36,9 +33,6 @@ export default function MemberDetail() {
   const params = useParams<{ id: string }>();
   const memberId = parseInt(params.id || "0");
   const [, setLocation] = useLocation();
-  const [pointAmount, setPointAmount] = useState("");
-  const [pointDescription, setPointDescription] = useState("");
-  const [pointAction, setPointAction] = useState<"add" | "remove">("add");
   const [expandedOrders, setExpandedOrders] = useState<Set<number>>(new Set());
   const [beautyWalletAudit, setBeautyWalletAudit] = useState<{
     centralLedgerAvailable: boolean;
@@ -51,7 +45,6 @@ export default function MemberDetail() {
     duplicateRowsRemoved: number;
     failureCode?: string;
   } | null>(null);
-  const utils = trpc.useUtils();
 
   // 会員情報取得
   const { data: member, isLoading: memberLoading } = trpc.mall.getMemberById.useQuery(
@@ -92,23 +85,6 @@ export default function MemberDetail() {
     { enabled: !!lineUserIdStr }
   );
 
-  // ポイント操作
-  const adjustPointsMutation = trpc.line.adminAdjustPoints.useMutation({
-    onSuccess: (data) => {
-      toast.success(pointAction === "add" ? "ポイント付与完了" : "ポイント削除完了", {
-        description: `残高: ${data.balanceAfter.toLocaleString()} pt`,
-      });
-      setPointAmount("");
-      setPointDescription("");
-      if (lineUserIdStr) {
-        utils.line.getMemberPointHistory.invalidate({ lineUserId: lineUserIdStr });
-      }
-    },
-    onError: (error) => {
-      toast.error("エラー", { description: error.message });
-    },
-  });
-
   const beautyWalletAuditMutation = trpc.memberIdentity.auditBeautyWalletLedger.useMutation({
     onSuccess: (data) => {
       setBeautyWalletAudit(data);
@@ -134,39 +110,6 @@ export default function MemberDetail() {
       return;
     }
     beautyWalletAuditMutation.mutate({ email: member.email });
-  };
-
-  const handleAdjustPoints = () => {
-    const amount = parseInt(pointAmount);
-    if (!amount || amount <= 0) {
-      toast.error("ポイント数を正しく入力してください");
-      return;
-    }
-    if (!pointDescription.trim()) {
-      toast.error("理由を入力してください");
-      return;
-    }
-    if (!member || !lineUserIdStr) {
-      toast.error("会員のポイント口座を確認できません");
-      return;
-    }
-    const actionLabel = pointAction === "add" ? "付与" : "削除";
-    const confirmed = window.confirm(
-      `以下の会員にポイントを${actionLabel}します。\n\n` +
-      `会員名: ${member.displayName || "未設定"}\n` +
-      `会員ID: ${member.id}\n` +
-      `メール: ${member.email || "未連携"}\n` +
-      `本人確認: ${identityMember?.identity?.label || "身分未確認"}\n` +
-      `操作: ${actionLabel} ${amount.toLocaleString()} pt\n` +
-      `理由: ${pointDescription.trim()}\n\n` +
-      `同名の別会員ではないことを確認してください。`
-    );
-    if (!confirmed) return;
-    adjustPointsMutation.mutate({
-      lineUserId: lineUserIdStr,
-      amount: pointAction === "add" ? amount : -amount,
-      description: pointDescription.trim(),
-    });
   };
 
   const toggleOrderExpand = (orderId: number) => {
@@ -546,49 +489,11 @@ export default function MemberDetail() {
             </div>
 
             {/* ポイント操作 */}
-            <div className="border border-dashed rounded-lg p-4">
-              <h4 className="font-medium mb-3">ポイント操作</h4>
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <Select value={pointAction} onValueChange={(v: "add" | "remove") => setPointAction(v)}>
-                    <SelectTrigger className="w-[120px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="add">付与</SelectItem>
-                      <SelectItem value="remove">削除</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="number"
-                    placeholder="ポイント数"
-                    value={pointAmount}
-                    onChange={(e) => setPointAmount(e.target.value)}
-                    className="w-[120px]"
-                    min={1}
-                  />
-                </div>
-                <Textarea
-                  placeholder="理由を入力（例: キャンペーン特典、不具合補償等）"
-                  value={pointDescription}
-                  onChange={(e) => setPointDescription(e.target.value)}
-                  rows={2}
-                />
-                <Button
-                  onClick={handleAdjustPoints}
-                  disabled={adjustPointsMutation.isPending}
-                  className={pointAction === "add" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}
-                >
-                  {adjustPointsMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : pointAction === "add" ? (
-                    <Plus className="h-4 w-4 mr-2" />
-                  ) : (
-                    <Minus className="h-4 w-4 mr-2" />
-                  )}
-                  {pointAction === "add" ? "ポイントを付与" : "ポイントを削除"}
-                </Button>
-              </div>
+            <div className="rounded-lg border border-dashed border-sky-300 bg-sky-50 p-4">
+              <h4 className="font-medium text-sky-950">LCJポイント操作は停止中です</h4>
+              <p className="mt-2 text-sm leading-6 text-sky-800">
+                Beauty Walletが唯一のリアルタイム主台帳です。この画面では過去のLCJ残高・取引履歴を照合用として表示します。
+              </p>
             </div>
 
             {/* Transaction History */}

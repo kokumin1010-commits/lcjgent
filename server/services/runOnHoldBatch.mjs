@@ -21,6 +21,9 @@
 import 'dotenv/config';
 import mysql from 'mysql2/promise';
 
+console.error('[PointLedger] Disabled: Beauty Wallet is the sole live ledger');
+process.exit(1);
+
 // ========== CONFIG ==========
 const BATCH_SIZE = 20;
 const CONFIDENCE_THRESHOLD = 90; // 90%以上で自動承認

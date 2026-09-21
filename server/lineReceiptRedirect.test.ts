@@ -1,45 +1,40 @@
-import { describe, it, expect } from "vitest";
-import fs from "node:fs";
-import path from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
 
-/**
- * LINE画像受信時のWebフォーム誘導テスト。
- * LINE画像そのものを申請済みと扱わず、署名済みのWebフォーム導線と
- * 明確な未完了表示を返すことを検証する。
- */
-
-const content = fs.readFileSync(path.join(__dirname, "lineAgent.ts"), "utf-8");
+const content = readFileSync(join(__dirname, "lineAgent.ts"), "utf8");
 const funcStart = content.indexOf("export async function processReceiptImageMessage");
-const funcEnd = content.indexOf("\n}\n\n/**\n * Process multiple images", funcStart);
+const funcEnd = content.indexOf("\n}\n\n/**\n * Combined message processor", funcStart);
 const funcBody = content.substring(funcStart, funcEnd > funcStart ? funcEnd + 2 : content.length);
 
-describe("LINE Receipt Image → Web Form Redirect", () => {
-  it("processReceiptImageMessage function should exist and be exported", async () => {
+describe("LINE receipt image migration handling", () => {
+  it("keeps the image handler exported", async () => {
     const mod = await import("./lineAgent");
     expect(typeof mod.processReceiptImageMessage).toBe("function");
   });
 
-  it("does not run OCR or create a receipt from the LINE image alone", () => {
-    expect(funcBody).not.toContain("processMultipleImagesOcr(session");
-    expect(funcBody).not.toContain("getMessageContent(messageId)");
-    expect(funcBody).not.toContain("createLineReceipt({");
+  it("does not run OCR, create a receipt, or calculate local points", () => {
+    expect(funcBody).not.toContain("processMultipleImagesOcr");
+    expect(funcBody).not.toContain("getMessageContent");
+    expect(funcBody).not.toContain("createLineReceipt");
+    expect(funcBody).not.toContain("pointsCalculated");
   });
 
-  it("hands the member to the Web form with a signed session token", () => {
-    expect(funcBody).toContain("/receipt-upload?token=");
-    expect(funcBody).toContain("createLineMemberSessionToken({");
-    expect(funcBody).not.toContain("Buffer.from(JSON.stringify(sessionData)).toString('base64')");
+  it("never issues a member bearer token or tokenized URL", () => {
+    expect(funcBody).not.toContain("createLineMemberSessionToken");
+    expect(funcBody).not.toContain("receipt-upload?token=");
+    expect(funcBody).not.toContain("sessionToken");
   });
 
-  it("states unambiguously that the application is not complete yet", () => {
-    expect(funcBody).toContain("ポイント申請はまだ完了していません");
-    expect(funcBody).toContain("申請記録は作成されません");
-    expect(funcBody).not.toContain("📷 レシート画像を受け取りました！");
+  it("states that new LCJ receipt point applications are stopped", () => {
+    expect(funcBody).toContain("新しいLCJレシートポイント申請は停止中です");
+    expect(funcBody).toContain("この画像から申請・ポイント付与は行いません");
+    expect(funcBody).toContain("${appUrl}/beauty-wallet");
   });
 
-  it("keeps an auditable image hand-off in staff message history", () => {
+  it("keeps only an auditable historical image entry for staff", () => {
     expect(funcBody).toContain('messageType: "image"');
-    expect(funcBody).toContain("LINE送信のみでは申請未完了");
+    expect(funcBody).toContain("LCJポイント申請停止中（履歴保存のみ）");
     expect(funcBody).toContain('responseStatus: "responded"');
   });
 
@@ -48,16 +43,9 @@ describe("LINE Receipt Image → Web Form Redirect", () => {
     expect(funcBody).toContain("Ignoring image in group chat");
   });
 
-  it("does not restore the retired image buffering path", () => {
-    expect(funcBody).not.toContain("getOrCreatePendingImageSession");
-    expect(funcBody).not.toContain("IMAGE_SESSION_TIMEOUT_MS");
-    expect(funcBody).not.toContain("session.images.push");
-  });
-
-  it("includes the exact steps needed to finish the application", () => {
-    expect(funcBody).toContain("申請完了までの手順");
-    expect(funcBody).toContain("レシート画像をアップロード");
-    expect(funcBody).toContain("申請を受け付けました！");
-    expect(funcBody).toContain("受付番号を保存");
+  it("does not restore the retired buffering path", () => {
+    expect(content).not.toContain("getOrCreatePendingImageSession");
+    expect(content).not.toContain("IMAGE_SESSION_TIMEOUT_MS");
+    expect(content).not.toContain("processMultipleImagesOcr");
   });
 });

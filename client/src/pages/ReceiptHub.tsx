@@ -44,7 +44,7 @@ export default function ReceiptHub() {
           レシート管理
         </h1>
         <p className="text-muted-foreground mt-1">
-          全チャネルのレシート審査・ポイント付与・AI学習分析を一元管理
+          全チャネルの履歴確認・却下／保留対応・AI学習分析を一元管理（LCJポイント承認は停止中）
         </p>
       </div>
 

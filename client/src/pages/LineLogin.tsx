@@ -103,11 +103,7 @@ export default function LineLogin(props: { forceRegisterMode?: boolean; initialR
   const redirectTo = new URLSearchParams(window.location.search).get('redirect') || '/mypage';
 
   const emailLoginMutation = trpc.lineLogin.emailLogin.useMutation({
-    onSuccess: (data) => {
-      // Save session token to localStorage for fallback authentication
-      if (data.sessionToken) {
-        localStorage.setItem('lcj_session_token', data.sessionToken);
-      }
+    onSuccess: () => {
       toast.success("ログインしました");
       // Wait for cookie to be set, then redirect
       setTimeout(() => {
@@ -121,32 +117,14 @@ export default function LineLogin(props: { forceRegisterMode?: boolean; initialR
 
   // Email register mutation
   const emailRegisterMutation = trpc.lineLogin.emailRegister.useMutation({
-    onSuccess: (data) => {
-      // Save session token to localStorage for fallback authentication
-      if (data.sessionToken) {
-        localStorage.setItem('lcj_session_token', data.sessionToken);
-      }
+    onSuccess: () => {
       // Clear saved referral code after successful registration
       localStorage.removeItem('lcj_referral_code');
-      if (data.referralApplied && data.referralPoints) {
-        toast.success(`アカウントを作成しました！招待特典で${data.referralPoints}ptを獲得しました🎉`);
-        // Save flag for welcome banner on mypage
-        localStorage.setItem('lcj_referral_bonus', String(data.referralPoints));
-      } else {
-        toast.success("アカウントを作成しました");
-      }
-      // If registered via friend challenge code, save it for auto-apply on challenge page
-      if (data.friendChallengeCode) {
-        localStorage.setItem('lcj_friend_referral_code', data.friendChallengeCode);
-      }
+      localStorage.removeItem('lcj_referral_bonus');
+      toast.success("アカウントを作成しました。公式残高はBeauty Walletで確認できます");
       // Auto-login: redirect
       setTimeout(() => {
-        // If friend challenge code was used, redirect to challenge page
-        if (data.friendChallengeCode) {
-          window.location.href = '/friend-challenge';
-        } else {
-          window.location.href = redirectTo;
-        }
+        window.location.href = redirectTo;
       }, 500);
     },
     onError: (err) => {
@@ -310,8 +288,8 @@ export default function LineLogin(props: { forceRegisterMode?: boolean; initialR
               {referralLiverName && (
                 <p className="text-xs text-green-600">
                   ✅ {referralCodeType === "friend" 
-                    ? `友達招待コードが適用されました（登録で50pt付与）` 
-                    : `${referralLiverName} さんからの紹介（登録で500pt付与）`}
+                    ? "友達招待コードを登録情報に反映します"
+                    : `${referralLiverName} さんからの紹介として登録します`}
                 </p>
               )}
               {referralError && (
