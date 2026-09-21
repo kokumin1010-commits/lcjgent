@@ -1051,6 +1051,13 @@
       "when": 1789977600000,
       "tag": "0154_line_group_automation_defaults",
       "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "5",
+      "when": 1789980320710,
+      "tag": "0155_brand_bd_command_center",
+      "breakpoints": true
     }
   ]
 }

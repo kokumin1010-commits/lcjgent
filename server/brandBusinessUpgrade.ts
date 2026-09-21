@@ -1,9 +1,11 @@
 import mysql, { type Pool, type RowDataPacket } from "mysql2/promise";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
 
-const LOCK_KEY = "brand-business-upgrade-v1";
-const UPGRADE_KEY = "brand-business-v1";
-const PRE_BACKUP_REASON = "pre-brand-business-v1";
+const LOCK_KEY = "brand-business-upgrade-v2";
+const UPGRADE_KEY = "brand-business-v2";
+const PRE_BACKUP_REASON = "pre-brand-business-v2";
 let setupPromise: Promise<void> | null = null;
 
 async function tableExists(pool: Pool, tableName: string): Promise<boolean> {
@@ -12,6 +14,13 @@ async function tableExists(pool: Pool, tableName: string): Promise<boolean> {
        FROM information_schema.TABLES
       WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?`,
     [tableName],
+  );
+  return Number(rows[0]?.count || 0) > 0;
+}
+async function brandBdPagePermissionExists(pool: Pool): Promise<boolean> {
+  if (!(await tableExists(pool, "role_permissions"))) return false;
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT COUNT(*) AS count FROM role_permissions WHERE pageKey='/master/brand-bd-command'",
   );
   return Number(rows[0]?.count || 0) > 0;
 }
@@ -35,6 +44,14 @@ async function schemaState(pool: Pool) {
     monthlyTargets: await tableExists(pool, "brand_business_monthly_targets"),
     events: await tableExists(pool, "brand_business_events"),
     auditLogs: await tableExists(pool, "brand_business_audit_logs"),
+    interactions: await tableExists(pool, "brand_bd_interactions"),
+    interactionFiles: await tableExists(pool, "brand_bd_interaction_files"),
+    meetings: await tableExists(pool, "brand_bd_meetings"),
+    taskLinks: await tableExists(pool, "brand_bd_task_links"),
+    aiSnapshots: await tableExists(pool, "brand_bd_ai_snapshots"),
+    reminderOutbox: await tableExists(pool, "brand_bd_meeting_reminder_outbox"),
+    commandAuditLogs: await tableExists(pool, "brand_bd_command_audit_logs"),
+    pagePermission: await brandBdPagePermissionExists(pool),
   };
   return { ...tables, healthy: Object.values(tables).every(Boolean) };
 }
@@ -147,6 +164,18 @@ async function createTables(pool: Pool): Promise<void> {
       KEY idx_brand_business_audit_entity (entityType,entityId)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+  const commandMigrationPath = path.resolve(
+    process.cwd(),
+    "drizzle/0155_brand_bd_command_center.sql",
+  );
+  const commandMigrationSql = await readFile(commandMigrationPath, "utf8");
+  const commandStatements = commandMigrationSql
+    .split("--> statement-breakpoint")
+    .map(statement => statement.trim())
+    .filter(Boolean);
+  for (const statement of commandStatements) {
+    await pool.query(statement);
+  }
 }
 
 export async function runBrandBusinessUpgradeSetup(): Promise<void> {
