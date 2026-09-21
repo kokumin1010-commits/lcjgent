@@ -390,8 +390,8 @@ async function notifyLcm(params: { to: string[]; subject: string; content: strin
   return { recipientCount: recipients.length, success: result.success, provider: result.provider || null, errorCode: result.errorCode || null };
 }
 
-async function getActiveBrandMember(festivalAccountId: number, brandProfileId: number) {
-  const db = await requireDb();
+async function getActiveBrandMember(festivalAccountId: number, brandProfileId: number, dbOverride?: any) {
+  const db = dbOverride ?? await requireDb();
   const [member] = await db.select().from(lcmBrandMembers).where(and(
     eq(lcmBrandMembers.festivalAccountId, festivalAccountId),
     eq(lcmBrandMembers.brandProfileId, brandProfileId),
@@ -400,8 +400,8 @@ async function getActiveBrandMember(festivalAccountId: number, brandProfileId: n
   return member;
 }
 
-async function requireActiveBrandMember(festivalAccountId: number, brandProfileId: number) {
-  const member = await getActiveBrandMember(festivalAccountId, brandProfileId);
+async function requireActiveBrandMember(festivalAccountId: number, brandProfileId: number, dbOverride?: any) {
+  const member = await getActiveBrandMember(festivalAccountId, brandProfileId, dbOverride);
   if (!member) throw new TRPCError({ code: "FORBIDDEN", message: "この操作には有効なブランド管理権限が必要です" });
   return member;
 }
@@ -1335,6 +1335,35 @@ export const lcmRouter = router({
     await db.update(lcmProducts).set({ status: "published", submittedAt: new Date(), publishedAt, reviewedBy: null, reviewedAt: null, rejectionReason: null }).where(eq(lcmProducts.id, input.productId));
     await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "brand_owner", entityType: "product", entityId: input.productId, action: "self_published", before: { status: product.status }, after: { status: "published", preReviewRequired: false } });
     return { success: true };
+  }),
+
+  unpublishProduct: lcmMemberProcedure.input(z.object({ productId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    return db.transaction(async (tx: any) => {
+      const [product] = await tx.select().from(lcmProducts).where(eq(lcmProducts.id, input.productId)).limit(1);
+      if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "商品が見つかりません" });
+      await requireActiveBrandMember(ctx.lcmAccount.accountId, product.brandProfileId, tx);
+      if (product.status !== "published") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "公開中の商品だけを公開停止できます" });
+      }
+      const result = await tx.update(lcmProducts)
+        .set({ status: "draft" })
+        .where(and(eq(lcmProducts.id, input.productId), eq(lcmProducts.status, "published")));
+      const affectedRows = Number((result as any)?.[0]?.affectedRows || (result as any)?.affectedRows || 0);
+      if (affectedRows !== 1) {
+        throw new TRPCError({ code: "CONFLICT", message: "商品の状態が更新されています。再読み込みして確認してください" });
+      }
+      await writeAudit({
+        actorAccountId: ctx.lcmAccount.accountId,
+        actorRole: "brand_owner",
+        entityType: "product",
+        entityId: input.productId,
+        action: "self_unpublished",
+        before: { status: product.status },
+        after: { status: "draft", publishedAtPreserved: Boolean(product.publishedAt) },
+      }, tx);
+      return { success: true, status: "draft" as const };
+    });
   }),
 
   uploadImage: lcmMemberProcedure.input(z.object({ brandId: z.number().int().positive(), fileName: z.string().trim().min(1).max(255), contentType: z.enum(["image/jpeg", "image/png", "image/webp"]), base64Data: z.string().min(1).max(7_500_000) }).strict()).mutation(async ({ ctx, input }) => {

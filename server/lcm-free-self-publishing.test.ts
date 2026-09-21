@@ -26,6 +26,24 @@ describe("LCM free self-publishing with post-publication moderation", () => {
     expect(router).toContain('status: before.status, rejectionReason: before.status === "published" ? null');
   });
 
+  it("lets confirmed brand owners unpublish products without deleting their data", () => {
+    const router = read("server/lcmRouter.ts");
+    const manage = read("client/src/pages/LcmManage.tsx");
+    const procedure = router.slice(router.indexOf("unpublishProduct:"), router.indexOf("uploadImage:"));
+    expect(procedure).toContain("requireActiveBrandMember");
+    expect(procedure).toContain('product.status !== "published"');
+    expect(procedure).toContain('.set({ status: "draft" })');
+    expect(procedure).toContain('eq(lcmProducts.status, "published")');
+    expect(procedure).toContain('action: "self_unpublished"');
+    expect(procedure).toContain("db.transaction(async");
+    expect(manage).toContain("公開を停止");
+    expect(manage).toContain("商品データは削除せず、下書きとして保持します");
+    expect(manage).toContain("utils.lcm.listPublicProducts.invalidate()");
+    expect(manage).toContain("utils.lcm.getPublicProduct.invalidate()");
+    expect(manage).toContain("utils.lcm.getPublicBrand.invalidate()");
+    expect(manage).toContain("utils.lcm.publicStats.invalidate()");
+  });
+
   it("keeps catalogue brand claims reviewed to prevent ownership takeover", () => {
     const router = read("server/lcmRouter.ts");
     expect(router).toContain("lcmCatalogIdentities.find");

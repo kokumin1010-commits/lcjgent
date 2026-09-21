@@ -60,7 +60,7 @@ describe("LCM company, brand and product linkage", () => {
     const listMyBrands = router.slice(router.indexOf("listMyBrands:"), router.indexOf("getManageBrand:"));
     expect(listMyBrands).toContain('inArray(lcmBrandMembers.status, ["pending", "active"])');
     expect(listMyBrands).not.toMatch(/rejected|revoked/);
-    const guardedOperations = ["getManageBrand:", "updateBrand:", "submitBrand:", "createProduct:", "updateProduct:", "submitProduct:", "uploadImage:"];
+    const guardedOperations = ["getManageBrand:", "updateBrand:", "submitBrand:", "createProduct:", "updateProduct:", "submitProduct:", "unpublishProduct:", "uploadImage:"];
     for (const [index, operation] of guardedOperations.entries()) {
       const start = router.indexOf(operation);
       const nextOperation = guardedOperations[index + 1] || "createSampleRequest:";

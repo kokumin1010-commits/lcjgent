@@ -3528,5 +3528,12 @@ APIはadmin限定かつアクティブグループ限定で、分析OFF、履歴
 文案生成時は親group rowを`FOR UPDATE`して有限windowのmessage選択とrevision snapshotを原子的に取得する。LLM後は同一transactionでgroup、`line_group_settings`、選択された公開商品rowを順にlocking readし、revision・設定・insight・商品／ブランド内容の完全一致時だけ固定composerへ進む。処理中の設定変更、退会→再参加、新着／順不同会話、unsend、インサイト更新、商品変更、非公開→再公開を含む一時的変更でも古い文案を返さない。`line_group_ai_draft_audit`（migration `0151`）へ本文も本文hashも保存せず、管理者ID、グループID、既存下書き有無、状態、モデル、token数、latency、採用商品ID、固定分類error codeだけを記録する。グループ別・管理者別の30秒bucket unique indexで複数Railway replicaからの同時生成も抑止する。
 
 最終focused回帰は8ファイル73件成功。LINE-prefix＋group follow-up回帰は29ファイル297件成功し、残る5ファイル10件はローカルに本番DB、LINE Login／Messaging API secret・token・APP_URLがない既存環境依存である。production build成功（既存`receiptMaskingService.ts`のsharp namespace warningとローカルDB未起動のmigration `ECONNREFUSED`のみ）。8GB heapの全量TypeScriptは既存721件で、今回変更対象・revision実装範囲の新規診断0件。複数回のNO-GO指摘をすべて修正した最終独立再reviewは**GO（release blocker 0件）**。実LINE送信、グループ設定ON、会員・グループデータ変更は行っていない。
-
 機能commit `ca49c60e9fc822e16c52aabbbdd4fe31d9c55631`をGitHub `main`へpushし、GitHub CI success、Railway `Success - www.livecommercefestival.com`を同一SHAで確認した。本番read-only受入では`https://lcjmall.com/api/health/line-ai-manager`がHTTP 200で`{"ok":true,"aiManagerStorage":"ready"}`、`https://lcjmall.com/master/line`がHTTP 200を返した。配信中`LineManagement-DR8Lg53y.js`に「AI文案を作る」「安全なAI文案にする」「内容を確認しました」「AI文案はまだ送信できません」を確認した。実LINE送信、設定変更、会員・グループデータ更新は実施していない。
+
+## 2026-09-21｜LCM 品牌方自助下架公开商品（本番反映前）
+
+`/lcm/manage?workspace=brand` 的公开中商品卡新增“公開を停止”操作。点击后必须再次确认，明确商品会从公开市场下架但不会删除；成功后商品状态从 `published` 回到 `draft`，完整商品资料、图片、历史发布时间以及既有样品／商谈记录继续保留，品牌方可修改后通过原有“商品を公開する”再次发布。
+
+服务端新增 `lcm.unpublishProduct`，只允许该商品所属品牌的 `active` 管理成员操作；`pending`、`rejected`、`revoked` 或其他品牌账号不能调用。仅 `published` 商品可以自助下架，运营侧已经设为 `rejected`／`suspended`／`archived` 的商品不能借此恢复。状态条件更新与 `self_unpublished` 审计记录在同一数据库事务中完成；重复点击或并发状态变化会返回冲突并整体回滚。公开市场、公开详情、样品申请和商谈入口原本都只读取 `published`；成功后同时失效公开商品列表、商品详情、品牌详情和公开统计缓存，因此同一会话也会立即消失，但不会删除历史业务记录。
+
+LCM专项回归7个测试文件共 **61/61** 通过，LCM路由与管理页bundle通过，完整production build成功（仅保留既有sharp warning）。全量TypeScript仍有既有 **721** 条诊断，本次修改文件新增诊断为0。
