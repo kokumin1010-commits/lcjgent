@@ -48,18 +48,31 @@ describe("LCM company, brand and product linkage", () => {
     expect(admin).toContain("会社単位で停止");
   });
 
-  it("grants draft-only provisional access and keeps publishing behind ownership confirmation", () => {
+  it("keeps pending claims read-only, hides rejected access, and enables operations only after confirmation", () => {
     const router = read("server/lcmRouter.ts");
     const manage = read("client/src/pages/LcmManage.tsx");
-    expect(router).toContain("async function requireDraftBrandMember");
+    expect(router).not.toContain("async function requireDraftBrandMember");
     expect(router).toContain('inArray(lcmBrandMembers.status, ["pending", "active"])');
-    expect(router).toContain('action: "provisional_access_granted"');
-    expect(router).toContain("await requireDraftBrandMember(ctx.lcmAccount.accountId, input.brandId)");
+    expect(router).toContain('action: "management_claim_requested"');
+    expect(router).toContain('operationsEnabled: false');
     expect(router).toContain("await requireActiveBrandMember(ctx.lcmAccount.accountId, input.brandId)");
     expect(router).toContain("この操作には有効なブランド管理権限が必要です");
-    expect(manage).toContain("仮連携中・下書き編集可");
-    expect(manage).toContain("権限確認後に公開可能");
-    expect(manage).toContain("setSelectedBrandId(data.selectedBrandId || null)");
+    const listMyBrands = router.slice(router.indexOf("listMyBrands:"), router.indexOf("getManageBrand:"));
+    expect(listMyBrands).toContain('inArray(lcmBrandMembers.status, ["pending", "active"])');
+    expect(listMyBrands).not.toMatch(/rejected|revoked/);
+    const guardedOperations = ["getManageBrand:", "updateBrand:", "submitBrand:", "createProduct:", "updateProduct:", "submitProduct:", "uploadImage:"];
+    for (const [index, operation] of guardedOperations.entries()) {
+      const start = router.indexOf(operation);
+      const nextOperation = guardedOperations[index + 1] || "createSampleRequest:";
+      const end = router.indexOf(nextOperation, start + operation.length);
+      expect(router.slice(start, end)).toContain("requireActiveBrandMember");
+    }
+    expect(router).toContain('["rejected", "revoked"].includes(current.status)');
+    expect(router).toContain("このブランドの管理申請は運営判断により利用できません");
+    expect(manage).toContain("管理権限確認済みのブランド");
+    expect(manage).toContain("運営確認中・操作不可");
+    expect(manage).toContain("承認後に操作できます");
+    expect(manage).not.toContain("仮連携中・下書き編集可");
   });
 
   it("lets LCM operations formally approve, reject, or stop provisional access", () => {

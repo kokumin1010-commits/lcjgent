@@ -3508,3 +3508,11 @@ Brand Day関連6ファイルの回帰は17件成功、データベース環境�
 対象回帰は10ファイル88件すべて成功し、設定DB障害、未連携／本人OFF／グループOFF時の無返信、キュー投入後のグループOFF・退会、旧一般返信fallback禁止、AI提案なし時の無送信、固定文面fallback禁止、送信直前のdeactivate・opt-out・新着・active reminder・mode変更race、リマインダー作成parent lock、送信前監査、terminal監査拒否・確定競合、監査確定失敗から同一retry keyでの回復、同一UUIDの本文競合拒否、Dialog再開後の同一UUID再試行、設定transaction、admin認可、順序逆転Webhookのイベント時刻表示を含む。LINE関連全体は37ファイル424件成功。残る5ファイル10件は固定された別リポジトリ絶対path、Stripe secret、LINE Login／Messaging API secret・token・APP_URLをローカルに持たない既存環境依存だけだった。production buildは成功。全量TypeScriptは既存721件の診断を残すが、今回変更ファイル・変更行は新規診断0件。network I/Oをtransaction外へ出した最終版は独立再レビューで**GO（release blockerなし）**となった。本番グループへの実送信、設定ON、会員・グループデータ変更は行っていない。
 
 本体commit `813a8936a522d710ccf6eb8b05970392a49aa7d6`をGitHub `main`へpushし、同一SHAのRailway statusが`Success - www.livecommercefestival.com`となったことを確認した。read-only本番確認では`https://lcjmall.com/master/line`がHTTP 200、配信中`LineManagement` chunkに「LCJ公式AIフォロー設定」「会話・送信」「グループ会話履歴」「送信未確認」「まとめてON」がすべて含まれていた。`/api/health/line-ai-manager`は`{"ok":true,"aiManagerStorage":"ready"}`、`/api/health/line-group-lifecycle`は`{"ok":true,"lifecycleStateTable":"ready"}`をHTTP 200で返した。実LINE送信、設定ON、退会、会員・グループデータ変更は本番確認では行っていない。
+
+## 2026-09-21｜LCM 已拒绝品牌隐藏与“确认后才能操作”（本番反映前）
+
+根据运营后台已经拒绝品牌管理权限后，品牌方首页仍显示该品牌的问题，修正了 `/lcm/manage?workspace=brand` 的数据与权限边界。`listMyBrands` 现在只返回 `pending` 与 `active`，`rejected`／`revoked` 不再进入品牌方主页、管理品牌卡或左侧 MY BRANDS；前端同时仅把 `active` 品牌归类为“管理権限確認済みのブランド”，`pending` 申请单独以“運営確認中・操作不可”只读显示。
+
+品牌资料读取、编辑、图片上传、商品创建／编辑／发布和品牌发布等服务端操作已统一要求 `active` 品牌成员权限，不能通过直接调用API或深链绕过前端。待确认申请提交后不再自动打开编辑器，也不再宣称可以编辑草稿；后台拒绝或停止的相同账号不能从前台立即重新申请，需联系LCM运营重新确认。公开市场仍只展示 `published` 品牌和商品，不改变既有已发布品牌的公共展示规则。
+
+专项LCM回归7个测试文件共 **60/60** 通过，LCM路由与管理页bundle通过，完整production build成功。全量TypeScript仍有既有 **721** 条诊断，本次修改文件新增诊断为0。

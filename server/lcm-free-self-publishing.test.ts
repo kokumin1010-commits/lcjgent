@@ -33,7 +33,7 @@ describe("LCM free self-publishing with post-publication moderation", () => {
     expect(router).toContain('claimStatus: "pending"');
     expect(router).toContain('status: "pending"');
     expect(router).toContain("既に管理されています");
-    expect(router).toContain("第三者による権限取得を防ぐ管理権限確認後");
+    expect(router).toContain("第三者による権限取得を防ぐ運営確認が完了するまで");
   });
 
   it("routes new brands through LINE while keeping admin creation limits and duplicate protection", () => {

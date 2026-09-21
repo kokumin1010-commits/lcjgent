@@ -4,11 +4,12 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
 describe("LCM brand discovery onboarding", () => {
-  it("asks users to search before registering and routes managed brands directly to product creation", () => {
+  it("asks users to search before registering and routes confirmed brands to product creation", () => {
     const page = read("client/src/pages/LcmManage.tsx");
     expect(page).toContain("あなたのブランドは、<br className=\"hidden sm:block\" />すでにLCMにありますか？");
     expect(page).toContain("会社名・ブランド名・商品名で検索");
-    expect(page).toContain("あなたが管理しているブランド");
+    expect(page).toContain("管理権限確認済みのブランド");
+    expect(page).toContain('entry.member.status === "active"');
     expect(page).toContain("このブランドに商品を追加");
     expect(page).toContain("onAddProduct: (brandId: number) => void");
     expect(page).toContain("setShowProductEditor(true)");
@@ -22,7 +23,8 @@ describe("LCM brand discovery onboarding", () => {
     expect(page).toContain('onClaim(identity.primaryBrandPage, "brand")');
     expect(router).toContain("claimCatalogSelection: lcmMemberProcedure");
     expect(router).toContain('status: "pending"');
-    expect(router).toContain("第三者による権限取得を防ぐ管理権限確認後");
+    expect(router).toContain("第三者による権限取得を防ぐ運営確認が完了するまで");
+    expect(page).toContain("管理権限が確認されるまで、ブランド情報・商品・公開設定は操作できません");
   });
 
   it("sends new brands to the official LINE dialog instead of the in-app create form", () => {

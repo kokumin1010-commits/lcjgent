@@ -149,7 +149,8 @@ describe("LCM marketplace foundation", () => {
     expect(router).toContain("verifyFestivalUserRequest");
     expect(router).toContain("membership.status !== \"approved\"");
     expect(router).toContain("requireActiveBrandMember");
-    expect(router).toContain("このブランドの下書きを編集する権限がありません");
+    expect(router).not.toContain("requireDraftBrandMember");
+    expect(router).toContain('inArray(lcmBrandMembers.status, ["pending", "active"])');
     expect(router).toContain("この操作には有効なブランド管理権限が必要です");
     expect(router).toContain("termsAccepted: z.literal(true)");
   });
