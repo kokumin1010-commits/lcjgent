@@ -29,6 +29,7 @@ import {
   validateAiMonthlyAssessment,
 } from "./performanceMonthlyReviewService";
 import {
+  buildDimensionRows,
   performanceItemDateGroup,
   performanceLocalBusinessDate,
 } from "./performanceService";
@@ -190,6 +191,18 @@ describe("performance V2 policy", () => {
       { id: 14, evidenceKey: "ALL-D02:40:task:502", templateCode: "ALL-D02", staffId: 40, sourceType: "task", businessDate: "2026-09-17", status: "pending", dataQuality: "verified", completionRate: 0 },
     ]);
     expect(rows.map(row => row.id)).toEqual([12, 15, 13, 14]);
+  });
+
+  it("excludes archived and cancelled source facts from completion and timeliness scoring", () => {
+    const score = buildDimensionRows([
+      { status: "completed", applicabilityStatus: "applicable", completionRate: 1, dueAt: new Date(), isOnTime: true, primaryDimension: "completion" },
+      { status: "cancelled", applicabilityStatus: "excluded", completionRate: 1, dueAt: new Date(), isOnTime: true, primaryDimension: "completion" },
+      { status: "pending", applicabilityStatus: "excluded", completionRate: 0, dueAt: new Date(), isOnTime: false, primaryDimension: "completion" },
+    ], []);
+    const completion = score.dimensions.find(row => row.dimension === "completion");
+    const timeliness = score.dimensions.find(row => row.dimension === "timeliness");
+    expect(completion).toMatchObject({ applicableCount: 1, achievedCount: 1 });
+    expect(timeliness).toMatchObject({ applicableCount: 1, achievedCount: 1 });
   });
 });
 

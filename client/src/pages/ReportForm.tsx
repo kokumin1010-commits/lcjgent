@@ -151,6 +151,7 @@ export default function ReportForm() {
           reportId,
           base64,
           filename: img.file.name,
+          mimeType: img.file.type,
           label: img.label,
         });
       }
@@ -183,12 +184,12 @@ export default function ReportForm() {
     const newImages: PendingImage[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      if (!file.type.startsWith("image/")) {
-        toast.error(`${file.name} は画像ファイルではありません`);
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        toast.error(`${file.name} はJPEG・PNG・WEBP画像ではありません`);
         continue;
       }
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error(`${file.name} は10MBを超えています`);
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name} は5MBを超えています`);
         continue;
       }
       newImages.push({
@@ -219,11 +220,11 @@ export default function ReportForm() {
     const newImages: PendingImage[] = [];
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      if (item.type.startsWith("image/")) {
+      if (["image/jpeg", "image/png", "image/webp"].includes(item.type)) {
         const file = item.getAsFile();
         if (!file) continue;
-        if (file.size > 10 * 1024 * 1024) {
-          toast.error("粘贴的图片超过10MB");
+        if (file.size > 5 * 1024 * 1024) {
+          toast.error("粘贴的图片超过5MB");
           continue;
         }
         newImages.push({
@@ -577,7 +578,7 @@ export default function ReportForm() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   multiple
                   className="hidden"
                   onChange={handleFileSelect}

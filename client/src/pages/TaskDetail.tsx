@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { safeHttpUrlOrNull } from "@shared/safeHttpUrl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 
 const statusColors = {
@@ -34,6 +37,14 @@ const statusLabels = {
   cancelled: "キャンセル",
 };
 
+const executionStatusLabels = {
+  pending: "待反馈",
+  in_progress: "进行中",
+  blocked: "受阻",
+  completed: "已完成",
+  cancelled: "已取消",
+};
+
 interface TaskDetailProps {
   taskId: number;
 }
@@ -41,16 +52,34 @@ interface TaskDetailProps {
 export default function TaskDetail({ taskId }: TaskDetailProps) {
   const [, setLocation] = useLocation();
   const [newStatus, setNewStatus] = useState<string>("");
+  const [feedbackStatus, setFeedbackStatus] = useState<"in_progress" | "blocked" | "completed">("in_progress");
+  const [feedbackNote, setFeedbackNote] = useState("");
+  const [evidenceUrl, setEvidenceUrl] = useState("");
+  const [feedbackRequestId, setFeedbackRequestId] = useState(() => crypto.randomUUID());
 
   const utils = trpc.useUtils();
   const { data: taskData, isLoading } = trpc.task.getById.useQuery({ id: taskId });
-  const { data: reminders } = trpc.task.getReminders.useQuery({ taskId });
-  const { data: assignedStaff } = trpc.task.getStaffByTaskId.useQuery({ taskId });
-  const { data: emailTracking } = trpc.task.getEmailTracking.useQuery({ taskId });
+  const canManage = Boolean(taskData?.execution.canManage);
+  const { data: reminders } = trpc.task.getReminders.useQuery({ taskId }, { enabled: canManage });
+  const { data: emailTracking } = trpc.task.getEmailTracking.useQuery({ taskId }, { enabled: canManage });
+
+  const feedbackMutation = trpc.task.submitExecutionFeedback.useMutation({
+    onSuccess: () => {
+      toast.success("执行反馈已提交，并会进入执行率积分事实");
+      setFeedbackNote("");
+      setEvidenceUrl("");
+      setFeedbackRequestId(crypto.randomUUID());
+      utils.task.getById.invalidate({ id: taskId });
+      utils.task.feed.invalidate();
+    },
+    onError: error => {
+      toast.error("执行反馈提交失败", { description: error.message });
+    },
+  });
 
   const sendReminderMutation = trpc.task.sendReminder.useMutation({
     onSuccess: () => {
-      toast.success("リマインドメールを送信しました");
+      toast.success("リマインドを送信キューに登録しました");
       utils.task.getReminders.invalidate({ taskId });
     },
     onError: (error) => {
@@ -75,11 +104,11 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
 
   const deleteTaskMutation = trpc.task.delete.useMutation({
     onSuccess: () => {
-      toast.success("タスクを削除しました");
+      toast.success("タスクをアーカイブしました");
       setLocation("/master/tasks");
     },
     onError: (error) => {
-      toast.error("タスクの削除に失敗しました", {
+      toast.error("タスクのアーカイブに失敗しました", {
         description: error.message,
       });
     },
@@ -133,24 +162,24 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
             <p className="text-muted-foreground mt-2">タスクID: {task.taskId}</p>
           </div>
         </div>
-        {!lcjBrainProjectId && <AlertDialog>
+        {!lcjBrainProjectId && taskData.execution.canManage && <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="destructive" size="sm">
               <Trash2 className="mr-2 h-4 w-4" />
-              削除
+              アーカイブ
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>タスクを削除しますか？</AlertDialogTitle>
+              <AlertDialogTitle>タスクをアーカイブしますか？</AlertDialogTitle>
               <AlertDialogDescription>
-                この操作は取り消せません。タスクとその関連データが完全に削除されます。
+                一覧から非表示にしますが、担当者・実行フィードバック・証拠・积分監査履歴は削除しません。
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>キャンセル</AlertDialogCancel>
               <AlertDialogAction onClick={() => deleteTaskMutation.mutate({ id: taskId })}>
-                削除
+                アーカイブ
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -173,15 +202,22 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
             </div>
             <div>
               <Label className="text-muted-foreground">担当者</Label>
-              {assignedStaff && assignedStaff.length > 0 ? (
+              {taskData.execution.assignments.length > 0 ? (
                 <div className="mt-2 space-y-2">
-                  {assignedStaff.map((item, index) => (
-                    <div key={index} className="border-l-2 border-primary pl-3">
-                      <p className="font-medium">{item.staff?.name || "不明"}</p>
-                      {item.staff?.department && (
-                        <p className="text-sm text-muted-foreground">{item.staff.department}</p>
+                  {taskData.execution.assignments.map(item => (
+                    <div key={item.staffId} className="border-l-2 border-primary pl-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium">{item.staffName}</p>
+                        <Badge variant="outline">
+                          {executionStatusLabels[item.status]}
+                        </Badge>
+                      </div>
+                      {item.department && (
+                        <p className="text-sm text-muted-foreground">{item.department}</p>
                       )}
-                      <p className="text-sm text-muted-foreground">{item.staff?.email}</p>
+                      {item.feedbackNote && (
+                        <p className="mt-1 whitespace-pre-wrap text-sm">{item.feedbackNote}</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -191,7 +227,6 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
                   {staff?.department && (
                     <p className="text-sm text-muted-foreground">{staff.department}</p>
                   )}
-                  <p className="text-sm text-muted-foreground">{staff?.email}</p>
                 </div>
               )}
             </div>
@@ -299,7 +334,7 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
                   进入LCJ Brain执行计划
                 </Button>
               </div>
-            ) : <>
+            ) : taskData.execution.canManage ? <>
             <div className="space-y-2">
               <Label>ステータス変更</Label>
               <div className="flex gap-2">
@@ -310,7 +345,6 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
                   <SelectContent>
                     <SelectItem value="pending">保留中</SelectItem>
                     <SelectItem value="in_progress">進行中</SelectItem>
-                    <SelectItem value="completed">完了</SelectItem>
                     <SelectItem value="cancelled">キャンセル</SelectItem>
                   </SelectContent>
                 </Select>
@@ -329,7 +363,7 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
             <Button
               className="w-full"
               variant="outline"
-              onClick={() => sendReminderMutation.mutate({ taskId })}
+              onClick={() => sendReminderMutation.mutate({ taskId, requestId: crypto.randomUUID() })}
               disabled={sendReminderMutation.isPending || task.status === "completed"}
             >
               {sendReminderMutation.isPending ? (
@@ -344,10 +378,110 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
                 </>
               )}
             </Button>
-            </>}
+            </> : (
+              <p className="text-sm text-muted-foreground">
+                任务内容与整体状态由布置人或负责人管理；执行人请在下方提交本人反馈。
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
+
+      {taskData.execution.canSubmitFeedback && !lcjBrainProjectId && (
+        <Card className="border-emerald-200">
+          <CardHeader>
+            <CardTitle>提交我的执行反馈</CardTitle>
+            <CardDescription>
+              本人反馈会保留历史，并用于计算每月任务完成率与按期完成率。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>执行状态</Label>
+              <Select value={feedbackStatus} onValueChange={value => setFeedbackStatus(value as typeof feedbackStatus)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="in_progress">进行中</SelectItem>
+                  <SelectItem value="blocked">受阻（请说明原因）</SelectItem>
+                  <SelectItem value="completed">已完成</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="execution-feedback-note">执行内容 / 问题点</Label>
+              <Textarea
+                id="execution-feedback-note"
+                value={feedbackNote}
+                onChange={event => setFeedbackNote(event.target.value)}
+                rows={5}
+                maxLength={4000}
+                placeholder="说明已完成的内容、当前进度，或受阻原因"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="execution-evidence-url">完成证据URL（可选）</Label>
+              <Input
+                id="execution-evidence-url"
+                type="url"
+                value={evidenceUrl}
+                onChange={event => setEvidenceUrl(event.target.value)}
+                placeholder="https://..."
+              />
+            </div>
+            <Button
+              onClick={() => feedbackMutation.mutate({
+                requestId: feedbackRequestId,
+                taskId,
+                status: feedbackStatus,
+                feedbackNote,
+                evidenceUrl: evidenceUrl || undefined,
+              })}
+              disabled={feedbackNote.trim().length < 2 || feedbackMutation.isPending}
+            >
+              {feedbackMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              提交执行反馈
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {taskData.execution.history.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>执行反馈记录</CardTitle>
+            <CardDescription>最新记录优先；历史反馈不会被覆盖。</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {taskData.execution.history.map(entry => {
+              const safeEvidenceUrl = safeHttpUrlOrNull(entry.evidenceUrl);
+              return (
+              <div key={entry.id} className="rounded-lg border p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">{entry.staffName}</span>
+                  <Badge variant="outline">{executionStatusLabels[entry.status]}</Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {entry.submittedAt ? new Date(entry.submittedAt).toLocaleString("ja-JP") : "-"}
+                  </span>
+                </div>
+                <p className="mt-2 whitespace-pre-wrap text-sm">{entry.feedbackNote}</p>
+                {safeEvidenceUrl && (
+                  <a
+                    href={safeEvidenceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-block text-sm text-primary underline"
+                  >
+                    完成证据を開く
+                  </a>
+                )}
+              </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

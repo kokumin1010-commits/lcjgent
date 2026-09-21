@@ -1,127 +1,50 @@
-import { getInProgressTasks, createReminder, getStaffByTaskId, updateTask, createEmailTracking } from "./db";
-import { sendReminderEmail } from "./emailService";
-import { nanoid } from "nanoid";
+import {
+  enqueueDueTaskReminderNotifications,
+  processTaskNotificationOutbox,
+} from "./taskNotificationService";
 
-/**
- * Check all in-progress tasks and send reminder emails
- * This function is called by the scheduler every 12 hours
- */
+let schedulerIntervalId: ReturnType<typeof setInterval> | null = null;
+let enqueueIntervalId: ReturnType<typeof setInterval> | null = null;
+
 export async function checkAndSendReminders() {
-  console.log("[Reminder Scheduler] Starting reminder check...");
-
+  console.log("[Reminder Scheduler] Enqueuing eligible per-assignee reminders...");
   try {
-    const inProgressTasks = await getInProgressTasks();
-    console.log(`[Reminder Scheduler] Found ${inProgressTasks.length} in-progress tasks`);
-
-    let successCount = 0;
-    let failureCount = 0;
-
-    for (const { task } of inProgressTasks) {
-      // Check if 12 hours have passed since last reminder
-      const TWELVE_HOURS = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
-      if (task.lastReminderAt && (Date.now() - task.lastReminderAt) < TWELVE_HOURS) {
-        console.log(`[Reminder Scheduler] Skipping task ${task.id} - last reminder was sent less than 12 hours ago`);
-        continue;
-      }
-
-      // Get all assigned staff members for this task
-      const assignedStaff = await getStaffByTaskId(task.id);
-      
-      if (!assignedStaff || assignedStaff.length === 0) {
-        console.warn(`[Reminder Scheduler] Task ${task.id} has no assigned staff`);
-        continue;
-      }
-
-      // Calculate days elapsed since task creation
-      const daysElapsed = Math.floor(
-        (Date.now() - task.startDate) / (1000 * 60 * 60 * 24)
-      );
-
-      // Send reminder to all assigned staff members
-      for (const item of assignedStaff) {
-        if (!item.staff || !item.staff.email) {
-          console.warn(`[Reminder Scheduler] Task ${task.id} has staff with no email`);
-          continue;
-        }
-
-        console.log(
-          `[Reminder Scheduler] Sending reminder for task ${task.id} to ${item.staff.email}`
-        );
-
-        // Generate tracking token
-        const trackingToken = nanoid(32);
-
-        const result = await sendReminderEmail(
-          item.staff.email,
-          item.staff.name,
-          task.taskDetail,
-          task.taskId,
-          daysElapsed,
-          task.completionToken || undefined,
-          task.screenshotUrls || (task.screenshotUrl ? [task.screenshotUrl] : undefined),
-          task.notes || undefined,
-          task.deadline ? task.deadline.getTime() : undefined,
-          trackingToken
-        );
-
-        if (result.success) {
-          // Record reminder in database
-          await createReminder({
-            taskId: task.id,
-            sentAt: Date.now(),
-            recipientEmail: item.staff.email,
-            emailSubject: `【リマインド】タスクの進捗確認: ${task.taskDetail.substring(0, 50)}...`,
-            status: "sent",
-          });
-          
-          // Create email tracking record
-          await createEmailTracking({
-            reminderId: 0,
-            taskId: task.id,
-            trackingToken,
-            openedAt: null,
-            openCount: 0,
-            ipAddress: null,
-            userAgent: null,
-          });
-          
-          // Update lastReminderAt timestamp
-          await updateTask(task.id, { lastReminderAt: Date.now() });
-          
-          successCount++;
-          console.log(`[Reminder Scheduler] Reminder sent successfully for task ${task.id} to ${item.staff.email}`);
-        } else {
-          await createReminder({
-            taskId: task.id,
-            sentAt: Date.now(),
-            recipientEmail: item.staff.email,
-            emailSubject: `【リマインド】タスクの進捗確認: ${task.taskDetail.substring(0, 50)}...`,
-            status: "failed",
-          });
-          failureCount++;
-          console.error(
-            `[Reminder Scheduler] Failed to send reminder for task ${task.id} to ${item.staff.email}:`,
-            result.error
-          );
-        }
-      }
-    }
-
-    console.log(
-      `[Reminder Scheduler] Completed. Success: ${successCount}, Failed: ${failureCount}`
-    );
-
+    const queued = await enqueueDueTaskReminderNotifications();
+    const delivery = await processTaskNotificationOutbox(100);
     return {
-      success: true,
-      totalTasks: inProgressTasks.length,
-      successCount,
-      failureCount,
+      success: delivery.failed === 0,
+      queuedCount: queued.queued,
+      successCount: delivery.sent,
+      failureCount: delivery.failed,
+      cancelledCount: delivery.cancelled,
     };
   } catch (error) {
-    console.error("[Reminder Scheduler] Error during reminder check:", error);
-    return {
-      success: false,
-      error: String(error),
-    };
+    console.error("[Reminder Scheduler] Error during reminder check", {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return { success: false, error: String(error) };
   }
+}
+
+export function startTaskNotificationScheduler() {
+  if (schedulerIntervalId || enqueueIntervalId) return;
+  const drain = () => processTaskNotificationOutbox(50).catch(error => {
+    console.error("[TaskNotificationOutbox] drain failed", {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  });
+  const enqueue = () => checkAndSendReminders().catch(() => undefined);
+  setTimeout(drain, 10_000);
+  setTimeout(enqueue, 30_000);
+  schedulerIntervalId = setInterval(drain, 30_000);
+  enqueueIntervalId = setInterval(enqueue, 12 * 60 * 60 * 1000);
+}
+
+export function stopTaskNotificationScheduler() {
+  if (schedulerIntervalId) clearInterval(schedulerIntervalId);
+  if (enqueueIntervalId) clearInterval(enqueueIntervalId);
+  schedulerIntervalId = null;
+  enqueueIntervalId = null;
 }

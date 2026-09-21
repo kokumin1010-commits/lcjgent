@@ -294,6 +294,20 @@ async function mergeTaskStaffAssignments(
   duplicateStaffId: number,
 ): Promise<{ moved: number; deduplicated: number }> {
   if (!(await tableColumnExists(connection, "task_staff", "staffId"))) return { moved: 0, deduplicated: 0 };
+  if (!(await tableColumnExists(connection, "task_staff_archive", "originalAssignmentId"))) {
+    throw new Error("task_staff_archive is required before merging staff identities");
+  }
+  await connection.execute(
+    `INSERT IGNORE INTO task_staff_archive
+       (originalAssignmentId,taskId,staffId,assignedAt,archivedBy,archiveReason,mergedIntoAssignmentId)
+     SELECT source.id,source.taskId,source.staffId,source.assignedAt,NULL,
+            'Staff identity merge',target.id
+       FROM task_staff source
+       LEFT JOIN task_staff target
+         ON target.taskId=source.taskId AND target.staffId=?
+      WHERE source.staffId=?`,
+    [canonicalStaffId, duplicateStaffId],
+  );
   const [deleteResult] = await connection.execute<ResultSetHeader>(
     `DELETE source FROM task_staff source
       JOIN task_staff target ON target.taskId=source.taskId AND target.staffId=?

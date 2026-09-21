@@ -111,9 +111,15 @@ export function performanceDailyObligationDeadline(input: {
   return dueAt(input.businessDate, 23, input.offsetHours, 59, 59);
 }
 
-function toDate(value: unknown): Date | null {
+export function toDate(value: unknown): Date | null {
   if (!value) return null;
-  const parsed = value instanceof Date ? value : new Date(String(value));
+  const parsed = value instanceof Date
+    ? value
+    : typeof value === "number" || typeof value === "bigint"
+      ? new Date(Number(value))
+      : /^\d{12,}$/.test(String(value).trim())
+        ? new Date(Number(value))
+        : new Date(String(value));
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
@@ -467,6 +473,7 @@ async function collectDailyReportFacts(
       r.workContent, r.issues, r.remarks, r.createdAt, r.updatedAt
     FROM reports r
     WHERE DATE(r.reportDate) BETWEEN ${fromDate} AND ${endDate}
+      AND r.deletedAt IS NULL
     ORDER BY r.updatedAt DESC, r.id DESC
   `);
   const reportByProfileDate = new Map<string, any>();
@@ -522,17 +529,57 @@ async function collectTaskFacts(
   reviewerMap: Map<number, number | null>,
 ): Promise<FactObservation[]> {
   const result = await db.execute(sql`
-    SELECT DISTINCT t.id, t.taskId, assigned.staffId, t.status, t.deadline, t.completedAt,
-      t.startDate, t.createdAt, t.updatedAt
-    FROM tasks t
-    INNER JOIN (
-      SELECT taskId, staffId FROM task_staff
-      UNION
-      SELECT id AS taskId, staffId FROM tasks
-    ) assigned ON assigned.taskId = t.id
-    INNER JOIN staff s ON s.id = assigned.staffId
-    WHERE DATE(t.createdAt) >= ${effectiveFrom}
-      AND s.isActive = 'active' AND s.archivedAt IS NULL AND s.mergedIntoStaffId IS NULL
+    SELECT taskFacts.*
+    FROM (
+      SELECT DISTINCT t.id, t.taskId, CAST(t.id AS CHAR) AS sourceId,
+        'manual' AS taskSource, assigned.staffId,
+        CASE
+          WHEN t.status = 'cancelled' THEN 'cancelled'
+          ELSE COALESCE(feedback.status, CASE WHEN t.status = 'completed' THEN 'completed' ELSE 'pending' END)
+        END AS status,
+        t.deadline,
+        CASE WHEN t.status = 'cancelled' THEN NULL
+          ELSE COALESCE(feedback.completedAt, CASE WHEN t.status = 'completed' THEN t.completedAt ELSE NULL END)
+        END AS completedAt,
+        t.startDate, t.createdAt,
+        COALESCE(feedback.submittedAt, t.updatedAt) AS updatedAt,
+        CASE WHEN feedback.id IS NULL THEN FALSE ELSE TRUE END AS hasExecutionFeedback
+      FROM tasks t
+      INNER JOIN (
+        SELECT taskId, staffId FROM task_staff
+        UNION
+        SELECT id AS taskId, staffId FROM tasks
+      ) assigned ON assigned.taskId = t.id
+      LEFT JOIN task_execution_feedbacks feedback ON feedback.id = (
+        SELECT MAX(latest.id)
+        FROM task_execution_feedbacks latest
+        WHERE latest.taskId = t.id AND latest.staffId = assigned.staffId
+      )
+      INNER JOIN staff s ON s.id = assigned.staffId
+      WHERE DATE(t.createdAt) >= ${effectiveFrom}
+        AND t.archivedAt IS NULL
+        AND s.isActive = 'active' AND s.archivedAt IS NULL AND s.mergedIntoStaffId IS NULL
+
+      UNION ALL
+
+      SELECT followup.id, CONCAT('REPORT-', followup.id) AS taskId,
+        CONCAT('daily-report:', followup.id) AS sourceId,
+        'daily_report' AS taskSource, reportPerson.linkedStaffId AS staffId,
+        followup.status, followup.dueDate AS deadline, followup.completedAt,
+        UNIX_TIMESTAMP(report.reportDate) * 1000 AS startDate,
+        report.reportDate AS createdAt, followup.updatedAt,
+        CASE WHEN followup.status = 'completed' OR followup.resultNote IS NOT NULL THEN TRUE ELSE FALSE END AS hasExecutionFeedback
+      FROM report_followups followup
+      INNER JOIN reports report ON report.id = followup.reportId AND report.deletedAt IS NULL
+      INNER JOIN report_staff reportPerson ON reportPerson.id = followup.reportStaffId
+        AND reportPerson.isActive = 'active' AND reportPerson.archivedAt IS NULL
+        AND reportPerson.linkedStaffId IS NOT NULL
+      INNER JOIN staff s ON s.id = reportPerson.linkedStaffId
+        AND s.isActive = 'active' AND s.archivedAt IS NULL AND s.mergedIntoStaffId IS NULL
+      WHERE DATE(report.reportDate) >= ${effectiveFrom}
+        AND followup.duplicateOfId IS NULL
+        AND followup.archivedAt IS NULL
+    ) taskFacts
   `);
   return rowsOf<any>(result).map(row => {
     const completedAt = toDate(row.completedAt ? Number(row.completedAt) : null);
@@ -549,15 +596,17 @@ async function collectTaskFacts(
       completedAt,
       isOnTime: completedAt && deadline ? completedAt.getTime() <= deadline.getTime() : null,
       sourceType: "task",
-      sourceId: String(row.id),
+      sourceId: String(row.sourceId),
       dataQuality: "verified",
       completionNumerator: status === "completed" ? 1 : 0,
-      completionDenominator: 1,
-      applicabilityStatus: "applicable",
+      completionDenominator: status === "cancelled" ? 0 : 1,
+      applicabilityStatus: status === "cancelled" ? "excluded" : "applicable",
       summary: {
         taskId: String(row.taskId),
+        taskSource: String(row.taskSource),
         status: String(row.status),
         hasDeadline: Boolean(deadline),
+        hasExecutionFeedback: Boolean(Number(row.hasExecutionFeedback)),
         completedAt: completedAt?.toISOString() || null,
       },
     } as FactObservation;
@@ -867,6 +916,68 @@ async function upsertFact(
   `);
 }
 
+async function excludeInactiveTaskFacts(db: PerformanceDatabase, now: Date) {
+  await db.execute(sql`
+    UPDATE performance_item_instances item
+    LEFT JOIN tasks taskSource
+      ON item.sourceType = 'task'
+      AND item.sourceId NOT LIKE 'daily-report:%'
+      AND CAST(taskSource.id AS CHAR) = item.sourceId
+    LEFT JOIN report_followups followupSource
+      ON item.sourceType = 'task'
+      AND item.sourceId LIKE 'daily-report:%'
+      AND CAST(followupSource.id AS CHAR) = SUBSTRING_INDEX(item.sourceId, ':', -1)
+    LEFT JOIN reports reportSource ON reportSource.id = followupSource.reportId
+    SET item.status = 'cancelled',
+        item.applicabilityStatus = 'excluded',
+        item.dataQuality = 'source_archived',
+        item.completionNumerator = 0,
+        item.completionDenominator = 0,
+        item.completionRate = NULL,
+        item.lastObservedAt = ${now}
+    WHERE item.sourceType = 'task'
+      AND item.applicabilityStatus <> 'excluded'
+      AND (
+        (item.sourceId NOT LIKE 'daily-report:%' AND (
+          taskSource.id IS NULL OR taskSource.archivedAt IS NOT NULL OR taskSource.status = 'cancelled'
+        ))
+        OR
+        (item.sourceId LIKE 'daily-report:%' AND (
+          followupSource.id IS NULL OR followupSource.archivedAt IS NOT NULL
+          OR followupSource.duplicateOfId IS NOT NULL OR followupSource.status = 'cancelled'
+          OR reportSource.id IS NULL OR reportSource.deletedAt IS NOT NULL
+        ))
+      )
+  `);
+  await db.execute(sql`
+    UPDATE performance_item_instances item
+    LEFT JOIN performance_evidence_snapshots snapshot ON snapshot.id = (
+      SELECT MAX(latestSnapshot.id)
+      FROM performance_evidence_snapshots latestSnapshot
+      WHERE latestSnapshot.itemId = item.id
+    )
+    LEFT JOIN reports reportSource
+      ON reportSource.id = CAST(JSON_UNQUOTE(JSON_EXTRACT(snapshot.summaryJson, '$.reportId')) AS UNSIGNED)
+    SET item.status = 'cancelled',
+        item.applicabilityStatus = 'excluded',
+        item.dataQuality = 'source_archived',
+        item.completionNumerator = 0,
+        item.completionDenominator = 0,
+        item.completionRate = NULL,
+        item.lastObservedAt = ${now}
+    WHERE item.sourceType = 'daily_report'
+      AND JSON_EXTRACT(snapshot.summaryJson, '$.reportId') IS NOT NULL
+      AND (reportSource.id IS NULL OR reportSource.deletedAt IS NOT NULL)
+  `);
+  await db.execute(sql`
+    UPDATE performance_reminders reminder
+    INNER JOIN performance_item_instances item ON item.id = reminder.itemId
+    SET reminder.status = 'closed', reminder.closedAt = ${now}
+    WHERE reminder.status = 'open'
+      AND item.applicabilityStatus = 'excluded'
+  `);
+}
+
 export async function runPerformanceReconciliation(
   db: PerformanceDatabase,
   options: { actorUserId?: number; now?: Date; force?: boolean } = {},
@@ -919,6 +1030,7 @@ export async function runPerformanceReconciliation(
       observations.push(...await collectManualChecklistFacts(db, template, today, reviewerMap));
     }
 
+    await excludeInactiveTaskFacts(db, now);
     for (const observation of observations) {
       await upsertFact(db, observation, counters, now);
     }
