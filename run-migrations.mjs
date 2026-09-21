@@ -32,29 +32,6 @@ async function ensureMysqlColumns(connection, tableName, columns) {
   }
 }
 
-async function ensureMysqlUniqueSingleColumnIndex(connection, tableName, columnName, indexName) {
-  const safeIdentifier = /^[A-Za-z0-9_]+$/;
-  if (![tableName, columnName, indexName].every(value => safeIdentifier.test(value))) {
-    throw new Error('Unsafe identifier in unique-index migration');
-  }
-  const [rows] = await connection.execute(
-    `SELECT INDEX_NAME, NON_UNIQUE,
-            GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX SEPARATOR ',') AS indexedColumns
-       FROM information_schema.STATISTICS
-      WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?
-      GROUP BY INDEX_NAME, NON_UNIQUE`,
-    [tableName],
-  );
-  const exists = rows.some(row =>
-    Number(row.NON_UNIQUE) === 0 && String(row.indexedColumns || '') === columnName
-  );
-  if (!exists) {
-    await connection.execute(
-      `ALTER TABLE \`${tableName}\` ADD UNIQUE KEY \`${indexName}\` (\`${columnName}\`)`,
-    );
-  }
-}
-
 async function main() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
@@ -325,12 +302,6 @@ async function main() {
     for (const statement of bwMemberLinkStatements) {
       await connection.execute(statement);
     }
-    await ensureMysqlUniqueSingleColumnIndex(
-      connection,
-      'bw_linked_accounts',
-      'lineUserId',
-      'uq_bw_linked_accounts_line_user',
-    );
     console.log(`[Migration] Required Beauty Wallet member-link schema applied (${bwMemberLinkStatements.length} statements).`);
   } catch (criticalErr) {
     console.error('[Migration] Required Beauty Wallet member-link migration failed:', criticalErr.message);

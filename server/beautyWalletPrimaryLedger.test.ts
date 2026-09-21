@@ -117,7 +117,14 @@ describe("Beauty Wallet primary ledger policy", () => {
 
   it("makes the required member-link migration fatal and verifies owner uniqueness", () => {
     const runner = read("run-migrations.mjs");
-    expect(runner).toContain("ensureMysqlUniqueSingleColumnIndex");
+    const migration = read("drizzle/0156_bw_member_self_link.sql");
+    const service = read("server/beautyWalletMemberLinkService.ts");
+    expect(migration).toContain("UNIQUE KEY `uq_bw_wallet_active_owner_member` (`lineUserId`)");
+    expect(service).toContain('tableName: "bw_wallet_active_owners"');
+    expect(service).not.toContain('tableName: "bw_linked_accounts",\n      columns: "lineUserId"');
+    expect(runner).not.toContain("ensureMysqlUniqueSingleColumnIndex");
+    expect(runner).not.toContain("ALTER TABLE `bw_linked_accounts`");
+    expect(migration).not.toContain("ALTER TABLE `bw_linked_accounts`");
     expect(runner).toContain("Required Beauty Wallet member-link migration failed");
     expect(runner).toContain("process.exit(1)");
     expect(runner).not.toContain("Continuing despite error");

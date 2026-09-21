@@ -112,10 +112,6 @@ export async function ensureBeautyWalletMemberLinkSchema(): Promise<void> {
       tableName: "bw_wallet_active_owners",
       columns: "lineUserId",
     },
-    {
-      tableName: "bw_linked_accounts",
-      columns: "lineUserId",
-    },
   ];
   for (const index of requiredUniqueIndexes) {
     const [rows] = await database.query<RowDataPacket[]>(
