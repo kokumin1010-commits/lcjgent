@@ -96,3 +96,15 @@ LINE Messaging APIにはグループ名変更専用Webhookを前提にできな�
 対象回帰は10ファイル88件成功し、LINE関連全体は37ファイル424件成功した。残る5ファイル10件は固定された別リポジトリpath、Stripe secret、LINE Login／Messaging API secret・token・APP_URLがローカルにない既存環境依存である。production buildは成功し、全量TypeScriptの既存721件のうち今回変更ファイル・変更行は新規診断0件。network I/Oをtransaction外へ出した最終版は独立再レビューでGO（release blockerなし）となった。本検証では実LINEメッセージ送信、グループ設定ON、会員・グループデータ更新は行っていない。
 
 本体commit `813a8936a522d710ccf6eb8b05970392a49aa7d6`はGitHub `main`へpush済みで、同一SHAのRailway statusは`Success - www.livecommercefestival.com`となった。read-only本番確認では`https://lcjmall.com/master/line`がHTTP 200、配信中`LineManagement` chunkに新しいグループAIフォロー・会話履歴・送信状態UI文言が存在した。`/api/health/line-ai-manager`は`aiManagerStorage: ready`、`/api/health/line-group-lifecycle`は`lifecycleStateTable: ready`をHTTP 200で返した。実送信・設定ON・会員／グループ変更を伴う確認は行っていない。
+
+## グループ会話からの確認用AI文案（2026-09-21追加）
+
+管理画面のグループ「会話・送信」Dialogに、新規文案を作る「AI文案を作る」と、入力済み文の意図を安全な文案へ変換する「安全なAI文案にする」を追加した。これは送信機能ではない。生成結果を入力欄へ返すだけで、管理者が「内容を確認しました」を明示操作するまで送信buttonとEnter handlerの双方で拒否する。確認後に編集した場合も未確認へ戻り、再確認が必要になる。通常の手入力文はこのgateの対象外である。確認済みの文案を管理者が既存送信buttonから送った場合だけ、既存の送信前監査、決定的retry key、LINE push、監査確定経路へ進む。生成APIとLINE push APIは分離され、生成のruntime testでも`pushMessage`が呼ばれないことを確認した。
+
+グループ会話分析自体も外部LLMへ会話本文を渡さず、保存済み履歴をサーバー内で日程・準備・実演・商品・振り返り等の有限シグナルへ決定的に縮約する。LLM処理はグループ別会話分析が明示ONで、最新の有限シグナル型インサイトが保存されている場合だけ許可する。LLMへは生会話、実グループ名、参加者名、DM、売上、内部メモ、TikTok個人情報、既存下書き、商品名・説明を渡さない。インサイトから導いた有限のID／件数／confidenceと、現在公開中かつ候補に一致する商品IDだけを渡し、出力も`empathyStyle`、`nextAction`、許可商品IDだけのJSON schemaに拘束する。最終文面はサーバー側の承認済み定型部品と生成後に再確認した公開商品名だけで決定的に組み立てる。既存下書きは本文を再利用せず、日程・準備・実演・商品・課題の有限意図分類にだけ使う。これにより、入力中の個人情報、非公開商品、誇大表現、prompt injectionは送信文面へ複製されない。質問最大1つ、末尾の「LCJ公式AIマネージャー」明示を固定する。
+
+生成APIはadmin限定・アクティブグループ限定で、分析OFF・履歴0件・インサイト未作成・会話revisionと不一致の古いインサイトでは実行しない。`line_groups.conversationRevision`は、親group rowを先にlockする同一transaction内で、グループmessageの一意insertまたは実際のunsend時だけ1回加算する。duplicate webhook／retry、二重unsendでは増えず、順不同受信でも必ず増える。会話分析も取得時revisionをJSONへ保存し、保存直前に親rowを再lockして完全一致を確認する。他workerがanalysis leaseを保持している場合も、revision一致の既存insightだけを再利用する。
+
+生成前の親group row locking readと有限message window選択で原子的snapshotを取得する。LLM後は同一transactionで親group、`line_group_settings`、選択された公開商品rowをこの順に`FOR UPDATE`し、会話revision・active状態・group更新、設定・insight、商品／ブランド内容が開始時と完全一致する場合だけ文案を返す。これにより、処理中の設定OFF→ON、退会→再参加、新着／順不同会話、unsend、インサイト更新、商品変更、非公開→再公開を含む変更raceを拒否する。`line_group_ai_draft_audit`（migration `0151`）へ本文も本文hashも保存せず、管理者ID、グループID、既存下書き有無、状態、モデル、token数、latency、採用商品ID、固定分類error codeだけを記録する。グループ別・管理者別30秒bucketのunique indexで複数replica間の同時生成も抑止する。
+
+最終focused回帰は8ファイル73件成功。LINE-prefix＋group follow-up回帰は29ファイル297件成功し、残る5ファイル10件は本番DB、LINE Login／Messaging API secret・token・APP_URLがローカルにない既存環境依存だった。production buildは成功し、全量TypeScriptの既存721件のうち今回変更対象・revision実装範囲の新規診断は0件。独立再reviewは**GO（release blocker 0件）**。本検証では実LINEメッセージ送信、グループ設定ON、会員・グループデータ変更を行っていない。

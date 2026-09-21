@@ -849,6 +849,7 @@ export const lineGroups = mysqlTable("line_groups", {
   autoFollowUpMessage: text("autoFollowUpMessage"), // Custom follow-up message template
   lastAutoFollowUpAt: timestamp("lastAutoFollowUpAt"), // Last auto follow-up sent timestamp
   lastMessageAt: timestamp("lastMessageAt"),
+  conversationRevision: bigint("conversationRevision", { mode: "number", unsigned: true }).default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

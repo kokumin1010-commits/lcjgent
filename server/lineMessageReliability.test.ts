@@ -30,13 +30,23 @@ function createAuditDb(options?: {
   const where = vi.fn(() => ({ limit }));
   const from = vi.fn(() => ({ where }));
   const select = vi.fn(() => ({ from }));
+  let executeCount = 0;
+  const execute = vi.fn(async () => {
+    executeCount += 1;
+    return executeCount === 2
+      ? [[{ lineGroupId: reservation.lineGroupId }]]
+      : [{ affectedRows: 1 }];
+  });
+  const insert = vi.fn(() => ({ values }));
+  const transaction = vi.fn(async callback => callback({ insert, select, execute }));
   return {
     db: {
-      insert: vi.fn(() => ({ values })),
-      select,
+      transaction,
     } as any,
     values,
     limit,
+    execute,
+    transaction,
   };
 }
 
@@ -101,6 +111,10 @@ describe("LINE outbound audit reliability", () => {
       direction: "outgoing",
       responseStatus: "pending",
     }));
+    expect(fake.execute).toHaveBeenCalledTimes(3);
+    expect(fake.execute.mock.invocationCallOrder[1]).toBeLessThan(fake.values.mock.invocationCallOrder[0]);
+    expect(fake.values.mock.invocationCallOrder[0]).toBeLessThan(fake.execute.mock.invocationCallOrder[2]);
+    expect(fake.transaction).toHaveBeenCalledTimes(1);
   });
 
   it("accepts an identical response-loss retry and returns its finalized state", async () => {
@@ -120,6 +134,7 @@ describe("LINE outbound audit reliability", () => {
       created: false,
       status: "responded",
     });
+    expect(fake.execute).toHaveBeenCalledTimes(2);
   });
 
   it("rejects the same request UUID with different content or target", async () => {
@@ -342,13 +357,16 @@ describe("LINE group inbound persistence and activity", () => {
       }
       return [{ insertId: 77 }];
     });
-    const where = vi.fn(async () => [{ affectedRows: 1 }]);
-    const set = vi.fn(() => ({ where }));
-    const update = vi.fn(() => ({ set }));
     const insert = vi.fn(() => ({ values }));
-    const execute = vi.fn(async () => [[]]);
-    const transaction = vi.fn(async callback => callback({ execute, insert, update }));
-    return { db: { transaction } as any, transaction, execute, insert, values, update, set, where };
+    let executeCount = 0;
+    const execute = vi.fn(async () => {
+      executeCount += 1;
+      return executeCount === 2
+        ? [[{ lineGroupId: reservation.lineGroupId }]]
+        : [[]];
+    });
+    const transaction = vi.fn(async callback => callback({ execute, insert }));
+    return { db: { transaction } as any, transaction, execute, insert, values };
   }
 
   it("commits the unique inbound row and monotonic lastMessageAt update together", async () => {
@@ -364,9 +382,9 @@ describe("LINE group inbound persistence and activity", () => {
     await expect(__lineDbTestUtils.saveLineGroupInboundMessageAndActivityWithDb(fake.db, data))
       .resolves.toEqual({ id: 77, ...data });
     expect(fake.transaction).toHaveBeenCalledTimes(1);
-    expect(fake.execute).toHaveBeenCalledTimes(2);
-    expect(fake.values.mock.invocationCallOrder[0]).toBeLessThan(fake.where.mock.invocationCallOrder[0]);
-    expect(fake.set).toHaveBeenCalledWith({ lastMessageAt: new Date(data.lineTimestamp) });
+    expect(fake.execute).toHaveBeenCalledTimes(3);
+    expect(fake.execute.mock.invocationCallOrder[1]).toBeLessThan(fake.values.mock.invocationCallOrder[0]);
+    expect(fake.values.mock.invocationCallOrder[0]).toBeLessThan(fake.execute.mock.invocationCallOrder[2]);
   });
 
   it("does not move activity for a duplicate webhook message", async () => {
@@ -379,6 +397,56 @@ describe("LINE group inbound persistence and activity", () => {
       content: "再配信",
       lineTimestamp: Date.parse("2026-09-20T02:00:00.000Z"),
     })).resolves.toBeNull();
+    expect(fake.execute).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("LINE group unsend conversation revision", () => {
+  function redactionDb(alreadyCancelled = false) {
+    let executeCount = 0;
+    const execute = vi.fn(async () => {
+      executeCount += 1;
+      if (executeCount === 1 || executeCount === 2) {
+        return [[{ lineGroupId: reservation.lineGroupId }]];
+      }
+      if (executeCount === 3) {
+        return [[{
+          lineGroupId: reservation.lineGroupId,
+          content: alreadyCancelled ? "[送信取消済み]" : "元の会話",
+          responseStatus: alreadyCancelled ? "cancelled" : "none",
+        }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+    const updateWhere = vi.fn(async () => [{ affectedRows: 1 }]);
+    const set = vi.fn(() => ({ where: updateWhere }));
+    const update = vi.fn(() => ({ set }));
+    const transaction = vi.fn(async callback => callback({ execute, update }));
+    return { db: { transaction } as any, execute, update, set, updateWhere, transaction };
+  }
+
+  it("redacts under the parent lock and advances the revision once", async () => {
+    const fake = redactionDb();
+
+    await expect(__lineDbTestUtils.redactLineMessageByMessageIdWithDb(
+      fake.db,
+      "group-unsend-once",
+    )).resolves.toBeUndefined();
+
+    expect(fake.execute).toHaveBeenCalledTimes(5);
+    expect(fake.update).toHaveBeenCalledTimes(1);
+    expect(fake.execute.mock.invocationCallOrder[1]).toBeLessThan(fake.update.mock.invocationCallOrder[0]);
+  });
+
+  it("does not mutate or advance the revision for an already redacted delivery", async () => {
+    const fake = redactionDb(true);
+
+    await expect(__lineDbTestUtils.redactLineMessageByMessageIdWithDb(
+      fake.db,
+      "group-unsend-duplicate",
+    )).resolves.toBeUndefined();
+
+    expect(fake.execute).toHaveBeenCalledTimes(3);
     expect(fake.update).not.toHaveBeenCalled();
   });
 });

@@ -67,6 +67,8 @@ export default function LineManagement() {
   const [showGroupDetailDialog, setShowGroupDetailDialog] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [groupMessageText, setGroupMessageText] = useState("");
+  const [groupAiDraftPendingReview, setGroupAiDraftPendingReview] = useState(false);
+  const [groupAiDraftReviewed, setGroupAiDraftReviewed] = useState(false);
   const [groupMemberCounts, setGroupMemberCounts] = useState<Record<string, number | null>>({});
   const [groupMemberCountsLoaded, setGroupMemberCountsLoaded] = useState(false);
   const [showLiverInteractionDialog, setShowLiverInteractionDialog] = useState(false);
@@ -200,6 +202,8 @@ export default function LineManagement() {
 
   useEffect(() => {
     setGroupMessageText("");
+    setGroupAiDraftPendingReview(false);
+    setGroupAiDraftReviewed(false);
     groupMessageRequestIdRef.current = null;
   }, [selectedGroup?.lineGroupId]);
 
@@ -215,6 +219,8 @@ export default function LineManagement() {
       if (variables.to.startsWith("C")) {
         groupMessageRequestIdRef.current = null;
         setGroupMessageText("");
+        setGroupAiDraftPendingReview(false);
+        setGroupAiDraftReviewed(false);
         void refetchGroupMessages();
       } else {
         directMessageRequestIdRef.current = null;
@@ -312,6 +318,24 @@ export default function LineManagement() {
     },
   });
 
+  const generateGroupDraftMutation = trpc.line.generateGroupMessageDraft.useMutation({
+    onSuccess: (result, variables) => {
+      if (!showGroupDetailDialog || selectedGroup?.lineGroupId !== variables.lineGroupId) return;
+      setGroupMessageText(result.message);
+      setGroupAiDraftPendingReview(true);
+      setGroupAiDraftReviewed(false);
+      groupMessageRequestIdRef.current = null;
+      toast.success(
+        language === "ja"
+          ? "AI文案を入力欄へ作成しました。確認・修正してから送信してください"
+          : "AI文案已填入输入框，请确认或修改后再发送"
+      );
+    },
+    onError: (error) => {
+      toast.error(error.message || (language === "ja" ? "AI文案の生成に失敗しました" : "AI文案生成失败"));
+    },
+  });
+
   // Link user mutation
   const linkUserMutation = trpc.line.linkUser.useMutation({
     onSuccess: () => {
@@ -345,6 +369,14 @@ export default function LineManagement() {
 
   const handleSendGroupMessage = () => {
     if (!selectedGroup?.lineGroupId || !groupMessageText.trim() || sendMessageMutation.isPending) return;
+    if (groupAiDraftPendingReview && !groupAiDraftReviewed) {
+      toast.error(
+        language === "ja"
+          ? "AI文案の内容を確認し、「内容を確認しました」を押してから送信してください"
+          : "请先确认AI文案内容，并点击“已确认内容”后再发送"
+      );
+      return;
+    }
     groupMessageRequestIdRef.current ||= crypto.randomUUID();
     sendMessageMutation.mutate({
       to: selectedGroup.lineGroupId,
@@ -1721,8 +1753,8 @@ export default function LineManagement() {
                 <span>{language === "ja" ? "グループ会話を分析" : "分析群聊"}</span>
                 <span className="text-xs text-muted-foreground font-normal">
                   {language === "ja"
-                    ? "初期OFF。対象グループごとに有効化すると、匿名化した保存会話を5分単位で分析"
-                    : "默认关闭。按群组启用后，每5分钟分析已匿名化的保存对话"}
+                    ? "初期OFF。参加者へ利用目的を案内したうえで有効化すると、保存会話をサーバー内で有限シグナルへ縮約して分析"
+                    : "默认关闭。请先向群成员说明用途；启用后，仅在服务器内将已保存对话归纳为有限信号进行分析"}
                 </span>
               </Label>
               <Switch
@@ -1987,7 +2019,12 @@ export default function LineManagement() {
                 <div className="md:col-span-2 rounded-lg border bg-background/90 p-3">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-xs font-medium text-muted-foreground">{language === "ja" ? "送信前ドラフト（自動送信OFF時）" : "发送前草稿（自动发送关闭时）"}</p>
-                    <Button size="sm" variant="ghost" onClick={() => setGroupMessageText(selectedGroup.groupInsight.suggestedMessage || "")}>
+                    <Button size="sm" variant="ghost" onClick={() => {
+                      setGroupMessageText(selectedGroup.groupInsight.suggestedMessage || "");
+                      setGroupAiDraftPendingReview(true);
+                      setGroupAiDraftReviewed(false);
+                      groupMessageRequestIdRef.current = null;
+                    }}>
                       {language === "ja" ? "入力欄へコピー" : "复制到输入框"}
                     </Button>
                   </div>
@@ -2104,16 +2141,89 @@ export default function LineManagement() {
 
           {/* Message Input */}
           <div className="mt-4 space-y-2">
-            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-              <span>{language === "ja" ? "履歴を確認しながらLCJ公式LINEとして送信" : "查看历史后，以LCJ官方LINE发送"}</span>
-              <span>{groupMessageText.length.toLocaleString()}/5,000</span>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-xs text-muted-foreground">
+                <p>{language === "ja" ? "履歴を確認しながらLCJ公式LINEとして送信" : "查看历史后，以LCJ官方LINE发送"}</p>
+                <p className="mt-0.5">
+                  {language === "ja"
+                    ? "AIは匿名化済みインサイトから文調・次アクション・公開商品IDだけを選び、安全な定型部品で下書きを作成します。自動送信されません。"
+                    : "AI仅从匿名化洞察中选择语气、下一步和公开商品ID，再用安全固定文案生成草稿；不会自动发送。"}
+                </p>
+                <p className="mt-1 font-medium text-amber-700 dark:text-amber-300">
+                  {language === "ja"
+                    ? "送信前に必ず内容を確認し、必要に応じて修正してから送信してください。"
+                    : "发送前请务必检查内容，并在需要时修改后再发送。"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={
+                    !selectedGroup?.lineGroupId ||
+                    selectedGroup?.analysisEnabled !== true ||
+                    loadingGroupMessages ||
+                    generateGroupDraftMutation.isPending ||
+                    sendMessageMutation.isPending
+                  }
+                  onClick={() => {
+                    if (!selectedGroup?.lineGroupId) return;
+                    generateGroupDraftMutation.mutate({
+                      lineGroupId: selectedGroup.lineGroupId,
+                      currentDraft: groupMessageText.trim() || undefined,
+                    });
+                  }}
+                >
+                  {generateGroupDraftMutation.isPending ? (
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-1.5 h-3.5 w-3.5 text-violet-600" />
+                  )}
+                  {language === "ja"
+                    ? (groupMessageText.trim() ? "安全なAI文案にする" : "AI文案を作る")
+                    : (groupMessageText.trim() ? "转换为安全AI文案" : "AI生成文案")}
+                </Button>
+                <span className="text-xs text-muted-foreground">{groupMessageText.length.toLocaleString()}/5,000</span>
+              </div>
             </div>
+            {selectedGroup?.analysisEnabled !== true && (
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                {language === "ja"
+                  ? "AI文案を使うには「自動追い設定」で「グループ会話を分析」をONにしてください。"
+                  : "使用AI文案前，请在“自动跟进设置”中开启“分析群聊”。"}
+              </p>
+            )}
+            {groupAiDraftPendingReview && (
+              <div className={`flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-xs ${
+                groupAiDraftReviewed
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200"
+                  : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
+              }`}>
+                <span>
+                  {groupAiDraftReviewed
+                    ? (language === "ja" ? "この内容は確認済みです。編集すると再確認が必要です。" : "当前内容已确认；编辑后需要重新确认。")
+                    : (language === "ja" ? "AI文案はまだ送信できません。内容・宛先・商品情報を確認してください。" : "AI文案暂不可发送，请确认内容、对象和商品信息。")}
+                </span>
+                {!groupAiDraftReviewed && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setGroupAiDraftReviewed(true)}
+                  >
+                    {language === "ja" ? "内容を確認しました" : "已确认内容"}
+                  </Button>
+                )}
+              </div>
+            )}
             <div className="flex gap-2">
             <Textarea
               value={groupMessageText}
-              disabled={sendMessageMutation.isPending}
+              disabled={sendMessageMutation.isPending || generateGroupDraftMutation.isPending}
               onChange={(e) => {
                 setGroupMessageText(e.target.value.slice(0, 5_000));
+                if (groupAiDraftPendingReview) setGroupAiDraftReviewed(false);
                 groupMessageRequestIdRef.current = null;
               }}
               placeholder={language === "ja" ? "メッセージを入力..." : "输入消息..."}
@@ -2127,7 +2237,12 @@ export default function LineManagement() {
             />
             <Button
               onClick={handleSendGroupMessage}
-              disabled={!groupMessageText.trim() || sendMessageMutation.isPending}
+              disabled={
+                !groupMessageText.trim() ||
+                sendMessageMutation.isPending ||
+                generateGroupDraftMutation.isPending ||
+                (groupAiDraftPendingReview && !groupAiDraftReviewed)
+              }
             >
               {sendMessageMutation.isPending ? (
                 <RefreshCw className="h-4 w-4 animate-spin" />

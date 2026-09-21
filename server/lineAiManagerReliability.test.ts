@@ -70,9 +70,11 @@ const fakeDb = vi.hoisted(() => {
 });
 
 vi.mock("./db", () => ({
+  bumpLineGroupConversationRevisionUsingExecutor: vi.fn(async () => undefined),
   getDb: vi.fn(async () => fakeDb),
   getLineMessages: vi.fn(async () => []),
   getLiverInteractionSummary: vi.fn(async () => null),
+  lockLineGroupConversationUsingExecutor: vi.fn(async () => undefined),
   saveLineMessage: state.saveLineMessage,
 }));
 vi.mock("./line", () => ({

@@ -193,6 +193,25 @@ async function main() {
     await ensureMysqlColumns(connection, 'line_group_settings', lineGroupInsightColumns);
     console.log(`[Migration] LINE group AI insight storage ensured (${lineGroupAiInsightStatements.length} base statements, ${lineGroupInsightColumns.length} columns).`);
 
+    console.log('[Migration] Ensuring LINE group AI draft audit table...');
+    const lineGroupAiDraftAuditMigrationPath = path.join(__dirname, 'drizzle', '0151_line_group_ai_draft_audit.sql');
+    const lineGroupAiDraftAuditSql = await fs.readFile(lineGroupAiDraftAuditMigrationPath, 'utf8');
+    const lineGroupAiDraftAuditStatements = lineGroupAiDraftAuditSql
+      .split('--> statement-breakpoint')
+      .map(statement => statement.trim())
+      .filter(Boolean);
+    for (const statement of lineGroupAiDraftAuditStatements) {
+      try {
+        await connection.execute(statement);
+      } catch (error) {
+        if (!isDuplicateMysqlColumn(error)) throw error;
+      }
+    }
+    await ensureMysqlColumns(connection, 'line_groups', [
+      { name: 'conversationRevision', definition: 'bigint unsigned NOT NULL DEFAULT 0' },
+    ]);
+    console.log(`[Migration] LINE group AI draft audit storage and conversation revision ensured (${lineGroupAiDraftAuditStatements.length} statements).`);
+
     console.log('[Migration] Ensuring LCJ Brain core super administrators...');
     const lcjBrainPermissionMigrationPath = path.join(__dirname, 'drizzle', '0148_lcj_brain_core_super_admins.sql');
     const lcjBrainPermissionSql = await fs.readFile(lcjBrainPermissionMigrationPath, 'utf8');

@@ -50,6 +50,10 @@ describe("LINE management authorization", () => {
     await expect(caller.line.analyzeGroupConversation({
       lineGroupId: "C00000000000000000000000000000000",
     })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.line.generateGroupMessageDraft({
+      lineGroupId: "C00000000000000000000000000000000",
+      currentDraft: "この文を整えてください",
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.line.sendMessage({
       to: "C00000000000000000000000000000000",
       message: "権限テスト",

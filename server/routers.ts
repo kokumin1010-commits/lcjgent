@@ -832,6 +832,7 @@ import {
 } from "./lineGroupLifecycle";
 import {
   analyzeLineGroupConversation,
+  generateLineGroupMessageDraft,
   getLineGroupAiInsight,
   getLineAiManagerHistory,
   listLineAiManagers,
@@ -13708,6 +13709,99 @@ ${conversationText}
           throw new TRPCError({ code: "NOT_FOUND", message: "対象のアクティブなLINEグループが見つかりません" });
         }
         return await getLineGroupAiInsight(input.lineGroupId);
+      }),
+
+    generateGroupMessageDraft: protectedProcedure
+      .input(z.object({
+        lineGroupId: z.string().trim().regex(/^C[A-Za-z0-9_-]{8,63}$/),
+        currentDraft: z.string().trim().max(5_000).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
+        const group = await getLineGroupByLineId(input.lineGroupId);
+        if (!group?.isActive) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "対象のアクティブなLINEグループが見つかりません",
+          });
+        }
+        try {
+          return await generateLineGroupMessageDraft(
+            input.lineGroupId,
+            input.currentDraft || undefined,
+            String(ctx.user.id),
+          );
+        } catch (error) {
+          const errorCode = error instanceof Error ? error.message : "LINE_GROUP_AI_DRAFT_FAILED";
+          if (errorCode === "LINE_GROUP_AI_ANALYSIS_DISABLED") {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: "AI文案を作るには、このグループの「グループ会話を分析」をONにしてください",
+            });
+          }
+          if (errorCode === "LINE_GROUP_AI_DRAFT_NO_MESSAGES") {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: "文案作成に使えるグループ会話がまだありません",
+            });
+          }
+          if (errorCode === "LINE_GROUP_AI_DRAFT_NO_INSIGHT") {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: "先に「更新分析」を実行してからAI文案を作ってください",
+            });
+          }
+          if (errorCode === "LINE_GROUP_AI_DRAFT_INSIGHT_STALE") {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "会話履歴が分析後に変更されました。「更新分析」を実行してから再生成してください",
+            });
+          }
+          if (errorCode === "LINE_GROUP_AI_DRAFT_STALE") {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "文案生成中に新しい会話を受信しました。履歴を更新してもう一度生成してください",
+            });
+          }
+          if (
+            errorCode === "LINE_GROUP_AI_DRAFT_SETTINGS_CHANGED" ||
+            errorCode === "LINE_GROUP_AI_DRAFT_GROUP_CHANGED"
+          ) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "文案生成中にグループ設定が変更されました。最新状態を確認して再生成してください",
+            });
+          }
+          if (errorCode === "LINE_GROUP_AI_DRAFT_GROUP_INACTIVE") {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "文案生成中にグループが非アクティブになりました",
+            });
+          }
+          if (errorCode === "LINE_GROUP_AI_DRAFT_RATE_LIMITED") {
+            throw new TRPCError({
+              code: "TOO_MANY_REQUESTS",
+              message: "AI文案は30秒後にもう一度生成できます",
+            });
+          }
+          if (
+            errorCode === "LINE_GROUP_AI_DRAFT_PRODUCT_UNPUBLISHED" ||
+            errorCode === "LINE_GROUP_AI_DRAFT_PRODUCT_CHANGED"
+          ) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "商品公開状態が変更されました。分析を更新してから再生成してください",
+            });
+          }
+          console.error("[LINE Management] Group AI draft generation failed", {
+            code: "LINE_GROUP_AI_DRAFT_FAILED",
+            lineGroupId: input.lineGroupId,
+          });
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "AI文案を生成できませんでした。少し待ってから再試行してください。[LINE_GROUP_AI_DRAFT_FAILED]",
+          });
+        }
       }),
 
     listMessages: protectedProcedure

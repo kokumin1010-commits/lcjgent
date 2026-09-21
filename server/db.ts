@@ -3497,6 +3497,64 @@ export async function updateGroupLastMessageAt(
     ));
 }
 
+type LineGroupConversationExecutor = {
+  execute: (query: any) => Promise<any>;
+};
+
+/**
+ * Group-message writers and AI draft snapshots serialize on the same parent
+ * row. This makes conversationRevision and the selected message window one
+ * atomic view without relying on event timestamps or arrival order.
+ */
+export async function lockLineGroupConversationUsingExecutor(
+  executor: LineGroupConversationExecutor,
+  lineGroupId: string,
+  ensureRow = true,
+): Promise<void> {
+  if (ensureRow) {
+    await executor.execute(sql`
+      INSERT IGNORE INTO line_groups
+        (lineGroupId, groupName, isActive, notificationsEnabled, autoFollowUpEnabled)
+      VALUES
+        (${lineGroupId}, 'LINE Group', true, true, false)
+    `);
+  }
+  const lockedResult = await executor.execute(sql`
+    SELECT lineGroupId
+    FROM line_groups
+    WHERE lineGroupId = ${lineGroupId}
+    LIMIT 1
+    FOR UPDATE
+  `);
+  if (!firstLineGroupClaimRow(lockedResult)) {
+    throw new Error("LINE_GROUP_CONVERSATION_LOCK_UNAVAILABLE");
+  }
+}
+
+export async function bumpLineGroupConversationRevisionUsingExecutor(
+  executor: LineGroupConversationExecutor,
+  lineGroupId: string,
+  eventTime?: Date,
+): Promise<void> {
+  if (eventTime) {
+    await executor.execute(sql`
+      UPDATE line_groups
+      SET lastMessageAt = CASE
+            WHEN lastMessageAt IS NULL OR lastMessageAt < ${eventTime} THEN ${eventTime}
+            ELSE lastMessageAt
+          END,
+          conversationRevision = conversationRevision + 1
+      WHERE lineGroupId = ${lineGroupId}
+    `);
+    return;
+  }
+  await executor.execute(sql`
+    UPDATE line_groups
+    SET conversationRevision = conversationRevision + 1
+    WHERE lineGroupId = ${lineGroupId}
+  `);
+}
+
 // Save LINE message
 export async function saveLineMessage(data: {
   messageId: string;
@@ -3515,9 +3573,12 @@ export async function saveLineMessage(data: {
 }) {
   const db = await getDb();
   if (!db) return null;
-  
-  try {
-    const result = await db.insert(lineMessages).values({
+
+  const insertMessage = async (executor: Pick<typeof db, "insert" | "execute">) => {
+    if (data.lineGroupId) {
+      await lockLineGroupConversationUsingExecutor(executor, data.lineGroupId);
+    }
+    const result = await executor.insert(lineMessages).values({
       messageId: data.messageId,
       sourceType: data.sourceType,
       lineUserId: data.lineUserId,
@@ -3531,8 +3592,16 @@ export async function saveLineMessage(data: {
       responseStatus: data.responseStatus || "none",
       responseSummary: data.responseSummary,
     });
-
+    if (data.lineGroupId) {
+      await bumpLineGroupConversationRevisionUsingExecutor(executor, data.lineGroupId);
+    }
     return { id: result[0].insertId, ...data };
+  };
+
+  try {
+    return data.lineGroupId
+      ? await db.transaction(tx => insertMessage(tx as Pick<typeof db, "insert" | "execute">))
+      : await insertMessage(db);
   } catch (error: any) {
     const errorCode = error?.code || error?.cause?.code;
     if (errorCode === "ER_DUP_ENTRY") {
@@ -3559,19 +3628,7 @@ async function saveLineGroupInboundMessageAndActivityWithDb(
     // Serialize inbound persistence against the follow-up delivery claim. The
     // row is created fail-safe with auto follow-up OFF if an old group somehow
     // receives a message before its join event has populated metadata.
-    await tx.execute(sql`
-      INSERT IGNORE INTO line_groups
-        (lineGroupId, groupName, isActive, notificationsEnabled, autoFollowUpEnabled)
-      VALUES
-        (${data.lineGroupId}, 'LINE Group', true, true, false)
-    `);
-    await tx.execute(sql`
-      SELECT lineGroupId
-      FROM line_groups
-      WHERE lineGroupId = ${data.lineGroupId}
-      LIMIT 1
-      FOR UPDATE
-    `);
+    await lockLineGroupConversationUsingExecutor(tx, data.lineGroupId);
     let result;
     try {
       result = await tx.insert(lineMessages).values({
@@ -3595,17 +3652,11 @@ async function saveLineGroupInboundMessageAndActivityWithDb(
       throw error;
     }
 
-    const eventTime = new Date(data.lineTimestamp);
-    await tx
-      .update(lineGroups)
-      .set({ lastMessageAt: eventTime })
-      .where(and(
-        eq(lineGroups.lineGroupId, data.lineGroupId),
-        or(
-          isNull(lineGroups.lastMessageAt),
-          lt(lineGroups.lastMessageAt, eventTime),
-        ),
-      ));
+    await bumpLineGroupConversationRevisionUsingExecutor(
+      tx,
+      data.lineGroupId,
+      new Date(data.lineTimestamp),
+    );
     return { id: result[0].insertId, ...data };
   });
 }
@@ -3633,52 +3684,60 @@ async function reserveLineOutgoingAuditWithDb(
   db: LineOutgoingAuditDb,
   reservation: LineOutgoingAuditReservation,
 ): Promise<{ created: boolean; status: "pending" | "responded" | "cancelled" | "none" }> {
-  try {
-    await db.insert(lineMessages).values({
-      messageId: reservation.messageId,
-      sourceType: reservation.sourceType,
-      lineUserId: reservation.lineUserId,
-      lineGroupId: reservation.lineGroupId,
-      senderName: reservation.senderName,
-      messageType: "text",
-      content: reservation.content,
-      direction: "outgoing",
-      lineTimestamp: reservation.lineTimestamp,
-      needsResponse: false,
-      responseStatus: "pending",
-      responseSummary: reservation.pendingSummary,
-    });
-    return { created: true, status: "pending" };
-  } catch (error: any) {
-    const errorCode = error?.code || error?.cause?.code;
-    if (errorCode !== "ER_DUP_ENTRY") throw error;
-  }
+  return db.transaction(async tx => {
+    if (reservation.lineGroupId) {
+      await lockLineGroupConversationUsingExecutor(tx, reservation.lineGroupId);
+    }
+    try {
+      await tx.insert(lineMessages).values({
+        messageId: reservation.messageId,
+        sourceType: reservation.sourceType,
+        lineUserId: reservation.lineUserId,
+        lineGroupId: reservation.lineGroupId,
+        senderName: reservation.senderName,
+        messageType: "text",
+        content: reservation.content,
+        direction: "outgoing",
+        lineTimestamp: reservation.lineTimestamp,
+        needsResponse: false,
+        responseStatus: "pending",
+        responseSummary: reservation.pendingSummary,
+      });
+      if (reservation.lineGroupId) {
+        await bumpLineGroupConversationRevisionUsingExecutor(tx, reservation.lineGroupId);
+      }
+      return { created: true as const, status: "pending" as const };
+    } catch (error: any) {
+      const errorCode = error?.code || error?.cause?.code;
+      if (errorCode !== "ER_DUP_ENTRY") throw error;
+    }
 
-  const [existing] = await db.select({
-    sourceType: lineMessages.sourceType,
-    lineUserId: lineMessages.lineUserId,
-    lineGroupId: lineMessages.lineGroupId,
-    content: lineMessages.content,
-    direction: lineMessages.direction,
-    responseStatus: lineMessages.responseStatus,
-  }).from(lineMessages).where(eq(lineMessages.messageId, reservation.messageId)).limit(1);
+    const [existing] = await tx.select({
+      sourceType: lineMessages.sourceType,
+      lineUserId: lineMessages.lineUserId,
+      lineGroupId: lineMessages.lineGroupId,
+      content: lineMessages.content,
+      direction: lineMessages.direction,
+      responseStatus: lineMessages.responseStatus,
+    }).from(lineMessages).where(eq(lineMessages.messageId, reservation.messageId)).limit(1);
 
-  const samePayload = existing &&
-    existing.direction === "outgoing" &&
-    existing.sourceType === reservation.sourceType &&
-    (existing.lineUserId || null) === (reservation.lineUserId || null) &&
-    (existing.lineGroupId || null) === (reservation.lineGroupId || null) &&
-    (existing.content || "") === reservation.content;
-  if (!samePayload) {
-    const error = new Error("LINE_OUTBOUND_IDEMPOTENCY_CONFLICT");
-    (error as Error & { code?: string }).code = "LINE_OUTBOUND_IDEMPOTENCY_CONFLICT";
-    throw error;
-  }
+    const samePayload = existing &&
+      existing.direction === "outgoing" &&
+      existing.sourceType === reservation.sourceType &&
+      (existing.lineUserId || null) === (reservation.lineUserId || null) &&
+      (existing.lineGroupId || null) === (reservation.lineGroupId || null) &&
+      (existing.content || "") === reservation.content;
+    if (!samePayload) {
+      const error = new Error("LINE_OUTBOUND_IDEMPOTENCY_CONFLICT");
+      (error as Error & { code?: string }).code = "LINE_OUTBOUND_IDEMPOTENCY_CONFLICT";
+      throw error;
+    }
 
-  return {
-    created: false,
-    status: existing.responseStatus,
-  };
+    return {
+      created: false as const,
+      status: existing.responseStatus,
+    };
+  });
 }
 
 /**
@@ -3735,6 +3794,7 @@ export async function finalizeLineOutgoingAudit(
 export const __lineDbTestUtils = {
   createLineFollowUpWithDb,
   finalizeLineOutgoingAuditWithDb,
+  redactLineMessageByMessageIdWithDb,
   reserveLineOutgoingAuditWithDb,
   saveLineGroupInboundMessageAndActivityWithDb,
   withLineGroupFollowUpClaimUsingDb,
@@ -3754,31 +3814,58 @@ export async function updateLineMessageSenderName(
   ));
 }
 
+async function redactLineMessageByMessageIdWithDb(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  messageId: string,
+): Promise<void> {
+  await db.transaction(async tx => {
+    const targetResult = await tx.execute(sql`
+      SELECT lineGroupId
+      FROM line_messages
+      WHERE messageId = ${messageId}
+      LIMIT 1
+    `);
+    const target = firstLineGroupClaimRow(targetResult);
+    if (!target) return;
+    if (target.lineGroupId) {
+      await lockLineGroupConversationUsingExecutor(tx, String(target.lineGroupId), false);
+    }
+
+    const storedResult = await tx.execute(sql`
+      SELECT lineGroupId, content, responseStatus
+      FROM line_messages
+      WHERE messageId = ${messageId}
+      LIMIT 1
+      FOR UPDATE
+    `);
+    const storedMessage = firstLineGroupClaimRow(storedResult);
+    if (!storedMessage) return;
+    if (storedMessage.content === "[送信取消済み]" && storedMessage.responseStatus === "cancelled") return;
+
+    await tx.update(lineMessages).set({
+      content: "[送信取消済み]",
+      needsResponse: false,
+      responseStatus: "cancelled",
+      responseSummary: null,
+    }).where(eq(lineMessages.messageId, messageId));
+    if (storedMessage.lineGroupId) {
+      await bumpLineGroupConversationRevisionUsingExecutor(tx, String(storedMessage.lineGroupId));
+      await tx.execute(sql`
+        UPDATE line_group_settings
+        SET groupInsightJson = NULL,
+            groupInsightUpdatedAt = NULL,
+            groupInsightLastMessageAt = NULL,
+            groupInsightMessageCount = 0
+        WHERE lineGroupId = ${String(storedMessage.lineGroupId)}
+      `);
+    }
+  });
+}
+
 export async function redactLineMessageByMessageId(messageId: string): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const [storedMessage] = await db.select({ lineGroupId: lineMessages.lineGroupId })
-    .from(lineMessages)
-    .where(eq(lineMessages.messageId, messageId))
-    .limit(1);
-  await db.update(lineMessages).set({
-    content: "[送信取消済み]",
-    needsResponse: false,
-    responseStatus: "cancelled",
-    responseSummary: null,
-  }).where(eq(lineMessages.messageId, messageId));
-  if (storedMessage?.lineGroupId) {
-    await db.execute(sql`
-      UPDATE line_group_settings
-      SET groupInsightJson = NULL,
-          groupInsightUpdatedAt = NULL,
-          groupInsightLastMessageAt = NULL,
-          groupInsightMessageCount = 0
-      WHERE lineGroupId = ${storedMessage.lineGroupId}
-    `).catch(error => {
-      console.error("[LINE Message] Failed to invalidate group insight after unsend:", error);
-    });
-  }
+  await redactLineMessageByMessageIdWithDb(db, messageId);
 }
 
 // Get LINE messages for a user or group

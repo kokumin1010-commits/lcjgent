@@ -5,9 +5,11 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("./db", () => ({
+  bumpLineGroupConversationRevisionUsingExecutor: vi.fn(),
   getDb: vi.fn(async () => ({ execute: state.execute })),
   getLineMessages: vi.fn(async () => []),
   getLiverInteractionSummary: vi.fn(async () => null),
+  lockLineGroupConversationUsingExecutor: vi.fn(),
   saveLineMessage: vi.fn(),
 }));
 vi.mock("./line", () => ({
