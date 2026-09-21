@@ -2750,6 +2750,16 @@ async function applyLineGroupAutomationDefaultsRolloutUsingDb(
   });
 }
 
+export async function ensureLineGroupAutomationDefaults(): Promise<{
+  applied: boolean;
+  activeGroupCount: number;
+  settingsRowCount: number;
+}> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available while applying LINE group automation defaults");
+  return applyLineGroupAutomationDefaultsRolloutUsingDb(db);
+}
+
 export async function ensureLineAiManagerStorage(): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available while ensuring LINE AI manager storage");
@@ -2810,14 +2820,6 @@ export async function ensureLineAiManagerStorage(): Promise<void> {
     \`appliedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (\`rolloutKey\`)
   )`));
-  const rollout = await applyLineGroupAutomationDefaultsRolloutUsingDb(db);
-  if (rollout.applied) {
-    console.info("[LINE AI Manager] Applied group automation defaults", {
-      code: "LINE_GROUP_AUTOMATION_DEFAULTS_APPLIED",
-      activeGroupCount: rollout.activeGroupCount,
-      settingsRowCount: rollout.settingsRowCount,
-    });
-  }
   await db.execute(sql.raw(`CREATE TABLE IF NOT EXISTS \`line_ai_manager_settings\` (
     \`id\` int AUTO_INCREMENT NOT NULL,
     \`lineUserId\` varchar(64) NOT NULL,
@@ -2902,11 +2904,13 @@ export async function checkLineAiManagerStorage(): Promise<boolean> {
     FROM line_group_settings
     LIMIT 1
   `);
-  await db.execute(sql`
+  const rolloutResult = await db.execute(sql`
     SELECT rolloutKey, activeGroupCount, settingsRowCount, appliedAt
     FROM line_group_automation_rollouts
+    WHERE rolloutKey = ${LINE_GROUP_AUTOMATION_DEFAULTS_ROLLOUT}
     LIMIT 1
   `);
+  if (!firstExecuteRow(rolloutResult)) return false;
   await db.select({
     id: lineAiManagerSettings.id,
     lineUserId: lineAiManagerSettings.lineUserId,

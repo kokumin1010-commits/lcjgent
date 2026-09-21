@@ -101,8 +101,12 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(groupInsightMigration).toContain("`groupInsightLeaseExpiresAt` timestamp NULL");
     expect(groupInsightMigration).not.toContain("ADD COLUMN IF NOT EXISTS");
     expect(manager).toContain("センシティブ属性・性格・親密度を推測しない");
-    expect(groupAutomationMigration).toContain("MODIFY COLUMN `analysisEnabled` boolean NOT NULL DEFAULT true");
-    expect(groupAutomationMigration).toContain("MODIFY COLUMN `proactiveAiEnabled` boolean NOT NULL DEFAULT true");
+    expect(groupAutomationMigration).not.toContain("MODIFY COLUMN");
+    expect(groupAutomationMigration).toContain("ADD COLUMN `autoFollowUpEnabledAt`");
+    expect(manager).toContain("SET autoFollowUpEnabled = true");
+    expect(manager).toContain("autoReplyEnabled = true");
+    expect(manager).toContain("analysisEnabled = true");
+    expect(manager).toContain("proactiveAiEnabled = true");
     const groupAnalysis = manager.slice(
       manager.indexOf("export async function analyzeLineGroupConversation"),
       manager.indexOf("async function buildAiManagerContext"),
@@ -147,6 +151,7 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(groupFollowUp).toContain("expectedLastActivityAt: group.followUpActivityAt");
     expect(manager).toContain('LINE_GROUP_AUTOMATION_DEFAULTS_ROLLOUT = "all_active_groups_auto_on_v1"');
     expect(manager).toContain("INSERT IGNORE INTO line_group_automation_rollouts");
+    expect(manager).toContain("if (!firstExecuteRow(rolloutResult)) return false");
     expect(manager).toContain("autoReplyEnabled = true");
     expect(manager).toContain("analysisEnabled = true");
     expect(manager).toContain("proactiveAiEnabled = true");
@@ -245,6 +250,9 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(schema).toContain('leaseToken: varchar("leaseToken", { length: 64 })');
     expect(schema).toContain('["queued", "processing", "ready", "sending", "sent", "failed", "skipped", "unknown"]');
     expect(migration).toContain("`proactiveEnabled` boolean NOT NULL DEFAULT false");
+    expect(server).toContain("initializeLineGroupAutomation");
+    expect(server).toContain("ensureLineGroupAutomationDefaults().then");
+    expect(server).toContain("scheduler remains stopped");
     expect(server).toContain("startLineAiManagerScheduler()");
     expect(manager).toContain('errorCode: "outbound_audit_intent_pending"');
     expect(manager).toContain('errorCode: "delivery_pending"');

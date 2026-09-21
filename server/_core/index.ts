@@ -3962,8 +3962,35 @@ async function startServer() {
   server.listen(port, async () => {
     console.log(`Server running on http://localhost:${port}/`);
 
-    const { startLineAiManagerScheduler } = await import("../lineAiManager");
-    startLineAiManagerScheduler();
+    const {
+      ensureLineGroupAutomationDefaults,
+      startLineAiManagerScheduler,
+    } = await import("../lineAiManager");
+    const initializeLineGroupAutomation = (attempt = 1) => {
+      void ensureLineGroupAutomationDefaults().then(rollout => {
+        console.info("[LINE AI Manager] Group automation defaults ready", {
+          code: rollout.applied
+            ? "LINE_GROUP_AUTOMATION_DEFAULTS_APPLIED"
+            : "LINE_GROUP_AUTOMATION_DEFAULTS_ALREADY_APPLIED",
+          activeGroupCount: rollout.activeGroupCount,
+          settingsRowCount: rollout.settingsRowCount,
+        });
+        startLineAiManagerScheduler();
+      }).catch(error => {
+        const delayMs = Math.min(60_000, 5_000 * attempt);
+        console.error("[LINE AI Manager] Group automation defaults unavailable; scheduler remains stopped", {
+          code: "LINE_GROUP_AUTOMATION_DEFAULTS_FAILED",
+          attempt,
+          retryInMs: delayMs,
+          errorCode: error && typeof error === "object" && "code" in error
+            ? String(error.code)
+            : "ROLLOUT_FAILED",
+        });
+        const retryTimer = setTimeout(() => initializeLineGroupAutomation(attempt + 1), delayMs);
+        retryTimer.unref?.();
+      });
+    };
+    initializeLineGroupAutomation();
 
     // Import the user-requested QQ workbook as the archived 9/8–9/9 LCF first-edition
     // knowledge project. The seed is idempotent and never delays Railway health checks.
