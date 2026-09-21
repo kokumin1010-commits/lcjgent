@@ -289,12 +289,6 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         labelJa: "ブランド管理",
       },
       {
-        icon: Gauge,
-        path: "/master/brand-bd-command",
-        labelZh: "品牌 BD 指挥塔",
-        labelJa: "ブランドBD司令塔",
-      },
-      {
         icon: Tag,
         path: "/master/brand-addition-logs",
         labelZh: "品牌添加记录",

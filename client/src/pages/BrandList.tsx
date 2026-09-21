@@ -827,7 +827,7 @@ export default function BrandList() {
               </div>
             </div>
           </div>
-          <div className="grid w-full grid-cols-2 gap-2 xl:w-[950px] xl:grid-cols-5 xl:items-center xl:gap-3">
+          <div className="grid w-full grid-cols-2 gap-2 xl:w-[760px] xl:grid-cols-4 xl:items-center xl:gap-3">
             {canViewBrandDataHealth ? (
               <Button
                 onClick={() => setShowSyncHistory(!showSyncHistory)}
@@ -852,12 +852,6 @@ export default function BrandList() {
               <Button className="min-h-11 w-full whitespace-nowrap bg-gradient-to-r from-amber-600 to-orange-600 px-3 text-white hover:from-amber-700 hover:to-orange-700 sm:px-4">
                 <Handshake className="h-4 w-4 mr-2" />
                 {bt.recruitment}
-              </Button>
-            </Link>
-            <Link href="/master/brand-bd-command" className="block min-w-0">
-              <Button className="min-h-11 w-full whitespace-nowrap bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 text-white hover:from-violet-700 hover:to-fuchsia-700 sm:px-4">
-                <Target className="h-4 w-4 mr-2" />
-                {isChinese ? "品牌BD指挥塔" : "ブランドBD司令塔"}
               </Button>
             </Link>
             <Link href="/master/brands/new" className="block min-w-0">

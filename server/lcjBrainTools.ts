@@ -64,10 +64,6 @@ import { ENV } from "./_core/env";
 import { generatePPT, generateWord, aiGeneratePptContent, aiGenerateDocContent } from "./lcjBrainDocGen";
 import { getUserManagementAccess } from "./userManagementAccess";
 import { ensureHrRoleReviewSchema } from "./hrRoleReviewUpgrade";
-import {
-  getBrandBdCommandBrand,
-  getBrandBdCommandOverview,
-} from "./brandBdCommandService";
 
 // ============================================================
 // Tool Definitions (JSON Schema format for OpenAI API)
@@ -348,20 +344,6 @@ export const LCJ_BRAIN_TOOLS: Tool[] = [
   {
     type: "function",
     function: {
-      name: "get_brand_bd_command_data",
-      description: "ブランド商談の進捗、接触履歴、次アクション、会議予定、AI分析履歴を現在のアカウント権限範囲で取得する。ブランドBDの報告・商談準備・経営サマリーに使用。",
-      parameters: {
-        type: "object",
-        properties: {
-          brandId: { type: "number", description: "特定ブランドの詳細。未指定なら権限範囲の全体概要" },
-        },
-        required: [],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
       name: "get_lcj_coin_data",
       description: "LCJコイン（社内トークン）データを取得。保有状況・取引履歴・ランキングを含む。",
       parameters: {
@@ -496,13 +478,6 @@ export async function executeToolCall(
         return JSON.stringify(await toolGetLineData(args));
       case "get_sales_bd_data":
         return JSON.stringify(await toolGetSalesBdData(args));
-      case "get_brand_bd_command_data":
-        return JSON.stringify(
-          await toolGetBrandBdCommandData(
-            args as { brandId?: number },
-            context?.actor || null,
-          ),
-        );
       case "get_lcj_coin_data":
         return JSON.stringify(await toolGetLcjCoinData(args));
       case "get_tiktok_reports":
@@ -1995,31 +1970,6 @@ async function toolGetLineData(args: { type?: string; groupId?: string; limit?: 
     return { messages };
   }
   return { error: "Invalid type" };
-}
-
-async function toolGetBrandBdCommandData(
-  args: { brandId?: number },
-  actor: BrainToolActor | null,
-) {
-  if (!actor) return { error: "AUTH_REQUIRED" };
-  const safeActor = {
-    id: actor.id,
-    email: actor.email,
-    name: actor.name || null,
-  };
-  if (!args.brandId) {
-    return getBrandBdCommandOverview(safeActor);
-  }
-  const detail = await getBrandBdCommandBrand(safeActor, Number(args.brandId));
-  return {
-    ...detail,
-    interactions: detail.interactions.map(interaction => ({
-      ...interaction,
-      files: interaction.files.length > 0
-        ? [{ attachmentCount: interaction.files.length }]
-        : [],
-    })),
-  };
 }
 
 async function toolGetSalesBdData(args: { type?: string; status?: string; days?: number; limit?: number }) {

@@ -84,7 +84,6 @@ import { morningMeetingRouter } from "./morningMeetingRouter";
 import { storeManagementRouter } from "./storeManagementRouter";
 import { brandDayRouter } from "./brandDayRouter";
 import { brandBusinessRouter } from "./brandBusinessRouter";
-import { brandBdCommandRouter } from "./brandBdCommandRouter";
 import { brandHistoricalGmvRouter } from "./brandHistoricalGmvRouter";
 import { getBrandDataAccess, requireBrandDataMutation, requireBrandDataView } from "./brandDataAccess";
 import { getBrandDataIntegrityHealth, mergeBrandsWithEvidence, previewBrandMergeWithEvidence, runBrandHistoricalRecovery } from "./brandHistoricalRecovery";
@@ -31898,7 +31897,6 @@ JSON形式で推薦順序を返してください。`;
   storeManagement: storeManagementRouter,
   brandDay: brandDayRouter,
   brandBusiness: brandBusinessRouter,
-  brandBdCommand: brandBdCommandRouter,
   brandHistoricalGmv: brandHistoricalGmvRouter,
   storeExecution: storeExecutionRouter,
   storeDailyReport: storeDailyReportRouter,

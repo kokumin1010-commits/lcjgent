@@ -79,8 +79,7 @@ describe("brand business command center", () => {
   it("creates backup-protected deal, monthly target and immutable audit tables", () => {
     const upgrade = read("server/brandBusinessUpgrade.ts");
     const schema = read("drizzle/schema.ts");
-    expect(upgrade).toContain("runDatabaseBackup(PRE_BACKUP_REASON");
-    expect(upgrade).toContain("waitForActive: true");
+    expect(upgrade).toContain('runDatabaseBackup(PRE_BACKUP_REASON, { force: true, waitForActive: true })');
     expect(upgrade).toContain("SELECT GET_LOCK(?,600)");
     expect(upgrade).toContain("CREATE TABLE IF NOT EXISTS brand_business_deals");
     expect(upgrade).toContain("CREATE TABLE IF NOT EXISTS brand_business_monthly_targets");
