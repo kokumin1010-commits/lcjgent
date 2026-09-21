@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   __lineAiManagerTestUtils,
+  getLineGroupAutomationDefaultsRuntimeStatus,
   LINE_AI_MANAGER_MODEL,
   tryHandleLineAiManagerMessage,
 } from "./lineAiManager";
@@ -324,13 +325,26 @@ describe("LCJ LINE AI manager", () => {
   });
 
   it("applies automatic group defaults once and records the rollout counts", async () => {
-    const execute = vi.fn()
-      .mockResolvedValueOnce([{ affectedRows: 1 }])
-      .mockResolvedValueOnce([{ affectedRows: 4 }])
-      .mockResolvedValueOnce([{ affectedRows: 4 }])
-      .mockResolvedValueOnce([{ affectedRows: 4 }])
-      .mockResolvedValueOnce([[{ activeGroupCount: 4, settingsRowCount: 4 }]])
-      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+    let executeCall = 0;
+    const execute = vi.fn(async () => {
+      executeCall += 1;
+      if (executeCall === 1) return [{ affectedRows: 1 }, []];
+      if (executeCall === 2) return [{ affectedRows: 4 }, []];
+      if (executeCall === 3) {
+        return [[
+            { lineGroupId: "C1" },
+            { lineGroupId: "C2" },
+            { lineGroupId: "C3" },
+            { lineGroupId: "C4" },
+          ],
+          [],
+        ];
+      }
+      if (executeCall === 16) {
+        return [[{ activeGroupCount: 4, settingsRowCount: 4, stateRowCount: 4 }], []];
+      }
+      return [{ affectedRows: 1 }, []];
+    });
     const db = {
       transaction: vi.fn(async (callback: (tx: { execute: typeof execute }) => Promise<unknown>) => callback({ execute })),
     };
@@ -340,9 +354,9 @@ describe("LCJ LINE AI manager", () => {
       activeGroupCount: 4,
       settingsRowCount: 4,
     });
-    expect(execute).toHaveBeenCalledTimes(6);
+    expect(execute).toHaveBeenCalledTimes(17);
 
-    const alreadyClaimedExecute = vi.fn().mockResolvedValueOnce([{ affectedRows: 0 }]);
+    const alreadyClaimedExecute = vi.fn().mockResolvedValueOnce([{ affectedRows: 0 }, []]);
     const alreadyClaimedDb = {
       transaction: vi.fn(async (callback: (tx: { execute: typeof alreadyClaimedExecute }) => Promise<unknown>) => callback({ execute: alreadyClaimedExecute })),
     };
@@ -352,6 +366,32 @@ describe("LCJ LINE AI manager", () => {
       settingsRowCount: 0,
     });
     expect(alreadyClaimedExecute).toHaveBeenCalledTimes(1);
+  });
+
+  it("rolls back without finalizing when active automation rows are incomplete", async () => {
+    let executeCall = 0;
+    const execute = vi.fn(async () => {
+      executeCall += 1;
+      if (executeCall === 1) return [{ affectedRows: 1 }, []];
+      if (executeCall === 2) return [{ affectedRows: 1 }, []];
+      if (executeCall === 3) return [[{ lineGroupId: "C1" }], []];
+      if (executeCall === 7) {
+        return [[{ activeGroupCount: 1, settingsRowCount: 0, stateRowCount: 1 }], []];
+      }
+      return [{ affectedRows: 1 }, []];
+    });
+    const db = {
+      transaction: vi.fn(async (callback: (tx: { execute: typeof execute }) => Promise<unknown>) => callback({ execute })),
+    };
+
+    await expect(applyLineGroupAutomationDefaultsRolloutUsingDb(db as any))
+      .rejects.toThrow("LINE group automation rollout invariant failed");
+    expect(execute).toHaveBeenCalledTimes(7);
+    expect(getLineGroupAutomationDefaultsRuntimeStatus()).toMatchObject({
+      state: "failed",
+      step: "count",
+      failureCode: "LINE_GROUP_AUTOMATION_COUNT_MISMATCH",
+    });
   });
 
   it("omits Japanese addresses, labeled identities and third-party names from group AI input", () => {

@@ -104,7 +104,7 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(groupAutomationMigration).not.toContain("MODIFY COLUMN");
     expect(groupAutomationMigration).not.toContain("ALTER TABLE");
     expect(groupAutomationMigration).toContain("CREATE TABLE IF NOT EXISTS `line_group_automation_states`");
-    expect(manager).toContain("INSERT INTO line_group_automation_states");
+    expect(manager).toContain("INSERT IGNORE INTO line_group_automation_states");
     expect(manager).toContain("SET autoFollowUpEnabled = true");
     expect(manager).toContain("autoReplyEnabled = true");
     expect(manager).toContain("analysisEnabled = true");
@@ -154,8 +154,16 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(groupFollowUp).toContain("expectedLastActivityAt: group.followUpActivityAt");
     expect(manager).toContain('LINE_GROUP_AUTOMATION_DEFAULTS_ROLLOUT = "all_active_groups_auto_on_v1"');
     expect(manager).toContain("INSERT IGNORE INTO line_group_automation_rollouts");
+    expect(manager).toContain("for (const lineGroupId of activeGroupIds)");
+    expect(manager).toContain("const activeGroupRows = executeRows(activeGroupResult)");
+    expect(manager).toContain("INSERT IGNORE INTO line_group_automation_states");
+    expect(manager).not.toContain("SELECT lineGroupId, CURRENT_TIMESTAMP\n      FROM line_groups");
+    expect(manager).toContain("LINE_GROUP_AUTOMATION_COUNT_MISMATCH");
+    expect(manager).toContain("stateRowCount !== activeGroupIds.length");
     expect(manager).toContain('getLineGroupAutomationDefaultsHealth(): Promise<"ready" | "pending">');
+    expect(manager).toContain("getLineGroupAutomationDefaultsRuntimeStatus");
     expect(server).toContain("groupAutomationDefaults");
+    expect(server).toContain("groupAutomationRuntime");
     const rolloutReadyIndex = server.indexOf("ensureLineGroupAutomationDefaults().then");
     const groupSchedulerStartIndex = server.indexOf("startGroupFollowUpScheduler()", rolloutReadyIndex);
     const rolloutFailureIndex = server.indexOf("}).catch(error =>", rolloutReadyIndex);

@@ -39,6 +39,18 @@ const LINE_GROUP_INSIGHT_LEASE_MS = 5 * 60 * 1000;
 const LINE_GROUP_DRAFT_COOLDOWN_MS = 30 * 1000;
 const LINE_GROUP_AUTOMATION_DEFAULTS_ROLLOUT = "all_active_groups_auto_on_v1";
 const DEFAULT_LINE_GROUP_RELATIONSHIP_OBJECTIVE = "ライブコマーサーとの信頼を育て、合うLCM商品を自然に紹介できる状態をつくる";
+type LineGroupAutomationRolloutStep = "idle" | "claim" | "groups" | "states" | "settings" | "count" | "finalize" | "ready";
+let lineGroupAutomationRolloutStatus: {
+  state: "pending" | "running" | "ready" | "failed";
+  step: LineGroupAutomationRolloutStep;
+  failureCode: string | null;
+  updatedAt: string;
+} = {
+  state: "pending",
+  step: "idle",
+  failureCode: null,
+  updatedAt: new Date().toISOString(),
+};
 let aiManagerScheduler: NodeJS.Timeout | null = null;
 let aiManagerRunInProgress = false;
 let lastProactiveSweepAt = 0;
@@ -800,6 +812,11 @@ function isLineGroupInsightCurrent(
 function firstExecuteRow(result: any): any | null {
   const rows = Array.isArray(result?.[0]) ? result[0] : result;
   return Array.isArray(rows) ? rows[0] || null : null;
+}
+
+function executeRows(result: any): any[] {
+  if (!Array.isArray(result)) return [];
+  return Array.isArray(result[0]) ? result[0] : result;
 }
 
 type LineGroupAiInsightState = {
@@ -2696,64 +2713,117 @@ function mysqlAffectedRows(result: unknown): number {
 async function applyLineGroupAutomationDefaultsRolloutUsingDb(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
 ): Promise<{ applied: boolean; activeGroupCount: number; settingsRowCount: number }> {
-  return db.transaction(async tx => {
-    const claimResult = await tx.execute(sql`
-      INSERT IGNORE INTO line_group_automation_rollouts
-        (rolloutKey, activeGroupCount, settingsRowCount)
-      VALUES
-        (${LINE_GROUP_AUTOMATION_DEFAULTS_ROLLOUT}, 0, 0)
-    `);
-    if (mysqlAffectedRows(claimResult) !== 1) {
-      return { applied: false, activeGroupCount: 0, settingsRowCount: 0 };
-    }
+  const updateStatus = (
+    state: typeof lineGroupAutomationRolloutStatus.state,
+    step: LineGroupAutomationRolloutStep,
+    failureCode: string | null = null,
+  ) => {
+    lineGroupAutomationRolloutStatus = { state, step, failureCode, updatedAt: new Date().toISOString() };
+  };
+  updateStatus("running", "claim");
+  try {
+    const result = await db.transaction(async tx => {
+      const claimResult = await tx.execute(sql`
+        INSERT IGNORE INTO line_group_automation_rollouts
+          (rolloutKey, activeGroupCount, settingsRowCount)
+        VALUES
+          (${LINE_GROUP_AUTOMATION_DEFAULTS_ROLLOUT}, 0, 0)
+      `);
+      if (mysqlAffectedRows(claimResult) !== 1) {
+        return { applied: false, activeGroupCount: 0, settingsRowCount: 0 };
+      }
 
-    await tx.execute(sql`
-      UPDATE line_groups
-      SET autoFollowUpEnabled = true
-      WHERE isActive = true
-    `);
-    await tx.execute(sql`
-      INSERT INTO line_group_automation_states (lineGroupId, autoFollowUpEnabledAt)
-      SELECT lineGroupId, CURRENT_TIMESTAMP
-      FROM line_groups
-      WHERE isActive = true
-      ON DUPLICATE KEY UPDATE lineGroupId = VALUES(lineGroupId)
-    `);
-    await tx.execute(sql`
-      INSERT INTO line_group_settings
-        (lineGroupId, autoReplyEnabled, analysisEnabled, proactiveAiEnabled, relationshipObjective)
-      SELECT lineGroupId, true, true, true, ${DEFAULT_LINE_GROUP_RELATIONSHIP_OBJECTIVE}
-      FROM line_groups
-      WHERE isActive = true
-      ON DUPLICATE KEY UPDATE
-        autoReplyEnabled = true,
-        analysisEnabled = true,
-        proactiveAiEnabled = true,
-        relationshipObjective = COALESCE(
-          NULLIF(TRIM(line_group_settings.relationshipObjective), ''),
-          VALUES(relationshipObjective)
-        )
-    `);
-    const countResult = await tx.execute(sql`
-      SELECT
-        (SELECT COUNT(*) FROM line_groups WHERE isActive = true) AS activeGroupCount,
-        (SELECT COUNT(*)
-           FROM line_group_settings AS settings
-           INNER JOIN line_groups AS groups ON groups.lineGroupId = settings.lineGroupId
-          WHERE groups.isActive = true) AS settingsRowCount
-    `);
-    const countRow = firstExecuteRow(countResult);
-    const activeGroupCount = Number(countRow?.activeGroupCount || 0);
-    const settingsRowCount = Number(countRow?.settingsRowCount || 0);
-    await tx.execute(sql`
-      UPDATE line_group_automation_rollouts
-      SET activeGroupCount = ${activeGroupCount},
-          settingsRowCount = ${settingsRowCount},
-          appliedAt = CURRENT_TIMESTAMP
-      WHERE rolloutKey = ${LINE_GROUP_AUTOMATION_DEFAULTS_ROLLOUT}
-    `);
-    return { applied: true, activeGroupCount, settingsRowCount };
-  });
+      updateStatus("running", "groups");
+      await tx.execute(sql`
+        UPDATE line_groups
+        SET autoFollowUpEnabled = true
+        WHERE isActive = true
+      `);
+      const activeGroupResult = await tx.execute(sql`
+        SELECT lineGroupId
+        FROM line_groups
+        WHERE isActive = true
+        ORDER BY lineGroupId ASC
+        FOR UPDATE
+      `);
+      const activeGroupRows = executeRows(activeGroupResult) as Array<{ lineGroupId?: unknown }>;
+      const activeGroupIds = activeGroupRows
+        .map(row => String(row.lineGroupId || ""))
+        .filter(Boolean);
+      for (const lineGroupId of activeGroupIds) {
+        updateStatus("running", "states");
+        await tx.execute(sql`
+          INSERT IGNORE INTO line_group_automation_states
+            (lineGroupId, autoFollowUpEnabledAt)
+          VALUES
+            (${lineGroupId}, CURRENT_TIMESTAMP)
+        `);
+        updateStatus("running", "settings");
+        await tx.execute(sql`
+          INSERT IGNORE INTO line_group_settings
+            (lineGroupId, autoReplyEnabled, analysisEnabled, proactiveAiEnabled, relationshipObjective)
+          VALUES
+            (${lineGroupId}, true, true, true, ${DEFAULT_LINE_GROUP_RELATIONSHIP_OBJECTIVE})
+        `);
+        await tx.execute(sql`
+          UPDATE line_group_settings
+          SET autoReplyEnabled = true,
+              analysisEnabled = true,
+              proactiveAiEnabled = true,
+              relationshipObjective = CASE
+                WHEN relationshipObjective IS NULL OR TRIM(relationshipObjective) = ''
+                  THEN ${DEFAULT_LINE_GROUP_RELATIONSHIP_OBJECTIVE}
+                ELSE relationshipObjective
+              END
+          WHERE lineGroupId = ${lineGroupId}
+        `);
+      }
+      updateStatus("running", "count");
+      const countResult = await tx.execute(sql`
+        SELECT
+          (SELECT COUNT(*) FROM line_groups WHERE isActive = true) AS activeGroupCount,
+          (SELECT COUNT(*)
+             FROM line_group_settings AS settings
+             INNER JOIN line_groups AS groups ON groups.lineGroupId = settings.lineGroupId
+            WHERE groups.isActive = true) AS settingsRowCount,
+          (SELECT COUNT(*)
+             FROM line_group_automation_states AS states
+             INNER JOIN line_groups AS groups ON groups.lineGroupId = states.lineGroupId
+            WHERE groups.isActive = true) AS stateRowCount
+      `);
+      const countRow = firstExecuteRow(countResult);
+      const activeGroupCount = Number(countRow?.activeGroupCount);
+      const settingsRowCount = Number(countRow?.settingsRowCount);
+      const stateRowCount = Number(countRow?.stateRowCount);
+      if (
+        activeGroupCount !== activeGroupIds.length ||
+        settingsRowCount !== activeGroupIds.length ||
+        stateRowCount !== activeGroupIds.length
+      ) {
+        throw Object.assign(new Error("LINE group automation rollout invariant failed"), {
+          code: "LINE_GROUP_AUTOMATION_COUNT_MISMATCH",
+        });
+      }
+      updateStatus("running", "finalize");
+      await tx.execute(sql`
+        UPDATE line_group_automation_rollouts
+        SET activeGroupCount = ${activeGroupCount},
+            settingsRowCount = ${settingsRowCount},
+            appliedAt = CURRENT_TIMESTAMP
+        WHERE rolloutKey = ${LINE_GROUP_AUTOMATION_DEFAULTS_ROLLOUT}
+      `);
+      return { applied: true, activeGroupCount, settingsRowCount };
+    });
+    updateStatus("ready", "ready");
+    return result;
+  } catch (error) {
+    const rawCode = error && typeof error === "object" && "code" in error
+      ? String(error.code || "")
+      : "";
+    const failureCode = /^[A-Z0-9_]{1,80}$/.test(rawCode) ? rawCode : "ROLLOUT_FAILED";
+    updateStatus("failed", lineGroupAutomationRolloutStatus.step, failureCode);
+    throw error;
+  }
 }
 
 export async function ensureLineGroupAutomationDefaults(): Promise<{
@@ -3060,6 +3130,10 @@ export async function getLineGroupAutomationDefaultsHealth(): Promise<"ready" | 
     LIMIT 1
   `);
   return firstExecuteRow(result) ? "ready" : "pending";
+}
+
+export function getLineGroupAutomationDefaultsRuntimeStatus() {
+  return { ...lineGroupAutomationRolloutStatus };
 }
 
 export const LINE_AI_MANAGER_MODEL = AI_MANAGER_MODEL;
