@@ -878,7 +878,7 @@ async function fetchExistingSource(
     const [rows] = await db.query<RowDataPacket[]>(
       `SELECT r.*, rs.name AS staffName, rs.linkedStaffId
        FROM reports r INNER JOIN report_staff rs ON rs.id = r.reportStaffId
-       WHERE r.id = ? LIMIT 1`,
+       WHERE r.id = ? AND r.deletedAt IS NULL LIMIT 1`,
       [id]
     );
     const row: any = rows[0];
@@ -921,7 +921,7 @@ async function fetchExistingSource(
     const [rows] = await db.query<RowDataPacket[]>(
       `SELECT t.*, s.name AS staffName, GROUP_CONCAT(ts.staffId) AS assignedStaffIds
        FROM tasks t LEFT JOIN staff s ON s.id = t.staffId LEFT JOIN task_staff ts ON ts.taskId = t.id
-       WHERE t.id = ? GROUP BY t.id LIMIT 1`,
+       WHERE t.id = ? AND t.archivedAt IS NULL GROUP BY t.id LIMIT 1`,
       [id]
     );
     const row: any = rows[0];
@@ -1112,14 +1112,14 @@ export async function runProjectDailyCollection(
         candidates.push({ type: "meeting", id: Number(row.id) })
       );
       const [reportRows] = await db.query<RowDataPacket[]>(
-        "SELECT id FROM reports WHERE reportDate BETWEEN ? AND ? ORDER BY reportDate ASC",
+        "SELECT id FROM reports WHERE reportDate BETWEEN ? AND ? AND deletedAt IS NULL ORDER BY reportDate ASC",
         [dayStart, dayEnd]
       );
       reportRows.forEach(row =>
         candidates.push({ type: "daily_report", id: Number(row.id) })
       );
       const [taskRows] = await db.query<RowDataPacket[]>(
-        "SELECT id FROM tasks WHERE createdAt BETWEEN ? AND ? ORDER BY createdAt ASC",
+        "SELECT id FROM tasks WHERE createdAt BETWEEN ? AND ? AND archivedAt IS NULL ORDER BY createdAt ASC",
         [dayStart, dayEnd]
       );
       taskRows.forEach(row =>
@@ -2438,6 +2438,26 @@ export const lcjBrainProjectRouter = router({
           "UPDATE lcj_brain_project_runs SET status='failed',errorCode='PROJECT_DELETED',errorMessage='项目已删除',finishedAt=CURRENT_TIMESTAMP WHERE projectId=? AND status='running'",
           [input.projectId]
         );
+        const [linkedTaskRows] = await connection.query<RowDataPacket[]>(
+          `SELECT t.* FROM tasks t
+           INNER JOIN lcj_brain_project_execution_task_links l ON l.externalTaskId=t.id
+           WHERE l.projectId=? AND t.status IN ('pending','in_progress')
+           FOR UPDATE`,
+          [input.projectId]
+        );
+        for (const taskRow of linkedTaskRows) {
+          await connection.query(
+            `INSERT INTO entity_revision_audits
+             (entityType,entityId,action,actorUserId,beforeState,afterState)
+             VALUES ('task',?,'lcj_brain_project_cancel',?,?,?)`,
+            [
+              Number(taskRow.id),
+              actor.id,
+              JSON.stringify(taskRow),
+              JSON.stringify({ ...taskRow, status: "cancelled" }),
+            ]
+          );
+        }
         await connection.query(
           `UPDATE tasks t
            INNER JOIN lcj_brain_project_execution_task_links l ON l.externalTaskId=t.id
@@ -2916,7 +2936,7 @@ export const lcjBrainProjectRouter = router({
           email: actor.email,
         });
         const [allRows] = await db.query<RowDataPacket[]>(
-          "SELECT r.id,r.reportDate AS occurredAt,CONCAT(rs.name,' · ',DATE(r.reportDate),' 日报') AS title,CONCAT_WS('\n',r.workContent,r.issues,r.remarks) AS content,r.reportStaffId,r.createdBy,rs.linkedStaffId,rs.name AS contributorName FROM reports r JOIN report_staff rs ON rs.id=r.reportStaffId WHERE r.reportDate BETWEEN ? AND ? AND (?='%%' OR CONCAT_WS(' ',r.workContent,r.issues,r.remarks) LIKE ?) ORDER BY r.reportDate DESC LIMIT 200",
+          "SELECT r.id,r.reportDate AS occurredAt,CONCAT(rs.name,' · ',DATE(r.reportDate),' 日报') AS title,CONCAT_WS('\n',r.workContent,r.issues,r.remarks) AS content,r.reportStaffId,r.createdBy,rs.linkedStaffId,rs.name AS contributorName FROM reports r JOIN report_staff rs ON rs.id=r.reportStaffId WHERE r.reportDate BETWEEN ? AND ? AND r.deletedAt IS NULL AND (?='%%' OR CONCAT_WS(' ',r.workContent,r.issues,r.remarks) LIKE ?) ORDER BY r.reportDate DESC LIMIT 200",
           [start, end, search, search]
         );
         rows = allRows
@@ -2929,7 +2949,7 @@ export const lcjBrainProjectRouter = router({
           .slice(0, 80);
       } else if (input.sourceType === "task") {
         [rows] = await db.query<RowDataPacket[]>(
-          "SELECT t.id,t.createdAt AS occurredAt,LEFT(t.taskDetail,160) AS title,CONCAT_WS('\n',t.taskDetail,t.extractedContext,t.notes) AS content,t.staffId,t.createdBy,s.name AS contributorName FROM tasks t LEFT JOIN staff s ON s.id=t.staffId WHERE t.createdAt BETWEEN ? AND ? AND (?='%%' OR CONCAT_WS(' ',t.taskDetail,t.extractedContext,t.notes) LIKE ?) ORDER BY t.createdAt DESC LIMIT 80",
+          "SELECT t.id,t.createdAt AS occurredAt,LEFT(t.taskDetail,160) AS title,CONCAT_WS('\n',t.taskDetail,t.extractedContext,t.notes) AS content,t.staffId,t.createdBy,s.name AS contributorName FROM tasks t LEFT JOIN staff s ON s.id=t.staffId WHERE t.createdAt BETWEEN ? AND ? AND t.archivedAt IS NULL AND (?='%%' OR CONCAT_WS(' ',t.taskDetail,t.extractedContext,t.notes) LIKE ?) ORDER BY t.createdAt DESC LIMIT 80",
           [start, end, search, search]
         );
       } else if (input.sourceType === "issue") {

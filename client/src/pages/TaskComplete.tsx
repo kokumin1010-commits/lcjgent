@@ -1,35 +1,33 @@
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { ClipboardCheck, Loader2, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRoute } from "wouter";
 
 export default function TaskComplete() {
   const [, params] = useRoute("/complete/:token");
   const token = params?.token || "";
-  const [completed, setCompleted] = useState(false);
+  const [resolved, setResolved] = useState(false);
 
   const completeMutation = trpc.completion.completeByToken.useMutation({
-    onSuccess: (data) => {
-      setCompleted(true);
-    },
+    onSuccess: () => setResolved(true),
   });
 
   useEffect(() => {
-    if (token && !completed && !completeMutation.isPending) {
+    if (token && !resolved && !completeMutation.isPending) {
       completeMutation.mutate({ token });
     }
   }, [token]);
 
   if (completeMutation.isPending) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
-            <CardTitle>処理中...</CardTitle>
-            <CardDescription>タスクを完了しています</CardDescription>
+            <CardTitle>確認中...</CardTitle>
+            <CardDescription>タスクフィードバック画面を準備しています</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -38,22 +36,15 @@ export default function TaskComplete() {
 
   if (completeMutation.isError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-pink-100">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-pink-100 p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <CardTitle>エラーが発生しました</CardTitle>
-            <CardDescription>
-              {completeMutation.error?.message || "タスクの完了処理に失敗しました"}
-            </CardDescription>
+            <CardTitle>リンクを確認できません</CardTitle>
+            <CardDescription>{completeMutation.error?.message || "リンクが無効です"}</CardDescription>
           </CardHeader>
           <CardContent className="text-center">
-            <p className="text-sm text-muted-foreground mb-4">
-              リンクが無効か、既に使用されている可能性があります。
-            </p>
-            <Button variant="outline" onClick={() => window.close()}>
-              閉じる
-            </Button>
+            <Button variant="outline" onClick={() => window.close()}>閉じる</Button>
           </CardContent>
         </Card>
       </div>
@@ -61,40 +52,23 @@ export default function TaskComplete() {
   }
 
   if (completeMutation.isSuccess && completeMutation.data) {
-    const { alreadyCompleted, task } = completeMutation.data;
-
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
-            <CardTitle>
-              {alreadyCompleted ? "既に完了済みです" : "タスクを完了しました"}
-            </CardTitle>
+            <ClipboardCheck className="h-12 w-12 text-green-600 mx-auto mb-4" />
+            <CardTitle>本人の実行フィードバックを提出してください</CardTitle>
             <CardDescription>
-              {alreadyCompleted
-                ? "このタスクは既に完了報告されています"
-                : "完了報告を受け付けました"}
+              複数担当者の実績と积分を正しく記録するため、ログイン後に進行中・受阻・完了と実行内容を報告します。
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {task && (
-              <div className="bg-muted p-4 rounded-lg">
-                <p className="text-sm font-medium mb-2">タスク詳細</p>
-                <p className="text-sm text-muted-foreground">{task.taskDetail}</p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  タスクID: {task.taskId}
-                </p>
-              </div>
-            )}
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-4">
-                {alreadyCompleted
-                  ? "このウィンドウを閉じてください。"
-                  : "管理者に完了通知が送信されました。"}
-              </p>
-              <Button onClick={() => window.close()}>閉じる</Button>
-            </div>
+          <CardContent>
+            <Button
+              className="w-full"
+              onClick={() => window.location.assign(`/master/tasks/${completeMutation.data.taskId}`)}
+            >
+              ログインしてタスクを開く
+            </Button>
           </CardContent>
         </Card>
       </div>
