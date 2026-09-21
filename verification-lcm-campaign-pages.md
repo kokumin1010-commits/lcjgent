@@ -71,3 +71,9 @@
 ## 運用上の注意
 
 ブランドは掲載する率、対象売上、税込・税抜、送料、クーポン併用、取消・返品、計測期間、確定時期、締日、支払日を具体的に記載し、ライブコマーサーと最終合意する必要がある。運営は虚偽表示、法令違反のおそれがある表現、実態のない報酬・割引、無関係商品の紐付けを確認した場合、管理画面から理由付きで公開停止する。
+
+## 本番反映・read-only受入
+
+機能commit `c1556ff70c7638bdfb5075b0587324a374fb3829`はGitHub `main`へpush済みで、GitHub CIおよびRailway `www.livecommercefestival.com`が同一SHAでsuccessとなった。`/lcm`、`/lcm/campaigns`、`/lcm/manage`、`/lcm/admin`はすべてHTTP 200を返した。匿名GETの`lcm.listPublicCampaigns`はHTTP 200で空配列を返したため、新規campaign tableを含むstorage初期化と公開API経路が正常であることを、本番データを書き換えず確認した。
+
+`/lcm/campaigns`のserver SEOは「キャンペーンを探す｜LCM ライブコマースマーケット」と会員限定条件を明記したdescriptionを返した。1440px desktopと390px mobileの実描画では、共通navigation、hero、検索、期間別件数、filter、空状態および非保証表示が表示され、横overflow、contrast不良、broken imageは確認されなかった。本番で実campaign作成、会員権限操作、直接DB更新、メール送信、成果報酬・値引き・サンプル承認は行っていない。
