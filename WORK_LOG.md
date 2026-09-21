@@ -3624,3 +3624,19 @@ AI商务副驾使用实时目录中可用的 `gpt-5-mini` 和严格JSON Schema�
 最終focused回帰は独立review実行分を含む4ファイル69件成功。LINE関連全体は35ファイル320件中310件成功し、残る5ファイル10件はローカル本番DB、LINE Login／Messaging API secret・token・APP_URL未設定による既存環境依存だった。production buildは成功し、既存`sharp` warningとbuild sandboxのDB未接続fallback以外に今回起因のfailureはない。全量TypeScriptは既存1,164件でexit 2だが、今回変更した`LineManagement.tsx`、`lineAiManager.ts`、各testに新規診断はなく、`lineAgent.ts`の2件は今回変更範囲外に以前から存在する`getMessageContent`／`storagePut`未定義診断である。初回独立reviewの3件のP1（分析中新着の取りこぼし、OFF変更後の保存race、OFF時の誤説明）を修正し、最終reviewは**GO（P0/P1 blocker 0件）**となった。
 
 機能commit `ab24268be901fce68e9ee13843e174df5fc49b58`はGitHub CI success、Railway `Success - www.livecommercefestival.com`の同一SHAで本番反映済み。本番`/api/health/line-ai-manager`はAI manager storage、group automation defaults、runtimeすべて`ready`、`failureCode: null`を返した。配信chunk `LineManagement-4I9iAqFX.js`をGET/read-only確認し、「連携状態に関係なく保存済みグループ会話を分析」「3件到達後は新着ごとに更新」「分析OFF時は履歴のみ保存」の3文言と、会話Dialogの非flex layoutを確認した。sandbox browserには管理者認証sessionがなかったためcredentialsを推測・要求せず、対象groupへの本番mutationや実LINE送信は行っていない。
+
+## 2026-09-22｜LINEグループ招待時のブランド名歓迎・限定onboarding会話
+
+LCJ公式アカウントがLINEグループへ新規参加または再参加した時、LINE Group Summary APIから取得した現在のグループ名を制御文字除去・空白正規化・120文字上限で安全化し、ブランド名として「LCJ公式AIマネージャー」の初回案内へ入れるようにした。初回文面はTikTok ID、活動名、配信ジャンルを確認し、確定していないサンプル提供、報酬、承認、在庫等を約束しない。Group Summary取得に失敗した新規joinは不明なブランド名で送らず5xx再送へ戻し、既存の自動返信OFF設定も尊重する。
+
+`line_group_onboarding_states`を追加し、joinごとに7日間だけ有効なdurable state machineを保存する。未連携参加者を含め、既知のstaff／blocked senderを除く最初の確認へ`@LCJ`なしで最大2回だけ決定的文面を返し、2回目でonboardingを完了して以後は`@LCJ`を案内する。重複LINE message ID、完了済みmessage、期限外event、join前eventは返信しない。通常のgroup textは引き続き履歴保存・会話分析へ使うが、onboarding外の通常返信は連携済み・有効な本人からの明示的`@LCJ`／bot mention、group設定、本人設定を満たす場合だけであり、広い自律会話へは変更していない。
+
+各onboarding送信はstate内へpending payloadを先に保存し、immutable outgoing auditを予約した後だけ、source message／join event由来のdeterministic `X-Line-Retry-Key`付き`pushMessage`を呼ぶ。成功・LINE 409 accepted・audit finalization・state completionを分離し、response lossやDB失敗時は同じretry keyで復旧する。30秒workerはAI manager返信機能がOFFでもpendingを自動回収し、30秒graceとfailure rotationで処理中webhookとの競合・starvationを避ける。terminal audit、期限切れ、inactive lifecycle、返信設定OFFは再送せずcancel／complete側へ閉じる。
+
+join／leave orderingは未知groupのleave tombstoneを保存し、新規metadata rowを常にinactiveで作成、deterministic lifecycle transactionだけがactiveへ昇格する不変条件へ強化した。stale joinはgroup名更新・active化・送信を行わない。通常@LCJ返信、group follow-up claim、重点商品通知に加え、本番起動中のライブ提案、日次ランキング、週次／月次レポート、group予定リマインドの全group pushへ共通lifecycle delivery guardを送信直前に適用した。個人DMはgroup guardの対象外のまま維持する。
+
+`/master/line`の手動送信Dialogには、日本語／中国語の「初回案内」「サンプル確認」「ライブ配信確認」templateを追加した。選択は現在のグループ名をブランド名として入力欄へ入れるだけで自動送信せず、通常の人手送信操作を必要とする。同じDialogへ、自動歓迎は新規・再参加時、`@LCJ`なしは最初2回だけ、通常会話は`@LCJ`必須という運用範囲を明記した。
+
+最終回帰は23 test files・244 tests全件成功、migration runner構文、`git diff --check`、secret addition監査、production buildが成功した。build末尾はsandbox DB未接続のため既存どおりruntime fail-closed initializerへ委譲し、既存`receiptMaskingService.ts`のsharp namespace warningだけを保持した。8GB full TypeScript checkは既存1,164 diagnostics／85 filesでexit 2だが、新規`lineGroupOnboarding.ts`と`lineGroupDeliveryGuard.ts`の診断は0件であり、表示された`dailyRankingScheduler.ts:38`等は変更前から存在するbaselineである。複数回の独立reviewで検出したlifecycle race、opt-out上書き、wall-clock expiry、pending recovery、既存scheduler bypassを修正し、最終reviewは**GO（P0/P1 blocker 0件）**。
+
+機能commit `805aeb8a251fd7cce2f5306eb8e7417d0e6dd708`はGitHub CI success、Railway `Success - www.livecommercefestival.com`の同一SHAで本番反映した。本番GET-only確認で`https://lcjmall.com/api/health/line-ai-manager`はHTTP 200、`aiManagerStorage: ready`、`groupAutomationDefaults: ready`、runtime `state: ready`、`failureCode: null`。`https://lcjmall.com/master/line`もHTTP 200で、配信chunk `LineManagement-CjhsjTyX.js`にブランド名、最初2回、`@LCJ`、入力欄のみの説明を確認した。検証中の実LINE送信、本番group設定変更、本番DB直接操作は0件である。

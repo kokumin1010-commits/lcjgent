@@ -140,3 +140,19 @@ LINE Messaging APIにはグループ名変更専用Webhookを前提にできな�
 最終focused回帰は4ファイル69件成功。LINE関連全体は35ファイル320件中310件成功し、残る5ファイル10件はローカル本番DB、LINE Login／Messaging API secret・token・APP_URL未設定による既存環境依存だった。production buildは成功。全量TypeScriptは既存1,164件でexit 2だが、今回変更した`LineManagement.tsx`、`lineAiManager.ts`、各testに新規診断はなく、`lineAgent.ts`の既存2件は今回の変更行外である。初回独立reviewのP1 3件を修正し、最終独立reviewは**GO（P0/P1 blocker 0件）**。検証中に実LINE送信、本番DB直接更新、group設定変更は行っていない。
 
 機能commit `ab24268be901fce68e9ee13843e174df5fc49b58`はGitHub CIおよびRailway同一SHAで本番反映済み。本番healthは`aiManagerStorage: ready`、`groupAutomationDefaults: ready`、runtime `state: ready`、`failureCode: null`。配信chunk `LineManagement-4I9iAqFX.js`をGET/read-only検査し、連携不要分析、保存3件到達後の継続更新、明示OFF時の停止説明、Dialog layout修正を確認した。sandbox browserには管理者認証sessionがなかったため、credentialを推測せず本番group分析mutationは実行していない。実LINE送信・本番DB直接操作も行っていない。
+
+## LINEグループ招待時の限定onboarding（2026-09-22追加）
+
+LINE Messaging APIのjoin webhookを受けた時、Group Summary APIの現在のグループ名を取得し、制御文字除去・空白正規化・120文字上限で安全化してブランド名として使う。新規groupはmetadata rowをinactiveで作成し、join／leaveのtimestampとevent IDを比較するdeterministic lifecycle transactionが現在のjoinを採用した場合だけactiveへ昇格する。未知groupのleaveもlifecycle tombstoneとして保存するため、summary API待機中にleaveが先行したstale join、duplicate join、out-of-order webhookはgroupを復活させず、初回案内も送らない。Group Summary取得失敗時は不明なbrand名で送信せず、webhookを5xxとしてLINE再送へ戻す。
+
+自動例外はdurable state `pending_intro → awaiting_profile → awaiting_preferences → completed`の範囲だけである。real-time 7日を超えたjoin／reply、join前event、最大2回到達、完了済みmessage、known staff、blocked sender、inactive lifecycle、group `autoReplyEnabled = false`は返信しない。未連携参加者はこの限定onboarding中だけ応答対象にできる。以後の通常group replyは従来どおり、連携済み・有効な本人の明示的`@LCJ`／official account mention、group reply設定、本人reply設定、配送直前revalidationをすべて必要とする。通常non-mention textは一意保存・分析するがgeneric replyしない。
+
+送信前にpending source ID、audit ID、text、next stateをDBへ保存し、immutable outgoing auditを予約する。LINE pushはjoin event／source message IDから生成したdeterministic retry keyを`X-Line-Retry-Key`として使い、LINE 409 acceptedも同一requestの成功として扱う。成功後のaudit finalizeまたはstate completeが失敗しても、webhook redeliveryまたは30秒workerが同じretry keyとaudit statusを照合して復旧し、terminal cancelled／noneを再送しない。workerはAI manager reply flagより前に実行し、30秒未満の処理中stateを避け、失敗rowの`updatedAt`を更新して古い1件によるstarvationを防ぐ。
+
+`line_group_onboarding_states`はmigration `0157_line_group_onboarding`、Drizzle schema、runtime `ensureLineAiManagerStorage()`の`CREATE TABLE IF NOT EXISTS`、`checkLineAiManagerStorage()`、`/api/health/line-ai-manager`で同じ列・enum・indexを検証する。startupはlisten前にstorage ensureをfail-closedで完了し、その後だけautomation rolloutとgroup schedulerを開始する。
+
+lifecycle guardはonboardingだけでなく、通常@LCJ AI manager delivery、group follow-up、重点商品group通知、および本番起動中のライブ提案、日次ランキング、週次／月次report、group schedule reminderの各push直前にも適用する。legacyでlifecycle rowがないactive groupは許容する一方、明示的なleave tombstoneは拒否する。DM pushはgroup lifecycle対象ではない。
+
+管理画面の3つの日本語／中国語templateは入力欄へbrand名入り本文を反映するだけで、送信mutationは呼ばない。Dialog上で、自動歓迎は新規・再参加時、`@LCJ`なしは最初2回まで、通常会話は`@LCJ`必須と表示する。
+
+最終検証はLINE関連23 files・244 tests成功、production build、migration runner syntax、差分・secret監査成功。全量TypeScriptは既存baseline 1,164 diagnostics／85 filesでexit 2だが、新規onboarding／delivery guard moduleは0 diagnostics。独立最終reviewは**GO（P0/P1 blocker 0件）**。commit `805aeb8a251fd7cce2f5306eb8e7417d0e6dd708`のGitHub CIとRailwayはsuccess。本番healthはHTTP 200かつAI manager storage／group automation defaults／runtimeがready、`/master/line`の配信chunkにも限定範囲の説明を確認した。実LINE送信、group leave、管理設定mutation、本番DB直接操作は行っていない。
