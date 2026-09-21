@@ -18,6 +18,7 @@ import { brandLivestreams, livers, lineGroups, brands, liverGoals, aiCoachMessag
 import { eq, and, gte, lte, sql, desc, isNull } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 import { pushMessage } from "./line";
+import { canDeliverLineGroupPush } from "./lineGroupDeliveryGuard";
 
 /** Save message to ai_coach_messages for history tracking */
 async function saveToHistory(db: any, liverId: number, content: string, messageType: string): Promise<void> {
@@ -388,7 +389,7 @@ export async function runMonthlyReport(): Promise<void> {
       const reportMessage = buildMonthlyReportMessage(monthlyData, prevMonthData, trend, monthlyGoal, monthStr);
 
       // Send to group
-      if (targetGroup) {
+      if (targetGroup && await canDeliverLineGroupPush(targetGroup.lineGroupId)) {
         await pushMessage(targetGroup.lineGroupId, [{ type: "text", text: reportMessage }]);
       }
 

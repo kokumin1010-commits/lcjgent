@@ -46,14 +46,23 @@ function installTargetRows(rows: unknown[]) {
 describe("LINE group reply eligibility", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    state.execute.mockResolvedValue([[{ autoReplyEnabled: 1 }]]);
+    state.execute.mockResolvedValue([[{ isActive: 1, lifecycleIsActive: 1, autoReplyEnabled: 1 }]]);
     installTargetRows([]);
   });
 
   it("returns false before target lookup when @LCJ replies are disabled for the group", async () => {
     state.execute
       .mockResolvedValueOnce([[]])
-      .mockResolvedValueOnce([[{ autoReplyEnabled: 0 }]]);
+      .mockResolvedValueOnce([[{ isActive: 1, lifecycleIsActive: 1, autoReplyEnabled: 0 }]]);
+
+    await expect(canLineAiManagerReplyInGroup(groupId, lineUserId)).resolves.toBe(false);
+    expect(state.select).not.toHaveBeenCalled();
+  });
+
+  it("returns false before target lookup when lifecycle has a leave tombstone", async () => {
+    state.execute
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[{ isActive: 1, lifecycleIsActive: 0, autoReplyEnabled: 1 }]]);
 
     await expect(canLineAiManagerReplyInGroup(groupId, lineUserId)).resolves.toBe(false);
     expect(state.select).not.toHaveBeenCalled();
@@ -100,13 +109,16 @@ describe("LINE group reply eligibility", () => {
   });
 
   it("revalidates active group state and explicit group opt-out before queued delivery", async () => {
-    state.execute.mockResolvedValueOnce([[{ isActive: 1, autoReplyEnabled: 0 }]]);
+    state.execute.mockResolvedValueOnce([[{ isActive: 1, lifecycleIsActive: 1, autoReplyEnabled: 0 }]]);
     await expect(canDeliverLineAiManagerGroupReply(groupId)).resolves.toBe(false);
 
-    state.execute.mockResolvedValueOnce([[{ isActive: 0, autoReplyEnabled: 1 }]]);
+    state.execute.mockResolvedValueOnce([[{ isActive: 0, lifecycleIsActive: 1, autoReplyEnabled: 1 }]]);
     await expect(canDeliverLineAiManagerGroupReply(groupId)).resolves.toBe(false);
 
-    state.execute.mockResolvedValueOnce([[{ isActive: 1, autoReplyEnabled: null }]]);
+    state.execute.mockResolvedValueOnce([[{ isActive: 1, lifecycleIsActive: 1, autoReplyEnabled: null }]]);
+    await expect(canDeliverLineAiManagerGroupReply(groupId)).resolves.toBe(false);
+
+    state.execute.mockResolvedValueOnce([[{ isActive: 1, lifecycleIsActive: 0, autoReplyEnabled: 1 }]]);
     await expect(canDeliverLineAiManagerGroupReply(groupId)).resolves.toBe(false);
   });
 

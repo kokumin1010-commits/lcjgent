@@ -22,6 +22,15 @@ const ui = read("client/src/pages/LineManagement.tsx");
 const messaging = read("server/_core/lineMessaging.ts");
 const lineTransport = read("server/line.ts");
 const groupFollowUp = read("server/groupFollowUpScheduler.ts");
+const groupOnboarding = read("server/lineGroupOnboarding.ts");
+const groupOnboardingMigration = read("drizzle/0157_line_group_onboarding.sql");
+const groupLifecycle = read("server/lineGroupLifecycle.ts");
+const groupDeliveryGuard = read("server/lineGroupDeliveryGuard.ts");
+const liveSuggestionScheduler = read("server/liveSuggestionScheduler.ts");
+const dailyRankingScheduler = read("server/dailyRankingScheduler.ts");
+const weeklyReportScheduler = read("server/weeklyReportScheduler.ts");
+const monthlyReportScheduler = read("server/monthlyReportScheduler.ts");
+const scheduleReminderScheduler = read("server/scheduleReminderScheduler.ts");
 
 describe("LCJ official LINE AI manager regression contracts", () => {
   it("keeps general customer AI disabled and delegates only the dedicated liver path", () => {
@@ -79,6 +88,88 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(deliveryBlock.indexOf("groupDeliveryEnabled = await canDeliverLineAiManagerGroupReply")).toBeLessThan(
       deliveryBlock.lastIndexOf("await pushMessage("),
     );
+  });
+
+  it("allows only a durable and tightly bounded non-mention onboarding exception", () => {
+    expect(groupOnboarding).toContain('const ONBOARDING_VERSION = "group_onboarding_v1"');
+    expect(groupOnboarding).toContain("const ONBOARDING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000");
+    expect(groupOnboarding).toContain("const MAX_AUTOMATIC_REPLIES = 2");
+    expect(groupOnboarding).toContain('"awaiting_profile"');
+    expect(groupOnboarding).toContain('"awaiting_preferences"');
+    expect(groupOnboarding).toContain('row.userType === "staff" || Boolean(row.isBlocked)');
+    expect(groupOnboarding).toContain("Number(row.autoReplyCount || 0) >= MAX_AUTOMATIC_REPLIES");
+    expect(groupOnboarding).toContain("const expiredByWallClock = Date.now() > expiresAtMs");
+    expect(groupOnboarding).toContain("params.eventTimestamp < startedAtMs");
+    expect(groupOnboarding).toContain("normalizeLineGroupBrandName");
+    expect(groupOnboarding).toContain("LCJ公式AIマネージャー");
+    expect(groupOnboarding).not.toContain("invokeLLM");
+
+    const delivery = groupOnboarding.slice(
+      groupOnboarding.indexOf("async function deliverPendingOnboarding"),
+      groupOnboarding.indexOf("export async function beginLineGroupOnboarding"),
+    );
+    expect(delivery.indexOf("reserveLineOutgoingAudit")).toBeGreaterThan(-1);
+    expect(delivery.indexOf("reserveLineOutgoingAudit")).toBeLessThan(delivery.indexOf("await pushMessage("));
+    expect(delivery).toContain("createLineRetryKey");
+    expect(delivery).toContain('reservation.status === "responded"');
+    expect(delivery).toContain('reservation.status === "cancelled" || reservation.status === "none"');
+
+    expect(server).toContain("const lifecycleApplied = await db.updateLineGroupActive");
+    expect(server).toContain("db.getLineGroupLifecycleState");
+    expect(server).toContain("compareLineGroupLifecycleOrder");
+    expect(server).toContain("beginLineGroupOnboarding");
+    const joinWebhookBlock = server.slice(
+      server.indexOf('case "join":'),
+      server.indexOf('case "leave":'),
+    );
+    expect(joinWebhookBlock.indexOf("db.getLineGroupLifecycleState")).toBeLessThan(
+      joinWebhookBlock.indexOf("line.getGroupSummary"),
+    );
+    expect(joinWebhookBlock.indexOf("if (lifecycleOrder < 0)")).toBeLessThan(
+      joinWebhookBlock.indexOf("line.getGroupSummary"),
+    );
+    expect(joinWebhookBlock).toContain("groupName: onboardingGroupName");
+    expect(joinWebhookBlock).toContain("pictureUrl: groupSummary?.pictureUrl");
+    expect(joinWebhookBlock).toContain("initialIsActive: false");
+    expect(db).toContain("isActive: data.initialIsActive ?? false");
+    expect(joinWebhookBlock.indexOf("initialIsActive: false")).toBeLessThan(
+      joinWebhookBlock.indexOf("db.updateLineGroupActive"),
+    );
+    expect(manager).toContain("l.isActive AS lifecycleIsActive");
+    expect(manager).toContain("row.lifecycleIsActive");
+    expect(db).toContain("lifecycle.isActive IS NULL OR lifecycle.isActive = TRUE");
+    expect(groupLifecycle).toContain("initialIsActive: false");
+    expect(router).toContain("lifecycleIsActive: lineGroupLifecycleStates.isActive");
+    expect(router).toContain("deliveryState[0]?.isActive");
+    expect(router).toContain("deliveryState[0].lifecycleIsActive == null");
+    expect(db).toContain("const activeGroupUpdate = {");
+    expect(db).toContain('...(lifecycle?.groupName ? { groupName: lifecycle.groupName } : {})');
+    expect(groupOnboarding).toContain("l.lastEventAt");
+    expect(groupOnboarding).toContain("l.lastEventId");
+    expect(groupOnboarding).toContain("LINE_GROUP_ONBOARDING_LIFECYCLE_TRANSITION_PENDING");
+    expect(groupOnboarding).toContain("recoverPendingLineGroupOnboardingDeliveries");
+    expect(manager).toContain('await import("./lineGroupOnboarding")');
+    expect(manager).toContain("await recoverPendingLineGroupOnboardingDeliveries()");
+    expect(db).toContain("if (!groups[0]) {");
+    expect(db).toContain("await tx.insert(lineGroupLifecycleStates).values({");
+    expect(db).toContain("if (isActive) return false");
+    const lifecycleUpdate = db.slice(
+      db.indexOf("export async function updateLineGroupActive"),
+      db.indexOf("// Get LINE group by LINE group ID"),
+    );
+    const settingsUpsert = lifecycleUpdate.slice(lifecycleUpdate.indexOf("INSERT INTO line_group_settings"));
+    expect(settingsUpsert).not.toContain("autoReplyEnabled = true");
+    expect(settingsUpsert).not.toContain("analysisEnabled = true");
+    expect(settingsUpsert).not.toContain("proactiveAiEnabled = true");
+    expect(agent).toContain("continueLineGroupOnboarding");
+    expect(agent).toContain("if (!waitForEnrichment)");
+    expect(agent).toContain("if (isGroupChat && !isExplicitGroupMention)");
+    expect(groupOnboardingMigration).toContain("CREATE TABLE IF NOT EXISTS `line_group_onboarding_states`");
+    expect(groupOnboardingMigration).not.toContain("ALTER TABLE");
+    expect(manager).toContain("FROM line_group_onboarding_states");
+    expect(migrationRunner).toContain("0157_line_group_onboarding.sql");
+    expect(ui).toContain("@LCJなしの自動応答は最初の確認2回までです");
+    expect(ui).toContain("入力欄へ反映するだけで、自動送信されません");
   });
 
   it("continuously analyzes every eligible group while keeping actual sending guarded", () => {
@@ -194,6 +285,18 @@ describe("LCJ official LINE AI manager regression contracts", () => {
       expect(schedulerStartIndex).toBeGreaterThan(rolloutReadyIndex);
       expect(schedulerStartIndex).toBeLessThan(rolloutFailureIndex);
       expect(server.match(new RegExp(schedulerStart.replace(/[()]/g, "\\$&"), "g"))).toHaveLength(1);
+    }
+    expect(groupDeliveryGuard).toContain("lineGroupLifecycleStates.isActive");
+    expect(groupDeliveryGuard).toContain("state?.isActive");
+    for (const scheduler of [
+      liveSuggestionScheduler,
+      dailyRankingScheduler,
+      weeklyReportScheduler,
+      monthlyReportScheduler,
+      scheduleReminderScheduler,
+    ]) {
+      expect(scheduler).toContain('from "./lineGroupDeliveryGuard"');
+      expect(scheduler).toContain("canDeliverLineGroupPush(");
     }
     expect(manager).toContain("autoReplyEnabled = true");
     expect(manager).toContain("analysisEnabled = true");

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   tryHandleLineAiManagerMessage: vi.fn(async () => false),
   recordLineAiManagerInboundActivity: vi.fn(async () => false),
   scheduleLineGroupInsightRefresh: vi.fn(),
+  continueLineGroupOnboarding: vi.fn(async () => false),
   getGroupMemberProfile: vi.fn(),
   syncLineGroupMetadata: vi.fn(),
   containsReminderKeyword: vi.fn(() => false),
@@ -36,6 +37,10 @@ vi.mock("./lineAiManager", () => ({
   tryHandleLineAiManagerMessage: mocks.tryHandleLineAiManagerMessage,
   recordLineAiManagerInboundActivity: mocks.recordLineAiManagerInboundActivity,
   scheduleLineGroupInsightRefresh: mocks.scheduleLineGroupInsightRefresh,
+}));
+
+vi.mock("./lineGroupOnboarding", () => ({
+  continueLineGroupOnboarding: mocks.continueLineGroupOnboarding,
 }));
 
 vi.mock("./line", async () => {
@@ -219,6 +224,29 @@ describe("LINE general AI auto-reply runtime behavior", () => {
     }));
   });
 
+  it("lets bounded onboarding consume an explicit mention without also invoking the normal manager", async () => {
+    mocks.continueLineGroupOnboarding.mockResolvedValueOnce(true);
+    const event: LineWebhookEvent = {
+      type: "message",
+      timestamp: 1_789_000_000_050,
+      source: { type: "group", groupId: "C-onboarding", userId: "U-unlinked" },
+      replyToken: "group-onboarding-token",
+      message: { id: "group-onboarding-mentioned", type: "text", text: "@LCJ TikTokは@exampleです" },
+    };
+
+    await processLineMessage(event);
+
+    expect(mocks.continueLineGroupOnboarding).toHaveBeenCalledWith({
+      lineGroupId: "C-onboarding",
+      sourceMessageId: "group-onboarding-mentioned",
+      lineUserId: "U-unlinked",
+      text: "@LCJ TikTokは@exampleです",
+      eventTimestamp: 1_789_000_000_050,
+    });
+    expect(mocks.canLineAiManagerReplyInGroup).not.toHaveBeenCalled();
+    expect(mocks.tryHandleLineAiManagerMessage).not.toHaveBeenCalled();
+  });
+
   it("never falls through to a legacy group reply when the dedicated manager declines after eligibility", async () => {
     mocks.tryHandleLineAiManagerMessage.mockResolvedValueOnce(false);
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
@@ -333,7 +361,7 @@ describe("LINE general AI auto-reply runtime behavior", () => {
     expect(mocks.tryHandleLineAiManagerMessage).not.toHaveBeenCalled();
   });
 
-  it("stores a group message before deferred enrichment and never replies when @LCJ is absent", async () => {
+  it("stores a non-mention group message before enrichment and offers only the bounded onboarding handoff", async () => {
     await processLineMessage({
       type: "message",
       timestamp: 1_789_000_000_060,
@@ -355,6 +383,13 @@ describe("LINE general AI auto-reply runtime behavior", () => {
       lineGroupId: "C-group-no-mention",
     }));
     expect(mocks.scheduleLineGroupInsightRefresh).toHaveBeenCalledWith("C-group-no-mention");
+    expect(mocks.continueLineGroupOnboarding).toHaveBeenCalledWith({
+      lineGroupId: "C-group-no-mention",
+      sourceMessageId: "group-message-no-mention",
+      lineUserId: "U-group-liver",
+      text: "次の配信どうしようかな",
+      eventTimestamp: 1_789_000_000_060,
+    });
     expect(mocks.updateLineMessageSenderName).toHaveBeenCalledWith(
       "group-message-no-mention",
       "U-group-liver",
@@ -379,6 +414,13 @@ describe("LINE general AI auto-reply runtime behavior", () => {
     expect(mocks.getGroupMemberProfile).not.toHaveBeenCalled();
     expect(mocks.syncLineGroupMetadata).not.toHaveBeenCalled();
     expect(mocks.scheduleLineGroupInsightRefresh).not.toHaveBeenCalled();
+    expect(mocks.continueLineGroupOnboarding).toHaveBeenCalledWith({
+      lineGroupId: "C-group-duplicate",
+      sourceMessageId: "group-message-duplicate",
+      lineUserId: "U-group-liver",
+      text: "再配信された通常投稿",
+      eventTimestamp: 1_789_000_000_061,
+    });
     expect(mocks.tryHandleLineAiManagerMessage).not.toHaveBeenCalled();
   });
 

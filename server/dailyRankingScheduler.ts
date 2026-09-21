@@ -16,6 +16,7 @@
 import { getDb } from "./db";
 import { brandLivestreams, livers, lineGroups } from "../drizzle/schema";
 import { pushMessage } from "./line";
+import { canDeliverLineGroupPush } from "./lineGroupDeliveryGuard";
 import { eq, and, gte, lte, isNull, like, desc, sql } from "drizzle-orm";
 
 const LOG_PREFIX = "[DailyRanking]";
@@ -752,8 +753,10 @@ export async function runDailyRanking(): Promise<void> {
       const weekday = weekdays[targetDay.getUTCDay()];
       const dateStr = `${month}/${day}（${weekday}）`;
       const noDataMsg = `━━━━━━━━━━━━━━━━━━━━\n📊 ${dateStr} デイリーランキング\n━━━━━━━━━━━━━━━━━━━━\n\n本日の配信記録はありませんでした。\n明日はみんなで配信しよう！🔥\n\n━━━━━━━━━━━━━━━━━━━━`;
-      await pushMessage(targetGroup.lineGroupId, [{ type: "text", text: noDataMsg }]);
-      await markRunToday();
+      if (await canDeliverLineGroupPush(targetGroup.lineGroupId)) {
+        await pushMessage(targetGroup.lineGroupId, [{ type: "text", text: noDataMsg }]);
+        await markRunToday();
+      }
       return;
     }
 
@@ -807,7 +810,9 @@ export async function runDailyRanking(): Promise<void> {
 
     // 9. Send to LINE group
     console.log(`${LOG_PREFIX} Sending ranking to group: ${targetGroup.groupName}`);
-        const success = await pushMessage(targetGroup.lineGroupId, [{ type: "text", text: message }]);
+    const success = await canDeliverLineGroupPush(targetGroup.lineGroupId)
+      ? await pushMessage(targetGroup.lineGroupId, [{ type: "text", text: message }])
+      : false;
     if (success) {
       console.log(`${LOG_PREFIX} ✅ Daily ranking sent successfully!`);
       await markRunToday();

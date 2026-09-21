@@ -34,6 +34,7 @@ import {
 } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { pushMessage } from "./line";
+import { canDeliverLineGroupPush } from "./lineGroupDeliveryGuard";
 import { lineGroups, aiCoachMessages, aiCoachRooms } from "../drizzle/schema";
 import { eq, and, like, isNull, desc } from "drizzle-orm";
 
@@ -62,7 +63,7 @@ async function findTargetLineGroup(): Promise<{ lineGroupId: string; groupName: 
       .limit(1);
     
     if (groups.length > 0) {
-      return groups[0];
+      if (await canDeliverLineGroupPush(groups[0].lineGroupId)) return groups[0];
     }
   }
   return null;
@@ -163,6 +164,10 @@ export async function runDailyLiveSuggestion(): Promise<void> {
     
     // Send header message to group first
     const headerMsg = `📢 【${todayStr} 今日の配信提案】\n\n今日は${liverScheduleMap.size}名が配信予定！\nみんなで最高の配信にしましょう🔥`;
+    if (!await canDeliverLineGroupPush(targetGroup.lineGroupId)) {
+      console.log(`${LOG_PREFIX} Target group is no longer active. Skipping.`);
+      return;
+    }
     await pushMessage(targetGroup.lineGroupId, [{ type: "text", text: headerMsg }]);
     console.log(`${LOG_PREFIX} Sent header message to group`);
     
@@ -488,7 +493,9 @@ export async function runDailyLiveSuggestion(): Promise<void> {
         // 1. Send to GROUP with mention
         const groupMessage = buildMentionTextMessage(liverName, lineUserId, suggestionText, startTimeStr, endTimeStr);
         console.log(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] Sending group message for ${liverName}...`);
-        const groupSuccess = await pushMessage(targetGroup.lineGroupId, [groupMessage]);
+        const groupSuccess = await canDeliverLineGroupPush(targetGroup.lineGroupId)
+          ? await pushMessage(targetGroup.lineGroupId, [groupMessage])
+          : false;
         
         if (groupSuccess) {
           console.log(`${LOG_PREFIX} [${currentIndex}/${totalLivers}] ✅ Sent to group for ${liverName}${lineUserId ? ' (with mention)' : ' (no mention - no lineUserId)'}`);
@@ -965,7 +972,9 @@ export async function runSingleLiverSuggestion(targetLiverName: string): Promise
     
     // Send to GROUP with mention
     const groupMessage = buildMentionTextMessage(targetLiverName, lineUserId, suggestionText, startTimeStr, endTimeStr);
-    const groupSuccess = await pushMessage(targetGroup.lineGroupId, [groupMessage]);
+    const groupSuccess = await canDeliverLineGroupPush(targetGroup.lineGroupId)
+      ? await pushMessage(targetGroup.lineGroupId, [groupMessage])
+      : false;
     console.log(`${LOG_PREFIX} [SingleLiver] Group send: ${groupSuccess ? '✅' : '❌'}`);
     
     // Send DM

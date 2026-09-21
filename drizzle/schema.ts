@@ -1014,6 +1014,36 @@ export const lineGroupAutomationRollouts = mysqlTable("line_group_automation_rol
 });
 
 /**
+ * Durable, idempotent onboarding conversation started when the official LCJ
+ * account joins a LINE group. Pending outbound data is persisted before LINE
+ * delivery so webhook redelivery can safely resume with the same retry key.
+ */
+export const lineGroupOnboardingStates = mysqlTable("line_group_onboarding_states", {
+  lineGroupId: varchar("lineGroupId", { length: 64 }).primaryKey(),
+  onboardingVersion: varchar("onboardingVersion", { length: 32 }).notNull(),
+  joinEventId: varchar("joinEventId", { length: 160 }).notNull(),
+  joinEventAt: bigint("joinEventAt", { mode: "number" }).notNull(),
+  brandName: varchar("brandName", { length: 255 }).notNull(),
+  status: mysqlEnum("status", ["pending_intro", "awaiting_profile", "awaiting_preferences", "completed", "expired"])
+    .default("pending_intro")
+    .notNull(),
+  pendingSourceMessageId: varchar("pendingSourceMessageId", { length: 64 }),
+  pendingAuditMessageId: varchar("pendingAuditMessageId", { length: 64 }),
+  pendingReplyText: text("pendingReplyText"),
+  pendingNextStatus: varchar("pendingNextStatus", { length: 32 }),
+  lastInboundMessageId: varchar("lastInboundMessageId", { length: 64 }),
+  autoReplyCount: int("autoReplyCount").default(0).notNull(),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  introSentAt: timestamp("introSentAt"),
+  completedAt: timestamp("completedAt"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  statusExpiresIdx: index("idx_line_group_onboarding_status").on(table.status, table.expiresAt),
+  joinEventIdx: index("idx_line_group_onboarding_join_event").on(table.joinEventId),
+}));
+
+/**
  * LINE group lifecycle ordering state.
  * Kept separate from line_groups so a missing additive table never breaks
  * ordinary group list reads.

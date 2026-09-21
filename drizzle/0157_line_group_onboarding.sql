@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS `line_group_onboarding_states` (
+  `lineGroupId` varchar(64) NOT NULL,
+  `onboardingVersion` varchar(32) NOT NULL,
+  `joinEventId` varchar(160) NOT NULL,
+  `joinEventAt` bigint NOT NULL,
+  `brandName` varchar(255) NOT NULL,
+  `status` enum('pending_intro','awaiting_profile','awaiting_preferences','completed','expired') NOT NULL DEFAULT 'pending_intro',
+  `pendingSourceMessageId` varchar(64) NULL,
+  `pendingAuditMessageId` varchar(64) NULL,
+  `pendingReplyText` text NULL,
+  `pendingNextStatus` varchar(32) NULL,
+  `lastInboundMessageId` varchar(64) NULL,
+  `autoReplyCount` int NOT NULL DEFAULT 0,
+  `startedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expiresAt` timestamp NOT NULL,
+  `introSentAt` timestamp NULL,
+  `completedAt` timestamp NULL,
+  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`lineGroupId`),
+  KEY `idx_line_group_onboarding_status` (`status`, `expiresAt`),
+  KEY `idx_line_group_onboarding_join_event` (`joinEventId`)
+);

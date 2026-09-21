@@ -319,8 +319,20 @@ async function main() {
       await connection.execute(statement);
     }
     console.log(`[Migration] Required Beauty Wallet member-link schema applied (${bwMemberLinkStatements.length} statements).`);
+
+    console.log('[Migration] Ensuring LINE group onboarding storage...');
+    const lineGroupOnboardingMigrationPath = path.join(__dirname, 'drizzle', '0157_line_group_onboarding.sql');
+    const lineGroupOnboardingSql = await fs.readFile(lineGroupOnboardingMigrationPath, 'utf8');
+    const lineGroupOnboardingStatements = lineGroupOnboardingSql
+      .split('--> statement-breakpoint')
+      .map(statement => statement.trim())
+      .filter(Boolean);
+    for (const statement of lineGroupOnboardingStatements) {
+      await connection.execute(statement);
+    }
+    console.log(`[Migration] LINE group onboarding storage ensured (${lineGroupOnboardingStatements.length} statements).`);
   } catch (criticalErr) {
-    console.error('[Migration] Required Beauty Wallet member-link migration failed:', criticalErr.message);
+    console.error('[Migration] Required post-Drizzle schema migration failed:', criticalErr.message);
     throw criticalErr;
   } finally {
     await connection.end();

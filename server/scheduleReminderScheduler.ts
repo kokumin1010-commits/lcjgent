@@ -9,6 +9,7 @@ import { getDb } from "./db";
 import { schedules } from "../drizzle/schema";
 import { and, eq, gte, lte, isNull, not } from "drizzle-orm";
 import { pushMessage } from "./line";
+import { canDeliverLineGroupPush } from "./lineGroupDeliveryGuard";
 
 // Check interval in milliseconds (5 minutes)
 const CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -160,6 +161,10 @@ async function sendScheduleReminder(schedule: {
   message += `\n${reminderMinutes}分前のリマインドです。`;
   
   try {
+    if (schedule.lineGroupId && !await canDeliverLineGroupPush(schedule.lineGroupId)) {
+      console.log(`[Schedule Reminder] Group is inactive; skipped schedule ${schedule.id}`);
+      return false;
+    }
     await pushMessage(targetId, [{ type: "text", text: message }]);
     console.log(`[Schedule Reminder] Sent reminder for schedule ${schedule.id} to ${targetId}`);
     return true;

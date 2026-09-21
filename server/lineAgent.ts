@@ -52,6 +52,21 @@ async function captureGroupTextMessage(
       console.error("[LINE Agent] Failed to schedule group insight refresh:", error);
     }
   }
+
+  // The same deterministic source message is also offered on webhook
+  // redelivery so a LINE push that succeeded before local finalization can be
+  // reconciled with the stable retry key. Other duplicate side effects remain
+  // suppressed below.
+  if (!waitForEnrichment) {
+    const { continueLineGroupOnboarding } = await import("./lineGroupOnboarding");
+    await continueLineGroupOnboarding({
+      lineGroupId,
+      sourceMessageId: event.message!.id,
+      lineUserId,
+      text: event.message?.text || "",
+      eventTimestamp: event.timestamp,
+    });
+  }
   if (!stored && !waitForEnrichment) return null;
 
   const enrich = async (): Promise<CapturedGroupProfile> => {
@@ -382,6 +397,21 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       userId,
       isExplicitGroupMention,
     );
+  }
+
+  if (isGroupChat && groupId && isExplicitGroupMention) {
+    const { continueLineGroupOnboarding } = await import("./lineGroupOnboarding");
+    const handledByOnboarding = await continueLineGroupOnboarding({
+      lineGroupId: groupId,
+      sourceMessageId: event.message.id,
+      lineUserId: userId,
+      text: messageText,
+      eventTimestamp: event.timestamp,
+    });
+    if (handledByOnboarding) {
+      console.log("[LINE Agent] Group message handled by bounded onboarding");
+      return;
+    }
   }
 
   if (isGroupChat && !isExplicitGroupMention) {

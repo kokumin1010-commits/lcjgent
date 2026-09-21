@@ -34,6 +34,23 @@ type LineUser = {
   createdAt: Date;
 };
 
+const GROUP_MANUAL_MESSAGE_TEMPLATES = {
+  greeting: {
+    ja: "皆さま、はじめまして！\nこれからブランド「{{brandName}}」のご案内・サポートを担当するLCJです。\n今後の商品案内やご連絡のため、差し支えなければ以下を教えてください。\n・TikTokのアカウント名／ID\n・お呼びする際のお名前（ニックネームでも大丈夫です）\n・主な配信または動画投稿のジャンル\nこちらを教えていただけますでしょうか？\nどうぞよろしくお願いいたします！",
+    zh: "大家好，初次见面！\n今后由LCJ负责品牌“{{brandName}}”的商品介绍和相关支持。\n为了之后方便联系和为您推荐商品，如果方便的话，请告诉我们以下信息✨\n・TikTok账号名／ID\n・希望我们如何称呼您（昵称也可以）\n・主要直播或发布视频的领域\n今后请多关照！",
+  },
+  sample: {
+    ja: "お世話になっております。\nブランド「{{brandName}}」の商品について、現在お手元にあるサンプルや、特に興味のある商品はございますでしょうか。\nご希望の商品があれば確認のうえ、サンプルや詳しい商品情報をご案内いたします。",
+    zh: "您好。\n关于品牌“{{brandName}}”的商品，请问您目前手上有哪些样品，或对哪些商品特别感兴趣？\n如果有希望了解的商品，我们确认后会为您提供样品或更详细的商品资料。",
+  },
+  livestream: {
+    ja: "お世話になっております。\nブランド「{{brandName}}」の商品をご紹介いただける配信や動画投稿のご予定はございますでしょうか。\n配信時期・紹介したい商品・希望条件など、決まっている範囲でお知らせいただければ、こちらで合う商品や進め方を整理いたします。",
+    zh: "您好。\n请问您接下来有介绍品牌“{{brandName}}”商品的直播或视频发布计划吗？\n如果方便，请把大致时间、想介绍的商品和希望条件告诉我们，我们会协助整理适合的商品和推进方式。",
+  },
+} as const;
+
+type GroupManualMessageTemplateKey = keyof typeof GROUP_MANUAL_MESSAGE_TEMPLATES;
+
 export default function LineManagement() {
   const { language } = useLanguage();
   const [, navigate] = useLocation();
@@ -383,6 +400,21 @@ export default function LineManagement() {
       message: groupMessageText.trim(),
       requestId: groupMessageRequestIdRef.current,
     });
+  };
+
+  const applyGroupManualMessageTemplate = (templateKey: GroupManualMessageTemplateKey) => {
+    const brandName = selectedGroup?.groupName?.trim() || (language === "ja" ? "このグループ" : "本群");
+    const template = GROUP_MANUAL_MESSAGE_TEMPLATES[templateKey][language === "ja" ? "ja" : "zh"]
+      .replaceAll("{{brandName}}", brandName);
+    setGroupMessageText(template.slice(0, 5_000));
+    setGroupAiDraftPendingReview(false);
+    setGroupAiDraftReviewed(false);
+    groupMessageRequestIdRef.current = null;
+    toast.info(
+      language === "ja"
+        ? "定型文を入力欄へ反映しました。内容を確認・修正してから送信してください"
+        : "模板已填入输入框，请确认或修改后再发送"
+    );
   };
 
   const handleLinkUser = async () => {
@@ -2213,6 +2245,68 @@ export default function LineManagement() {
                     : (groupMessageText.trim() ? "转换为安全AI文案" : "AI生成文案")}
                 </Button>
                 <span className="text-xs text-muted-foreground">{groupMessageText.length.toLocaleString()}/5,000</span>
+              </div>
+            </div>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/80 p-3 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-100">
+              <p className="font-semibold">
+                {language === "ja" ? "招待時の自動ウェルカム" : "邀请入群时自动欢迎"}
+              </p>
+              <p className="mt-1 leading-relaxed">
+                {language === "ja"
+                  ? `LCJ公式アカウントが新規・再参加すると、グループ名「${selectedGroup?.groupName || "未設定"}」をブランド名として初回案内を自動送信します。@LCJなしの自動応答は最初の確認2回までです。以後の通常会話で返信を求める場合は、必ず @LCJ を付けてください。`
+                  : `LCJ官方账号新加入或重新加入时，会把群名“${selectedGroup?.groupName || "未设置"}”作为品牌名自动发送首次问候。无需@LCJ的自动回复最多只限最初2次；之后如需普通群聊回复，请务必添加 @LCJ。`}
+              </p>
+            </div>
+            <div className="rounded-lg border border-sky-200 bg-sky-50/80 p-3 dark:border-sky-900 dark:bg-sky-950/20">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-sky-950 dark:text-sky-100">
+                    {language === "ja" ? "こちらから送る定型文" : "由我们主动发送的模板"}
+                  </p>
+                  <p className="mt-0.5 text-xs text-sky-800 dark:text-sky-200">
+                    {language === "ja"
+                      ? `グループ名「${selectedGroup?.groupName || "未設定"}」をブランド名として文面へ入れます。入力欄へ反映するだけで、自動送信されません。`
+                      : `将群名“${selectedGroup?.groupName || "未设置"}”作为品牌名写入文案。只会填入输入框，不会自动发送。`}
+                  </p>
+                </div>
+                <Badge variant="outline" className="border-sky-300 bg-white/70 text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-200">
+                  {language === "ja" ? "送信前に編集できます" : "发送前可编辑"}
+                </Badge>
+              </div>
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="bg-background"
+                  disabled={sendMessageMutation.isPending || generateGroupDraftMutation.isPending}
+                  onClick={() => applyGroupManualMessageTemplate("greeting")}
+                >
+                  <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
+                  {language === "ja" ? "初回あいさつ＋TikTok確認" : "初次问候＋确认TikTok"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="bg-background"
+                  disabled={sendMessageMutation.isPending || generateGroupDraftMutation.isPending}
+                  onClick={() => applyGroupManualMessageTemplate("sample")}
+                >
+                  <Building2 className="mr-1.5 h-3.5 w-3.5" />
+                  {language === "ja" ? "商品・サンプル確認" : "确认商品和样品"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="bg-background"
+                  disabled={sendMessageMutation.isPending || generateGroupDraftMutation.isPending}
+                  onClick={() => applyGroupManualMessageTemplate("livestream")}
+                >
+                  <Radio className="mr-1.5 h-3.5 w-3.5" />
+                  {language === "ja" ? "配信・動画予定を確認" : "确认直播或视频计划"}
+                </Button>
               </div>
             </div>
             {selectedGroup?.analysisEnabled !== true && (

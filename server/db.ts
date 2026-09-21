@@ -3443,6 +3443,7 @@ export async function createOrUpdateLineGroup(data: {
   groupName?: string;
   pictureUrl?: string | null;
   brandId?: number;
+  initialIsActive?: boolean;
 }) {
   const db = await getDb();
   if (!db) return null;
@@ -3473,6 +3474,7 @@ export async function createOrUpdateLineGroup(data: {
         groupName: data.groupName,
         pictureUrl: data.pictureUrl,
         brandId: data.brandId,
+        isActive: data.initialIsActive ?? false,
         autoFollowUpEnabled: true,
         autoFollowUpDays: 2,
         lastMessageAt: enabledAt,
@@ -3515,6 +3517,8 @@ export async function updateLineGroupActive(
   lifecycle?: {
     eventTimestamp?: number;
     eventId?: string;
+    groupName?: string;
+    pictureUrl?: string | null;
   }
 ): Promise<boolean> {
   const db = await getDb();
@@ -3536,7 +3540,43 @@ export async function updateLineGroupActive(
       .limit(1)
       .for("update");
 
-    if (!groups[0]) return false;
+    if (!groups[0]) {
+      if (isActive) return false;
+      try {
+        await tx.insert(lineGroupLifecycleStates).values({
+          lineGroupId,
+          lastEventAt: eventTimestamp,
+          lastEventId: eventId,
+          isActive: false,
+        });
+        return true;
+      } catch (error: any) {
+        const errorCode = error?.code || error?.cause?.code;
+        const errorNumber = Number(error?.errno ?? error?.cause?.errno);
+        if (errorCode !== "ER_DUP_ENTRY" && errorNumber !== 1062) throw error;
+      }
+
+      const [existingLifecycle] = await tx
+        .select({
+          lastEventAt: lineGroupLifecycleStates.lastEventAt,
+          lastEventId: lineGroupLifecycleStates.lastEventId,
+        })
+        .from(lineGroupLifecycleStates)
+        .where(eq(lineGroupLifecycleStates.lineGroupId, lineGroupId))
+        .limit(1)
+        .for("update");
+      if (!existingLifecycle || !shouldApplyLineGroupLifecycleEvent(
+        { eventTimestamp, eventId },
+        { eventTimestamp: existingLifecycle.lastEventAt, eventId: existingLifecycle.lastEventId },
+      )) return false;
+
+      await tx.update(lineGroupLifecycleStates).set({
+        lastEventAt: eventTimestamp,
+        lastEventId: eventId,
+        isActive: false,
+      }).where(eq(lineGroupLifecycleStates.lineGroupId, lineGroupId));
+      return true;
+    }
 
     const lifecycleRows = await tx
       .select({
@@ -3582,12 +3622,14 @@ export async function updateLineGroupActive(
       });
     }
 
+    const activeGroupUpdate = {
+      isActive: true,
+      ...(lifecycle?.groupName ? { groupName: lifecycle.groupName } : {}),
+      ...(lifecycle?.pictureUrl !== undefined ? { pictureUrl: lifecycle.pictureUrl } : {}),
+    };
     await tx
       .update(lineGroups)
-      .set(isActive ? {
-        isActive: true,
-        autoFollowUpEnabled: true,
-      } : { isActive: false })
+      .set(isActive ? activeGroupUpdate : { isActive: false })
       .where(eq(lineGroups.lineGroupId, lineGroupId));
 
     if (isActive) {
@@ -3603,9 +3645,6 @@ export async function updateLineGroupActive(
           (${lineGroupId}, true, true, true,
            'ライブコマーサーとの信頼を育て、合うLCM商品を自然に紹介できる状態をつくる')
         ON DUPLICATE KEY UPDATE
-          autoReplyEnabled = true,
-          analysisEnabled = true,
-          proactiveAiEnabled = true,
           relationshipObjective = COALESCE(
             NULLIF(TRIM(line_group_settings.relationshipObjective), ''),
             VALUES(relationshipObjective)
@@ -3629,6 +3668,22 @@ export async function getLineGroupByLineId(lineGroupId: string) {
     .limit(1);
   
   return result[0] || null;
+}
+
+export async function getLineGroupLifecycleState(lineGroupId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available while reading LINE group lifecycle state");
+
+  const [state] = await db
+    .select({
+      lastEventAt: lineGroupLifecycleStates.lastEventAt,
+      lastEventId: lineGroupLifecycleStates.lastEventId,
+      isActive: lineGroupLifecycleStates.isActive,
+    })
+    .from(lineGroupLifecycleStates)
+    .where(eq(lineGroupLifecycleStates.lineGroupId, lineGroupId))
+    .limit(1);
+  return state || null;
 }
 
 // Get all LINE groups
@@ -3752,16 +3807,22 @@ export async function getGroupsNeedingFollowUp() {
     .select({
       group: lineGroups,
       autoFollowUpEnabledAt: lineGroupAutomationStates.autoFollowUpEnabledAt,
+      lifecycleIsActive: lineGroupLifecycleStates.isActive,
     })
     .from(lineGroups)
     .leftJoin(
       lineGroupAutomationStates,
       eq(lineGroupAutomationStates.lineGroupId, lineGroups.lineGroupId),
     )
+    .leftJoin(
+      lineGroupLifecycleStates,
+      eq(lineGroupLifecycleStates.lineGroupId, lineGroups.lineGroupId),
+    )
     .where(
       and(
         eq(lineGroups.isActive, true),
-        eq(lineGroups.autoFollowUpEnabled, true)
+        eq(lineGroups.autoFollowUpEnabled, true),
+        or(isNull(lineGroupLifecycleStates.isActive), eq(lineGroupLifecycleStates.isActive, true))
       )
     );
   const groups = groupRows.map(row => ({
@@ -3855,7 +3916,10 @@ async function withLineGroupFollowUpClaimUsingDb<T>(
       FROM line_groups AS groups
       LEFT JOIN line_group_automation_states AS automation
         ON automation.lineGroupId = groups.lineGroupId
+      LEFT JOIN line_group_lifecycle_states AS lifecycle
+        ON lifecycle.lineGroupId = groups.lineGroupId
       WHERE groups.lineGroupId = ${params.lineGroupId}
+        AND (lifecycle.isActive IS NULL OR lifecycle.isActive = TRUE)
       LIMIT 1
       FOR UPDATE
     `);

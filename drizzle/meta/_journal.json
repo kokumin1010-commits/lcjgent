@@ -1065,6 +1065,13 @@
       "when": 1789981320710,
       "tag": "0156_bw_member_self_link",
       "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "5",
+      "when": 1789982400000,
+      "tag": "0157_line_group_onboarding",
+      "breakpoints": true
     }
   ]
 }

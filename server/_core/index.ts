@@ -11,7 +11,7 @@ import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
 import { authenticateTikTokScheduleRequest } from "../tiktokPublicScheduleAuth";
 import { getTaskByCompletionToken } from "../db";
-import { getLineWebhookLifecycleEventId } from "../lineGroupLifecycleOrder";
+import { compareLineGroupLifecycleOrder, getLineWebhookLifecycleEventId } from "../lineGroupLifecycleOrder";
 import { createLineRetryKey } from "../lineRetryKey";
 import { startTaskNotificationScheduler } from "../reminderScheduler";
 import { startBrandBdMeetingReminderScheduler } from "../brandBdMeetingReminderScheduler";
@@ -525,23 +525,66 @@ async function startServer() {
       case "join":
         // Bot joined a group
         if (event.source.groupId) {
-          const groupSummary = await line.getGroupSummary(event.source.groupId);
-          console.log(`[LINE] Joined group: ${groupSummary?.groupName}`);
-          // Save group to database
-          await db.createOrUpdateLineGroup({
+          const lifecycleEventId = getLineWebhookLifecycleEventId({
+            webhookEventId: event.webhookEventId,
+            eventTimestamp: event.timestamp,
+            eventType: "join",
             lineGroupId: event.source.groupId,
-            groupName: groupSummary?.groupName || "Unknown",
+          });
+          const existingGroup = await db.getLineGroupByLineId(event.source.groupId);
+          const currentLifecycle = await db.getLineGroupLifecycleState(event.source.groupId);
+          const lifecycleOrder = currentLifecycle
+            ? compareLineGroupLifecycleOrder(
+                { eventTimestamp: event.timestamp, eventId: lifecycleEventId },
+                { eventTimestamp: currentLifecycle.lastEventAt, eventId: currentLifecycle.lastEventId },
+              )
+            : 1;
+          if (lifecycleOrder < 0) {
+            console.log(`[LINE] Skipped stale group join: ${event.source.groupId}`);
+            break;
+          }
+          if (lifecycleOrder === 0) {
+            if (!existingGroup?.groupName) break;
+            const { beginLineGroupOnboarding } = await import("../lineGroupOnboarding");
+            await beginLineGroupOnboarding({
+              lineGroupId: event.source.groupId,
+              groupName: existingGroup.groupName,
+              joinEventId: lifecycleEventId,
+              joinEventAt: event.timestamp,
+            });
+            break;
+          }
+
+          const groupSummary = await line.getGroupSummary(event.source.groupId);
+          const onboardingGroupName = groupSummary?.groupName?.trim();
+          if (!onboardingGroupName) {
+            throw new Error("LINE_GROUP_ONBOARDING_GROUP_NAME_UNAVAILABLE");
+          }
+          console.log(`[LINE] Joined group: ${onboardingGroupName}`);
+          if (!existingGroup) {
+            await db.createOrUpdateLineGroup({
+              lineGroupId: event.source.groupId,
+              groupName: onboardingGroupName,
+              pictureUrl: groupSummary?.pictureUrl,
+              initialIsActive: false,
+            });
+          }
+          const lifecycleApplied = await db.updateLineGroupActive(event.source.groupId, true, {
+            eventTimestamp: event.timestamp,
+            eventId: lifecycleEventId,
+            groupName: onboardingGroupName,
             pictureUrl: groupSummary?.pictureUrl,
           });
-          await db.updateLineGroupActive(event.source.groupId, true, {
-            eventTimestamp: event.timestamp,
-            eventId: getLineWebhookLifecycleEventId({
-              webhookEventId: event.webhookEventId,
-              eventTimestamp: event.timestamp,
-              eventType: "join",
-              lineGroupId: event.source.groupId,
-            }),
+          const { beginLineGroupOnboarding } = await import("../lineGroupOnboarding");
+          const onboardingDelivered = await beginLineGroupOnboarding({
+            lineGroupId: event.source.groupId,
+            groupName: onboardingGroupName,
+            joinEventId: lifecycleEventId,
+            joinEventAt: event.timestamp,
           });
+          if (!lifecycleApplied && !onboardingDelivered) {
+            console.log(`[LINE] Skipped stale or already-completed group onboarding: ${event.source.groupId}`);
+          }
         }
         break;
       case "follow":

@@ -81,6 +81,7 @@ export async function syncLineGroupMetadata(
     lineGroupId,
     groupName: summary.groupName,
     pictureUrl: summary.pictureUrl ?? null,
+    initialIsActive: false,
   });
 
   return {

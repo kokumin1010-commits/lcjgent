@@ -279,6 +279,7 @@ describe("LINE group lifecycle", () => {
       lineGroupId: "C-renamed",
       groupName: "新しい配信チーム名",
       pictureUrl: "https://example.com/new-group.jpg",
+      initialIsActive: false,
     });
   });
 
@@ -314,6 +315,7 @@ describe("LINE group lifecycle", () => {
       lineGroupId: "C-avatar-removed",
       groupName: "画像なしグループ",
       pictureUrl: null,
+      initialIsActive: false,
     });
   });
 

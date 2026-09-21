@@ -871,7 +871,7 @@ import {
 } from "./lineAiManager";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { users, lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos, brandMonthlyGmvTargets, livestreamProducts, livestreamRealtimeRecords, livestreamRealtimeSnapshots, livestreamLuckyBagImages, livestreamCsvSnapshots, livestreamCsvProducts, brandProducts, brandActivities, brandMemos, brandFiles } from "../drizzle/schema";
+import { users, lineUsers, brands, lineGroups, lineGroupLifecycleStates, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos, brandMonthlyGmvTargets, livestreamProducts, livestreamRealtimeRecords, livestreamRealtimeSnapshots, livestreamLuckyBagImages, livestreamCsvSnapshots, livestreamCsvProducts, brandProducts, brandActivities, brandMemos, brandFiles } from "../drizzle/schema";
 import { eq, and, or, not, isNotNull, isNull, desc, gt, gte, lte, like, inArray, sql as sqlTag, sum, count, max } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -29145,11 +29145,19 @@ JSON配列のみを出力してください。`;
           const db = await getDb();
           if (db) {
             const groups = await db
-              .select({ lineGroupId: lineGroups.lineGroupId })
+              .select({
+                lineGroupId: lineGroups.lineGroupId,
+                lifecycleIsActive: lineGroupLifecycleStates.isActive,
+              })
               .from(lineGroups)
+              .leftJoin(
+                lineGroupLifecycleStates,
+                eq(lineGroupLifecycleStates.lineGroupId, lineGroups.lineGroupId),
+              )
               .where(and(
                 like(lineGroups.groupName, "%所属%"),
-                eq(lineGroups.isActive, true)
+                eq(lineGroups.isActive, true),
+                or(isNull(lineGroupLifecycleStates.isActive), eq(lineGroupLifecycleStates.isActive, true)),
               ))
               .limit(1);
             if (groups.length > 0) {
@@ -29165,7 +29173,24 @@ JSON配列のみを出力してください。`;
                 input.successCase ? `\n🏆 成功事例: ${input.successCase}` : "",
                 `\n→ マイページで確認してください！`,
               ].filter(Boolean).join("\n");
-              await pushMessage(groups[0].lineGroupId, [{ type: "text", text: msg }]);
+              const deliveryState = await db
+                .select({
+                  isActive: lineGroups.isActive,
+                  lifecycleIsActive: lineGroupLifecycleStates.isActive,
+                })
+                .from(lineGroups)
+                .leftJoin(
+                  lineGroupLifecycleStates,
+                  eq(lineGroupLifecycleStates.lineGroupId, lineGroups.lineGroupId),
+                )
+                .where(eq(lineGroups.lineGroupId, groups[0].lineGroupId))
+                .limit(1);
+              if (
+                deliveryState[0]?.isActive &&
+                (deliveryState[0].lifecycleIsActive == null || deliveryState[0].lifecycleIsActive)
+              ) {
+                await pushMessage(groups[0].lineGroupId, [{ type: "text", text: msg }]);
+              }
               console.log("[FeaturedProduct] LINE notification sent to group");
             }
           }

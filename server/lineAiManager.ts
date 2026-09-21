@@ -1321,7 +1321,12 @@ export async function isLineGroupAiReplyEnabled(lineGroupId: string): Promise<bo
         ON DUPLICATE KEY UPDATE lineGroupId = VALUES(lineGroupId)
       `);
       return tx.execute(sql`
-        SELECT autoReplyEnabled FROM line_group_settings WHERE lineGroupId = ${lineGroupId} LIMIT 1
+        SELECT s.autoReplyEnabled, g.isActive, l.isActive AS lifecycleIsActive
+        FROM line_group_settings s
+        INNER JOIN line_groups g ON g.lineGroupId = s.lineGroupId
+        LEFT JOIN line_group_lifecycle_states l ON l.lineGroupId = g.lineGroupId
+        WHERE s.lineGroupId = ${lineGroupId}
+        LIMIT 1
       `);
     });
   } catch (error) {
@@ -1329,7 +1334,12 @@ export async function isLineGroupAiReplyEnabled(lineGroupId: string): Promise<bo
     throw new Error("LINE_GROUP_AI_REPLY_SETTINGS_UNAVAILABLE", { cause: error });
   }
   const row = firstExecuteRow(result);
-  return row ? Boolean(row.autoReplyEnabled) : true;
+  return Boolean(
+    row &&
+    row.isActive &&
+    row.autoReplyEnabled &&
+    (row.lifecycleIsActive === null || row.lifecycleIsActive === undefined || Boolean(row.lifecycleIsActive))
+  );
 }
 
 export async function canLineAiManagerReplyInGroup(
@@ -1353,9 +1363,10 @@ export async function canDeliverLineAiManagerGroupReply(lineGroupId: string): Pr
   let result;
   try {
     result = await db.execute(sql`
-      SELECT g.isActive, s.autoReplyEnabled
+      SELECT g.isActive, s.autoReplyEnabled, l.isActive AS lifecycleIsActive
       FROM line_groups g
       LEFT JOIN line_group_settings s ON s.lineGroupId = g.lineGroupId
+      LEFT JOIN line_group_lifecycle_states l ON l.lineGroupId = g.lineGroupId
       WHERE g.lineGroupId = ${lineGroupId}
       LIMIT 1
     `);
@@ -1365,6 +1376,7 @@ export async function canDeliverLineAiManagerGroupReply(lineGroupId: string): Pr
   }
   const row = firstExecuteRow(result);
   if (!row || !Boolean(row.isActive)) return false;
+  if (row.lifecycleIsActive !== null && row.lifecycleIsActive !== undefined && !Boolean(row.lifecycleIsActive)) return false;
   return row.autoReplyEnabled === null || row.autoReplyEnabled === undefined
     ? false
     : Boolean(row.autoReplyEnabled);
@@ -2737,9 +2749,12 @@ async function recoverAndProcessAiManagerQueue(now = new Date()) {
 }
 
 async function runLineAiManagerWorker(now = new Date()) {
-  if (!AI_MANAGER_ENABLED || aiManagerRunInProgress) return;
+  if (aiManagerRunInProgress) return;
   aiManagerRunInProgress = true;
   try {
+    const { recoverPendingLineGroupOnboardingDeliveries } = await import("./lineGroupOnboarding");
+    await recoverPendingLineGroupOnboardingDeliveries();
+    if (!AI_MANAGER_ENABLED) return;
     await recoverAndProcessAiManagerQueue(now);
     if (now.getTime() - lastProactiveSweepAt >= AI_MANAGER_FOLLOW_UP_SWEEP_MS) {
       lastProactiveSweepAt = now.getTime();
@@ -2970,6 +2985,28 @@ export async function ensureLineAiManagerStorage(): Promise<void> {
     \`updatedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (\`lineGroupId\`)
   )`));
+  await db.execute(sql.raw(`CREATE TABLE IF NOT EXISTS \`line_group_onboarding_states\` (
+    \`lineGroupId\` varchar(64) NOT NULL,
+    \`onboardingVersion\` varchar(32) NOT NULL,
+    \`joinEventId\` varchar(160) NOT NULL,
+    \`joinEventAt\` bigint NOT NULL,
+    \`brandName\` varchar(255) NOT NULL,
+    \`status\` enum('pending_intro','awaiting_profile','awaiting_preferences','completed','expired') NOT NULL DEFAULT 'pending_intro',
+    \`pendingSourceMessageId\` varchar(64) NULL,
+    \`pendingAuditMessageId\` varchar(64) NULL,
+    \`pendingReplyText\` text NULL,
+    \`pendingNextStatus\` varchar(32) NULL,
+    \`lastInboundMessageId\` varchar(64) NULL,
+    \`autoReplyCount\` int NOT NULL DEFAULT 0,
+    \`startedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    \`expiresAt\` timestamp NOT NULL,
+    \`introSentAt\` timestamp NULL,
+    \`completedAt\` timestamp NULL,
+    \`updatedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (\`lineGroupId\`),
+    KEY \`idx_line_group_onboarding_status\` (\`status\`, \`expiresAt\`),
+    KEY \`idx_line_group_onboarding_join_event\` (\`joinEventId\`)
+  )`));
   await db.execute(sql.raw(`CREATE TABLE IF NOT EXISTS \`line_ai_manager_settings\` (
     \`id\` int AUTO_INCREMENT NOT NULL,
     \`lineUserId\` varchar(64) NOT NULL,
@@ -3061,6 +3098,13 @@ export async function checkLineAiManagerStorage(): Promise<boolean> {
   await db.execute(sql`
     SELECT lineGroupId, autoFollowUpEnabledAt, updatedAt
     FROM line_group_automation_states
+    LIMIT 1
+  `);
+  await db.execute(sql`
+    SELECT lineGroupId, onboardingVersion, joinEventId, joinEventAt, brandName, status,
+      pendingSourceMessageId, pendingAuditMessageId, pendingReplyText, pendingNextStatus,
+      lastInboundMessageId, autoReplyCount, startedAt, expiresAt, introSentAt, completedAt, updatedAt
+    FROM line_group_onboarding_states
     LIMIT 1
   `);
   await db.select({

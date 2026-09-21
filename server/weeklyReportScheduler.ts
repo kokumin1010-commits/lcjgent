@@ -16,6 +16,7 @@ import { brandLivestreams, livers, lineGroups, brands, aiCoachMessages, aiCoachR
 import { eq, and, gte, lte, sql, desc, isNull } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 import { pushMessage } from "./line";
+import { canDeliverLineGroupPush } from "./lineGroupDeliveryGuard";
 import { getLiverMonthlyGoalByName } from "./db";
 import { runSkillAnalysis, formatSkillAnalysisMessage } from "./liverSkillAnalysis";
 
@@ -304,7 +305,7 @@ export async function runWeeklyReport(): Promise<void> {
       const reportMessage = buildWeeklyReportMessage(weeklyData, prevWeekData, monthlyGoal, fromDateStr, toDateStr);
 
       // Send to group
-      if (targetGroup) {
+      if (targetGroup && await canDeliverLineGroupPush(targetGroup.lineGroupId)) {
         await pushMessage(targetGroup.lineGroupId, [{ type: "text", text: reportMessage }]);
       }
 
