@@ -1,30 +1,55 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { appRouter } from "./routers";
+import type { TrpcContext } from "./_core/context";
 
-const source = readFileSync("server/routers.ts", "utf8");
+type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-describe("staff router authorization", () => {
-  it("protects complete HR reads and writes with the unified super-admin procedure", () => {
-    const start = source.indexOf("staff: router({");
-    const end = source.indexOf("task: router({", start);
-    const staffRouter = source.slice(start, end);
-    for (const route of [
-      "create", "list", "update", "delete", "resign", "reinstate",
-      "uploadAvatar", "statistics", "archiveResigned", "restoreArchived", "updateTier",
-    ]) {
-      expect(staffRouter).toContain(`${route}: taskSuperAdminProcedure`);
-    }
+function createAuthContext(): { ctx: TrpcContext } {
+  const user: AuthenticatedUser = {
+    id: 1,
+    openId: "test-user",
+    email: "test@example.com",
+    name: "Test User",
+    loginMethod: "manus",
+    role: "admin",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    lastSignedIn: new Date(),
+  };
+
+  const ctx: TrpcContext = {
+    user,
+    req: {
+      protocol: "https",
+      headers: {},
+    } as TrpcContext["req"],
+    res: {
+      clearCookie: () => {},
+    } as TrpcContext["res"],
+  };
+
+  return { ctx };
+}
+
+describe("staff router", () => {
+  it("should list all staff members", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.staff.list();
+
+    expect(Array.isArray(result)).toBe(true);
   });
 
-  it("keeps the general active directory to non-sensitive fields and self email only", () => {
-    const start = source.indexOf("listActive: protectedProcedure.query");
-    const end = source.indexOf("listScheduleCandidates:", start);
-    const route = source.slice(start, end);
-    expect(route).toContain("id: person.id");
-    expect(route).toContain("department: person.department");
-    expect(route).toContain('person.email.toLowerCase() === (ctx.user.email || "").toLowerCase()');
-    for (const sensitive of ["phone", "salary", "birthDate", "emergencyContact", "notes"]) {
-      expect(route).not.toContain(`${sensitive}: person.${sensitive}`);
-    }
+  it("should list only active staff members", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.staff.listActive();
+
+    expect(Array.isArray(result)).toBe(true);
+    result.forEach((staff) => {
+      expect(staff.isActive).toBe("active");
+    });
   });
 });

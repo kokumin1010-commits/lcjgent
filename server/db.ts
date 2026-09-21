@@ -1,5 +1,4 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
-import { createHash } from "node:crypto";
 import { HUMAN_LEARNING_REVIEW_VERSION } from "./receiptHumanLearningReview";
 import { normalizeReceiptOrderNumber } from "./receiptOrderNumberPolicy";
 import { receiptPurchaseDateOrUndefined } from "../shared/receiptDate";
@@ -13,7 +12,6 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { batchResolveProductImages } from "./productImageCache";
 import { currentStaffCondition, visibleCanonicalStaffCondition } from "./staffIdentityQuery";
 import { filterStaffScheduleCandidates } from "../shared/staffScheduleCandidate";
-import { summarizePersonalTaskRows } from "./taskStatistics";
 import {
   resolveExplicitBrandAllocations,
   resolveBrandLivestreamGmv,
@@ -23,7 +21,6 @@ import {
 import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallProductVariants, InsertMallProductVariant, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport, liveSuggestions, InsertLiveSuggestion, livestreamPromotions, InsertLivestreamPromotion, masterSetSuggestions, InsertMasterSetSuggestion, masterSetSuggestionItems, InsertMasterSetSuggestionItem, masterSetAdoptions, InsertMasterSetAdoption, masterSetFeedback, InsertMasterSetFeedback, masterSetReviews, InsertMasterSetReview, megaChannelSettings, InsertMegaChannelSetting, megaChannelQualifications, InsertMegaChannelQualification, megaChannelHistory, InsertMegaChannelHistoryRecord, featuredProducts, InsertFeaturedProduct, featuredProductTargets, InsertFeaturedProductTarget, featuredProductAcknowledgements, InsertFeaturedProductAcknowledgement, featuredProductProgress, InsertFeaturedProductProgress, featuredProductPenalties, InsertFeaturedProductPenalty, brandShortVideos, InsertBrandShortVideo, brandAdReports, InsertBrandAdReport, brandAdEmailRecipients, InsertBrandAdEmailRecipient, callLogs, InsertCallLog, salesActivities, InsertSalesActivity, brandAnalysisCache, InsertBrandAnalysisCache, leadCollectionHistory, InsertLeadCollectionHistory, salesEmailLogs, InsertSalesEmailLog, salesEmailReplies, InsertSalesEmailReply, festivalCompanyApplications, InsertFestivalCompanyApplication, festivalLiverApplications, InsertFestivalLiverApplication, festivalGeneralApplications, InsertFestivalGeneralApplication, referralBonusOffers, InsertReferralBonusOffer, reportAttachments, InsertReportAttachment } from "../drizzle/schema";
 
 import { lineGroupLifecycleStates } from "../drizzle/schema";
-import { taskExecutionFeedbacks, taskNotificationOutbox } from "../drizzle/schema";
 import { shouldApplyLineGroupLifecycleEvent } from "./lineGroupLifecycleOrder";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -164,128 +161,22 @@ export async function isActiveStaffByEmail(email: string): Promise<boolean> {
   return result.length > 0;
 }
 
-export async function getEntityRevisionAudits(
-  entityType: "task" | "report" | "report_followup" | "report_attachment",
-  entityId: number
-) {
+// Task management functionsns
+export async function createTask(taskData: InsertTask) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.execute(sql`
-    SELECT id, entityType, entityId, action, actorUserId, beforeState, afterState, createdAt
-    FROM entity_revision_audits
-    WHERE entityType = ${entityType} AND entityId = ${entityId}
-    ORDER BY id DESC
-    LIMIT 500
-  `);
-  const rows = (result as any)?.[0];
-  return Array.isArray(rows) ? rows : [];
-}
 
-export async function createTaskWithAssignments(taskData: InsertTask, staffIds: number[]) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  return await db.transaction(async transaction => {
-    const [inserted] = await transaction.insert(tasks).values(taskData).$returningId();
-    if (!inserted?.id) throw new Error("Failed to create task");
-    const uniqueStaffIds = [...new Set(staffIds)];
-    await transaction.insert(taskStaff).values(uniqueStaffIds.map(staffId => ({
-      taskId: inserted.id,
-      staffId,
-    })));
-    await transaction.insert(taskNotificationOutbox).values(uniqueStaffIds.map(staffId => ({
-      notificationKey: `assignment:${inserted.id}:${staffId}:v1`,
-      eventType: "assignment" as const,
-      taskId: inserted.id,
-      staffId,
-      status: "pending" as const,
-    })));
-    const result = await transaction.select().from(tasks).where(eq(tasks.id, inserted.id)).limit(1);
-    const created = result[0] || null;
-    if (created) {
-      await transaction.execute(sql`
-        INSERT INTO entity_revision_audits
-          (entityType, entityId, action, actorUserId, beforeState, afterState)
-        VALUES ('task', ${inserted.id}, 'create', ${taskData.createdBy || null}, NULL,
-          ${JSON.stringify({ ...created, staffIds: uniqueStaffIds })})
-      `);
-    }
-    return created;
-  });
-}
-
-export async function getTaskByRequestId(requestId: string) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const result = await db.select().from(tasks).where(eq(tasks.requestId, requestId)).limit(1);
-  return result[0] || null;
-}
-
-export async function reserveTaskCreationRequest(input: {
-  requestId: string;
-  creatorUserId: number;
-  inputHash: string;
-}) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  try {
-    await db.execute(sql`
-      INSERT INTO task_creation_requests (requestId, creatorUserId, inputHash, status, attempts)
-      VALUES (${input.requestId}, ${input.creatorUserId}, ${input.inputHash}, 'processing', 1)
-    `);
-    return "claimed" as const;
-  } catch (error) {
-    if (!isDuplicateEntryError(error)) throw error;
+  // Insert and return the inserted row
+  const [insertedTask] = await db.insert(tasks).values(taskData).$returningId();
+  
+  // Fetch the complete task record
+  if (insertedTask && insertedTask.id) {
+    const result = await db.select().from(tasks).where(eq(tasks.id, insertedTask.id)).limit(1);
+    return result.length > 0 ? result[0] : null;
   }
-  const result = await db.execute(sql`
-    SELECT creatorUserId, inputHash, status, updatedAt
-    FROM task_creation_requests WHERE requestId = ${input.requestId} LIMIT 1
-  `);
-  const rows = (result as any)?.[0];
-  const existing = Array.isArray(rows) ? rows[0] : null;
-  if (!existing || Number(existing.creatorUserId) !== input.creatorUserId || String(existing.inputHash) !== input.inputHash) {
-    throw new Error("Task request id conflicts with another request");
-  }
-  if (existing.status === "completed") return "completed" as const;
-  const updatedAt = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-  if (existing.status === "processing" && Date.now() - updatedAt < 15 * 60 * 1000) {
-    return "in_progress" as const;
-  }
-  const reclaimed = await db.execute(sql`
-    UPDATE task_creation_requests
-    SET status = 'processing', attempts = attempts + 1, lastError = NULL
-    WHERE requestId = ${input.requestId}
-      AND (status = 'failed' OR updatedAt < DATE_SUB(NOW(), INTERVAL 15 MINUTE))
-  `);
-  return Number((reclaimed as any)?.[0]?.affectedRows || 0) === 1
-    ? "claimed" as const
-    : "in_progress" as const;
+  
+  return null;
 }
-
-export async function completeTaskCreationRequest(requestId: string, taskId: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.execute(sql`
-    UPDATE task_creation_requests
-    SET status = 'completed', taskId = ${taskId}, lastError = NULL
-    WHERE requestId = ${requestId}
-  `);
-}
-
-export async function failTaskCreationRequest(requestId: string, error: unknown) {
-  const db = await getDb();
-  if (!db) return;
-  const message = (error instanceof Error ? error.message : String(error)).slice(0, 4000);
-  await db.execute(sql`
-    UPDATE task_creation_requests SET status = 'failed', lastError = ${message}
-    WHERE requestId = ${requestId} AND status = 'processing'
-  `);
-}
-
-const taskStaffProjection = {
-  id: staff.id,
-  name: staff.name,
-  department: staff.department,
-};
 
 export async function getAllTasks() {
   const db = await getDb();
@@ -294,11 +185,10 @@ export async function getAllTasks() {
   return await db
     .select({
       task: tasks,
-      staff: taskStaffProjection,
+      staff: staff,
     })
     .from(tasks)
     .leftJoin(staff, eq(tasks.staffId, staff.id))
-    .where(isNull(tasks.archivedAt))
     .orderBy(desc(tasks.createdAt));
 }
 
@@ -309,16 +199,16 @@ export async function getAllTasksWithUsers() {
   return await db
     .select({
       task: tasks,
-      staff: taskStaffProjection,
+      staff: staff,
       user: {
         id: users.id,
+        email: users.email,
         name: users.name,
       },
     })
     .from(tasks)
     .leftJoin(staff, eq(tasks.staffId, staff.id))
     .leftJoin(users, eq(tasks.createdBy, users.id))
-    .where(isNull(tasks.archivedAt))
     .orderBy(desc(tasks.createdAt));
 }
 
@@ -329,11 +219,11 @@ export async function getTasksByStatus(status: string) {
   return await db
     .select({
       task: tasks,
-      staff: taskStaffProjection,
+      staff: staff,
     })
     .from(tasks)
     .leftJoin(staff, eq(tasks.staffId, staff.id))
-    .where(and(eq(tasks.status, status as any), isNull(tasks.archivedAt)))
+    .where(eq(tasks.status, status as any))
     .orderBy(desc(tasks.createdAt));
 }
 
@@ -344,29 +234,11 @@ export async function getTasksByStaffId(staffId: number) {
   return await db
     .select({
       task: tasks,
-      staff: taskStaffProjection,
-      executionStatus: sql<string>`CASE
-        WHEN ${tasks.status} = 'cancelled' THEN 'cancelled'
-        ELSE COALESCE((
-          SELECT latest.status FROM ${taskExecutionFeedbacks} latest
-          WHERE latest.taskId = ${tasks.id} AND latest.staffId = ${staffId}
-          ORDER BY latest.id DESC LIMIT 1
-        ), CASE WHEN ${tasks.status} = 'completed' THEN 'completed' ELSE 'pending' END)
-      END`,
+      staff: staff,
     })
     .from(tasks)
-    .leftJoin(staff, eq(staff.id, staffId))
-    .where(and(
-      isNull(tasks.archivedAt),
-      or(
-        eq(tasks.staffId, staffId),
-        sql`EXISTS (
-          SELECT 1 FROM ${taskStaff}
-          WHERE ${taskStaff.taskId} = ${tasks.id}
-            AND ${taskStaff.staffId} = ${staffId}
-        )`
-      )
-    ))
+    .leftJoin(staff, eq(tasks.staffId, staff.id))
+    .where(eq(tasks.staffId, staffId))
     .orderBy(desc(tasks.createdAt));
 }
 
@@ -377,11 +249,11 @@ export async function getTaskById(id: number) {
   const result = await db
     .select({
       task: tasks,
-      staff: taskStaffProjection,
+      staff: staff,
     })
     .from(tasks)
     .leftJoin(staff, eq(tasks.staffId, staff.id))
-    .where(and(eq(tasks.id, id), isNull(tasks.archivedAt)))
+    .where(eq(tasks.id, id))
     .limit(1);
 
   return result.length > 0 ? result[0] : undefined;
@@ -394,11 +266,11 @@ export async function getTaskByTaskId(taskId: string) {
   const result = await db
     .select({
       task: tasks,
-      staff: taskStaffProjection,
+      staff: staff,
     })
     .from(tasks)
     .leftJoin(staff, eq(tasks.staffId, staff.id))
-    .where(and(eq(tasks.taskId, taskId), isNull(tasks.archivedAt)))
+    .where(eq(tasks.taskId, taskId))
     .limit(1);
 
   return result.length > 0 ? result[0] : undefined;
@@ -411,41 +283,24 @@ export async function getTaskByCompletionToken(token: string) {
   const result = await db
     .select()
     .from(tasks)
-    .where(and(eq(tasks.completionToken, token), isNull(tasks.archivedAt)))
+    .where(eq(tasks.completionToken, token))
     .limit(1);
 
   return result.length > 0 ? result[0] : undefined;
 }
 
-export async function updateTask(
-  id: number,
-  taskData: Partial<InsertTask>,
-  actorUserId: number | null = null,
-  action = "update"
-) {
+export async function updateTask(id: number, taskData: Partial<InsertTask>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return await db.transaction(async transaction => {
-    const before = (await transaction.select().from(tasks).where(eq(tasks.id, id)).limit(1).for("update"))[0];
-    if (!before) return null;
-    const after = { ...before, ...taskData };
-    await transaction.execute(sql`
-      INSERT INTO entity_revision_audits
-        (entityType, entityId, action, actorUserId, beforeState, afterState)
-      VALUES ('task', ${id}, ${action}, ${actorUserId},
-        ${JSON.stringify(before)}, ${JSON.stringify(after)})
-    `);
-    return await transaction.update(tasks).set(taskData).where(eq(tasks.id, id));
-  });
+
+  return await db.update(tasks).set(taskData).where(eq(tasks.id, id));
 }
 
-export async function deleteTask(id: number, archivedBy: number, archiveReason = "Archived from task management") {
+export async function deleteTask(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return await updateTask(id, {
-    archivedAt: new Date(), archivedBy, archiveReason, status: "cancelled",
-  }, archivedBy, "archive");
+  return await db.delete(tasks).where(eq(tasks.id, id));
 }
 
 export async function searchTasks(searchTerm: string) {
@@ -455,18 +310,17 @@ export async function searchTasks(searchTerm: string) {
   return await db
     .select({
       task: tasks,
-      staff: taskStaffProjection,
+      staff: staff,
     })
     .from(tasks)
     .leftJoin(staff, eq(tasks.staffId, staff.id))
-    .where(and(
-      isNull(tasks.archivedAt),
+    .where(
       or(
         like(tasks.taskDetail, `%${searchTerm}%`),
         like(tasks.extractedContext, `%${searchTerm}%`),
         like(staff.name, `%${searchTerm}%`)
       )
-    ))
+    )
     .orderBy(desc(tasks.createdAt));
 }
 
@@ -477,11 +331,11 @@ export async function getInProgressTasks() {
   return await db
     .select({
       task: tasks,
-      staff: taskStaffProjection,
+      staff: staff,
     })
     .from(tasks)
     .leftJoin(staff, eq(tasks.staffId, staff.id))
-    .where(and(eq(tasks.status, "in_progress"), isNull(tasks.archivedAt)))
+    .where(eq(tasks.status, "in_progress"))
     .orderBy(desc(tasks.createdAt));
 }
 
@@ -490,8 +344,8 @@ export async function createReminder(reminderData: InsertReminder) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const [inserted] = await db.insert(reminders).values(reminderData).$returningId();
-  return inserted || null;
+  const result = await db.insert(reminders).values(reminderData);
+  return result;
 }
 
 export async function getRemindersByTaskId(taskId: number) {
@@ -510,10 +364,10 @@ export async function getTaskStatistics() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const totalTasks = await db.select({ count: sql<number>`count(*)` }).from(tasks).where(isNull(tasks.archivedAt));
-  const pendingTasks = await db.select({ count: sql<number>`count(*)` }).from(tasks).where(and(eq(tasks.status, "pending"), isNull(tasks.archivedAt)));
-  const inProgressTasks = await db.select({ count: sql<number>`count(*)` }).from(tasks).where(and(eq(tasks.status, "in_progress"), isNull(tasks.archivedAt)));
-  const completedTasks = await db.select({ count: sql<number>`count(*)` }).from(tasks).where(and(eq(tasks.status, "completed"), isNull(tasks.archivedAt)));
+  const totalTasks = await db.select({ count: sql<number>`count(*)` }).from(tasks);
+  const pendingTasks = await db.select({ count: sql<number>`count(*)` }).from(tasks).where(eq(tasks.status, "pending"));
+  const inProgressTasks = await db.select({ count: sql<number>`count(*)` }).from(tasks).where(eq(tasks.status, "in_progress"));
+  const completedTasks = await db.select({ count: sql<number>`count(*)` }).from(tasks).where(eq(tasks.status, "completed"));
 
   return {
     total: totalTasks[0]?.count || 0,
@@ -533,7 +387,7 @@ export async function getAverageCompletionTime() {
       completedAt: tasks.completedAt,
     })
     .from(tasks)
-    .where(and(eq(tasks.status, "completed"), isNull(tasks.archivedAt), sql`${tasks.completedAt} IS NOT NULL`));
+    .where(and(eq(tasks.status, "completed"), sql`${tasks.completedAt} IS NOT NULL`));
 
   if (completedTasksWithTime.length === 0) return 0;
 
@@ -554,11 +408,11 @@ export async function getRecentCompletedTasks(limit: number = 10) {
   return await db
     .select({
       task: tasks,
-      staff: taskStaffProjection,
+      staff: staff,
     })
     .from(tasks)
     .leftJoin(staff, eq(tasks.staffId, staff.id))
-    .where(and(eq(tasks.status, "completed"), isNull(tasks.archivedAt)))
+    .where(eq(tasks.status, "completed"))
     .orderBy(desc(tasks.completedAt))
     .limit(limit);
 }
@@ -566,70 +420,65 @@ export async function getRecentCompletedTasks(limit: number = 10) {
 export async function getStaffWithTaskCounts() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.execute(sql`
-    SELECT s.id AS staffId, s.name, s.department, s.position, s.avatarUrl,
-      t.id AS taskId, t.status AS taskStatus, feedback.status AS feedbackStatus, t.deadline
-    FROM staff s
-    LEFT JOIN (
-      SELECT ts.taskId, ts.staffId FROM task_staff ts
-      UNION
-      SELECT t.id AS taskId, t.staffId
-      FROM tasks t
-      WHERE NOT EXISTS (SELECT 1 FROM task_staff existing WHERE existing.taskId = t.id)
-    ) assigned ON assigned.staffId = s.id
-    LEFT JOIN tasks t ON t.id = assigned.taskId AND t.archivedAt IS NULL
-    LEFT JOIN task_execution_feedbacks feedback ON feedback.id = (
-      SELECT MAX(latest.id) FROM task_execution_feedbacks latest
-      WHERE latest.taskId = assigned.taskId AND latest.staffId = assigned.staffId
-    )
-    WHERE s.isActive = 'active' AND s.archivedAt IS NULL AND s.mergedIntoStaffId IS NULL
-    ORDER BY s.name ASC, t.id ASC
-  `);
-  const rows = (result as any)?.[0];
-  return summarizePersonalTaskRows((Array.isArray(rows) ? rows : []).map((row: any) => ({
-    staffId: Number(row.staffId),
-    taskId: row.taskId == null ? null : Number(row.taskId),
-    taskStatus: row.taskStatus ? String(row.taskStatus) : null,
-    feedbackStatus: row.feedbackStatus ? String(row.feedbackStatus) : null,
-    deadline: row.deadline ? new Date(row.deadline) : null,
-    name: String(row.name || ""),
-    department: row.department ? String(row.department) : null,
-    position: row.position ? String(row.position) : null,
-    avatarUrl: row.avatarUrl ? String(row.avatarUrl) : null,
-  })));
+
+  // Get only active staff
+  const allStaff = await db.select().from(staff).where(currentStaffCondition());
+  const now = Date.now();
+  
+  const staffWithCounts = await Promise.all(
+    allStaff.map(async (s) => {
+      // Count in_progress tasks (not completed)
+      const inProgressResult = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(tasks)
+        .where(and(eq(tasks.staffId, s.id), eq(tasks.status, "in_progress")));
+      
+      // Count overdue tasks (deadline passed and not completed)
+      const overdueResult = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.staffId, s.id),
+            or(eq(tasks.status, "pending"), eq(tasks.status, "in_progress")),
+            sql`UNIX_TIMESTAMP(${tasks.deadline}) * 1000 < ${now}`
+          )
+        );
+      
+      const inProgressCount = Number(inProgressResult[0]?.count || 0);
+      const overdueCount = Number(overdueResult[0]?.count || 0);
+      
+      return {
+        ...s,
+        inProgressCount,
+        overdueCount,
+      };
+    })
+  );
+
+  return staffWithCounts;
 }
 
 export async function getOverdueTasks() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.execute(sql`
-    SELECT t.*, s.id AS __staffId, s.name AS __staffName, s.department AS __staffDepartment
-    FROM (
-      SELECT ts.taskId, ts.staffId FROM task_staff ts
-      UNION
-      SELECT legacy.id AS taskId, legacy.staffId
-      FROM tasks legacy
-      WHERE NOT EXISTS (SELECT 1 FROM task_staff existing WHERE existing.taskId = legacy.id)
-    ) assigned
-    INNER JOIN tasks t ON t.id = assigned.taskId AND t.archivedAt IS NULL AND t.status <> 'cancelled'
-    INNER JOIN staff s ON s.id = assigned.staffId
-      AND s.isActive = 'active' AND s.archivedAt IS NULL AND s.mergedIntoStaffId IS NULL
-    LEFT JOIN task_execution_feedbacks feedback ON feedback.id = (
-      SELECT MAX(latest.id) FROM task_execution_feedbacks latest
-      WHERE latest.taskId = assigned.taskId AND latest.staffId = assigned.staffId
+
+  const now = Date.now();
+  
+  return await db
+    .select({
+      task: tasks,
+      staff: staff,
+    })
+    .from(tasks)
+    .leftJoin(staff, eq(tasks.staffId, staff.id))
+    .where(
+      and(
+        or(eq(tasks.status, "pending"), eq(tasks.status, "in_progress")),
+        sql`${tasks.deadline} < ${now}`
+      )
     )
-    WHERE t.deadline IS NOT NULL AND t.deadline < CURRENT_TIMESTAMP
-      AND COALESCE(feedback.status, CASE WHEN t.status = 'completed' THEN 'completed' ELSE 'pending' END) <> 'completed'
-    ORDER BY t.deadline ASC, t.id ASC, s.id ASC
-  `);
-  const rows = (result as any)?.[0];
-  return (Array.isArray(rows) ? rows : []).map((row: any) => {
-    const { __staffId, __staffName, __staffDepartment, ...task } = row;
-    return {
-      task,
-      staff: { id: Number(__staffId), name: String(__staffName || ""), department: __staffDepartment ? String(__staffDepartment) : null },
-    };
-  });
+    .orderBy(asc(tasks.deadline));
 }
 
 // Task-Staff junction table functions
@@ -638,7 +487,7 @@ export async function assignStaffToTask(taskId: number, staffIds: number[]) {
   if (!db) throw new Error("Database not available");
 
   // Insert multiple staff assignments
-  const assignments = [...new Set(staffIds)].map(staffId => ({
+  const assignments = staffIds.map(staffId => ({
     taskId,
     staffId,
   }));
@@ -652,7 +501,7 @@ export async function getStaffByTaskId(taskId: number) {
 
   return await db
     .select({
-      staff: taskStaffProjection,
+      staff: staff,
       assignedAt: taskStaff.assignedAt,
     })
     .from(taskStaff)
@@ -661,73 +510,20 @@ export async function getStaffByTaskId(taskId: number) {
     .orderBy(taskStaff.assignedAt);
 }
 
-/** Internal-only notification recipients; never return this projection from a route. */
-export async function getPendingStaffContactsByTaskId(taskId: number) {
+export async function removeStaffFromTask(taskId: number, staffId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.execute(sql`
-    SELECT DISTINCT s.id, s.name, s.email,
-      (SELECT MAX(r.sentAt) FROM reminders r
-       WHERE r.taskId = ts.taskId AND r.recipientEmail = s.email AND r.status = 'sent') AS lastReminderAt
-    FROM task_staff ts
-    INNER JOIN tasks t ON t.id = ts.taskId
-      AND t.status <> 'cancelled' AND t.archivedAt IS NULL
-    INNER JOIN staff s ON s.id = ts.staffId
-      AND s.isActive = 'active' AND s.archivedAt IS NULL AND s.mergedIntoStaffId IS NULL
-    LEFT JOIN task_execution_feedbacks f ON f.id = (
-      SELECT MAX(latest.id) FROM task_execution_feedbacks latest
-      WHERE latest.taskId = ts.taskId AND latest.staffId = ts.staffId
-    )
-    WHERE ts.taskId = ${taskId}
-      AND COALESCE(f.status, 'pending') NOT IN ('completed', 'cancelled')
-  `);
-  const rows = (result as any)?.[0];
-  return (Array.isArray(rows) ? rows : []).map((row: any) => ({
-    id: Number(row.id),
-    name: String(row.name || "不明"),
-    email: String(row.email || ""),
-    lastReminderAt: row.lastReminderAt == null ? null : Number(row.lastReminderAt),
-  }));
+
+  return await db
+    .delete(taskStaff)
+    .where(and(eq(taskStaff.taskId, taskId), eq(taskStaff.staffId, staffId)));
 }
 
-export async function removeStaffFromTask(taskId: number, staffId: number, archivedBy?: number) {
+export async function removeAllStaffFromTask(taskId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return await db.transaction(async transaction => {
-    await transaction.execute(sql`
-      INSERT IGNORE INTO task_staff_archive (
-        originalAssignmentId, taskId, staffId, assignedAt,
-        archivedBy, archiveReason, mergedIntoAssignmentId
-      )
-      SELECT id, taskId, staffId, assignedAt,
-        ${archivedBy ?? null}, 'Removed from task assignment', NULL
-      FROM task_staff
-      WHERE taskId = ${taskId} AND staffId = ${staffId}
-    `);
-    return await transaction
-      .delete(taskStaff)
-      .where(and(eq(taskStaff.taskId, taskId), eq(taskStaff.staffId, staffId)));
-  });
-}
-
-export async function removeAllStaffFromTask(taskId: number, archivedBy?: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  return await db.transaction(async transaction => {
-    await transaction.execute(sql`
-      INSERT IGNORE INTO task_staff_archive (
-        originalAssignmentId, taskId, staffId, assignedAt,
-        archivedBy, archiveReason, mergedIntoAssignmentId
-      )
-      SELECT id, taskId, staffId, assignedAt,
-        ${archivedBy ?? null}, 'All assignees removed from task', NULL
-      FROM task_staff
-      WHERE taskId = ${taskId}
-    `);
-    return await transaction.delete(taskStaff).where(eq(taskStaff.taskId, taskId));
-  });
+  return await db.delete(taskStaff).where(eq(taskStaff.taskId, taskId));
 }
 
 // Email tracking functions
@@ -876,21 +672,15 @@ export async function getReportStaffByCountry(country: string) {
 export async function createReport(reportData: InsertReport) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.transaction(async transaction => {
-    const [insertedReport] = await transaction.insert(reports).values(reportData).$returningId();
-    if (!insertedReport?.id) return null;
-    const result = await transaction.select().from(reports).where(eq(reports.id, insertedReport.id)).limit(1);
-    const created = result[0] || null;
-    if (created) {
-      await transaction.execute(sql`
-        INSERT INTO entity_revision_audits
-          (entityType, entityId, action, actorUserId, beforeState, afterState)
-        VALUES ('report', ${insertedReport.id}, 'create', ${reportData.createdBy || null}, NULL,
-          ${JSON.stringify(created)})
-      `);
-    }
-    return created;
-  });
+
+  const [insertedReport] = await db.insert(reports).values(reportData).$returningId();
+  
+  if (insertedReport && insertedReport.id) {
+    const result = await db.select().from(reports).where(eq(reports.id, insertedReport.id)).limit(1);
+    return result.length > 0 ? result[0] : null;
+  }
+  
+  return null;
 }
 
 export type ReportVisibilityFilter = {
@@ -929,7 +719,6 @@ export async function getAllReports(limit = 50) {
     .from(reports)
     .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id))
     .leftJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
-    .where(isNull(reports.deletedAt))
     .orderBy(desc(reports.reportDate))
     .limit(limit);
 }
@@ -949,7 +738,7 @@ export async function getReportsByReportStaffId(reportStaffId: number) {
     .from(reports)
     .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id))
     .leftJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
-    .where(and(eq(reports.reportStaffId, reportStaffId), isNull(reports.deletedAt)))
+    .where(eq(reports.reportStaffId, reportStaffId))
     .orderBy(desc(reports.reportDate));
 }
 
@@ -967,8 +756,7 @@ export async function getReportsByDateRange(startDate: Date, endDate: Date) {
     .where(
       and(
         sql`${reports.reportDate} >= ${startDate}`,
-        sql`${reports.reportDate} <= ${endDate}`,
-        isNull(reports.deletedAt)
+        sql`${reports.reportDate} <= ${endDate}`
       )
     )
     .orderBy(desc(reports.reportDate));
@@ -985,42 +773,24 @@ export async function getReportById(id: number) {
     })
     .from(reports)
     .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id))
-    .where(and(eq(reports.id, id), isNull(reports.deletedAt)))
+    .where(eq(reports.id, id))
     .limit(1);
 
   return result.length > 0 ? result[0] : undefined;
 }
 
-export async function updateReport(
-  id: number,
-  reportData: Partial<InsertReport>,
-  actorUserId: number | null = null,
-  action = "update"
-) {
+export async function updateReport(id: number, reportData: Partial<InsertReport>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return await db.transaction(async transaction => {
-    const before = (await transaction.select().from(reports).where(eq(reports.id, id)).limit(1).for("update"))[0];
-    if (!before || before.deletedAt) return null;
-    const after = { ...before, ...reportData };
-    await transaction.execute(sql`
-      INSERT INTO entity_revision_audits
-        (entityType, entityId, action, actorUserId, beforeState, afterState)
-      VALUES ('report', ${id}, ${action}, ${actorUserId},
-        ${JSON.stringify(before)}, ${JSON.stringify(after)})
-    `);
-    return await transaction.update(reports).set(reportData)
-      .where(and(eq(reports.id, id), isNull(reports.deletedAt)));
-  });
+
+  return await db.update(reports).set(reportData).where(eq(reports.id, id));
 }
 
-export async function deleteReport(id: number, deletedBy: number, deleteReason = "Archived from daily reports") {
+export async function deleteReport(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return await updateReport(id, {
-    deletedAt: new Date(), deletedBy, deleteReason,
-  }, deletedBy, "archive");
+  return await db.delete(reports).where(eq(reports.id, id));
 }
 
 export async function getStaffReportStatistics(
@@ -1075,7 +845,6 @@ export async function getStaffReportStatistics(
         .where(
           and(
             eq(reports.reportStaffId, s.id),
-            isNull(reports.deletedAt),
             sql`${reports.reportDate} >= ${firstDayOfMonth}`,
             sql`${reports.reportDate} <= ${lastDayOfMonth}`
           )
@@ -1085,7 +854,7 @@ export async function getStaffReportStatistics(
       const totalResult = await db
         .select({ count: sql<number>`count(*)` })
         .from(reports)
-        .where(and(eq(reports.reportStaffId, s.id), isNull(reports.deletedAt)));
+        .where(eq(reports.reportStaffId, s.id));
 
       const monthlyCount = Number(monthlyResult[0]?.count || 0);
       const totalCount = Number(totalResult[0]?.count || 0);
@@ -1118,7 +887,7 @@ export async function searchReports(filters: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const conditions = [isNull(reports.deletedAt)];
+  const conditions = [];
 
   if (filters.reportStaffId) {
     conditions.push(eq(reports.reportStaffId, filters.reportStaffId));
@@ -1138,7 +907,7 @@ export async function searchReports(filters: {
         like(reports.workContent, `%${filters.searchTerm}%`),
         like(reports.issues, `%${filters.searchTerm}%`),
         like(reports.remarks, `%${filters.searchTerm}%`)
-      )!
+      )
     );
   }
   const visibilityCondition = buildReportVisibilityCondition(
@@ -1172,7 +941,6 @@ export async function searchReports(filters: {
 export async function getReportsForAnalysis(options: {
   startDate?: Date;
   endDate?: Date;
-  endExclusive?: boolean;
   reportStaffId?: number;
   country?: string;
   visibility?: ReportVisibilityFilter;
@@ -1180,15 +948,13 @@ export async function getReportsForAnalysis(options: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const conditions = [isNull(reports.deletedAt)];
+  const conditions = [];
 
   if (options.startDate) {
     conditions.push(sql`${reports.reportDate} >= ${options.startDate}`);
   }
   if (options.endDate) {
-    conditions.push(options.endExclusive
-      ? sql`${reports.reportDate} < ${options.endDate}`
-      : sql`${reports.reportDate} <= ${options.endDate}`);
+    conditions.push(sql`${reports.reportDate} <= ${options.endDate}`);
   }
   if (options.reportStaffId) {
     conditions.push(eq(reports.reportStaffId, options.reportStaffId));
@@ -1834,50 +1600,17 @@ export async function getLivestreamStatsByBrandId(brandId: number) {
 
 // ========== Report Followup Functions ==========
 
-export function reportFollowupDedupeKey(value: string): string {
-  const normalized = value.trim().toLowerCase();
-  return createHash("sha256").update(normalized).digest("hex");
-}
-
-function isDuplicateEntryError(error: unknown): boolean {
-  let current = error as any;
-  for (let depth = 0; depth < 4 && current && typeof current === "object"; depth += 1) {
-    if (current.code === "ER_DUP_ENTRY" || current.errno === 1062) return true;
-    if (typeof current.message === "string" && current.message.includes("Duplicate entry")) return true;
-    current = current.cause;
-  }
-  return false;
-}
-
 // Create a new followup item
-export async function createReportFollowup(followupData: InsertReportFollowup, actorUserId: number | null = null) {
+export async function createReportFollowup(followupData: InsertReportFollowup) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
-  const dedupeKey = reportFollowupDedupeKey(followupData.extractedItem);
-  try {
-    return await db.transaction(async transaction => {
-      const [inserted] = await transaction.insert(reportFollowups).values({
-        ...followupData,
-        dedupeKey,
-      }).$returningId();
-      if (!inserted?.id) return null;
-      const result = await transaction.select().from(reportFollowups).where(eq(reportFollowups.id, inserted.id)).limit(1);
-      const created = result[0] || null;
-      if (created) {
-        await transaction.execute(sql`
-          INSERT INTO entity_revision_audits
-            (entityType, entityId, action, actorUserId, beforeState, afterState)
-          VALUES ('report_followup', ${inserted.id}, 'create', ${actorUserId}, NULL,
-            ${JSON.stringify(created)})
-        `);
-      }
-      return created;
-    });
-  } catch (error) {
-    if (!isDuplicateEntryError(error)) throw error;
-    return null;
+  
+  const [inserted] = await db.insert(reportFollowups).values(followupData).$returningId();
+  if (inserted && inserted.id) {
+    const result = await db.select().from(reportFollowups).where(eq(reportFollowups.id, inserted.id)).limit(1);
+    return result.length > 0 ? result[0] : null;
   }
+  return null;
 }
 
 // Get all pending followups with optional staff filter
@@ -1888,12 +1621,7 @@ export async function getPendingFollowups(
   const db = await getDb();
   if (!db) return [];
 
-  const conditions = [
-    eq(reportFollowups.status, "pending"),
-    isNull(reportFollowups.duplicateOfId),
-    isNull(reportFollowups.archivedAt),
-    isNull(reports.deletedAt),
-  ];
+  const conditions = [eq(reportFollowups.status, "pending")];
   if (staffId) {
     conditions.push(eq(reportFollowups.reportStaffId, staffId));
   }
@@ -1915,37 +1643,6 @@ export async function getPendingFollowups(
     .orderBy(asc(reportFollowups.dueDate));
 }
 
-// Get all report-derived tasks for the unified task list.
-// Visibility must stay aligned with the daily-report permission scope.
-export async function getAllReportFollowups(
-  visibility?: ReportVisibilityFilter
-) {
-  const db = await getDb();
-  if (!db) return [];
-
-  const visibilityCondition = buildReportVisibilityCondition(visibility);
-  const conditions = [
-    isNotNull(reports.id),
-    isNull(reports.deletedAt),
-    isNull(reportFollowups.duplicateOfId),
-    isNull(reportFollowups.archivedAt),
-  ];
-  if (visibilityCondition) conditions.push(visibilityCondition);
-  const query = db
-    .select({
-      followup: reportFollowups,
-      staff: reportStaff,
-      report: reports,
-    })
-    .from(reportFollowups)
-    .leftJoin(reportStaff, eq(reportFollowups.reportStaffId, reportStaff.id))
-    .leftJoin(reports, eq(reportFollowups.reportId, reports.id));
-
-  return await query
-    .where(and(...conditions))
-    .orderBy(desc(reportFollowups.createdAt));
-}
-
 // Get overdue followups (due date passed and still pending) with optional staff filter
 export async function getOverdueFollowups(
   staffId?: number,
@@ -1957,9 +1654,6 @@ export async function getOverdueFollowups(
   const now = new Date();
   const conditions = [
     eq(reportFollowups.status, "pending"),
-    isNull(reportFollowups.duplicateOfId),
-    isNull(reportFollowups.archivedAt),
-    isNull(reports.deletedAt),
     sql`${reportFollowups.dueDate} < ${now}`,
   ];
   if (staffId) {
@@ -1988,8 +1682,7 @@ export async function updateFollowupStatus(
   id: number, 
   status: "pending" | "completed" | "cancelled", 
   resultCategory?: "成約" | "継続" | "保留" | "失注" | "完了",
-  resultNote?: string,
-  actorUserId: number | null = null
+  resultNote?: string
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -2006,20 +1699,7 @@ export async function updateFollowupStatus(
     }
   }
   
-  await db.transaction(async transaction => {
-    const before = (await transaction.select().from(reportFollowups)
-      .where(eq(reportFollowups.id, id)).limit(1).for("update"))[0];
-    if (!before || before.archivedAt || before.duplicateOfId) return;
-    await transaction.execute(sql`
-      INSERT INTO entity_revision_audits
-        (entityType, entityId, action, actorUserId, beforeState, afterState)
-      VALUES ('report_followup', ${id}, 'status_update', ${actorUserId},
-        ${JSON.stringify(before)}, ${JSON.stringify({ ...before, ...updateData })})
-    `);
-    await transaction.update(reportFollowups).set(updateData).where(and(
-      eq(reportFollowups.id, id), isNull(reportFollowups.duplicateOfId), isNull(reportFollowups.archivedAt)
-    ));
-  });
+  await db.update(reportFollowups).set(updateData).where(eq(reportFollowups.id, id));
 }
 
 // Get completed followups
@@ -2030,12 +1710,7 @@ export async function getCompletedFollowups(
   const db = await getDb();
   if (!db) return [];
 
-  const conditions = [
-    eq(reportFollowups.status, "completed"),
-    isNull(reportFollowups.duplicateOfId),
-    isNull(reportFollowups.archivedAt),
-    isNull(reports.deletedAt),
-  ];
+  const conditions = [eq(reportFollowups.status, "completed")];
   if (staffId) {
     conditions.push(eq(reportFollowups.reportStaffId, staffId));
   }
@@ -2063,32 +1738,16 @@ export async function getFollowupById(id: number) {
   const db = await getDb();
   if (!db) return null;
   
-  const result = await db.select().from(reportFollowups).where(and(
-    eq(reportFollowups.id, id),
-    isNull(reportFollowups.duplicateOfId),
-    isNull(reportFollowups.archivedAt)
-  )).limit(1);
+  const result = await db.select().from(reportFollowups).where(eq(reportFollowups.id, id)).limit(1);
   return result.length > 0 ? result[0] : null;
 }
 
 // Link next action to current followup
-export async function linkNextAction(currentId: number, nextActionId: number, actorUserId: number | null = null) {
+export async function linkNextAction(currentId: number, nextActionId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.transaction(async transaction => {
-    const before = (await transaction.select().from(reportFollowups)
-      .where(eq(reportFollowups.id, currentId)).limit(1).for("update"))[0];
-    if (!before || before.archivedAt || before.duplicateOfId) return;
-    await transaction.execute(sql`
-      INSERT INTO entity_revision_audits
-        (entityType, entityId, action, actorUserId, beforeState, afterState)
-      VALUES ('report_followup', ${currentId}, 'link_next_action', ${actorUserId},
-        ${JSON.stringify(before)}, ${JSON.stringify({ ...before, nextActionId })})
-    `);
-    await transaction.update(reportFollowups).set({ nextActionId }).where(and(
-      eq(reportFollowups.id, currentId), isNull(reportFollowups.duplicateOfId), isNull(reportFollowups.archivedAt)
-    ));
-  });
+  
+  await db.update(reportFollowups).set({ nextActionId }).where(eq(reportFollowups.id, currentId));
 }
 
 // Get followups by report ID
@@ -2096,11 +1755,7 @@ export async function getFollowupsByReportId(reportId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  return await db.select().from(reportFollowups).where(and(
-    eq(reportFollowups.reportId, reportId),
-    isNull(reportFollowups.duplicateOfId),
-    isNull(reportFollowups.archivedAt)
-  )).orderBy(desc(reportFollowups.createdAt));
+  return await db.select().from(reportFollowups).where(eq(reportFollowups.reportId, reportId)).orderBy(desc(reportFollowups.createdAt));
 }
 
 // Get followups by staff ID
@@ -2115,42 +1770,16 @@ export async function getFollowupsByStaffId(reportStaffId: number) {
     })
     .from(reportFollowups)
     .leftJoin(reports, eq(reportFollowups.reportId, reports.id))
-    .where(and(
-      eq(reportFollowups.reportStaffId, reportStaffId),
-      isNull(reportFollowups.duplicateOfId),
-      isNull(reportFollowups.archivedAt),
-      isNull(reports.deletedAt)
-    ))
+    .where(eq(reportFollowups.reportStaffId, reportStaffId))
     .orderBy(desc(reportFollowups.createdAt));
 }
 
-// Archive followup without deleting its execution and scoring history.
-export async function deleteReportFollowup(
-  id: number,
-  archivedBy: number,
-  archiveReason = "Archived from report tasks"
-) {
+// Delete followup
+export async function deleteReportFollowup(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
-  await db.transaction(async transaction => {
-    const before = (await transaction.select().from(reportFollowups)
-      .where(eq(reportFollowups.id, id)).limit(1).for("update"))[0];
-    if (!before || before.archivedAt || before.duplicateOfId) return;
-    const change = {
-      archivedAt: new Date(), archivedBy, archiveReason,
-      status: "cancelled" as const, dedupeKey: null,
-    };
-    await transaction.execute(sql`
-      INSERT INTO entity_revision_audits
-        (entityType, entityId, action, actorUserId, beforeState, afterState)
-      VALUES ('report_followup', ${id}, 'archive', ${archivedBy},
-        ${JSON.stringify(before)}, ${JSON.stringify({ ...before, ...change })})
-    `);
-    await transaction.update(reportFollowups).set(change).where(and(
-      eq(reportFollowups.id, id), isNull(reportFollowups.duplicateOfId), isNull(reportFollowups.archivedAt)
-    ));
-  });
+  
+  await db.delete(reportFollowups).where(eq(reportFollowups.id, id));
 }
 
 // Check if followup already exists for a report and extracted item
@@ -2164,9 +1793,7 @@ export async function checkExistingFollowup(reportId: number, extractedItem: str
     .where(
       and(
         eq(reportFollowups.reportId, reportId),
-        eq(reportFollowups.dedupeKey, reportFollowupDedupeKey(extractedItem)),
-        isNull(reportFollowups.duplicateOfId),
-        isNull(reportFollowups.archivedAt)
+        eq(reportFollowups.extractedItem, extractedItem)
       )
     )
     .limit(1);
@@ -2892,10 +2519,7 @@ export async function convertChatSessionToReport(input: {
 
     if (session.status === "converted" && session.convertedReportId) {
       const existing = await transaction.select().from(reports)
-        .where(and(
-          eq(reports.id, Number(session.convertedReportId)),
-          isNull(reports.deletedAt)
-        )).limit(1);
+        .where(eq(reports.id, Number(session.convertedReportId))).limit(1);
       if (!existing[0]) throw new Error("Converted report not found");
       return { report: existing[0], alreadyConverted: true };
     }
@@ -3143,7 +2767,7 @@ export async function getRecentReportsByStaffId(staffId: number, limit: number =
   return await db
     .select()
     .from(reports)
-    .where(and(eq(reports.reportStaffId, staffId), isNull(reports.deletedAt)))
+    .where(eq(reports.reportStaffId, staffId))
     .orderBy(desc(reports.reportDate))
     .limit(limit);
 }
@@ -3182,10 +2806,7 @@ export async function getReportsByLinkedStaffId(staffId: number) {
     })
     .from(reports)
     .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id))
-    .where(and(
-      inArray(reports.reportStaffId, reportStaffIds),
-      isNull(reports.deletedAt)
-    ))
+    .where(inArray(reports.reportStaffId, reportStaffIds))
     .orderBy(desc(reports.reportDate));
 }
 
@@ -15198,7 +14819,7 @@ export async function getReportCountByReportStaffId(reportStaffId: number) {
 
   const result = await db.select({ count: sql<number>`count(*)` })
     .from(reports)
-    .where(and(eq(reports.reportStaffId, reportStaffId), isNull(reports.deletedAt)));
+    .where(eq(reports.reportStaffId, reportStaffId));
 
   return result[0]?.count || 0;
 }
@@ -29589,35 +29210,17 @@ export async function getStreamerAccountsByLiverId(liverId: number) {
 
 // ============ Report Attachments ============
 
-export async function createReportAttachment(data: InsertReportAttachment, actorUserId: number | null = null) {
+export async function createReportAttachment(data: InsertReportAttachment) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.transaction(async transaction => {
-    const [inserted] = await transaction.insert(reportAttachments).values(data).$returningId();
-    if (!inserted?.id) return inserted;
-    const created = (await transaction.select().from(reportAttachments)
-      .where(eq(reportAttachments.id, inserted.id)).limit(1))[0];
-    await transaction.execute(sql`
-      INSERT INTO entity_revision_audits
-        (entityType, entityId, action, actorUserId, beforeState, afterState)
-      VALUES ('report_attachment', ${inserted.id}, 'create', ${actorUserId}, NULL,
-        ${JSON.stringify(created || { ...data, id: inserted.id })})
-    `);
-    return inserted;
-  });
+  const [inserted] = await db.insert(reportAttachments).values(data).$returningId();
+  return inserted;
 }
 
 export async function getReportAttachments(reportId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return await db
-    .select()
-    .from(reportAttachments)
-    .where(and(
-      eq(reportAttachments.reportId, reportId),
-      isNull(reportAttachments.archivedAt)
-    ))
-    .orderBy(asc(reportAttachments.createdAt));
+  return await db.select().from(reportAttachments).where(eq(reportAttachments.reportId, reportId)).orderBy(asc(reportAttachments.createdAt));
 }
 
 export async function getReportAttachmentsByReportIds(reportIds: number[]) {
@@ -29627,10 +29230,7 @@ export async function getReportAttachmentsByReportIds(reportIds: number[]) {
   return await db
     .select()
     .from(reportAttachments)
-    .where(and(
-      inArray(reportAttachments.reportId, reportIds),
-      isNull(reportAttachments.archivedAt)
-    ))
+    .where(inArray(reportAttachments.reportId, reportIds))
     .orderBy(asc(reportAttachments.createdAt));
 }
 
@@ -29640,33 +29240,13 @@ export async function getReportAttachmentById(id: number) {
   const result = await db
     .select()
     .from(reportAttachments)
-    .where(and(
-      eq(reportAttachments.id, id),
-      isNull(reportAttachments.archivedAt)
-    ))
+    .where(eq(reportAttachments.id, id))
     .limit(1);
   return result[0] || null;
 }
 
-export async function deleteReportAttachment(
-  id: number,
-  archivedBy: number,
-  archiveReason: string
-) {
+export async function deleteReportAttachment(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return await db.transaction(async transaction => {
-    const before = (await transaction.select().from(reportAttachments)
-      .where(eq(reportAttachments.id, id)).limit(1).for("update"))[0];
-    if (!before || before.archivedAt) return null;
-    const change = { archivedAt: new Date(), archivedBy, archiveReason };
-    await transaction.execute(sql`
-      INSERT INTO entity_revision_audits
-        (entityType, entityId, action, actorUserId, beforeState, afterState)
-      VALUES ('report_attachment', ${id}, 'archive', ${archivedBy},
-        ${JSON.stringify(before)}, ${JSON.stringify({ ...before, ...change })})
-    `);
-    return await transaction.update(reportAttachments).set(change)
-      .where(and(eq(reportAttachments.id, id), isNull(reportAttachments.archivedAt)));
-  });
+  return await db.delete(reportAttachments).where(eq(reportAttachments.id, id));
 }

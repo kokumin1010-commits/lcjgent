@@ -10,10 +10,11 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
 import { authenticateTikTokScheduleRequest } from "../tiktokPublicScheduleAuth";
-import { getTaskByCompletionToken } from "../db";
+import { getTaskByCompletionToken, updateTask } from "../db";
 import { getLineWebhookLifecycleEventId } from "../lineGroupLifecycleOrder";
 import { createLineRetryKey } from "../lineRetryKey";
-import { startTaskNotificationScheduler } from "../reminderScheduler";
+import { notifyOwner } from "./notification";
+import { checkAndSendReminders } from "../reminderScheduler";
 import { startGroupFollowUpScheduler } from "../groupFollowUpScheduler";
 import { startResponseReminderScheduler } from "../responseReminderScheduler";
 import { startScheduleReminderScheduler } from "../scheduleReminderScheduler";
@@ -28,8 +29,6 @@ import { startLiveSuggestionScheduler } from "../liveSuggestionScheduler";
 import { startWeeklyReportScheduler } from "../weeklyReportScheduler";
 import { startMonthlyReportScheduler } from "../monthlyReportScheduler";
 import { startPerformanceScheduler } from "../performanceScheduler";
-import { ensureTaskExecutionTables } from "../taskExecutionUpgrade";
-import { startReportFollowupRetryScheduler } from "../reportFollowupRetryScheduler";
 import { startPeerBonusResetScheduler } from "../peerBonusResetScheduler";
 import { startDailyRankingScheduler } from "../dailyRankingScheduler";
 import { ensureFestivalTables } from "../ensureFestivalTables";
@@ -388,13 +387,25 @@ async function startServer() {
         `);
       }
       
+      // Update task status to completed
+      await updateTask(task.id, {
+        status: "completed",
+        completedAt: Date.now(),
+      });
+      
+      // Notify owner
+      await notifyOwner({
+        title: "タスクが完了しました / Task Completed",
+        content: `タスクID: ${task.taskId}\n内容: ${task.taskDetail}`,
+      });
+      
       res.send(`
         <!DOCTYPE html>
         <html>
         <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>実行フィードバック / 执行反馈</title>
+          <title>タスク完了 / Task Completed</title>
           <style>
             body { font-family: sans-serif; padding: 40px; text-align: center; }
             .container { max-width: 600px; margin: 0 auto; }
@@ -404,13 +415,13 @@ async function startServer() {
         </head>
         <body>
           <div class="container">
-              <h1>実行フィードバック / 执行反馈</h1>
-              <div class="message">
-                <p><strong>日本語：</strong><br>複数担当者の実績を正しく記録するため、ログイン後にご本人の進行状況と実行内容を報告してください。</p>
-                <p><strong>中文：</strong><br>为准确记录多位执行人的实绩，请登录后由本人提交进度与执行内容。</p>
-                <p><a href="/master/tasks/${task.id}" style="display:inline-block;padding:12px 20px;background:#2563eb;color:white;text-decoration:none;border-radius:8px;">タスクを開く / 打开任务</a></p>
-              </div>
+            <h1>✅ タスクが完了しました！ / Task Completed!</h1>
+            <div class="message">
+              <p><strong>日本語：</strong><br>タスクを完了として記録しました。お疲れ様でした！</p>
+              <p><strong>中文：</strong><br>任务已标记为完成。辛苦了！</p>
             </div>
+            <p style="margin-top: 40px; color: #7f8c8d;">このウィンドウを閉じてください / You can close this window</p>
+          </div>
         </body>
         </html>
       `);
@@ -432,7 +443,7 @@ async function startServer() {
         <body>
           <div class="container">
             <h1>❌ エラーが発生しました / Error Occurred</h1>
-            <p>タスクフィードバック画面の表示中にエラーが発生しました。 / 打开任务反馈页面时发生错误。</p>
+            <p>タスクの完了処理中にエラーが発生しました。 / An error occurred while completing the task.</p>
           </div>
         </body>
         </html>
@@ -3920,16 +3931,6 @@ async function startServer() {
     throw error;
   }
 
-  // Task assignment feedback, archival and report-task deduplication must be
-  // available before APIs or performance reconciliation can read those facts.
-  try {
-    await ensureTaskExecutionTables();
-    console.log("[TaskExecution] Storage ready");
-  } catch (error) {
-    console.error("[TaskExecution] Storage setup failed", error);
-    throw error;
-  }
-
   server.listen(port, async () => {
     console.log(`Server running on http://localhost:${port}/`);
 
@@ -4070,8 +4071,16 @@ async function startServer() {
     // Encrypted offsite backup: startup safety snapshot + daily 03:15 JST.
     startDatabaseBackupScheduler();
     
-    // Persistent notification outbox: enqueue eligible reminders and retry failed deliveries.
-    startTaskNotificationScheduler();
+    // Start reminder scheduler (runs every 12 hours)
+    const TWELVE_HOURS = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
+    console.log("[Reminder Scheduler] Starting scheduler (runs every 12 hours)...");
+    
+    // Run every 12 hours (no immediate execution on startup)
+    setInterval(() => {
+      checkAndSendReminders().catch(error => {
+        console.error("[Reminder Scheduler] Error during scheduled run:", error);
+      });
+    }, TWELVE_HOURS);
     
     // Start group follow-up scheduler (checks for inactive groups every 6 hours)
     startGroupFollowUpScheduler();
@@ -4127,8 +4136,6 @@ async function startServer() {
 
     // Start organization execution shadow reconciliation (in-app only; no bonus/LCJ Coin writes)
     startPerformanceScheduler();
-    // Retry failed daily-report action extraction jobs with DB leases and exponential backoff.
-    startReportFollowupRetryScheduler();
     
     // Start pre-briefing scheduler (sends briefing 1h before and 5min before stream)
         startPreBriefingScheduler();

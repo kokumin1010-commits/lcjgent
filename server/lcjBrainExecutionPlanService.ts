@@ -683,28 +683,6 @@ export async function publishExecutionPlan(input: {
           "INSERT INTO task_staff (taskId,staffId) VALUES (?,?)",
           [externalTaskId, staffId]
         );
-      await connection.query(
-        `INSERT INTO entity_revision_audits
-         (entityType,entityId,action,actorUserId,beforeState,afterState)
-         VALUES ('task',?,'create',?,NULL,?)`,
-        [
-          externalTaskId,
-          input.actor.id,
-          JSON.stringify({
-            id: externalTaskId,
-            taskId: taskCode,
-            status: "pending",
-            staffId: ownerStaffId,
-            taskDetail: `[项目执行] ${task.title}`,
-            extractedContext: context,
-            deadline: tokyoDateTime(dates.dueDate, true),
-            notes: `LCJ Brain执行计划任务；发布时不发送外部通知。项目#${project.id} / 计划#${input.planId}`,
-            startDate: tokyoDateTime(dates.startDate).getTime(),
-            createdBy: input.actor.id,
-            participantStaffIds,
-          }),
-        ]
-      );
       const [state] = await connection.query<ResultSetHeader>(
         `INSERT INTO lcj_brain_project_execution_task_states
          (projectId,planId,taskKey,status,evidenceLinks,externalTaskId)
@@ -940,32 +918,15 @@ export async function reviewExecutionTask(input: {
        WHERE id=?`,
       [nextStatus, input.actor.staffId, note || null, locked.row.id]
     );
-    if (locked.row.externalTaskId) {
-      const [taskRows] = await connection.query<RowDataPacket[]>(
-        "SELECT * FROM tasks WHERE id=? FOR UPDATE",
-        [locked.row.externalTaskId]
-      );
-      const beforeTask = taskRows[0] ? { ...taskRows[0] } : null;
-      const taskStatus = input.decision === "approve" ? "completed" : "pending";
-      const completedAt = input.decision === "approve" ? Date.now() : null;
+    if (locked.row.externalTaskId)
       await connection.query(
         `UPDATE tasks SET status=?,completedAt=? WHERE id=?`,
-        [taskStatus, completedAt, locked.row.externalTaskId]
+        [
+          input.decision === "approve" ? "completed" : "pending",
+          input.decision === "approve" ? Date.now() : null,
+          locked.row.externalTaskId,
+        ]
       );
-      if (beforeTask) {
-        await connection.query(
-          `INSERT INTO entity_revision_audits
-           (entityType,entityId,action,actorUserId,beforeState,afterState)
-           VALUES ('task',?,'lcj_brain_review',?,?,?)`,
-          [
-            locked.row.externalTaskId,
-            input.actor.id,
-            JSON.stringify(beforeTask),
-            JSON.stringify({ ...beforeTask, status: taskStatus, completedAt }),
-          ]
-        );
-      }
-    }
     await connection.query(
       `INSERT INTO lcj_brain_project_execution_events
        (projectId,planId,taskKey,action,actorUserId,actorName,actorStaffId,detailJson)
