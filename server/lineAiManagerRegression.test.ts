@@ -152,7 +152,8 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(groupFollowUp).toContain("expectedLastActivityAt: group.followUpActivityAt");
     expect(manager).toContain('LINE_GROUP_AUTOMATION_DEFAULTS_ROLLOUT = "all_active_groups_auto_on_v1"');
     expect(manager).toContain("INSERT IGNORE INTO line_group_automation_rollouts");
-    expect(manager).toContain("if (!firstExecuteRow(rolloutResult)) return false");
+    expect(manager).toContain('getLineGroupAutomationDefaultsHealth(): Promise<"ready" | "pending">');
+    expect(server).toContain("groupAutomationDefaults");
     expect(manager).toContain("autoReplyEnabled = true");
     expect(manager).toContain("analysisEnabled = true");
     expect(manager).toContain("proactiveAiEnabled = true");

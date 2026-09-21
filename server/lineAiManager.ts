@@ -2895,7 +2895,6 @@ export async function checkLineAiManagerStorage(): Promise<boolean> {
   await db.select({
     lineGroupId: lineGroups.lineGroupId,
     conversationRevision: lineGroups.conversationRevision,
-    autoFollowUpEnabledAt: lineGroups.autoFollowUpEnabledAt,
   }).from(lineGroups).limit(1);
   await db.execute(sql`
     SELECT lineGroupId, analysisEnabled, proactiveAiEnabled, relationshipObjective,
@@ -2904,13 +2903,11 @@ export async function checkLineAiManagerStorage(): Promise<boolean> {
     FROM line_group_settings
     LIMIT 1
   `);
-  const rolloutResult = await db.execute(sql`
+  await db.execute(sql`
     SELECT rolloutKey, activeGroupCount, settingsRowCount, appliedAt
     FROM line_group_automation_rollouts
-    WHERE rolloutKey = ${LINE_GROUP_AUTOMATION_DEFAULTS_ROLLOUT}
     LIMIT 1
   `);
-  if (!firstExecuteRow(rolloutResult)) return false;
   await db.select({
     id: lineAiManagerSettings.id,
     lineUserId: lineAiManagerSettings.lineUserId,
@@ -3041,6 +3038,18 @@ export async function checkLineAiManagerStorage(): Promise<boolean> {
     }
   }
   return true;
+}
+
+export async function getLineGroupAutomationDefaultsHealth(): Promise<"ready" | "pending"> {
+  const db = await getDb();
+  if (!db) return "pending";
+  const result = await db.execute(sql`
+    SELECT rolloutKey
+    FROM line_group_automation_rollouts
+    WHERE rolloutKey = ${LINE_GROUP_AUTOMATION_DEFAULTS_ROLLOUT}
+    LIMIT 1
+  `);
+  return firstExecuteRow(result) ? "ready" : "pending";
 }
 
 export const LINE_AI_MANAGER_MODEL = AI_MANAGER_MODEL;

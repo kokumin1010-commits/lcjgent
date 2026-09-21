@@ -340,10 +340,14 @@ async function startServer() {
   app.get("/api/health/line-ai-manager", async (_req, res) => {
     res.setHeader("Cache-Control", "no-store, max-age=0");
     try {
-      const { checkLineAiManagerStorage } = await import("../lineAiManager");
+      const {
+        checkLineAiManagerStorage,
+        getLineGroupAutomationDefaultsHealth,
+      } = await import("../lineAiManager");
       const ready = await checkLineAiManagerStorage();
       if (!ready) throw new Error("LINE AI manager storage is unavailable");
-      return res.status(200).json({ ok: true, aiManagerStorage: "ready" });
+      const groupAutomationDefaults = await getLineGroupAutomationDefaultsHealth();
+      return res.status(200).json({ ok: true, aiManagerStorage: "ready", groupAutomationDefaults });
     } catch (error) {
       console.error("[LINE AI Manager] Storage health check failed:", error);
       return res.status(503).json({ ok: false, aiManagerStorage: "unavailable" });
