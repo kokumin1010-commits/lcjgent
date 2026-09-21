@@ -34,7 +34,7 @@ describe("selection product workbook UI contract", () => {
     expect(importDialog).toContain("有料AI不使用");
     expect(importService).not.toContain("invokeLLM");
     expect(importService).not.toContain("OPENAI");
-    expect(router).toContain("previewProductWorkbook: protectedProcedure");
-    expect(router).toContain("commitProductWorkbook: protectedProcedure");
+    expect(router).toContain("previewProductWorkbook: selectionCenterEditProcedure");
+    expect(router).toContain("commitProductWorkbook: selectionCenterEditProcedure");
   });
 });

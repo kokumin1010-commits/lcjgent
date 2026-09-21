@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import HistoricalProductCatalogPanel from "@/components/HistoricalProductCatalogPanel";
 import SelectionProductWorkbookImportDialog from "@/components/SelectionProductWorkbookImportDialog";
+import SelectionProductBulkUpdateDialog, { type SelectionProductBulkPatch } from "@/components/SelectionProductBulkUpdateDialog";
 import { arrayBufferToBase64, parseAuctionExcelRows, sha256Hex, type ParsedAuctionImport } from "@/lib/auctionExcelImport";
 import { buildAuctionProductGroups, type AuctionEventForDisplay } from "@/lib/auctionDisplay";
 import {
@@ -266,12 +267,14 @@ function ChildSkuTableRow({
   target,
   categoryLabel,
   protection,
+  canEdit,
   onEdit,
   onDelete,
 }: {
   target: ChildSkuEditTarget;
   categoryLabel: string;
   protection?: { lastChangedAt: string; protectionDaysLeft: number; status: "safe" | "caution" | "danger" };
+  canEdit: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -293,6 +296,7 @@ function ChildSkuTableRow({
 
   return (
     <tr className="border-t bg-blue-50/30 dark:bg-blue-950/20" data-child-sku-kind={target.kind}>
+      <td className="p-2 text-center"><span className="text-xs text-muted-foreground">—</span></td>
       <td className="p-2 pl-6"><div className="flex items-center gap-1"><span className="text-muted-foreground text-xs">└</span><ProductThumbnail images={target.kind === "entity" ? source.images : parent.images} alt={name || "子SKU画像"} /></div></td>
       <td className="p-2 max-w-[220px]">
         <span className="text-sm font-medium">{name}</span>
@@ -309,7 +313,7 @@ function ChildSkuTableRow({
       <td className="p-2 text-center font-medium">{stock}</td>
       <td className="p-2 text-center"><Badge variant={status === "online" ? "default" : status === "draft" ? "secondary" : "outline"}>{status === "online" ? t("sc.online") : status === "draft" ? t("sc.draft") : t("sc.offline")}</Badge></td>
       <td className="p-2 text-center"><div className="flex flex-col items-center gap-1">{promotionType ? <span className="rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-700">{promotionType}</span> : <span className="text-xs text-muted-foreground">-</span>}{target.kind === "entity" && <ProductBundleBadge productId={Number(source.id)} />}</div></td>
-      <td className="p-2 text-center"><div className="flex items-center justify-center gap-1"><Button variant="ghost" size="sm" title="子SKU编辑" onClick={onEdit}><Pencil className="w-3.5 h-3.5" /></Button><Button variant="ghost" size="sm" title={target.kind === "entity" ? "解除父级" : "删除SKU"} onClick={onDelete}>{target.kind === "entity" ? <X className="w-3.5 h-3.5" /> : <Trash2 className="w-3.5 h-3.5 text-red-500" />}</Button></div></td>
+      <td className="p-2 text-center">{canEdit ? <div className="flex items-center justify-center gap-1"><Button variant="ghost" size="sm" title="子SKU编辑" onClick={onEdit}><Pencil className="w-3.5 h-3.5" /></Button><Button variant="ghost" size="sm" title={target.kind === "entity" ? "解除父级" : "删除SKU"} onClick={onDelete}>{target.kind === "entity" ? <X className="w-3.5 h-3.5" /> : <Trash2 className="w-3.5 h-3.5 text-red-500" />}</Button></div> : <span className="text-xs text-muted-foreground">—</span>}</td>
     </tr>
   );
 }
@@ -317,6 +321,18 @@ function ChildSkuTableRow({
 // ==================== Products Tab ====================
 function ProductsTab() {
   const { t, language } = useLanguage();
+  const bulkPermissionsQuery = trpc.rbac.myPermissions.useQuery();
+  const bulkPermissions = bulkPermissionsQuery.data as any;
+  const canBulkEdit = !bulkPermissions
+    ? false
+    : bulkPermissions.permissions == null
+      || (bulkPermissions.isAdmin && Array.isArray(bulkPermissions.permissions) && bulkPermissions.permissions.length === 0)
+      || (Array.isArray(bulkPermissions.permissions) && bulkPermissions.permissions.some((permission: any) => (
+        permission.canEdit === true || permission.canEdit === 1 || permission.canEdit === "1"
+      ) && (
+        permission.pageKey === "/master/selection-center"
+        || permission.pageKey === "/master/selection-center?tab=products"
+      )));
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   React.useEffect(() => {
@@ -339,6 +355,14 @@ function ProductsTab() {
   const [showWorkbookImport, setShowWorkbookImport] = useState(false);
   const [editProduct, setEditProduct] = useState<any>(null);
   const [editChildSkuTarget, setEditChildSkuTarget] = useState<ChildSkuEditTarget | null>(null);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(new Set());
+  const [showBulkUpdateDialog, setShowBulkUpdateDialog] = useState(false);
+  const [selectingAll, setSelectingAll] = useState(false);
+  const utils = trpc.useUtils();
+  React.useEffect(() => {
+    setSelectedProductIds(new Set());
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, brandFilter]);
 
   const productsQuery = trpc.selectionCenter.getProducts.useQuery({
     search: debouncedSearch || undefined,
@@ -397,6 +421,18 @@ function ProductsTab() {
     onSuccess: async () => { await productsQuery.refetch(); toast.success("已解除父级 / 親設定を解除しました"); },
     onError: (error) => toast.error(error.message || "解除父级失败 / 親設定解除失敗"),
   });
+  const bulkUpdateProductsMutation = trpc.selectionCenter.bulkUpdateProducts.useMutation({
+    onSuccess: async data => {
+      await Promise.all([
+        utils.selectionCenter.getProducts.invalidate(),
+        utils.selectionCenter.getPriceProtectionStatus.invalidate(),
+      ]);
+      setSelectedProductIds(new Set());
+      setShowBulkUpdateDialog(false);
+      toast.success(`${data.affectedCount}件の商品を一括更新しました`);
+    },
+    onError: error => toast.error(error.message || "批量更新失败 / 一括更新に失敗しました"),
+  });
   const saveChildSku = (payload: ChildSkuEditPayload) => {
     const target = editChildSkuTarget;
     if (!target) return;
@@ -451,6 +487,46 @@ function ProductsTab() {
     });
   }
 
+  const visibleParentProducts = (productsQuery.data?.items || []).filter((product: any) => (
+    (brandFilter === "all" || product.brandName === brandFilter) && !product.parentProductId
+  ));
+  const visibleProductIds = visibleParentProducts.map((product: any) => Number(product.id));
+  const visibleSelectedCount = visibleProductIds.filter((id: number) => selectedProductIds.has(id)).length;
+  const allVisibleSelected = visibleProductIds.length > 0 && visibleSelectedCount === visibleProductIds.length;
+
+  const toggleProductSelection = (productId: number, checked: boolean | "indeterminate") => {
+    setSelectedProductIds(current => {
+      const next = new Set(current);
+      if (checked === true) next.add(productId); else next.delete(productId);
+      return next;
+    });
+  };
+
+  const toggleVisibleSelection = (checked: boolean | "indeterminate") => {
+    setSelectedProductIds(current => {
+      const next = new Set(current);
+      visibleProductIds.forEach((id: number) => checked === true ? next.add(id) : next.delete(id));
+      return next;
+    });
+  };
+
+  const selectAllFilteredProducts = async () => {
+    setSelectingAll(true);
+    try {
+      const result = await utils.selectionCenter.getProductIdsForBulkSelection.fetch({
+        search: debouncedSearch || undefined,
+        status: statusFilter === "all" ? undefined : statusFilter as "draft" | "online" | "offline",
+        brandName: brandFilter === "all" ? undefined : brandFilter,
+      });
+      setSelectedProductIds(new Set(result.ids.map(Number)));
+      toast.success(`筛选结果 ${result.total} 件已全部选择`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "一键全选失败");
+    } finally {
+      setSelectingAll(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <HistoricalProductCatalogPanel />
@@ -501,7 +577,7 @@ function ProductsTab() {
             })()}
           </SelectContent>
         </Select>
-        {brandFilter !== 'all' && (
+        {canBulkEdit && brandFilter !== 'all' && (
           <>
             <Button
               variant="default"
@@ -567,17 +643,42 @@ function ProductsTab() {
           URL.revokeObjectURL(url);
           toast.success('CSVエクスポート完了');
         }}><Download className="h-4 w-4 mr-1" />CSV出力</Button>
-        <Button onClick={() => setShowCreateDialog(true)}><Plus className="h-4 w-4 mr-1" />{t("sc.addProduct")}</Button>
-        <AiRecognitionButton
-          onWorkbook={() => setShowWorkbookImport(true)}
-          onResult={(data) => { setEditProduct(null); setShowCreateDialog(true); setTimeout(() => { window.__aiProductData = data; window.dispatchEvent(new Event('ai-product-data')); }, 100); }}
-        />
+        {canBulkEdit && <>
+          <Button onClick={() => setShowCreateDialog(true)}><Plus className="h-4 w-4 mr-1" />{t("sc.addProduct")}</Button>
+          <AiRecognitionButton
+            onWorkbook={() => setShowWorkbookImport(true)}
+            onResult={(data) => { setEditProduct(null); setShowCreateDialog(true); setTimeout(() => { (window as any).__aiProductData = data; window.dispatchEvent(new Event('ai-product-data')); }, 100); }}
+          />
+        </>}
       </div>
 
+      {canBulkEdit && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 bg-blue-50/70 p-3" data-testid="selection-product-bulk-toolbar">
+        <span className="mr-1 text-sm font-medium text-blue-950">已选择 {selectedProductIds.size} 件</span>
+        <Button type="button" size="sm" variant="outline" onClick={() => toggleVisibleSelection(!allVisibleSelected)} disabled={visibleProductIds.length === 0}>
+          <Check className="mr-1 h-4 w-4" />{allVisibleSelected ? "取消本页全选" : "本页全选"}
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={selectAllFilteredProducts} disabled={selectingAll || productsQuery.isLoading}>
+          {selectingAll ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-1 h-4 w-4" />}
+          一键全选当前筛选
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => setSelectedProductIds(new Set())} disabled={selectedProductIds.size === 0}>清空选择</Button>
+        <Button type="button" size="sm" className="ml-auto" onClick={() => setShowBulkUpdateDialog(true)} disabled={selectedProductIds.size === 0}>
+          <Edit className="mr-1 h-4 w-4" />批量更新
+        </Button>
+      </div>}
+
       <div className="border rounded-lg overflow-x-auto">
-        <table className="w-full text-sm min-w-[1100px]">
+        <table className="w-full text-sm min-w-[1160px]">
           <thead className="bg-muted/50">
             <tr>
+              <th className="p-3 text-center font-medium w-12">
+                <Checkbox
+                  aria-label="本页商品全选"
+                  disabled={!canBulkEdit}
+                  checked={allVisibleSelected ? true : visibleSelectedCount > 0 ? "indeterminate" : false}
+                  onCheckedChange={toggleVisibleSelection}
+                />
+              </th>
               <th className="text-left p-3 font-medium w-12">{t("sc.image")}</th>
               <th className="text-left p-3 font-medium">{t("sc.productName")}</th>
               <th className="text-left p-3 font-medium">{t("sc.barcode")}</th>
@@ -594,7 +695,7 @@ function ProductsTab() {
             </tr>
           </thead>
           <tbody>
-            {productsQuery.data?.items?.filter((product: any) => (brandFilter === 'all' || product.brandName === brandFilter) && !product.parentProductId).map((product: any) => {
+            {visibleParentProducts.map((product: any) => {
               const category = categoryRecords.find((c: any) => c.id === product.categoryId);
               const categoryLabel = category
                 ? formatSelectionCategoryLabel(category, categoryRecords.find((parent: any) => parent.id === category.parentId))
@@ -604,7 +705,15 @@ function ProductsTab() {
               const childProducts = productsQuery.data?.items?.filter((child: any) => child.parentProductId === product.id) || [];
               const childSkuCount = _skuList.length + childProducts.length;
               return (<React.Fragment key={product.id}>
-                <tr className="border-t hover:bg-muted/30">
+                <tr className={`border-t hover:bg-muted/30 ${selectedProductIds.has(Number(product.id)) ? "bg-blue-50/80" : ""}`} data-product-id={product.id}>
+                  <td className="p-3 text-center">
+                    <Checkbox
+                      aria-label={`选择商品 ${product.productName || product.id}`}
+                      disabled={!canBulkEdit}
+                      checked={selectedProductIds.has(Number(product.id))}
+                      onCheckedChange={checked => toggleProductSelection(Number(product.id), checked)}
+                    />
+                  </td>
                   <td className="p-3">
                     <ProductThumbnail images={product.images} alt={product.productName || "商品画像"} />
                   </td>
@@ -681,7 +790,7 @@ function ProductsTab() {
                                 <button className="text-red-600 font-bold hover:underline cursor-pointer">{discountRate > 0 && <span className="text-orange-600">{discountRate}%OFF </span>}¥{lowestPrice.toLocaleString()}</button>
                               </PopoverTrigger>
                               <PopoverContent className="w-72 p-0" align="end">
-                                <PriceHistoryPopover productId={product.id} />
+                                <PriceHistoryPopover productId={product.id} canArchive={canBulkEdit} />
                               </PopoverContent>
                             </Popover>
                           );
@@ -721,7 +830,7 @@ function ProductsTab() {
                               <button className="text-red-600 font-bold hover:underline cursor-pointer">{discountRate > 0 && <span className="text-orange-600">{discountRate}%OFF </span>}¥{lowestPrice.toLocaleString()}</button>
                             </PopoverTrigger>
                             <PopoverContent className="w-72 p-0" align="end">
-                              <PriceHistoryPopover productId={product.id} />
+                              <PriceHistoryPopover productId={product.id} canArchive={canBulkEdit} />
                             </PopoverContent>
                           </Popover>
                         );
@@ -773,20 +882,20 @@ function ProductsTab() {
                   <td className="p-3 text-center"><ProductBundleBadge productId={product.id} /></td>
                   <td className="p-3 text-center">
                     <div className="flex items-center justify-center gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => setEditProduct(product)}><Edit className="h-3.5 w-3.5" /></Button>
-                      {product.status !== "online" && (
+                      {canBulkEdit && <Button variant="ghost" size="sm" onClick={() => setEditProduct(product)}><Edit className="h-3.5 w-3.5" /></Button>}
+                      {canBulkEdit && product.status !== "online" && (
                         <Button variant="ghost" size="sm" onClick={() => statusMutation.mutate({ id: product.id, status: "online" })}>
                           <CheckCircle className="h-3.5 w-3.5 text-green-600" />
                         </Button>
                       )}
-                      {product.status === "online" && (
+                      {canBulkEdit && product.status === "online" && (
                         <Button variant="ghost" size="sm" onClick={() => statusMutation.mutate({ id: product.id, status: "offline" })}>
                           <Eye className="h-3.5 w-3.5 text-orange-600" />
                         </Button>
                       )}
-                      <Button variant="ghost" size="sm" onClick={() => { if (confirm(t("sc.deleteConfirm"))) deleteProductMutation.mutate({ id: product.id }); }}>
+                      {canBulkEdit && <Button variant="ghost" size="sm" onClick={() => { if (confirm(t("sc.deleteConfirm"))) deleteProductMutation.mutate({ id: product.id }); }}>
                         <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                      </Button>
+                      </Button>}
                       <Button variant="ghost" size="sm" title={t("sc.polls.fromProduct")} onClick={() => {
                         createPollFromProduct(product);
                       }}>
@@ -797,16 +906,16 @@ function ProductsTab() {
                 </tr>
                 {expandedParentIds.has(product.id) && _skuList.map((variant: SelectionProductSkuVariant, index: number) => {
                   const target: ChildSkuEditTarget = { kind: "embedded", parent: product, variant, index };
-                  return <ChildSkuTableRow key={`embedded-${product.id}-${variant.variantId || index}`} target={target} categoryLabel={categoryLabel} protection={protectionMap[product.id]} onEdit={() => setEditChildSkuTarget(target)} onDelete={() => { if (confirm("この商品SKUを削除しますか？")) deleteEmbeddedChildSkuMutation.mutate({ parentId: Number(product.id), variantId: variant.variantId, fallbackIndex: index, expectedName: variant.name, expectedSkuCode: variant.skuCode || null }); }} />;
+                  return <ChildSkuTableRow key={`embedded-${product.id}-${variant.variantId || index}`} target={target} categoryLabel={categoryLabel} protection={protectionMap[product.id]} canEdit={canBulkEdit} onEdit={() => setEditChildSkuTarget(target)} onDelete={() => { if (confirm("この商品SKUを削除しますか？")) deleteEmbeddedChildSkuMutation.mutate({ parentId: Number(product.id), variantId: variant.variantId, fallbackIndex: index, expectedName: variant.name, expectedSkuCode: variant.skuCode || null }); }} />;
                 })}
                 {expandedParentIds.has(product.id) && childProducts.map((child: any) => {
                   const target: ChildSkuEditTarget = { kind: "entity", parent: product, child };
-                  return <ChildSkuTableRow key={`child-${child.id}`} target={target} categoryLabel={categoryLabel} protection={protectionMap[child.id]} onEdit={() => setEditChildSkuTarget(target)} onDelete={() => { if (confirm("子SKUの親設定を解除しますか？")) removeParentProductMutation.mutate({ childId: Number(child.id), expectedParentId: Number(product.id) }); }} />;
+                  return <ChildSkuTableRow key={`child-${child.id}`} target={target} categoryLabel={categoryLabel} protection={protectionMap[child.id]} canEdit={canBulkEdit} onEdit={() => setEditChildSkuTarget(target)} onDelete={() => { if (confirm("子SKUの親設定を解除しますか？")) removeParentProductMutation.mutate({ childId: Number(child.id), expectedParentId: Number(product.id) }); }} />;
                 })}
               </React.Fragment>);
             })}
-            {(!productsQuery.data?.items || productsQuery.data.items.length === 0) && (
-              <tr><td colSpan={13} className="p-8 text-center text-muted-foreground">{t("sc.noProducts")}</td></tr>
+            {visibleParentProducts.length === 0 && (
+              <tr><td colSpan={14} className="p-8 text-center text-muted-foreground">{t("sc.noProducts")}</td></tr>
             )}
           </tbody>
         </table>
@@ -829,7 +938,21 @@ function ProductsTab() {
       <SelectionProductWorkbookImportDialog
         open={showWorkbookImport}
         onOpenChange={setShowWorkbookImport}
-        onImported={() => productsQuery.refetch()}
+        onImported={async () => { await productsQuery.refetch(); }}
+      />
+
+      <SelectionProductBulkUpdateDialog
+        open={showBulkUpdateDialog}
+        selectedCount={selectedProductIds.size}
+        loading={bulkUpdateProductsMutation.isPending}
+        onOpenChange={setShowBulkUpdateDialog}
+        onSubmit={({ requestId, patch }: { requestId: string; patch: SelectionProductBulkPatch }) => {
+          bulkUpdateProductsMutation.mutate({
+            requestId,
+            productIds: Array.from(selectedProductIds),
+            patch,
+          });
+        }}
       />
 
       {/* Create/Edit Dialog */}
@@ -839,7 +962,7 @@ function ProductsTab() {
         product={editProduct}
         protectionMap={protectionMap}
         categories={categoryRecords}
-        onSubmit={(data) => {
+        onSubmit={(data: any) => {
           if (editProduct) {
             updateMutation.mutate({ id: editProduct.id, ...data });
           } else {
@@ -3615,7 +3738,7 @@ function DiscountHistoryPanel({ productId }: { productId: number }) {
 }
 
 // ==================== Popover versions for list page ====================
-function PriceHistoryPopover({ productId }: { productId: number }) {
+function PriceHistoryPopover({ productId, canArchive }: { productId: number; canArchive: boolean }) {
   const utils = trpc.useUtils();
   const deleteMut = trpc.selectionCenter.deletePriceHistory.useMutation({
     onSuccess: () => { utils.selectionCenter.getPriceHistory.invalidate({ productId }); utils.selectionCenter.listProducts.invalidate(); }
@@ -3637,7 +3760,11 @@ function PriceHistoryPopover({ productId }: { productId: number }) {
           {rows.map((row: any, idx: number) => (
             <div key={row.id} className={`flex items-center justify-between text-xs ${idx === 0 ? 'bg-red-50 rounded px-1.5 py-1 font-bold' : ''}`}>
               <span className="text-red-600">{idx === 0 ? '🏆 ' : ''}¥{Number(row.price).toLocaleString()}</span>
-              <button onClick={(e) => { e.stopPropagation(); if(confirm('削除しますか？')) deleteMut.mutate({ id: row.id }); }} className="text-gray-300 hover:text-red-500 ml-1 text-[10px]">✕</button>
+              {canArchive && <button
+                title="履歴を削除せず訂正としてアーカイブ"
+                onClick={(e) => { e.stopPropagation(); if(confirm('履歴を残したまま訂正としてアーカイブしますか？')) deleteMut.mutate({ id: row.id, reason: 'manual_correction' }); }}
+                className="text-gray-300 hover:text-red-500 ml-1 text-[10px]"
+              >訂正</button>}
               <span className="text-muted-foreground text-[10px]">
                 {new Date(row.createdAt).toLocaleDateString('ja-JP')}
               </span>

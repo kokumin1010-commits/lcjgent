@@ -46,8 +46,8 @@ function createFakePool(options: {
     release: vi.fn(),
     query: vi.fn(async (sql: string, params?: unknown[]) => {
       state.transactionQueries.push({ sql, params });
-      if (sql.startsWith("SELECT id FROM selection_products")) {
-        return [options.existing === false ? [] : [{ id: 7 }], []];
+      if (sql.startsWith("SELECT id, historicalLowestPrice FROM selection_products")) {
+        return [options.existing === false ? [] : [{ id: 7, historicalLowestPrice: 1200 }], []];
       }
       if (sql.startsWith("INSERT INTO selection_products")) {
         if (options.failOnProductWrite) throw new Error("simulated insert failure");
