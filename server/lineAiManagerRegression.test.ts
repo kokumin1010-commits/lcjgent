@@ -102,7 +102,8 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(groupInsightMigration).not.toContain("ADD COLUMN IF NOT EXISTS");
     expect(manager).toContain("センシティブ属性・性格・親密度を推測しない");
     expect(groupAutomationMigration).not.toContain("MODIFY COLUMN");
-    expect(groupAutomationMigration).toContain("ADD COLUMN `autoFollowUpEnabledAt`");
+    expect(groupAutomationMigration).not.toContain("ALTER TABLE");
+    expect(manager).toContain("ADD COLUMN `autoFollowUpEnabledAt`");
     expect(manager).toContain("SET autoFollowUpEnabled = true");
     expect(manager).toContain("autoReplyEnabled = true");
     expect(manager).toContain("analysisEnabled = true");

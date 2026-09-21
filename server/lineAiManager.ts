@@ -2757,6 +2757,13 @@ export async function ensureLineGroupAutomationDefaults(): Promise<{
 }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available while applying LINE group automation defaults");
+  try {
+    await db.execute(sql.raw(
+      "ALTER TABLE `line_groups` ADD COLUMN `autoFollowUpEnabledAt` timestamp NULL AFTER `autoFollowUpMessage`",
+    ));
+  } catch (error) {
+    if (!isDuplicateMysqlColumn(error)) throw error;
+  }
   return applyLineGroupAutomationDefaultsRolloutUsingDb(db);
 }
 
@@ -2802,13 +2809,6 @@ export async function ensureLineAiManagerStorage(): Promise<void> {
   try {
     await db.execute(sql.raw(
       "ALTER TABLE `line_groups` ADD COLUMN `conversationRevision` bigint unsigned NOT NULL DEFAULT 0",
-    ));
-  } catch (error) {
-    if (!isDuplicateMysqlColumn(error)) throw error;
-  }
-  try {
-    await db.execute(sql.raw(
-      "ALTER TABLE `line_groups` ADD COLUMN `autoFollowUpEnabledAt` timestamp NULL AFTER `autoFollowUpMessage`",
     ));
   } catch (error) {
     if (!isDuplicateMysqlColumn(error)) throw error;

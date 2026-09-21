@@ -274,9 +274,6 @@ async function main() {
         if (!isDuplicateMysqlColumn(error)) throw error;
       }
     }
-    await ensureMysqlColumns(connection, 'line_groups', [
-      { name: 'autoFollowUpEnabledAt', definition: 'timestamp NULL AFTER `autoFollowUpMessage`' },
-    ]);
     console.log(`[Migration] LINE group automation defaults ensured (${lineGroupAutomationStatements.length} statements).`);
 
     console.log('[Migration] Ensuring brand BD command center tables...');
