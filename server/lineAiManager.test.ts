@@ -340,9 +340,7 @@ describe("LCJ LINE AI manager", () => {
           [],
         ];
       }
-      if (executeCall === 16) {
-        return [[{ activeGroupCount: 4, settingsRowCount: 4, stateRowCount: 4 }], []];
-      }
+      if (executeCall >= 16 && executeCall <= 18) return [[{ rowCount: 4 }], []];
       return [{ affectedRows: 1 }, []];
     });
     const db = {
@@ -354,7 +352,7 @@ describe("LCJ LINE AI manager", () => {
       activeGroupCount: 4,
       settingsRowCount: 4,
     });
-    expect(execute).toHaveBeenCalledTimes(17);
+    expect(execute).toHaveBeenCalledTimes(19);
 
     const alreadyClaimedExecute = vi.fn().mockResolvedValueOnce([{ affectedRows: 0 }, []]);
     const alreadyClaimedDb = {
@@ -375,9 +373,9 @@ describe("LCJ LINE AI manager", () => {
       if (executeCall === 1) return [{ affectedRows: 1 }, []];
       if (executeCall === 2) return [{ affectedRows: 1 }, []];
       if (executeCall === 3) return [[{ lineGroupId: "C1" }], []];
-      if (executeCall === 7) {
-        return [[{ activeGroupCount: 1, settingsRowCount: 0, stateRowCount: 1 }], []];
-      }
+      if (executeCall === 7) return [[{ rowCount: 1 }], []];
+      if (executeCall === 8) return [[{ rowCount: 0 }], []];
+      if (executeCall === 9) return [[{ rowCount: 1 }], []];
       return [{ affectedRows: 1 }, []];
     });
     const db = {
@@ -386,7 +384,7 @@ describe("LCJ LINE AI manager", () => {
 
     await expect(applyLineGroupAutomationDefaultsRolloutUsingDb(db as any))
       .rejects.toThrow("LINE group automation rollout invariant failed");
-    expect(execute).toHaveBeenCalledTimes(7);
+    expect(execute).toHaveBeenCalledTimes(9);
     expect(getLineGroupAutomationDefaultsRuntimeStatus()).toMatchObject({
       state: "failed",
       step: "count",

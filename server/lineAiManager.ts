@@ -2779,22 +2779,26 @@ async function applyLineGroupAutomationDefaultsRolloutUsingDb(
         `);
       }
       updateStatus("running", "count");
-      const countResult = await tx.execute(sql`
-        SELECT
-          (SELECT COUNT(*) FROM line_groups WHERE isActive = true) AS activeGroupCount,
-          (SELECT COUNT(*)
-             FROM line_group_settings AS settings
-             INNER JOIN line_groups AS groups ON groups.lineGroupId = settings.lineGroupId
-            WHERE groups.isActive = true) AS settingsRowCount,
-          (SELECT COUNT(*)
-             FROM line_group_automation_states AS states
-             INNER JOIN line_groups AS groups ON groups.lineGroupId = states.lineGroupId
-            WHERE groups.isActive = true) AS stateRowCount
+      const activeCountResult = await tx.execute(sql`
+        SELECT COUNT(*) AS rowCount
+        FROM line_groups
+        WHERE isActive = true
       `);
-      const countRow = firstExecuteRow(countResult);
-      const activeGroupCount = Number(countRow?.activeGroupCount);
-      const settingsRowCount = Number(countRow?.settingsRowCount);
-      const stateRowCount = Number(countRow?.stateRowCount);
+      const settingsCountResult = await tx.execute(sql`
+        SELECT COUNT(*) AS rowCount
+        FROM line_group_settings AS lgs
+        INNER JOIN line_groups AS lg ON lg.lineGroupId = lgs.lineGroupId
+        WHERE lg.isActive = true
+      `);
+      const stateCountResult = await tx.execute(sql`
+        SELECT COUNT(*) AS rowCount
+        FROM line_group_automation_states AS lgas
+        INNER JOIN line_groups AS lg ON lg.lineGroupId = lgas.lineGroupId
+        WHERE lg.isActive = true
+      `);
+      const activeGroupCount = Number(firstExecuteRow(activeCountResult)?.rowCount);
+      const settingsRowCount = Number(firstExecuteRow(settingsCountResult)?.rowCount);
+      const stateRowCount = Number(firstExecuteRow(stateCountResult)?.rowCount);
       if (
         activeGroupCount !== activeGroupIds.length ||
         settingsRowCount !== activeGroupIds.length ||
@@ -2817,10 +2821,15 @@ async function applyLineGroupAutomationDefaultsRolloutUsingDb(
     updateStatus("ready", "ready");
     return result;
   } catch (error) {
-    const rawCode = error && typeof error === "object" && "code" in error
+    const directCode = error && typeof error === "object" && "code" in error
       ? String(error.code || "")
       : "";
-    const failureCode = /^[A-Z0-9_]{1,80}$/.test(rawCode) ? rawCode : "ROLLOUT_FAILED";
+    const cause = error && typeof error === "object" && "cause" in error ? error.cause : null;
+    const causeCode = cause && typeof cause === "object" && "code" in cause
+      ? String(cause.code || "")
+      : "";
+    const failureCode = [causeCode, directCode]
+      .find(code => /^[A-Z0-9_]{1,80}$/.test(code)) || "ROLLOUT_FAILED";
     updateStatus("failed", lineGroupAutomationRolloutStatus.step, failureCode);
     throw error;
   }
