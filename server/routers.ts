@@ -6,40 +6,12 @@ import { lcjBrainRouter } from "./lcjBrain";
 import { lcjBrainProjectRouter } from "./lcjBrainProjectRouter";
 import { assertLcjBrainLinkedTaskMutationAllowed } from "./lcjBrainExecutionPlanService";
 import { ceoCommandCenterRouter } from "./ceoCommandCenterRouter";
-import {
-  buildUnifiedTaskFeed,
-  countUnifiedTaskStatuses,
-  filterUnifiedTaskFeed,
-} from "./taskFeed";
-import {
-  getTaskExecutionOverview,
-  getVisibleTaskExecutionRows,
-  resolveTaskExecutionAccess,
-  submitTaskExecutionFeedback,
-  toTaskClientRecord,
-} from "./taskExecutionService";
-import {
-  assertTaskSuperAdmin,
-  filterAssignableStaff,
-  toTaskAssigneeDirectoryEntry,
-  validateTaskAssignees,
-} from "./taskAssignmentPolicy";
-import {
-  extractAndCreateReportFollowups,
-  extractReportFollowupBatch,
-  safelyExtractReportFollowups,
-} from "./reportFollowupAutomation";
-import { adminProcedure, brandScopedFinanceProcedure, financeProcedure, publicProcedure, protectedProcedure, rateLimitedPublicProcedure, router } from "./_core/trpc";
+import { brandScopedFinanceProcedure, financeProcedure, publicProcedure, protectedProcedure, rateLimitedPublicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { nanoid } from "nanoid";
-import { createHash } from "node:crypto";
-import { decodeValidatedImage } from "./uploadValidation";
 import { storagePut } from "./storage";
 import { normalizeReceiptPurchaseDate, receiptPurchaseDateOrUndefined } from "../shared/receiptDate";
-import { DAILY_REPORT_REQUIRED_ANSWER_COUNT, getJstDayRange } from "../shared/dailyReportConversation";
-import { normalizeSafeHttpUrl } from "../shared/safeHttpUrl";
-import { ensureTaskExecutionTables } from "./taskExecutionUpgrade";
-import { parseTaskDeadlineJst } from "../shared/taskDeadline";
+import { DAILY_REPORT_REQUIRED_ANSWER_COUNT } from "../shared/dailyReportConversation";
 import {
   completeFinanceImportDocument,
   createFinanceImportDocument,
@@ -131,15 +103,9 @@ import {
   getScheduleStaffCandidates,
   isActiveStaffByEmail,
   getStaffById,
-  getUserById,
-  getEntityRevisionAudits,
   updateStaff,
   deleteStaff,
-  createTaskWithAssignments,
-  getTaskByRequestId,
-  reserveTaskCreationRequest,
-  completeTaskCreationRequest,
-  failTaskCreationRequest,
+  createTask,
   getAllTasks,
   getAllTasksWithUsers,
   getTasksByStatus,
@@ -150,13 +116,16 @@ import {
   deleteTask,
   searchTasks,
   getInProgressTasks,
+  createReminder,
   getRemindersByTaskId,
   getTaskStatistics,
   getAverageCompletionTime,
+  assignStaffToTask,
   getStaffByTaskId,
   getRecentCompletedTasks,
   getStaffWithTaskCounts,
   getOverdueTasks,
+  createEmailTracking,
   getEmailTrackingByTaskId,
   createReport,
   getAllReports,
@@ -203,7 +172,6 @@ import {
   deleteBrandLivestream,
   getLivestreamStatsByBrandId,
   createReportFollowup,
-  getAllReportFollowups,
   getPendingFollowups,
   getOverdueFollowups,
   updateFollowupStatus,
@@ -923,7 +891,6 @@ import {
   resolveReportVisibilityScope,
 } from "./reportVisibility";
 import { checkAndSendReminders } from "./reminderScheduler";
-import { enqueueManualTaskReminderNotifications, processTaskNotificationOutbox } from "./taskNotificationService";
 // Blog/AutoPost関連のimportはserver/blogRouter.tsに移動済み
 import { completionRouter } from "./completion";
 import { buybackRouter } from "./buybackRouter";
@@ -932,7 +899,7 @@ import { financeAccessRouter } from "./financeAccessRouter";
 import { requireFinanceAccess } from "./financeAccess";
 import { setImageRouter } from "./setImageRouter";
 import { invoiceRouter } from "./invoiceRouter";
-import { sendEmail } from "./emailService";
+import { sendReminderEmail } from "./emailService";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { bwExchangeTokens, bwLookupCustomer } from "./bw-api";
 import { sendEmailViaSES, isSESConfigured } from "./ses";
@@ -3345,47 +3312,6 @@ function assertLineManagementAdmin(user: { role?: string | null }): void {
   }
 }
 
-async function resolveStaffAccess(user: { id: number; email?: string | null }) {
-  const { access } = await resolveTaskExecutionAccess(user);
-  const allowedStaffIds = new Set<number>([
-    ...(access.staffId ? [access.staffId] : []),
-    ...access.reviewableStaffIds,
-  ]);
-  return { access, allowedStaffIds };
-}
-
-async function assertCanReadStaff(
-  user: { id: number; email?: string | null },
-  staffId: number
-) {
-  const scope = await resolveStaffAccess(user);
-  if (!scope.access.isSuperAdmin && !scope.allowedStaffIds.has(staffId)) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "无权查看该员工资料" });
-  }
-  return scope;
-}
-
-async function assertCanManageHr(user: { id: number; email?: string | null }) {
-  const { access } = await resolveTaskExecutionAccess(user);
-  if (!access.isSuperAdmin) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "仅超级管理员可以修改人事资料" });
-  }
-}
-
-async function resolveAssignableTaskStaff(user: { id: number; email?: string | null }) {
-  const [activeStaff, scope] = await Promise.all([
-    getActiveStaff(),
-    resolveStaffAccess(user),
-  ]);
-  return filterAssignableStaff(activeStaff, scope.access);
-}
-
-const taskSuperAdminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
-  const { access } = await resolveTaskExecutionAccess(ctx.user);
-  assertTaskSuperAdmin(access);
-  return next({ ctx });
-});
-
 export const appRouter = router({
   system: systemRouter,
   databaseBackup: router({
@@ -3411,17 +3337,8 @@ export const appRouter = router({
   auth: authRouter,
   completion: completionRouter,
 
-  entityAudit: router({
-    history: taskSuperAdminProcedure
-      .input(z.object({
-        entityType: z.enum(["task", "report", "report_followup", "report_attachment"]),
-        entityId: z.number().int().positive(),
-      }))
-      .query(async ({ input }) => getEntityRevisionAudits(input.entityType, input.entityId)),
-  }),
-
   reminder: router({
-    sendNow: taskSuperAdminProcedure.mutation(async () => {
+    sendNow: protectedProcedure.mutation(async () => {
       const result = await checkAndSendReminders();
       return result;
     }),
@@ -3448,7 +3365,7 @@ export const appRouter = router({
         });
       }),
 
-    create: taskSuperAdminProcedure
+    create: protectedProcedure
       .input(
         z.object({
           name: z.string().min(1),
@@ -3495,44 +3412,26 @@ export const appRouter = router({
         return { success: true, ...result };
       }),
 
-    list: taskSuperAdminProcedure.query(async () => {
+    list: protectedProcedure.query(async () => {
       return await getAllStaff();
     }),
 
-    listActive: protectedProcedure.query(async ({ ctx }) => {
-      const rows = await getActiveStaff();
-      return rows.map(person => ({
-        id: person.id,
-        name: person.name,
-        department: person.department,
-        position: person.position,
-        avatarUrl: person.avatarUrl,
-        email: person.email.toLowerCase() === (ctx.user.email || "").toLowerCase()
-          ? person.email
-          : null,
-      }));
+    listActive: protectedProcedure.query(async () => {
+      return await getActiveStaff();
     }),
 
     // 排班专用：隐藏已有正式同名员工旁的日报自动占位记录，不修改HR源数据
     listScheduleCandidates: protectedProcedure.query(async () => {
-      const rows = await getScheduleStaffCandidates();
-      return rows.map(person => ({
-        id: person.id,
-        name: person.name,
-        department: person.department,
-        position: person.position,
-        avatarUrl: person.avatarUrl,
-      }));
+      return await getScheduleStaffCandidates();
     }),
 
     getById: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .query(async ({ input, ctx }) => {
-        await assertCanReadStaff(ctx.user, input.id);
+      .query(async ({ input }) => {
         return await getStaffById(input.id);
       }),
 
-    update: taskSuperAdminProcedure
+    update: protectedProcedure
       .input(
         z.object({
           id: z.number(),
@@ -3577,7 +3476,7 @@ export const appRouter = router({
         return { success: true, ...result };
       }),
 
-    delete: taskSuperAdminProcedure
+    delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         // Keep physical cleanup only for isolated automated tests.
@@ -3606,7 +3505,7 @@ export const appRouter = router({
       }),
 
     // Resign staff (set inactive with resign date/reason, also update reportStaff)
-    resign: taskSuperAdminProcedure
+    resign: protectedProcedure
       .input(z.object({
         staffId: z.number().nullable().optional(),
         reportStaffId: z.number(),
@@ -3654,7 +3553,7 @@ export const appRouter = router({
       }),
 
     // Reinstate a linked HR/report staff record atomically and clear all resignation/archive state.
-    reinstate: taskSuperAdminProcedure
+    reinstate: protectedProcedure
       .input(z.object({
         staffId: z.number().nullable().optional(),
         reportStaffId: z.number(),
@@ -3687,7 +3586,7 @@ export const appRouter = router({
       }),
 
     // Upload avatar photoo
-    uploadAvatar: taskSuperAdminProcedure
+    uploadAvatar: protectedProcedure
       .input(z.object({
         staffId: z.number(),
         base64: z.string(),
@@ -3707,7 +3606,7 @@ export const appRouter = router({
       }),
 
     // Staff statistics for HR dashboard
-    statistics: taskSuperAdminProcedure.query(async () => {
+    statistics: protectedProcedure.query(async () => {
       const allStaffData = await getAllStaff();
       const activeStaff = allStaffData.filter(s => s.isActive === "active");
       
@@ -3744,15 +3643,14 @@ export const appRouter = router({
 
     getTaskCounts: protectedProcedure
       .input(z.object({ staffId: z.number() }))
-      .query(async ({ input, ctx }) => {
-        await assertCanReadStaff(ctx.user, input.staffId);
+      .query(async ({ input }) => {
         const tasksWithStaff = await getTasksByStaffId(input.staffId);
         const now = new Date();
         
-        const inProgressCount = tasksWithStaff.filter(t => ["pending", "in_progress", "blocked"].includes(t.executionStatus)).length;
-        const completedCount = tasksWithStaff.filter(t => t.executionStatus === "completed").length;
+        const inProgressCount = tasksWithStaff.filter(t => t.task.status === "in_progress").length;
+        const completedCount = tasksWithStaff.filter(t => t.task.status === "completed").length;
         const overdueCount = tasksWithStaff.filter(t => 
-          ["pending", "in_progress", "blocked"].includes(t.executionStatus) &&
+          t.task.status === "in_progress" && 
           t.task.deadline && 
           new Date(t.task.deadline) < now
         ).length;
@@ -3768,13 +3666,12 @@ export const appRouter = router({
     // HR: Get task history for a staff member
     getTaskHistory: protectedProcedure
       .input(z.object({ staffId: z.number() }))
-      .query(async ({ input, ctx }) => {
-        await assertCanReadStaff(ctx.user, input.staffId);
+      .query(async ({ input }) => {
         const tasksWithStaff = await getTasksByStaffId(input.staffId);
         return tasksWithStaff.map(t => ({
           id: t.task.id,
           taskId: t.task.taskId,
-          status: t.executionStatus,
+          status: t.task.status,
           taskDetail: t.task.taskDetail,
           deadline: t.task.deadline,
           startDate: t.task.startDate,
@@ -3811,22 +3708,21 @@ export const appRouter = router({
     // HR: Get linked reportStaff for a staff member
     getLinkedReportStaff: protectedProcedure
       .input(z.object({ staffId: z.number() }))
-      .query(async ({ input, ctx }) => {
-        await assertCanReadStaff(ctx.user, input.staffId);
+      .query(async ({ input }) => {
         return await getReportStaffByLinkedStaffId(input.staffId);
       }),
 
     // HR: Get visible reportStaff with linked staff data for the default directory.
-    listReportStaffUnified: taskSuperAdminProcedure.query(async () => {
+    listReportStaffUnified: protectedProcedure.query(async () => {
       return await getAllReportStaffWithLinkedStaff();
     }),
 
     // HR: Archived resigned staff remain linked to all history and can be restored.
-    listArchivedReportStaffUnified: taskSuperAdminProcedure.query(async () => {
+    listArchivedReportStaffUnified: protectedProcedure.query(async () => {
       return await getArchivedReportStaffWithLinkedStaff();
     }),
 
-    archiveResigned: taskSuperAdminProcedure
+    archiveResigned: protectedProcedure
       .input(z.object({
         staffId: z.number(),
         reportStaffId: z.number(),
@@ -3843,7 +3739,7 @@ export const appRouter = router({
         }
       }),
 
-    restoreArchived: taskSuperAdminProcedure
+    restoreArchived: protectedProcedure
       .input(z.object({ staffId: z.number(), reportStaffId: z.number() }))
       .mutation(async ({ input, ctx }) => {
         try {
@@ -3867,13 +3763,13 @@ export const appRouter = router({
 
     // HR: Link only existing reportStaff/staff records by exact name matching.
     // Never synthesize email addresses or active/fulltime employment records.
-    autoLinkReportStaff: taskSuperAdminProcedure.mutation(async ({ ctx }) => {
+    autoLinkReportStaff: protectedProcedure.mutation(async ({ ctx }) => {
       const linkedCount = await autoLinkReportStaffToStaff(ctx.user.id);
       return { linkedCount, createdStaffCount: 0, createdReportStaffCount: 0 };
     }),
 
     // HR: Create staff record from reportStaff and link them
-    createFromReportStaff: taskSuperAdminProcedure
+    createFromReportStaff: protectedProcedure
       .input(z.object({
         reportStaffId: z.number(),
         email: z.string().email("確認済みメールアドレスが必要です"),
@@ -3906,7 +3802,7 @@ export const appRouter = router({
       }),
 
     // HR: Update tier info for a staff member
-    updateTier: taskSuperAdminProcedure
+    updateTier: protectedProcedure
       .input(z.object({
         staffId: z.number(),
         tier: z.string().nullable(),
@@ -3930,15 +3826,9 @@ export const appRouter = router({
   }),
 
   task: router({
-    assignmentDirectory: protectedProcedure.query(async ({ ctx }) => {
-      const rows = await resolveAssignableTaskStaff(ctx.user);
-      return rows.map(toTaskAssigneeDirectoryEntry);
-    }),
-
     create: protectedProcedure
       .input(
         z.object({
-          requestId: z.string().uuid(),
           screenshots: z.array(z.object({
             base64: z.string(),
             mimeType: z.string(),
@@ -3949,56 +3839,12 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
-        await ensureTaskExecutionTables();
-        const assignable = await resolveAssignableTaskStaff(ctx.user);
-        const { uniqueIds: uniqueStaffIds, byId: assignableById } =
-          validateTaskAssignees(input.staffIds, assignable);
-        const validatedScreenshots = await Promise.all(input.screenshots.map(screenshot =>
-          decodeValidatedImage(screenshot.base64, screenshot.mimeType)
-        ));
-        let validatedManualDeadline: Date | null = null;
-        if (input.manualDeadline?.trim()) {
-          try { validatedManualDeadline = parseTaskDeadlineJst(input.manualDeadline); }
-          catch (error) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "截止时间格式无效" });
-          }
-        }
-        const inputHash = createHash("sha256").update(JSON.stringify({
-          staffIds: uniqueStaffIds,
-          manualDeadline: input.manualDeadline || null,
-          notes: input.notes || null,
-          screenshots: input.screenshots.map(screenshot => ({
-            mimeType: screenshot.mimeType.toLowerCase(),
-            contentHash: createHash("sha256").update(screenshot.base64).digest("hex"),
-          })),
-        })).digest("hex");
-        const reservation = await reserveTaskCreationRequest({
-          requestId: input.requestId,
-          creatorUserId: ctx.user.id,
-          inputHash,
-        });
-        if (reservation !== "claimed") {
-          const completed = await getTaskByRequestId(input.requestId);
-          if (reservation === "completed" && completed?.createdBy === ctx.user.id) {
-            return {
-              success: true,
-              taskId: completed.taskId,
-              extractedData: {
-                taskSummary: completed.taskDetail,
-                detailedContext: completed.extractedContext || "",
-                deadline: completed.deadline?.toISOString() || "",
-              },
-            };
-          }
-          throw new TRPCError({ code: "CONFLICT", message: "相同任务请求正在处理中，请稍后重试" });
-        }
-
-        try {
         // Upload all screenshots to S3
         const uploadedScreenshots = await Promise.all(
-          validatedScreenshots.map(async (screenshot, index) => {
-            const fileKey = `screenshots/${ctx.user.id}/task-request-${input.requestId}-${index + 1}.${screenshot.ext}`;
-            const { url } = await storagePut(fileKey, screenshot.buffer, screenshot.mimeType);
+          input.screenshots.map(async (screenshot) => {
+            const buffer = Buffer.from(screenshot.base64, "base64");
+            const fileKey = `screenshots/${ctx.user.id}/${nanoid()}.${screenshot.mimeType.split("/")[1]}`;
+            const { url } = await storagePut(fileKey, buffer, screenshot.mimeType);
             return { url, key: fileKey };
           })
         );
@@ -4061,64 +3907,118 @@ export const appRouter = router({
         const messageContent = aiResponse.choices[0]?.message?.content;
         const extractedData = JSON.parse(typeof messageContent === 'string' ? messageContent : "{}");
         const taskId = `TASK-${nanoid(10)}`;
+        const completionToken = nanoid(32); // Generate unique completion token
         const startDate = Date.now();
+
         // Parse deadline: prioritize manual input over AI extraction
         let deadline: Date | null = null;
         
-        // Manual input has priority and was validated before upload/LLM side effects.
-        deadline = validatedManualDeadline;
+        // First, try manual deadline input (user input has priority)
+        if (input.manualDeadline && input.manualDeadline.trim() !== "") {
+          try {
+            const parsedDate = new Date(input.manualDeadline);
+            if (!isNaN(parsedDate.getTime())) {
+              deadline = parsedDate;
+              console.log("[Task Create] Using manual deadline:", deadline);
+            }
+          } catch (error) {
+            console.warn("[Task Create] Failed to parse manual deadline:", input.manualDeadline);
+          }
+        }
         
         // If no manual deadline, try AI-extracted deadline
         if (!deadline && extractedData.deadline && extractedData.deadline.trim() !== "") {
           try {
-            deadline = parseTaskDeadlineJst(extractedData.deadline);
+            const parsedDate = new Date(extractedData.deadline);
+            if (!isNaN(parsedDate.getTime())) {
+              deadline = parsedDate;
+              console.log("[Task Create] Using AI-extracted deadline:", deadline);
+            }
           } catch (error) {
             console.warn("[Task Create] Failed to parse AI deadline:", extractedData.deadline);
           }
         }
 
         // Create task in database
-        let createdTask;
-        try {
-          createdTask = await createTaskWithAssignments({
-            taskId,
-            requestId: input.requestId,
-            status: "in_progress",
-            staffId: uniqueStaffIds[0],
-            taskDetail: extractedData.taskSummary || "指示内容を確認してください",
-            extractedContext: extractedData.detailedContext || "",
-            deadline,
-            screenshotUrl: screenshotUrls[0],
-            screenshotKey: screenshotKeys[0],
-            screenshotUrls,
-            screenshotKeys,
-            completionToken: null,
-            notes: input.notes,
-            startDate,
-            createdBy: ctx.user.id,
-          }, uniqueStaffIds);
-        } catch (error) {
-          const concurrent = await getTaskByRequestId(input.requestId);
-          if (concurrent?.createdBy === ctx.user.id) {
-            await completeTaskCreationRequest(input.requestId, concurrent.id);
-            return {
-              success: true,
-              taskId: concurrent.taskId,
-              extractedData: {
-                taskSummary: concurrent.taskDetail,
-                detailedContext: concurrent.extractedContext || "",
-                deadline: concurrent.deadline?.toISOString() || "",
-              },
-            };
-          }
-          throw error;
-        }
+        const createdTask = await createTask({
+          taskId,
+          status: "in_progress",
+          staffId: input.staffIds[0], // Keep first staff for backward compatibility
+          taskDetail: extractedData.taskSummary || "指示内容を確認してください",
+          extractedContext: extractedData.detailedContext || "",
+          deadline,
+          screenshotUrl: screenshotUrls[0], // Keep for backward compatibility
+          screenshotKey: screenshotKeys[0], // Keep for backward compatibility
+          screenshotUrls,
+          screenshotKeys,
+          completionToken,
+          notes: input.notes, // Save optional notes
+          startDate,
+          createdBy: ctx.user.id,
+        });
 
         if (!createdTask || !createdTask.id) {
           throw new Error("Failed to create task");
         }
 
         console.log("[Task Create] Created task with ID:", createdTask.id);
+
+        // Assign all staff members to the task using junction table
+        await assignStaffToTask(createdTask.id, input.staffIds);
+
+        // Send initial reminder email to all assigned staff members
+        const assignedStaff = await Promise.all(
+          input.staffIds.map(staffId => getStaffById(staffId))
+        );
+        
+        for (const staff of assignedStaff) {
+          if (staff) {
+            // Generate tracking token
+            const trackingToken = nanoid(32);
+            
+            // Send email with tracking
+            await sendReminderEmail(
+              staff.email,
+              staff.name,
+              extractedData.taskSummary || "指示内容を確認してください",
+              taskId,
+              0, // 0 days elapsed (initial reminder)
+              completionToken,
+              screenshotUrls,
+              input.notes,
+              deadline ? deadline.getTime() : undefined,
+              trackingToken
+            );
+            
+            // Create reminder record
+            const reminderResult = await createReminder({
+              taskId: createdTask.id,
+              sentAt: startDate,
+              recipientEmail: staff.email,
+              emailSubject: `【リマインド/提醒】タスクの進捗確認 / 任务进度确认: ${extractedData.taskSummary?.substring(0, 50)}...`,
+              emailBody: extractedData.taskSummary || "",
+              status: "sent",
+            });
+            
+            // Create email tracking record
+            // Note: We use a placeholder reminderId since we can't get the auto-increment ID from drizzle
+            await createEmailTracking({
+              reminderId: 0, // Will be updated later if needed
+              taskId: createdTask.id,
+              trackingToken,
+              openedAt: null,
+              openCount: 0,
+              ipAddress: null,
+              userAgent: null,
+            });
+          }
+        }
+
+        // Notify owner
+        await notifyOwner({
+          title: "新規タスクが登録されました",
+          content: `タスクID: ${taskId}\n指示内容: ${extractedData.taskSummary}`,
+        });
 
         // Record activity log
         await createActivityLog({
@@ -4128,258 +4028,185 @@ export const appRouter = router({
           targetId: createdTask.id,
           targetName: extractedData.taskSummary?.substring(0, 50) || taskId,
         });
-        await completeTaskCreationRequest(input.requestId, createdTask.id);
 
         return {
           success: true,
           taskId,
           extractedData,
         };
-        } catch (error) {
-          await failTaskCreationRequest(input.requestId, error);
-          throw error;
-        }
       }),
 
-    list: protectedProcedure.query(async ({ ctx }) => {
-      const rows = await getAllTasks();
-      const { db, access } = await resolveTaskExecutionAccess(ctx.user);
-      return await getVisibleTaskExecutionRows(db, access, rows);
+    list: protectedProcedure.query(async () => {
+      return await getAllTasks();
     }),
 
-    feed: protectedProcedure
-      .input(z.object({
-        searchTerm: z.string().max(200).default(""),
-        status: z.enum(["all", "pending", "in_progress", "completed", "cancelled"]).default("all"),
-      }).optional())
-      .query(async ({ input, ctx }) => {
-        const [scope, taskAccessResult, legacyRows] = await Promise.all([
-          resolveReportVisibilityScope(ctx.user),
-          resolveTaskExecutionAccess(ctx.user),
-          getAllTasks(),
-        ]);
-        const reportRows = await getAllReportFollowups(buildReportVisibilityFilter(scope));
-        const visibleLegacyRows = await getVisibleTaskExecutionRows(
-          taskAccessResult.db,
-          taskAccessResult.access,
-          legacyRows
-        );
-        const feed = buildUnifiedTaskFeed(
-          visibleLegacyRows,
-          reportRows.map(row => ({
-            ...row,
-            canEdit: row.report ? canWriteReport(scope, row.report) : false,
-          }))
-        );
-        return {
-          items: filterUnifiedTaskFeed(
-            feed,
-            input?.searchTerm || "",
-            input?.status || "all"
-          ),
-          counts: countUnifiedTaskStatuses(feed),
-        };
-      }),
-
-    listAllWithUsers: protectedProcedure.query(async ({ ctx }) => {
-      const rows = await getAllTasksWithUsers();
-      const { db, access } = await resolveTaskExecutionAccess(ctx.user);
-      const visible = await getVisibleTaskExecutionRows(
-        db,
-        access,
-        rows.map(row => ({ task: row.task, staff: row.staff }))
-      );
-      const usersByTaskId = new Map(rows.map(row => [row.task.id, row.user]));
-      return visible.map(row => ({ ...row, user: usersByTaskId.get(row.task.id) || null }));
+    listAllWithUsers: protectedProcedure.query(async () => {
+      return await getAllTasksWithUsers();
     }),
 
     listByStatus: protectedProcedure
       .input(z.object({ status: z.enum(["pending", "in_progress", "completed", "cancelled"]) }))
-      .query(async ({ input, ctx }) => {
-        const rows = await getTasksByStatus(input.status);
-        const { db, access } = await resolveTaskExecutionAccess(ctx.user);
-        return await getVisibleTaskExecutionRows(db, access, rows);
+      .query(async ({ input }) => {
+        return await getTasksByStatus(input.status);
       }),
 
     listByStaffId: protectedProcedure
       .input(z.object({ staffId: z.number() }))
-      .query(async ({ input, ctx }) => {
-        const rows = await getTasksByStaffId(input.staffId);
-        const { db, access } = await resolveTaskExecutionAccess(ctx.user);
-        return await getVisibleTaskExecutionRows(db, access, rows);
+      .query(async ({ input }) => {
+        return await getTasksByStaffId(input.staffId);
       }),
 
     getTasksByStaff: protectedProcedure
       .input(z.object({ staffId: z.number() }))
-      .query(async ({ input, ctx }) => {
-        await assertCanReadStaff(ctx.user, input.staffId);
-        const rows = await getTasksByStaffId(input.staffId);
-        const { db, access } = await resolveTaskExecutionAccess(ctx.user);
-        const tasks = await getVisibleTaskExecutionRows(db, access, rows);
+      .query(async ({ input }) => {
+        const tasks = await getTasksByStaffId(input.staffId);
         const staff = await getStaffById(input.staffId);
         return {
-          staff: staff ? {
-            id: staff.id,
-            name: staff.name,
-            department: staff.department,
-          } : null,
+          staff,
           tasks,
         };
       }),
 
     getById: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .query(async ({ input, ctx }) => {
-        const taskData = await getTaskById(input.id);
-        if (!taskData) return undefined;
-        const { db, access } = await resolveTaskExecutionAccess(ctx.user);
-        const execution = await getTaskExecutionOverview(db, access, taskData.task);
-        return { ...taskData, task: toTaskClientRecord(taskData.task), execution };
-      }),
-
-    submitExecutionFeedback: protectedProcedure
-      .input(z.object({
-        requestId: z.string().uuid(),
-        taskId: z.number().int().positive(),
-        status: z.enum(["in_progress", "blocked", "completed"]),
-        feedbackNote: z.string().trim().min(2).max(4000),
-        evidenceUrl: z.string().trim().max(2000).transform((value, ctx) => {
-          try { return normalizeSafeHttpUrl(value); }
-          catch (error) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: error instanceof Error ? error.message : "URL格式无效" });
-            return z.NEVER;
-          }
-        }).optional().nullable(),
-      }))
-      .mutation(async ({ input, ctx }) => {
-        const taskData = await getTaskById(input.taskId);
-        if (!taskData) throw new TRPCError({ code: "NOT_FOUND", message: "任务不存在" });
-        await assertLcjBrainLinkedTaskMutationAllowed(input.taskId, "update");
-        const { db, access } = await resolveTaskExecutionAccess(ctx.user);
-        const execution = await submitTaskExecutionFeedback({
-          db,
-          access,
-          task: taskData.task,
-          status: input.status,
-          feedbackNote: input.feedbackNote,
-          evidenceUrl: input.evidenceUrl,
-          requestId: input.requestId,
-        });
-        return { success: true, execution };
+      .query(async ({ input }) => {
+        return await getTaskById(input.id);
       }),
 
     getStaffByTaskId: protectedProcedure
       .input(z.object({ taskId: z.number() }))
-      .query(async ({ input, ctx }) => {
-        const taskData = await getTaskById(input.taskId);
-        if (!taskData) throw new TRPCError({ code: "NOT_FOUND", message: "任务不存在" });
-        const { db, access } = await resolveTaskExecutionAccess(ctx.user);
-        const execution = await getTaskExecutionOverview(db, access, taskData.task);
-        if (!execution.canManage) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "仅任务创建者或负责人可以查看执行人联系方式" });
-        }
+      .query(async ({ input }) => {
         return await getStaffByTaskId(input.taskId);
       }),
 
     search: protectedProcedure
       .input(z.object({ searchTerm: z.string() }))
-      .query(async ({ input, ctx }) => {
-        const rows = await searchTasks(input.searchTerm);
-        const { db, access } = await resolveTaskExecutionAccess(ctx.user);
-        return await getVisibleTaskExecutionRows(db, access, rows);
+      .query(async ({ input }) => {
+        return await searchTasks(input.searchTerm);
       }),
 
     update: protectedProcedure
       .input(
         z.object({
           id: z.number(),
-          status: z.enum(["pending", "in_progress", "cancelled"]).optional(),
+          status: z.enum(["pending", "in_progress", "completed", "cancelled"]).optional(),
           taskDetail: z.string().optional(),
           deadline: z.string().optional(),
         })
       )
-      .mutation(async ({ input, ctx }) => {
+      .mutation(async ({ input }) => {
         await assertLcjBrainLinkedTaskMutationAllowed(input.id, "update");
-        const taskData = await getTaskById(input.id);
-        if (!taskData) throw new TRPCError({ code: "NOT_FOUND", message: "任务不存在" });
-        const { db, access } = await resolveTaskExecutionAccess(ctx.user);
-        const execution = await getTaskExecutionOverview(db, access, taskData.task);
-        if (!execution.canManage) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "仅任务创建者或负责人可以修改任务" });
-        }
         const { id, deadline, ...updateData } = input;
         const finalUpdateData: any = { ...updateData };
 
         if (deadline) {
-          finalUpdateData.deadline = parseTaskDeadlineJst(deadline);
+          finalUpdateData.deadline = new Date(deadline);
         }
 
-        if (input.status) {
-          finalUpdateData.completedAt = null;
+        if (input.status === "completed") {
+          finalUpdateData.completedAt = Date.now();
         }
 
-        await updateTask(id, finalUpdateData, ctx.user.id, "update");
+        await updateTask(id, finalUpdateData);
         return { success: true };
       }),
 
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input, ctx }) => {
+      .mutation(async ({ input }) => {
         await assertLcjBrainLinkedTaskMutationAllowed(input.id, "delete");
-        const taskData = await getTaskById(input.id);
-        if (!taskData) throw new TRPCError({ code: "NOT_FOUND", message: "任务不存在" });
-        const { db, access } = await resolveTaskExecutionAccess(ctx.user);
-        const execution = await getTaskExecutionOverview(db, access, taskData.task);
-        if (!execution.canManage) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "仅任务创建者或负责人可以删除任务" });
-        }
-        await deleteTask(input.id, ctx.user.id, "Archived by task manager");
+        await deleteTask(input.id);
         return { success: true };
       }),
 
     sendReminder: protectedProcedure
-      .input(z.object({ taskId: z.number().int().positive(), requestId: z.string().uuid() }))
-      .mutation(async ({ input, ctx }) => {
+      .input(z.object({ taskId: z.number() }))
+      .mutation(async ({ input }) => {
         await assertLcjBrainLinkedTaskMutationAllowed(input.taskId, "notify");
         const taskData = await getTaskById(input.taskId);
-        if (!taskData) throw new TRPCError({ code: "NOT_FOUND", message: "任务不存在" });
-        const { db, access } = await resolveTaskExecutionAccess(ctx.user);
-        const execution = await getTaskExecutionOverview(db, access, taskData.task);
-        if (!execution.canManage) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "仅任务创建者或负责人可以发送提醒" });
+        if (!taskData) {
+          throw new Error("Task not found");
         }
-        const queued = await enqueueManualTaskReminderNotifications(input.taskId, input.requestId);
-        if (queued.queued === 0) {
-          throw new TRPCError({ code: "CONFLICT", message: "没有仍需提醒的在职执行人" });
+
+        const { task } = taskData;
+
+        // Get all assigned staff members
+        const assignedStaff = await getStaffByTaskId(input.taskId);
+        if (!assignedStaff || assignedStaff.length === 0) {
+          throw new Error("No staff assigned to this task");
         }
-        void processTaskNotificationOutbox(25).catch(error => {
-          console.error("[TaskNotificationOutbox] manual drain failed", {
-            taskId: input.taskId,
-            errorName: error instanceof Error ? error.name : "UnknownError",
-          });
-        });
-        return { success: true, queuedCount: queued.queued };
+
+        // Calculate days elapsed
+        const daysElapsed = Math.floor(
+          (Date.now() - task.createdAt.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        // Send reminder email to all assigned staff members
+        const emailResults = await Promise.all(
+          assignedStaff.map(async (item) => {
+            if (!item.staff) return { success: false, error: "Staff not found" };
+
+            // Generate tracking token
+            const trackingToken = nanoid(32);
+
+            const emailResult = await sendReminderEmail(
+              item.staff.email,
+              item.staff.name,
+              task.taskDetail,
+              task.taskId,
+              daysElapsed,
+              task.completionToken || undefined,
+              task.screenshotUrls || (task.screenshotUrl ? [task.screenshotUrl] : undefined),
+              task.notes || undefined,
+              task.deadline ? task.deadline.getTime() : undefined,
+              trackingToken
+            );
+
+            if (emailResult.success) {
+              // Create reminder record
+              await createReminder({
+                taskId: task.id,
+                sentAt: Date.now(),
+                recipientEmail: item.staff.email,
+                emailSubject: `【リマインド】${task.taskDetail}`,
+                emailBody: `${item.staff.name}様\n\n以下のタスクについてリマインドいたします。\n\nタスクID: ${task.taskId}\n内容: ${task.taskDetail}\n\nご確認をお願いいたします。`,
+                status: "sent",
+              });
+              
+              // Create email tracking record
+              await createEmailTracking({
+                reminderId: 0,
+                taskId: task.id,
+                trackingToken,
+                openedAt: null,
+                openCount: 0,
+                ipAddress: null,
+                userAgent: null,
+              });
+            }
+
+            return emailResult;
+          })
+        );
+
+        // Check if any email failed
+        const failedEmails = emailResults.filter(result => !result.success);
+        if (failedEmails.length > 0) {
+          throw new Error(`${failedEmails.length}件のメール送信に失敗しました`);
+        }
+
+        return { success: true, sentCount: emailResults.length };
       }),
 
     getReminders: protectedProcedure
       .input(z.object({ taskId: z.number() }))
-      .query(async ({ input, ctx }) => {
-        const taskData = await getTaskById(input.taskId);
-        if (!taskData) throw new TRPCError({ code: "NOT_FOUND", message: "任务不存在" });
-        const { db, access } = await resolveTaskExecutionAccess(ctx.user);
-        const execution = await getTaskExecutionOverview(db, access, taskData.task);
-        if (!execution.canManage) throw new TRPCError({ code: "FORBIDDEN", message: "无权查看提醒记录" });
+      .query(async ({ input }) => {
         return await getRemindersByTaskId(input.taskId);
       }),
 
     getEmailTracking: protectedProcedure
       .input(z.object({ taskId: z.number() }))
-      .query(async ({ input, ctx }) => {
-        const taskData = await getTaskById(input.taskId);
-        if (!taskData) throw new TRPCError({ code: "NOT_FOUND", message: "任务不存在" });
-        const { db, access } = await resolveTaskExecutionAccess(ctx.user);
-        const execution = await getTaskExecutionOverview(db, access, taskData.task);
-        if (!execution.canManage) throw new TRPCError({ code: "FORBIDDEN", message: "无权查看邮件追踪" });
+      .query(async ({ input }) => {
         return await getEmailTrackingByTaskId(input.taskId);
       }),
 
@@ -4390,15 +4217,10 @@ export const appRouter = router({
           emailContent: z.string(),
         })
       )
-      .mutation(async ({ input, ctx }) => {
+      .mutation(async ({ input }) => {
         const taskData = await getTaskByTaskId(input.taskId);
         if (!taskData) throw new Error("Task not found");
         await assertLcjBrainLinkedTaskMutationAllowed(taskData.task.id, "update");
-        const { db, access } = await resolveTaskExecutionAccess(ctx.user);
-        const execution = await getTaskExecutionOverview(db, access, taskData.task);
-        if (!execution.canManage) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "仅任务创建者或负责人可以执行AI完成判定" });
-        }
         // Use AI to determine if the email indicates task completion
         const aiResponse = await invokeLLM({
           messages: [
@@ -4433,10 +4255,22 @@ export const appRouter = router({
         const messageContent = aiResponse.choices[0]?.message?.content;
         const result = JSON.parse(typeof messageContent === 'string' ? messageContent : "{}");
 
+        if (result.isCompleted && result.confidence > 0.7) {
+          await updateTask(taskData.task.id, {
+            status: "completed",
+            completedAt: Date.now(),
+          });
+
+          // Notify owner
+          await notifyOwner({
+            title: "タスクが完了しました",
+            content: `タスクID: ${input.taskId}\n内容: ${taskData.task.taskDetail}`,
+          });
+        }
+
         return {
           success: true,
           result,
-          requiresAssigneeFeedback: Boolean(result.isCompleted && result.confidence > 0.7),
         };
       }),
   }),
@@ -4444,7 +4278,7 @@ export const appRouter = router({
   ceoCommandCenter: ceoCommandCenterRouter,
 
   dashboard: router({
-    statistics: taskSuperAdminProcedure.query(async () => {
+    statistics: protectedProcedure.query(async () => {
       const stats = await getTaskStatistics();
       const avgCompletionTime = await getAverageCompletionTime();
       const recentCompleted = await getRecentCompletedTasks(5);
@@ -4453,12 +4287,12 @@ export const appRouter = router({
       return {
         stats,
         avgCompletionTime,
-        recentCompleted: recentCompleted.map(row => ({ ...row, task: toTaskClientRecord(row.task) })),
-        overdueTasks: overdueTasks.map(row => ({ ...row, task: toTaskClientRecord(row.task) })),
+        recentCompleted,
+        overdueTasks,
       };
     }),
 
-    staffWithTaskCounts: taskSuperAdminProcedure.query(async () => {
+    staffWithTaskCounts: protectedProcedure.query(async () => {
       return await getStaffWithTaskCounts();
     }),
   }),
@@ -4608,7 +4442,6 @@ export const appRouter = router({
             targetId: report.id,
             targetName: input.workContent.substring(0, 50),
           });
-          await safelyExtractReportFollowups(report);
         }
         
         return report;
@@ -4653,16 +4486,6 @@ export const appRouter = router({
         };
       }),
 
-    retryFollowupExtraction: protectedProcedure
-      .input(z.object({ reportId: z.number().int().positive() }))
-      .mutation(async ({ input, ctx }) => {
-        const scope = await resolveReportVisibilityScope(ctx.user);
-        const reportData = await getReportById(input.reportId);
-        assertCanWriteReport(scope, reportData?.report);
-        const result = await extractAndCreateReportFollowups(reportData.report, { force: true });
-        return { success: result.status === "succeeded", ...result };
-      }),
-
     update: protectedProcedure
       .input(
         z.object({
@@ -4689,11 +4512,7 @@ export const appRouter = router({
         if (updateData.reportDate) {
           data.reportDate = new Date(updateData.reportDate);
         }
-        await updateReport(id, data, ctx.user.id, "update");
-        const updated = await getReportById(id);
-        if (updated?.report) {
-          await safelyExtractReportFollowups(updated.report);
-        }
+        await updateReport(id, data);
         return { success: true };
       }),
 
@@ -4703,7 +4522,7 @@ export const appRouter = router({
         const scope = await resolveReportVisibilityScope(ctx.user);
         const existing = await getReportById(input.id);
         assertCanWriteReport(scope, existing?.report);
-        await deleteReport(input.id, ctx.user.id, "Archived from daily report management");
+        await deleteReport(input.id);
         return { success: true };
       }),
 
@@ -4712,8 +4531,7 @@ export const appRouter = router({
       .input(z.object({
         reportId: z.number(),
         base64: z.string(),
-        filename: z.string().trim().min(1).max(255),
-        mimeType: z.string(),
+        filename: z.string(),
         label: z.enum(["LINE截图", "Lark截图"]),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -4732,9 +4550,6 @@ export const appRouter = router({
                 imageUrl TEXT NOT NULL,
                 label VARCHAR(50) NOT NULL,
                 filename VARCHAR(255),
-                archivedAt TIMESTAMP NULL,
-                archivedBy INT NULL,
-                archiveReason TEXT NULL,
                 createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_report_id (reportId)
               )
@@ -4742,15 +4557,17 @@ export const appRouter = router({
           }
         } catch (e) { /* table may already exist */ }
 
-        const image = await decodeValidatedImage(input.base64, input.mimeType);
-        const key = `reports/${input.reportId}/${nanoid()}.${image.ext}`;
-        const { url } = await storagePut(key, image.buffer, image.mimeType);
+        const buffer = Buffer.from(input.base64, "base64");
+        const ext = input.filename.split(".").pop() || "png";
+        const key = `reports/${input.reportId}/${nanoid()}.${ext}`;
+        const contentType = `image/${ext === "jpg" ? "jpeg" : ext}`;
+        const { url } = await storagePut(key, buffer, contentType);
         const attachment = await createReportAttachment({
           reportId: input.reportId,
           imageUrl: url,
           label: input.label,
           filename: input.filename,
-        }, ctx.user.id);
+        });
         return { id: attachment?.id, url, label: input.label };
       }),
 
@@ -4774,11 +4591,7 @@ export const appRouter = router({
           ? await getReportById(attachment.reportId)
           : null;
         assertCanWriteReport(scope, existing?.report);
-        await deleteReportAttachment(
-          input.id,
-          ctx.user.id,
-          "Archived from daily report attachment management"
-        );
+        await deleteReportAttachment(input.id);
         return { success: true };
       }),
 
@@ -4989,9 +4802,119 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         }
         assertCanWriteReport(scope, reportData.report);
 
+        const { report, staff } = reportData;
+        const workContent = report.workContent || "";
+
+        // Keywords to detect followup items
+        const followupKeywords = [
+          "提案", "打ち合わせ", "商談", "MTG", "ミーティング", "会議",
+          "確認", "検討", "相談", "調整", "連絡", "報告",
+          "合同", "会合", "面談", "訪問", "見積", "契約",
+          "提议", "会议", "商谈", "确认", "讨论", "协商", "联系"
+        ];
+
+        const systemPrompt = input.language === "ja"
+          ? `あなたは業務内容からフォローアップが必要な項目を抽出する専門家です。
+
+以下の日報内容から、フォローアップが必要な項目（提案、打ち合わせ、商談、MTG、確認事項など）を抽出してください。
+
+出力形式（JSON配列）:
+[
+  {
+    "item": "抽出された項目（簡潔に）",
+    "category": "提案" | "打ち合わせ" | "商談" | "MTG" | "確認" | "その他"
+  }
+]
+
+該当する項目がない場合は空の配列 [] を返してください。`
+          : `你是一位从工作内容中提取需要跟进事项的专家。
+
+请从以下日报内容中提取需要跟进的事项（提案、会议、商谈、MTG、确认事项等）。
+
+输出格式（JSON数组）:
+[
+  {
+    "item": "提取的事项（简洁）",
+    "category": "提案" | "打ち合わせ" | "商談" | "MTG" | "確認" | "その他"
+  }
+]
+
+如果没有相关事项，请返回空数组 []。`;
+
         try {
-          const result = await extractAndCreateReportFollowups(reportData.report, { force: true });
-          return { success: result.status === "succeeded", ...result };
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `日報内容:\n${workContent}` },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "followup_items",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    items: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          item: { type: "string" },
+                          category: { type: "string" }
+                        },
+                        required: ["item", "category"],
+                        additionalProperties: false
+                      }
+                    }
+                  },
+                  required: ["items"],
+                  additionalProperties: false
+                }
+              }
+            }
+          });
+
+          const rawContent = response.choices[0]?.message?.content || "{}";
+          const content = typeof rawContent === "string" ? rawContent : JSON.stringify(rawContent);
+          const parsed = JSON.parse(content);
+          const extractedItems = parsed.items || [];
+
+          // Calculate due date (2 days from report date)
+          const reportDate = new Date(report.reportDate);
+          const dueDate = new Date(reportDate);
+          dueDate.setDate(dueDate.getDate() + 2);
+
+          // Create followup records
+          const createdFollowups = [];
+          for (const item of extractedItems) {
+            // Check if already exists
+            const existing = await checkExistingFollowup(report.id, item.item);
+            if (!existing) {
+              const category = ["提案", "打ち合わせ", "商談", "MTG", "確認"].includes(item.category)
+                ? item.category as "提案" | "打ち合わせ" | "商談" | "MTG" | "確認"
+                : "その他";
+              
+              const followup = await createReportFollowup({
+                reportId: report.id,
+                reportStaffId: report.reportStaffId,
+                extractedItem: item.item,
+                category,
+                status: "pending",
+                dueDate,
+              });
+              if (followup) {
+                createdFollowups.push(followup);
+              }
+            }
+          }
+
+          return {
+            success: true,
+            extractedCount: extractedItems.length,
+            createdCount: createdFollowups.length,
+            items: createdFollowups,
+          };
         } catch (error) {
           console.error("Followup extraction error:", error);
           return {
@@ -5064,7 +4987,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           ? await getReportById(followup.reportId)
           : null;
         assertCanWriteReport(scope, reportData?.report);
-        await updateFollowupStatus(input.id, input.status, input.resultCategory, input.resultNote, ctx.user.id);
+        await updateFollowupStatus(input.id, input.status, input.resultCategory, input.resultNote);
         return { success: true };
       }),
 
@@ -5092,7 +5015,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         assertCanWriteReport(scope, reportData?.report);
 
         // Update the current followup with result
-        await updateFollowupStatus(input.id, "completed", input.resultCategory, input.resultNote, ctx.user.id);
+        await updateFollowupStatus(input.id, "completed", input.resultCategory, input.resultNote);
 
         // Record activity log
         await createActivityLog({
@@ -5113,11 +5036,11 @@ ${JSON.stringify(teamSummary, null, 2)}`;
             extractedItem: input.nextActionItem,
             category: input.nextActionCategory || "その他",
             dueDate: input.nextActionDueDate || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
-          }, ctx.user.id);
+          });
           if (nextAction) {
             nextActionId = nextAction.id;
             // Link the next action to the current followup
-            await linkNextAction(input.id, nextActionId, ctx.user.id);
+            await linkNextAction(input.id, nextActionId);
           }
         }
 
@@ -5243,7 +5166,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           ? await getReportById(followup.reportId)
           : null;
         assertCanWriteReport(scope, reportData?.report);
-        await deleteReportFollowup(input.id, ctx.user.id, "Archived from report followup management");
+        await deleteReportFollowup(input.id);
         return { success: true };
       }),
 
@@ -5251,28 +5174,80 @@ ${JSON.stringify(teamSummary, null, 2)}`;
     batchExtractFollowups: protectedProcedure
       .input(
         z.object({
-          days: z.number().int().min(1).max(30).default(7),
+          days: z.number().default(7),
           language: z.enum(["ja", "zh"]).default("ja"),
         })
       )
       .mutation(async ({ input, ctx }) => {
         const scope = await resolveReportVisibilityScope(ctx.user);
-        const today = getJstDayRange();
-        const endDate = today.end;
-        const startDate = new Date(today.start.getTime() - (input.days - 1) * 24 * 60 * 60 * 1000);
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - input.days);
 
         const reports = await getReportsForAnalysis({
           startDate,
           endDate,
-          endExclusive: true,
           visibility: buildReportWriteFilter(scope),
         });
 
-        const result = await extractReportFollowupBatch(
-          reports.map(row => row.report),
-          4
-        );
-        return { success: result.failedCount === 0, ...result };
+        let totalExtracted = 0;
+        let totalCreated = 0;
+
+        for (const { report } of reports) {
+          const workContent = report.workContent || "";
+          if (!workContent.trim()) continue;
+
+          // Simple keyword-based extraction for batch processing
+          const followupKeywords = [
+            "提案", "打ち合わせ", "商談", "MTG", "ミーティング",
+            "確認", "検討", "相談", "調整", "連絡",
+            "合同", "会合", "面談", "訪問",
+            "提议", "会议", "商谈", "确认", "讨论"
+          ];
+
+          const hasFollowupKeyword = followupKeywords.some(kw => workContent.includes(kw));
+          if (!hasFollowupKeyword) continue;
+
+          // Extract sentences containing keywords
+          const sentences = workContent.split(/[。\n]/).filter(s => s.trim());
+          for (const sentence of sentences) {
+            const matchedKeyword = followupKeywords.find(kw => sentence.includes(kw));
+            if (matchedKeyword) {
+              const item = sentence.trim().substring(0, 100);
+              const existing = await checkExistingFollowup(report.id, item);
+              if (!existing) {
+                let category: "提案" | "打ち合わせ" | "商談" | "MTG" | "確認" | "その他" = "その他";
+                if (sentence.includes("提案") || sentence.includes("提议")) category = "提案";
+                else if (sentence.includes("打ち合わせ") || sentence.includes("会议") || sentence.includes("ミーティング")) category = "打ち合わせ";
+                else if (sentence.includes("商談") || sentence.includes("商谈")) category = "商談";
+                else if (sentence.includes("MTG")) category = "MTG";
+                else if (sentence.includes("確認") || sentence.includes("确认")) category = "確認";
+
+                const reportDate = new Date(report.reportDate);
+                const dueDate = new Date(reportDate);
+                dueDate.setDate(dueDate.getDate() + 2);
+
+                await createReportFollowup({
+                  reportId: report.id,
+                  reportStaffId: report.reportStaffId,
+                  extractedItem: item,
+                  category,
+                  status: "pending",
+                  dueDate,
+                });
+                totalCreated++;
+              }
+              totalExtracted++;
+            }
+          }
+        }
+
+        return {
+          success: true,
+          reportsProcessed: reports.length,
+          totalExtracted,
+          totalCreated,
+        };
       }),
     // AI Department Weekly Summary - 部門週報サマリー
     generateWeeklySummary: protectedProcedure
@@ -13499,8 +13474,6 @@ ${conversationText}
           issues: issues.trim() || (isChineseStaff ? "无" : "なし"),
           remarks: remarks.trim() || (isChineseStaff ? "无" : "なし"),
         });
-
-        await safelyExtractReportFollowups(report);
 
         return { success: true, report };
       }),

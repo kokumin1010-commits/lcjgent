@@ -33,15 +33,6 @@ const taskDetail = readFileSync(
   "utf8"
 );
 
-describe("LCJ Brain task history preservation", () => {
-  it("audits external task creation and review state changes in the same transaction", () => {
-    expect(service).toContain("INSERT INTO entity_revision_audits");
-    expect(service).toContain("'task',?,'create'");
-    expect(service).toContain("'task',?,'lcj_brain_review'");
-    expect(service).toContain("SELECT * FROM tasks WHERE id=? FOR UPDATE");
-  });
-});
-
 function draft() {
   return normalizeExecutionPlanDraft({
     summary: "执行方案",

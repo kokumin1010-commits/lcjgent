@@ -1134,7 +1134,6 @@ async function toolGetTasksAndReports(
           .where(
             and(
               gte(reports.reportDate, since),
-              isNull(reports.deletedAt),
               inArray(reports.reportStaffId, reportProfileIds)
             )
           )
@@ -1509,7 +1508,6 @@ async function toolSearchStaffWorkKnowledge(
         .where(
           and(
             or(eq(tasks.staffId, target.id), eq(taskStaff.staffId, target.id)),
-            isNull(tasks.archivedAt),
             gte(tasks.startDate, since.getTime())
           )
         )
@@ -1532,7 +1530,6 @@ async function toolSearchStaffWorkKnowledge(
         .where(
           and(
             inArray(reports.reportStaffId, reportStaffIds),
-            isNull(reports.deletedAt),
             gte(reports.reportDate, since)
           )
         )
@@ -1547,10 +1544,7 @@ async function toolSearchStaffWorkKnowledge(
           createdAt: reportAttachments.createdAt,
         })
         .from(reportAttachments)
-        .where(and(
-          inArray(reportAttachments.reportId, reportIds),
-          isNull(reportAttachments.archivedAt)
-        ))
+        .where(inArray(reportAttachments.reportId, reportIds))
         .orderBy(asc(reportAttachments.createdAt))
     : [];
   const attachmentsByReport = new Map<
@@ -1755,11 +1749,8 @@ async function computeStaffWorkKnowledgeReadiness(): Promise<StaffWorkKnowledgeR
             isNull(staff.mergedIntoStaffId)
           )
         ),
-      db.select({ total: count() }).from(reports).where(isNull(reports.deletedAt)),
-      db
-        .select({ total: count() })
-        .from(reportAttachments)
-        .where(isNull(reportAttachments.archivedAt)),
+      db.select({ total: count() }).from(reports),
+      db.select({ total: count() }).from(reportAttachments),
       db
         .select({ total: count() })
         .from(hrRoleDocuments)

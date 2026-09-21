@@ -1,6 +1,5 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { taskDeadlineInputToJstRfc3339 } from "@shared/taskDeadline";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -17,9 +16,8 @@ export default function TaskCreate() {
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [deadline, setDeadline] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
-  const requestId = useRef(crypto.randomUUID());
 
-  const { data: staffList, isLoading: isLoadingStaff } = trpc.task.assignmentDirectory.useQuery();
+  const { data: staffList, isLoading: isLoadingStaff } = trpc.staff.listActive.useQuery();
   const createTaskMutation = trpc.task.create.useMutation({
     onSuccess: (data) => {
       toast.success("タスクが正常に登録されました", {
@@ -43,10 +41,9 @@ export default function TaskCreate() {
       return;
     }
 
-    const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-    const imageFiles = files.filter(file => allowedTypes.has(file.type) && file.size <= 5 * 1024 * 1024);
+    const imageFiles = files.filter(file => file.type.startsWith("image/"));
     if (imageFiles.length !== files.length) {
-      toast.error("5MB以内のJPEG・PNG・WEBP画像のみ選択してください");
+      toast.error("画像ファイルのみ選択してください");
       return;
     }
 
@@ -99,10 +96,9 @@ export default function TaskCreate() {
       );
 
       await createTaskMutation.mutateAsync({
-        requestId: requestId.current,
         screenshots,
         staffIds: selectedStaffIds,
-        manualDeadline: deadline ? taskDeadlineInputToJstRfc3339(deadline) : undefined,
+        manualDeadline: deadline || undefined, // Send deadline if provided
         notes: notes || undefined, // Send notes if provided
       });
     } catch (error) {
@@ -128,8 +124,7 @@ export default function TaskCreate() {
         <CardHeader>
           <CardTitle>タスク情報入力</CardTitle>
           <CardDescription>
-            チャットのスクリーンショットと担当者を選択してください。登録後、担当者へメール通知し、
-            担当者本人の進捗・受阻・完了フィードバックと期限内完了率を実行积分の事实として集計します。
+            チャットのスクリーンショットと担当者を選択してください
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -149,7 +144,7 @@ export default function TaskCreate() {
                 <input
                   id="screenshot"
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/*"
                   multiple
                   onChange={handleFileChange}
                   className="hidden"
@@ -198,7 +193,7 @@ export default function TaskCreate() {
                           htmlFor={`staff-${staff.id}`}
                           className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                         >
-                          {staff.name} {staff.department && `- ${staff.department}`}
+                          {staff.name} {staff.department && `- ${staff.department}`} ({staff.email})
                         </label>
                       </div>
                     ))
