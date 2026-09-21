@@ -206,6 +206,7 @@ export type InsertHrRoleReviewAuditLog = typeof hrRoleReviewAuditLogs.$inferInse
 export const tasks = mysqlTable("tasks", {
   id: int("id").autoincrement().primaryKey(),
   taskId: varchar("taskId", { length: 64 }).notNull().unique(), // Unique identifier for email threading
+  requestId: varchar("requestId", { length: 128 }).unique(), // Idempotency key scoped by creator
   status: mysqlEnum("status", ["pending", "in_progress", "completed", "cancelled"]).default("pending").notNull(),
   staffId: int("staffId").notNull(),
   taskDetail: text("taskDetail").notNull(),
@@ -221,6 +222,9 @@ export const tasks = mysqlTable("tasks", {
   completedAt: bigint("completedAt", { mode: "number" }), // UTC timestamp in milliseconds
   lastReminderAt: bigint("lastReminderAt", { mode: "number" }), // Last reminder sent timestamp in milliseconds
   createdBy: int("createdBy").notNull(), // User ID who created the task
+  archivedAt: timestamp("archivedAt"),
+  archivedBy: int("archivedBy"),
+  archiveReason: text("archiveReason"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -245,6 +249,85 @@ export const reminders = mysqlTable("reminders", {
 export type Reminder = typeof reminders.$inferSelect;
 export type InsertReminder = typeof reminders.$inferInsert;
 
+export const taskNotificationOutbox = mysqlTable("task_notification_outbox", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  notificationKey: varchar("notificationKey", { length: 191 }).notNull(),
+  eventType: mysqlEnum("eventType", ["assignment", "reminder", "feedback_creator"]).notNull(),
+  taskId: int("taskId").notNull(),
+  staffId: int("staffId"),
+  recipientUserId: int("recipientUserId"),
+  feedbackId: bigint("feedbackId", { mode: "number" }),
+  feedbackStatus: varchar("feedbackStatus", { length: 32 }),
+  status: mysqlEnum("status", ["pending", "processing", "sent", "failed", "cancelled"]).default("pending").notNull(),
+  attempts: int("attempts").default(0).notNull(),
+  nextAttemptAt: timestamp("nextAttemptAt"),
+  leaseUntil: timestamp("leaseUntil"),
+  leaseToken: varchar("leaseToken", { length: 64 }),
+  deliveryStartedAt: timestamp("deliveryStartedAt"),
+  reminderId: int("reminderId"),
+  provider: varchar("provider", { length: 32 }),
+  providerMessageId: varchar("providerMessageId", { length: 255 }),
+  lastError: text("lastError"),
+  sentAt: timestamp("sentAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  notificationKeyUnique: uniqueIndex("uq_task_notification_key").on(table.notificationKey),
+  statusIndex: index("idx_task_notification_status").on(table.status, table.nextAttemptAt, table.leaseUntil),
+}));
+
+export const entityRevisionAudits = mysqlTable("entity_revision_audits", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  entityType: varchar("entityType", { length: 40 }).notNull(),
+  entityId: int("entityId").notNull(),
+  action: varchar("action", { length: 64 }).notNull(),
+  actorUserId: int("actorUserId"),
+  beforeState: json("beforeState").$type<Record<string, unknown> | null>(),
+  afterState: json("afterState").$type<Record<string, unknown> | null>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  entityIndex: index("idx_entity_revision_entity").on(table.entityType, table.entityId, table.id),
+}));
+
+export const taskCreationRequests = mysqlTable("task_creation_requests", {
+  requestId: varchar("requestId", { length: 128 }).primaryKey(),
+  creatorUserId: int("creatorUserId").notNull(),
+  inputHash: varchar("inputHash", { length: 64 }).notNull(),
+  status: mysqlEnum("status", ["processing", "completed", "failed"]).notNull(),
+  taskId: int("taskId"),
+  attempts: int("attempts").default(1).notNull(),
+  lastError: text("lastError"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  statusIndex: index("idx_task_creation_status").on(table.status, table.updatedAt),
+}));
+
+export const reportFollowupExtractionRuns = mysqlTable("report_followup_extraction_runs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  jobKey: varchar("jobKey", { length: 128 }),
+  reportId: int("reportId").notNull(),
+  reportUpdatedAt: timestamp("reportUpdatedAt"),
+  reportContentHash: varchar("reportContentHash", { length: 64 }),
+  status: mysqlEnum("status", ["running", "succeeded", "failed"]).notNull(),
+  extractedCount: int("extractedCount").default(0).notNull(),
+  createdCount: int("createdCount").default(0).notNull(),
+  updatedCount: int("updatedCount").default(0).notNull(),
+  archivedCount: int("archivedCount").default(0).notNull(),
+  errorCode: varchar("errorCode", { length: 120 }),
+  errorMessage: text("errorMessage"),
+  attempts: int("attempts").default(1).notNull(),
+  nextAttemptAt: timestamp("nextAttemptAt"),
+  leaseUntil: timestamp("leaseUntil"),
+  leaseToken: varchar("leaseToken", { length: 64 }),
+  deadLetterAt: timestamp("deadLetterAt"),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  finishedAt: timestamp("finishedAt"),
+}, table => ({
+  jobKeyUnique: uniqueIndex("uq_followup_extraction_job").on(table.jobKey),
+  reportStatusIndex: index("idx_followup_runs_report_status").on(table.reportId, table.status, table.id),
+}));
+
 /**
  * Task-Staff junction table for many-to-many relationship
  * Allows assigning multiple staff members to a single task
@@ -254,10 +337,55 @@ export const taskStaff = mysqlTable("task_staff", {
   taskId: int("taskId").notNull(), // References tasks.id
   staffId: int("staffId").notNull(), // References staff.id
   assignedAt: timestamp("assignedAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  taskStaffUnique: uniqueIndex("uq_task_staff_task_staff").on(table.taskId, table.staffId),
+}));
 
 export type TaskStaff = typeof taskStaff.$inferSelect;
 export type InsertTaskStaff = typeof taskStaff.$inferInsert;
+
+export const taskStaffArchive = mysqlTable("task_staff_archive", {
+  id: int("id").autoincrement().primaryKey(),
+  originalAssignmentId: int("originalAssignmentId").notNull(),
+  taskId: int("taskId").notNull(),
+  staffId: int("staffId").notNull(),
+  assignedAt: timestamp("assignedAt").notNull(),
+  archivedAt: timestamp("archivedAt").defaultNow().notNull(),
+  archivedBy: int("archivedBy"),
+  archiveReason: text("archiveReason").notNull(),
+  mergedIntoAssignmentId: int("mergedIntoAssignmentId"),
+}, (table) => ({
+  originalAssignmentUnique: uniqueIndex("uq_task_staff_archive_original").on(table.originalAssignmentId),
+  taskStaffArchiveIndex: index("idx_task_staff_archive_task_staff").on(table.taskId, table.staffId),
+}));
+
+export type TaskStaffArchive = typeof taskStaffArchive.$inferSelect;
+export type InsertTaskStaffArchive = typeof taskStaffArchive.$inferInsert;
+
+/**
+ * Append-only execution feedback for each assignee.
+ * The latest row per task/staff is the current execution state; history remains auditable.
+ */
+export const taskExecutionFeedbacks = mysqlTable("task_execution_feedbacks", {
+  id: int("id").autoincrement().primaryKey(),
+  requestId: varchar("requestId", { length: 128 }),
+  taskId: int("taskId").notNull(),
+  staffId: int("staffId").notNull(),
+  status: mysqlEnum("status", ["pending", "in_progress", "blocked", "completed", "cancelled"]).notNull(),
+  feedbackNote: text("feedbackNote").notNull(),
+  evidenceUrl: text("evidenceUrl"),
+  acknowledgedAt: bigint("acknowledgedAt", { mode: "number" }),
+  completedAt: bigint("completedAt", { mode: "number" }),
+  submittedByUserId: int("submittedByUserId").notNull(),
+  submittedAt: timestamp("submittedAt").defaultNow().notNull(),
+}, (table) => ({
+  requestIdUnique: uniqueIndex("uq_task_execution_feedback_request").on(table.requestId),
+  taskStaffHistoryIndex: index("idx_task_execution_task_staff_history").on(table.taskId, table.staffId, table.id),
+  staffStatusIndex: index("idx_task_execution_staff_status").on(table.staffId, table.status),
+}));
+
+export type TaskExecutionFeedback = typeof taskExecutionFeedbacks.$inferSelect;
+export type InsertTaskExecutionFeedback = typeof taskExecutionFeedbacks.$inferInsert;
 
 /**
  * Email tracking table for monitoring email opens
@@ -314,6 +442,9 @@ export const reports = mysqlTable("reports", {
   issues: text("issues"), // 気付き・問題・理由
   remarks: text("remarks"), // 備考
   createdBy: int("createdBy").notNull(), // User ID who created the report
+  deletedAt: timestamp("deletedAt"),
+  deletedBy: int("deletedBy"),
+  deleteReason: text("deleteReason"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -524,6 +655,11 @@ export const reportFollowups = mysqlTable("report_followups", {
   reportId: int("reportId").notNull(), // References reports.id
   reportStaffId: int("reportStaffId").notNull(), // References reportStaff.id
   extractedItem: text("extractedItem").notNull(), // 抽出された項目（例：「shiho合同」「物流公司打ち合わせ」）
+  dedupeKey: varchar("dedupeKey", { length: 64 }),
+  duplicateOfId: int("duplicateOfId"),
+  archivedAt: timestamp("archivedAt"),
+  archivedBy: int("archivedBy"),
+  archiveReason: text("archiveReason"),
   category: mysqlEnum("category", ["提案", "打ち合わせ", "商談", "MTG", "確認", "その他"]).default("その他").notNull(),
   status: mysqlEnum("status", ["pending", "completed", "cancelled"]).default("pending").notNull(),
   dueDate: timestamp("dueDate"), // フォローアップ期限（抽出日から2日後）
@@ -535,7 +671,9 @@ export const reportFollowups = mysqlTable("report_followups", {
   nextActionId: int("nextActionId"), // 次のアクションへの参照（自己参照）
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  reportItemUnique: uniqueIndex("uq_report_followup_report_item").on(table.reportId, table.dedupeKey),
+}));
 
 export type ReportFollowup = typeof reportFollowups.$inferSelect;
 export type InsertReportFollowup = typeof reportFollowups.$inferInsert;
@@ -7766,6 +7904,9 @@ export const reportAttachments = mysqlTable("report_attachments", {
   imageUrl: text("imageUrl").notNull(), // S3 storage URL
   label: varchar("label", { length: 50 }).notNull(), // "LINE截图" or "Lark截图"
   filename: varchar("filename", { length: 255 }), // Original filename
+  archivedAt: timestamp("archivedAt"),
+  archivedBy: int("archivedBy"),
+  archiveReason: text("archiveReason"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type ReportAttachment = typeof reportAttachments.$inferSelect;

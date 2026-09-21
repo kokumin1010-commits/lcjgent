@@ -34,6 +34,7 @@ import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import ReportsRecoveryOverview from "@/components/ReportsRecoveryOverview";
+import { SafeAiReportText } from "@/components/SafeAiReportText";
 
 // Available countries for filtering
 const COUNTRIES = [
@@ -112,6 +113,13 @@ export default function Reports() {
   // Image lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; label: string } | null>(null);
+
+  useEffect(() => {
+    const reportId = Number(new URLSearchParams(window.location.search).get("reportId"));
+    if (!Number.isInteger(reportId) || reportId <= 0) return;
+    setSelectedReportId(reportId);
+    setReportDetailDialogOpen(true);
+  }, []);
 
   // AI Advice state
   const [generatingAdviceForReport, setGeneratingAdviceForReport] = useState<number | null>(null);
@@ -387,7 +395,7 @@ export default function Reports() {
 
   const deleteReport = trpc.report.delete.useMutation({
     onSuccess: () => {
-      toast.success(t("reports.deleted"));
+      toast.success(language === "ja" ? "日報を履歴付きでアーカイブしました" : "日报已保留历史并归档");
       refetch();
       setDeleteDialogOpen(false);
       setReportToDelete(null);
@@ -976,7 +984,7 @@ export default function Reports() {
                   
                   {/* AI Summary content */}
                   <div className="p-4 bg-white rounded-lg border prose prose-sm max-w-none dark:prose-invert">
-                    <div dangerouslySetInnerHTML={{ __html: (weeklySummaryResult.summary || "").replace(/\n/g, "<br>").replace(/^### (.+)/gm, "<h3>$1</h3>").replace(/^## (.+)/gm, "<h2>$1</h2>").replace(/^# (.+)/gm, "<h1>$1</h1>").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/^- (.+)/gm, "<li>$1</li>").replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>") }} />
+                    <SafeAiReportText content={weeklySummaryResult.summary} emptyText="" />
                   </div>
                   
                   {/* Export button */}
@@ -1392,14 +1400,16 @@ export default function Reports() {
         </CardContent>
       </Card>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Archive Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t("reports.deleteConfirm")}</DialogTitle>
+            <DialogTitle>{language === "ja" ? "日報をアーカイブしますか？" : "要归档这份日报吗？"}</DialogTitle>
           </DialogHeader>
           <p className="text-muted-foreground">
-            {t("reports.deleteWarning")}
+            {language === "ja"
+              ? "一覧から非表示になりますが、監査履歴と関連タスクは削除されません。"
+              : "归档后将从列表隐藏，但审计历史和关联任务不会被删除。"}
           </p>
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
@@ -1410,7 +1420,9 @@ export default function Reports() {
               onClick={confirmDelete}
               disabled={deleteReport.isPending}
             >
-              {deleteReport.isPending ? t("common.deleting") : t("common.delete")}
+              {deleteReport.isPending
+                ? (language === "ja" ? "アーカイブ中..." : "归档中...")
+                : (language === "ja" ? "アーカイブ" : "归档")}
             </Button>
           </div>
         </DialogContent>

@@ -106,7 +106,7 @@ export default function MasterControl() {
 
   // Extract unique users and staff from tasks
   const uniqueUsersFromTasks = Array.from(
-    new Set(allTasksData?.map((item) => item.user?.email).filter(Boolean))
+    new Set(allTasksData?.map((item) => item.user?.name).filter(Boolean))
   );
   const uniqueStaff = Array.from(
     new Set(allTasksData?.map((item) => item.staff?.name).filter(Boolean))
@@ -118,10 +118,10 @@ export default function MasterControl() {
       searchTerm === "" ||
       item.task.taskDetail.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.staff?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.user?.email.toLowerCase().includes(searchTerm.toLowerCase());
+      item.user?.name?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesUser =
-      selectedUser === "all" || item.user?.email === selectedUser;
+      selectedUser === "all" || item.user?.name === selectedUser;
 
     const matchesStaff =
       selectedStaff === "all" || item.staff?.name === selectedStaff;
@@ -562,7 +562,7 @@ export default function MasterControl() {
                       </div>
                       <p className="font-medium">{item.task.taskDetail}</p>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span>{t.instructor}: {item.user?.email || t.unknown}</span>
+                        <span>{t.instructor}: {item.user?.name || t.unknown}</span>
                         <span>{t.assignee}: {item.staff?.name || t.unknown}{item.staff?.department && ` - ${item.staff.department}`}</span>
                         <span>
                           {t.registered}:{" "}

@@ -13,14 +13,16 @@ describe("staff schedule candidate contract", () => {
     expect(pageSource).not.toContain("trpc.staff.listActive.useQuery(undefined, { enabled: !!user })");
   });
 
-  it("keeps the general active staff route unchanged for other modules", () => {
+  it("keeps the general active staff route but projects a limited directory DTO", () => {
     expect(routerSource).toContain("listActive: protectedProcedure.query");
-    expect(routerSource).toContain("return await getActiveStaff()");
+    expect(routerSource).toContain("const rows = await getActiveStaff()");
+    expect(routerSource).toContain("email: person.email.toLowerCase()");
   });
 
   it("filters only the schedule candidate response without mutating HR data", () => {
     expect(routerSource).toContain("listScheduleCandidates: protectedProcedure.query");
-    expect(routerSource).toContain("return await getScheduleStaffCandidates()");
+    expect(routerSource).toContain("const rows = await getScheduleStaffCandidates()");
+    expect(routerSource).toContain("avatarUrl: person.avatarUrl");
     expect(dbSource).toContain("return filterStaffScheduleCandidates(active)");
   });
 

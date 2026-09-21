@@ -65,6 +65,8 @@ describe("LCJ Brain project soft delete", () => {
     expect(router).toContain("SET status='superseded'");
     expect(router).toContain("errorCode='PROJECT_DELETED'");
     expect(router).toContain("SET status='retired' WHERE sourceProjectId=?");
+    expect(router).toContain("'task',?,'lcj_brain_project_cancel'");
+    expect(router).toContain("FOR UPDATE");
   });
 
   it("shows permission-gated delete, typed confirmation, and admin recovery UI", () => {

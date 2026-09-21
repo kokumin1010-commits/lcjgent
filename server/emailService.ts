@@ -16,12 +16,14 @@
  * ============================================================
  */
 import nodemailer from "nodemailer";
+import { createHash } from "node:crypto";
 
 interface EmailMessage {
   to: string[];
   subject: string;
   content: string;
   html?: string;
+  idempotencyKey?: string;
   cc?: string[];
   bcc?: string[];
   attachments?: Array<{
@@ -140,12 +142,25 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function safeHeaderText(value: string): string {
+  return value.replace(/[\r\n\u0000-\u001F\u007F]+/g, " ").trim();
+}
+
 /**
  * Send email through the configured enterprise SMTP, with Gmail failover
  * 
  * IMPORTANT: When html field is provided, it is used as the email body.
  * The content field serves as plain-text fallback only.
- * If html is not provided but content contains HTML tags, content is treated as HTML.
+ * HTML is sent only when callers explicitly provide the html field.
  */
 export async function sendEmail(message: EmailMessage): Promise<EmailDeliveryResult> {
   const candidates = createTransportCandidates();
@@ -157,10 +172,6 @@ export async function sendEmail(message: EmailMessage): Promise<EmailDeliveryRes
   const fromName = "株式会社ライブコマースジャパン";
   let htmlBody: string | undefined = message.html;
   let textBody: string = message.content;
-  if (!htmlBody && /<[a-z][\s\S]*>/i.test(message.content)) {
-    htmlBody = message.content;
-    textBody = stripHtml(message.content);
-  }
   if (htmlBody && textBody === message.content && /<[a-z][\s\S]*>/i.test(textBody)) {
     textBody = stripHtml(htmlBody);
   }
@@ -175,6 +186,10 @@ export async function sendEmail(message: EmailMessage): Promise<EmailDeliveryRes
       text: textBody,
       html: htmlBody,
     };
+    if (message.idempotencyKey) {
+      const digest = createHash("sha256").update(message.idempotencyKey).digest("hex");
+      mailOptions.messageId = `<${digest}@lcjmall.com>`;
+    }
     if (message.cc?.length) mailOptions.cc = message.cc.join(", ");
     if (message.bcc?.length) mailOptions.bcc = message.bcc.join(", ");
     if (message.attachments) mailOptions.attachments = message.attachments;
@@ -215,9 +230,11 @@ export async function sendReminderEmail(
   screenshotUrls?: string[],
   notes?: string,
   deadline?: number,
-  trackingToken?: string
+  trackingToken?: string,
+  taskRecordId?: number,
+  idempotencyKey?: string
 ): Promise<EmailDeliveryResult> {
-  const subject = `【リマインド/提醒】タスクの進捗確認 / 任务进度确认: ${taskDetail.substring(0, 50)}...`;
+  const subject = safeHeaderText(`【リマインド/提醒】タスクの進捗確認 / 任务进度确认: ${taskDetail.substring(0, 50)}...`);
   
   const getBaseUrl = () => {
     if (process.env.NODE_ENV === 'production') {
@@ -228,6 +245,7 @@ export async function sendReminderEmail(
   
   const baseUrl = getBaseUrl();
   const completionUrl = completionToken ? `${baseUrl}/complete/${completionToken}` : null;
+  const feedbackUrl = taskRecordId ? `${baseUrl}/master/tasks/${taskRecordId}` : completionUrl;
   
   const content = `${staffName} 様 / 尊敬的 ${staffName}
 
@@ -248,9 +266,9 @@ ${deadline ? new Date(deadline).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo'
 ${daysElapsed}日
 
 ━━━━━━━━━━━━━━━━━━━━
-【完了報告方法】
-以下のリンクをクリックして完了報告をしてください：
-${completionUrl ? completionUrl : 'リンクは生成されませんでした'}
+【実行フィードバック方法】
+以下のリンクからログインし、本人の進行中・ブロック・完了状況と実行内容を報告してください：
+${feedbackUrl ? feedbackUrl : 'リンクは生成されませんでした'}
 ━━━━━━━━━━━━━━━━━━━━
 
 ご不明な点がございましたら、お気軽にお問い合わせください。
@@ -275,9 +293,9 @@ ${deadline ? new Date(deadline).toLocaleString('zh-CN', { timeZone: 'Asia/Shangh
 ${daysElapsed}天
 
 ━━━━━━━━━━━━━━━━━━━━
-【完成报告方法】
-请点击以下链接提交完成报告：
-${completionUrl ? completionUrl : '链接未生成'}
+【执行反馈方法】
+请登录以下任务页面，由本人提交进行中、受阻或完成状态，以及执行内容：
+${feedbackUrl ? feedbackUrl : '链接未生成'}
 ━━━━━━━━━━━━━━━━━━━━
 
 如有任何疑问，请随时联系我们。
@@ -285,14 +303,20 @@ ${completionUrl ? completionUrl : '链接未生成'}
 
 ---
 业务自动化系统 / 業務自動化システム
-任务ID / タスクID: ${taskId}
+任务ID / タスクID: ${taskId}`;
 
-${trackingToken ? `<img src="${baseUrl}/api/track/pixel/${trackingToken}" width="1" height="1" style="display:none" />` : ''}`;
+  const html = `<div style="white-space:pre-wrap;font-family:sans-serif">${escapeHtml(content)}</div>${
+    trackingToken
+      ? `<img src="${escapeHtml(`${baseUrl}/api/track/pixel/${trackingToken}`)}" width="1" height="1" style="display:none" alt="" />`
+      : ""
+  }`;
 
   const mailOptions: any = {
     to: [staffEmail],
     subject,
     content,
+    html,
+    idempotencyKey,
   };
 
   // Add screenshots as attachments if provided
