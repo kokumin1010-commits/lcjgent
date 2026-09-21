@@ -138,3 +138,5 @@ LINE Messaging APIにはグループ名変更専用Webhookを前提にできな�
 管理画面は「連携状態に関係なく保存済みグループ会話を分析」「保存3件目から新着ごとに更新」と表示する。分析OFFのgroupでは、履歴は保存するが自動分析は停止中であることを別文言で示す。会話Dialogのflex shrinkを除去し、AIインサイトと「グループ会話履歴」の見出し・説明が重なる表示不具合も修正した。
 
 最終focused回帰は4ファイル69件成功。LINE関連全体は35ファイル320件中310件成功し、残る5ファイル10件はローカル本番DB、LINE Login／Messaging API secret・token・APP_URL未設定による既存環境依存だった。production buildは成功。全量TypeScriptは既存1,164件でexit 2だが、今回変更した`LineManagement.tsx`、`lineAiManager.ts`、各testに新規診断はなく、`lineAgent.ts`の既存2件は今回の変更行外である。初回独立reviewのP1 3件を修正し、最終独立reviewは**GO（P0/P1 blocker 0件）**。検証中に実LINE送信、本番DB直接更新、group設定変更は行っていない。
+
+機能commit `ab24268be901fce68e9ee13843e174df5fc49b58`はGitHub CIおよびRailway同一SHAで本番反映済み。本番healthは`aiManagerStorage: ready`、`groupAutomationDefaults: ready`、runtime `state: ready`、`failureCode: null`。配信chunk `LineManagement-4I9iAqFX.js`をGET/read-only検査し、連携不要分析、保存3件到達後の継続更新、明示OFF時の停止説明、Dialog layout修正を確認した。sandbox browserには管理者認証sessionがなかったため、credentialを推測せず本番group分析mutationは実行していない。実LINE送信・本番DB直接操作も行っていない。
