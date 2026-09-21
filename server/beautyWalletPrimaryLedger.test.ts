@@ -121,13 +121,25 @@ describe("Beauty Wallet primary ledger policy", () => {
     const service = read("server/beautyWalletMemberLinkService.ts");
     expect(migration).toContain("UNIQUE KEY `uq_bw_wallet_active_owner_member` (`lineUserId`)");
     expect(service).toContain('tableName: "bw_wallet_active_owners"');
+    expect(service).toContain("CREATE TABLE IF NOT EXISTS bw_member_link_challenges");
+    expect(service).toContain("CREATE TABLE IF NOT EXISTS bw_member_link_audit_logs");
+    expect(service).toContain("CREATE TABLE IF NOT EXISTS bw_wallet_active_owners");
     expect(service).not.toContain('tableName: "bw_linked_accounts",\n      columns: "lineUserId"');
     expect(runner).not.toContain("ensureMysqlUniqueSingleColumnIndex");
     expect(runner).not.toContain("ALTER TABLE `bw_linked_accounts`");
     expect(migration).not.toContain("ALTER TABLE `bw_linked_accounts`");
     expect(runner).toContain("Required Beauty Wallet member-link migration failed");
+    expect(runner).toContain("isBuildDatabaseUnavailable");
+    expect(runner).toContain("required schemas will be verified by fail-closed runtime initializers");
+    expect(runner).toContain("throw err;");
+    expect(runner).toContain("throw fallbackErr;");
+    expect(runner).not.toContain("Non-fatal migration error, continuing deployment");
     expect(runner).toContain("process.exit(1)");
     expect(runner).not.toContain("Continuing despite error");
+    const server = read("server/_core/index.ts");
+    const startupFailure = server.slice(server.indexOf("startServer().catch"));
+    expect(startupFailure).toContain('[Server] Fatal startup failure');
+    expect(startupFailure).toContain("process.exit(1)");
   });
 
   it("uses bounded signed sessions and does not renew a bearer token from me", () => {

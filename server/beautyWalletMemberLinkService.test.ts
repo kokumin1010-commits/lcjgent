@@ -222,7 +222,7 @@ describe("Beauty Wallet member link service", () => {
     expect(mocks.rollback).toHaveBeenCalled();
   });
 
-  it("fails startup readiness when the migration schema is missing and never creates tables", async () => {
+  it("creates only the empty member-link tables and still fails readiness when their schema is incomplete", async () => {
     mocks.poolQuery.mockResolvedValue([[], []]);
     const { ensureBeautyWalletMemberLinkSchema } = await import(
       "./beautyWalletMemberLinkService"
@@ -232,7 +232,10 @@ describe("Beauty Wallet member link service", () => {
       "schema is incomplete"
     );
     const sql = mocks.poolQuery.mock.calls.map(([query]) => String(query)).join("\n");
-    expect(sql).not.toMatch(/CREATE\s+TABLE/i);
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS bw_member_link_challenges");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS bw_member_link_audit_logs");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS bw_wallet_active_owners");
+    expect(sql).not.toMatch(/(^|\n)\s*(INSERT|UPDATE|DELETE)\s/i);
   });
 
   it("locks the challenge on the fifth wrong code before any central lookup", async () => {

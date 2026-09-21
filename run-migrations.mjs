@@ -22,6 +22,22 @@ function isDuplicateMysqlColumn(error) {
   return false;
 }
 
+function isBuildDatabaseUnavailable(error) {
+  const retryableCodes = new Set([
+    'ECONNREFUSED',
+    'ETIMEDOUT',
+    'EAI_AGAIN',
+    'ENOTFOUND',
+    'PROTOCOL_CONNECTION_LOST',
+  ]);
+  let current = error;
+  for (let depth = 0; depth < 4 && current && typeof current === 'object'; depth += 1) {
+    if (retryableCodes.has(String(current.code || ''))) return true;
+    current = current.cause;
+  }
+  return false;
+}
+
 async function ensureMysqlColumns(connection, tableName, columns) {
   for (const column of columns) {
     try {
@@ -55,9 +71,8 @@ async function main() {
     if (err.message.includes('already exists') || err.message.includes('Duplicate column')) {
       console.log('[Migration] Schema already up to date, continuing...');
     } else {
-      // Log but don't throw - let the app start
-      console.error('[Migration] Non-fatal migration error, continuing deployment...');
       console.error('[Migration] Full error:', err);
+      throw err;
     }
   }
 
@@ -289,6 +304,7 @@ async function main() {
     console.log(`[Migration] Brand BD command center tables ensured (${brandBdCommandStatements.length} statements).`);
   } catch (fallbackErr) {
     console.error('[Migration] Fallback error:', fallbackErr.message);
+    throw fallbackErr;
   }
 
   try {
@@ -313,5 +329,9 @@ async function main() {
 
 main().catch(err => {
   console.error('[Migration] Fatal error:', err);
+  if (isBuildDatabaseUnavailable(err)) {
+    console.error('[Migration] Build database is unavailable; required schemas will be verified by fail-closed runtime initializers.');
+    process.exit(0);
+  }
   process.exit(1);
 });

@@ -4749,7 +4749,10 @@ async function startServer() {
   });
 }
 
-startServer().catch(console.error);
+startServer().catch(error => {
+  console.error("[Server] Fatal startup failure", error);
+  process.exit(1);
+});
 
 // CSV Helper functions for REST API endpoint
 function csvParseCSVLine(line: string): string[] {
