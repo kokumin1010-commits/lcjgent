@@ -130,6 +130,7 @@ export const performanceRouter = router({
     .input(z.object({
       staffId: z.number().int().positive(),
       storeId: z.number().int().positive(),
+      brandId: z.number().int().positive().nullable().optional(),
       sourceType: z.enum(["brand_contract", "manual_confirmed", "order"]),
       sourceId: z.string().trim().min(1).max(128),
       businessDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),

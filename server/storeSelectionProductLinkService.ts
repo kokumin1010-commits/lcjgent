@@ -9,6 +9,11 @@ import {
   type StoreSelectionProductPrefill,
   type StoreSelectionSourceRecord,
 } from "../shared/storeSelectionProductLink";
+import {
+  attachStoreBrandLinks,
+  ensureStoreBrandRelations,
+  loadStoreBrandLinks,
+} from "./storeBrandRelations";
 
 export type StoreSelectionSearchInput = {
   storeId: number;
@@ -90,6 +95,14 @@ type StoreBrandScope = RowDataPacket & {
   brandName: string | null;
   brandNameJa: string | null;
   companyName: string | null;
+  brandIds: number[];
+  brands: Array<{
+    id: number;
+    name: string | null;
+    nameJa: string | null;
+    companyName: string | null;
+    isPrimary: boolean;
+  }>;
 };
 
 type ExistingStoreProduct = RowDataPacket & {
@@ -123,7 +136,9 @@ export type StoreSelectionBulkSyncPreview = Omit<StoreSelectionBulkPlan, "source
   storeId: number;
   storeName: string;
   brandId: number | null;
+  brandIds: number[];
   brandName: string;
+  brandNames: string[];
   brandConfigured: boolean;
   ready: number;
 };
@@ -522,6 +537,7 @@ function compactBrandIdentity(value: unknown): string {
 }
 
 async function loadStoreBrandScope(pool: Pool, storeId: number): Promise<StoreBrandScope> {
+  await ensureStoreBrandRelations(pool);
   const [rows] = await pool.query<StoreBrandScope[]>(
     `SELECT ms.id, ms.name, ms.brandId, b.name AS brandName, b.nameJa AS brandNameJa, b.companyName
        FROM managed_stores ms
@@ -530,13 +546,14 @@ async function loadStoreBrandScope(pool: Pool, storeId: number): Promise<StoreBr
       LIMIT 1`,
     [storeId],
   );
-  const scope = rows[0];
-  if (!scope) throw new TRPCError({ code: "NOT_FOUND", message: "店铺不存在或已停用" });
-  return scope;
+  const store = rows[0];
+  if (!store) throw new TRPCError({ code: "NOT_FOUND", message: "店铺不存在或已停用" });
+  const links = await loadStoreBrandLinks(pool, [storeId]);
+  return attachStoreBrandLinks(store, links.get(storeId) || []) as StoreBrandScope;
 }
 
 function storeBrandAliases(scope: StoreBrandScope): string[] {
-  return [...new Set([scope.brandName, scope.brandNameJa, scope.companyName]
+  return [...new Set(scope.brands.flatMap(brand => [brand.name, brand.nameJa, brand.companyName])
     .map(compactBrandIdentity)
     .filter(Boolean))];
 }
@@ -553,9 +570,8 @@ function existingProductIdentity(value: unknown): string {
 
 async function loadStoreSelectionBulkPlan(pool: Pool, storeId: number): Promise<{ scope: StoreBrandScope; plan: StoreSelectionBulkPlan }> {
   const scope = await loadStoreBrandScope(pool, storeId);
-  const brandId = Number(scope.brandId || 0);
-  const configuredBrandName = String(scope.brandNameJa || scope.brandName || scope.companyName || "").trim();
-  if (!Number.isSafeInteger(brandId) || brandId <= 0 || !configuredBrandName) {
+  const brandIds = scope.brands.map(brand => Number(brand.id));
+  if (brandIds.length === 0) {
     return {
       scope,
       plan: {
@@ -572,9 +588,9 @@ async function loadStoreSelectionBulkPlan(pool: Pool, storeId: number): Promise<
        FROM selection_products sp
        LEFT JOIN selection_categories sc ON sc.id=sp.categoryId
       WHERE sp.deletedAt IS NULL AND sp.parentProductId IS NULL
-        AND (sp.brandId=?${aliases.length > 0 ? ` OR (sp.brandId IS NULL AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(TRIM(COALESCE(sp.brandName,''))), ' ', ''), '-', ''), '_', ''), '/', ''), '・', ''), '･', '') IN (${placeholders(aliases.length)}))` : ""})
+        AND (sp.brandId IN (${placeholders(brandIds.length)})${aliases.length > 0 ? ` OR (sp.brandId IS NULL AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(TRIM(COALESCE(sp.brandName,''))), ' ', ''), '-', ''), '_', ''), '/', ''), '・', ''), '･', '') IN (${placeholders(aliases.length)}))` : ""})
       ORDER BY sp.id ASC`,
-    [brandId, ...aliases],
+    [...brandIds, ...aliases],
   );
   const sourceIds = sourceRows.map((row) => Number(row.id));
   const childMap = await loadChildren(pool, sourceIds);
@@ -714,14 +730,20 @@ async function loadStoreSelectionBulkPlan(pool: Pool, storeId: number): Promise<
 }
 
 function publicBulkPreview(scope: StoreBrandScope, plan: StoreSelectionBulkPlan): StoreSelectionBulkSyncPreview {
-  const brandId = Number(scope.brandId || 0);
-  const brandName = String(scope.brandNameJa || scope.brandName || scope.companyName || "").trim();
+  const brandIds = scope.brands.map(brand => Number(brand.id));
+  const brandNames = scope.brands.map(brand =>
+    String(brand.nameJa || brand.name || brand.companyName || `品牌 #${brand.id}`).trim()
+  );
+  const brandId = brandIds[0] || 0;
+  const brandName = brandNames.join(" / ");
   return {
     storeId: Number(scope.id),
     storeName: String(scope.name),
     brandId: Number.isSafeInteger(brandId) && brandId > 0 ? brandId : null,
+    brandIds,
     brandName,
-    brandConfigured: Number.isSafeInteger(brandId) && brandId > 0 && Boolean(brandName),
+    brandNames,
+    brandConfigured: brandIds.length > 0,
     sourceParentCount: plan.sourceParentCount,
     storeProductCount: plan.storeProductCount,
     createCount: plan.createCount,
@@ -764,8 +786,7 @@ export async function processStoreSelectionBulkSyncBatch(
 ) {
   const limit = Math.min(Math.max(Number(input.limit || 10), 1), 20);
   const loaded = await loadStoreSelectionBulkPlan(pool, input.storeId);
-  const configuredBrandName = String(loaded.scope.brandNameJa || loaded.scope.brandName || loaded.scope.companyName || "").trim();
-  if (!loaded.scope.brandId || !configuredBrandName) {
+  if (loaded.scope.brands.length === 0) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "请先在店铺资料中关联服务品牌，再同步选品中心商品" });
   }
   const targets = loaded.plan.sources.slice(0, limit);

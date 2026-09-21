@@ -38,14 +38,16 @@ describe("store service brand search", () => {
     expect(buildStoreBrandSearchValue(brand)).toContain("kyogoku professional");
   });
 
-  it("renders a searchable selector while preserving bind and unbind values", () => {
+  it("renders a searchable multi-selector while preserving clear-all behavior", () => {
     expect(page).toContain('role="combobox"');
     expect(page).toContain('placeholder="输入品牌名、公司名或类别搜索..."');
     expect(page).toContain("没有找到匹配品牌。");
     expect(page).toContain("前往品牌管理新增");
-    expect(page).toContain("setForm(current => ({ ...current, brandId: 0 }))");
-    expect(page).toContain("setForm(current => ({ ...current, brandId: Number(brand.id) }))");
-    expect(page).toContain("brandId: form.brandId || null");
+    expect(page).toContain("服务品牌（可多选）");
+    expect(page).toContain("brandIds: []");
+    expect(page).toContain("current.brandIds.includes(brandId)");
+    expect(page).toContain("brandIds: form.brandIds");
+    expect(page).toContain("已选择的服务品牌");
   });
 
   it("returns every safe search field from the protected service-brand API", () => {

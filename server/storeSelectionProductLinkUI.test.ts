@@ -77,7 +77,7 @@ describe("store product selection link contract", () => {
   it("keeps operational fields protected while filling missing source fields", () => {
     expect(ui).toContain("新增商品强制保存为草稿");
     expect(ui).toContain("不会覆盖上架状态、推广折扣、人工图片、人工SKU或已填写的价格/库存/备注");
-    expect(service).toContain("sp.brandId=?");
+    expect(service).toContain("sp.brandId IN (${placeholders(brandIds.length)})");
     expect(service).toContain("current.product.status === \"online\" || current.product.status === \"offline\"");
     expect(service).toContain("stock: Number(current.product.stock || 0)");
     expect(service).toContain("mergeStoreSelectionSkuPrefills(");

@@ -268,7 +268,7 @@ function StoreCard({ store, onClick, onEdit, staffList, dataYear, dataMonth, exe
 
 type StoreProfileForm = {
   name: string;
-  brandId: number;
+  brandIds: number[];
   platform: string;
   country: string;
   storeUrl: string;
@@ -284,9 +284,14 @@ type StoreProfileForm = {
 };
 
 function initialStoreProfile(store: any | null): StoreProfileForm {
+  const brandIds = Array.isArray(store?.brandIds)
+    ? store.brandIds.map(Number).filter((value: number) => Number.isSafeInteger(value) && value > 0)
+    : store?.brandId
+      ? [Number(store.brandId)]
+      : [];
   return {
     name: store?.name || '',
-    brandId: Number(store?.brandId || 0),
+    brandIds: [...new Set<number>(brandIds)],
     platform: store?.platform || 'tiktok_shop',
     country: store?.country || 'japan',
     storeUrl: store?.storeUrl || '',
@@ -365,7 +370,7 @@ function StoreProfileDialog({ store, staffList, serviceBrands, onClose, onSaved 
         await updateMutation.mutateAsync({
           id: Number(store.id),
           name,
-          brandId: form.brandId || null,
+          brandIds: form.brandIds,
           platform: form.platform,
           country: form.country,
           storeUrl: form.storeUrl.trim(),
@@ -382,7 +387,7 @@ function StoreProfileDialog({ store, staffList, serviceBrands, onClose, onSaved 
       } else {
         await createMutation.mutateAsync({
           name,
-          brandId: form.brandId || null,
+          brandIds: form.brandIds,
           platform: form.platform,
           country: form.country,
           storeUrl: form.storeUrl.trim() || undefined,
@@ -405,7 +410,9 @@ function StoreProfileDialog({ store, staffList, serviceBrands, onClose, onSaved 
   };
 
   const avatarSrc = avatarPreview || form.avatarUrl;
-  const selectedServiceBrand = serviceBrands.find(brand => Number(brand.id) === form.brandId);
+  const selectedServiceBrands = form.brandIds
+    .map(brandId => serviceBrands.find(brand => Number(brand.id) === brandId))
+    .filter(Boolean);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/55 p-4" onClick={onClose}>
       <div className="my-auto w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl" onClick={event => event.stopPropagation()}>
@@ -442,7 +449,7 @@ function StoreProfileDialog({ store, staffList, serviceBrands, onClose, onSaved 
               <Input value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} placeholder="例: KYOGOKU JAPAN" />
             </div>
             <div className="md:col-span-2">
-              <label className="text-xs font-medium text-gray-600">服务品牌</label>
+              <label className="text-xs font-medium text-gray-600">服务品牌（可多选）</label>
               <Popover open={brandPopoverOpen} onOpenChange={setBrandPopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -450,11 +457,15 @@ function StoreProfileDialog({ store, staffList, serviceBrands, onClose, onSaved 
                     variant="outline"
                     role="combobox"
                     aria-expanded={brandPopoverOpen}
-                    aria-label="搜索并选择服务品牌"
+                    aria-label="搜索并多选服务品牌"
                     className="mt-1 w-full justify-between bg-white font-normal"
                   >
-                    <span className={cn("truncate", !selectedServiceBrand && form.brandId === 0 && "text-gray-500")}>
-                      {selectedServiceBrand ? getStoreServiceBrandLabel(selectedServiceBrand) : "暂不关联（指标仅显示本店铺数据）"}
+                    <span className={cn("truncate", selectedServiceBrands.length === 0 && "text-gray-500")}>
+                      {selectedServiceBrands.length === 0
+                        ? "暂不关联（指标仅显示本店铺数据）"
+                        : selectedServiceBrands.length === 1
+                          ? getStoreServiceBrandLabel(selectedServiceBrands[0])
+                          : `已选择 ${selectedServiceBrands.length} 个服务品牌`}
                     </span>
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
@@ -473,12 +484,11 @@ function StoreProfileDialog({ store, staffList, serviceBrands, onClose, onSaved 
                         <CommandItem
                           value="暂不关联 未绑定 解除关联 no brand unlinked"
                           onSelect={() => {
-                            setForm(current => ({ ...current, brandId: 0 }));
-                            setBrandPopoverOpen(false);
+                            setForm(current => ({ ...current, brandIds: [] }));
                           }}
                         >
-                          <Check className={cn("mr-2 h-4 w-4", form.brandId === 0 ? "opacity-100" : "opacity-0")} />
-                          <span className="text-gray-600">暂不关联（指标仅显示本店铺数据）</span>
+                          <Check className={cn("mr-2 h-4 w-4", form.brandIds.length === 0 ? "opacity-100" : "opacity-0")} />
+                          <span className="text-gray-600">清除全部关联品牌</span>
                         </CommandItem>
                         {serviceBrands.map(brand => {
                           const label = getStoreServiceBrandLabel(brand);
@@ -488,11 +498,16 @@ function StoreProfileDialog({ store, staffList, serviceBrands, onClose, onSaved 
                               key={brand.id}
                               value={buildStoreBrandSearchValue(brand)}
                               onSelect={() => {
-                                setForm(current => ({ ...current, brandId: Number(brand.id) }));
-                                setBrandPopoverOpen(false);
+                                const brandId = Number(brand.id);
+                                setForm(current => ({
+                                  ...current,
+                                  brandIds: current.brandIds.includes(brandId)
+                                    ? current.brandIds.filter(id => id !== brandId)
+                                    : [...current.brandIds, brandId],
+                                }));
                               }}
                             >
-                              <Check className={cn("mr-2 h-4 w-4", form.brandId === Number(brand.id) ? "opacity-100" : "opacity-0")} />
+                              <Check className={cn("mr-2 h-4 w-4", form.brandIds.includes(Number(brand.id)) ? "opacity-100" : "opacity-0")} />
                               <span className="min-w-0 flex-1">
                                 <span className="block truncate font-medium">{label}</span>
                                 {(alternateName || brand.companyName || brand.materialCategory) && (
@@ -510,7 +525,26 @@ function StoreProfileDialog({ store, staffList, serviceBrands, onClose, onSaved 
                   </Command>
                 </PopoverContent>
               </Popover>
-              <p className="mt-1 text-[11px] text-gray-400">品牌名、日文名、公司名、类别或ID均可搜索。绑定后广告与达人BD会按品牌和店铺汇总；不会根据名称自动绑定。</p>
+              {selectedServiceBrands.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5" aria-label="已选择的服务品牌">
+                  {selectedServiceBrands.map((brand: any) => (
+                    <button
+                      key={brand.id}
+                      type="button"
+                      onClick={() => setForm(current => ({
+                        ...current,
+                        brandIds: current.brandIds.filter(id => id !== Number(brand.id)),
+                      }))}
+                      className="inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-medium text-orange-700 hover:bg-orange-100"
+                      aria-label={`移除${getStoreServiceBrandLabel(brand)}`}
+                    >
+                      {getStoreServiceBrandLabel(brand)}
+                      <X className="h-3 w-3" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              <p className="mt-1 text-[11px] text-gray-400">可连续选择多个品牌；第一个选择会作为旧功能兼容主品牌。品牌名、日文名、公司名、类别或ID均可搜索，不会根据店铺名称自动绑定。</p>
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600">平台</label>

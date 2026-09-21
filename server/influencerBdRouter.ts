@@ -9,6 +9,12 @@ import {
   INFLUENCER_BD_PROMPT_VERSION,
 } from "./influencerBdAi";
 import { getInfluencerBdUpgradeHealth } from "./influencerBdUpgrade";
+import {
+  attachStoreBrandLinks,
+  ensureStoreBrandRelations,
+  loadStoreBrandIds,
+  loadStoreBrandLinks,
+} from "./storeBrandRelations";
 
 let poolInstance: Pool | null = null;
 
@@ -355,6 +361,7 @@ export const influencerBdRouter = router({
 
   bootstrap: protectedProcedure.query(async ({ ctx }) => {
     const p = dbPool();
+    await ensureStoreBrandRelations(p);
     const scope = await resolveScope(ctx, p);
     const [campaigns, staffRows, brandRows, storeRows, productRows, settingsRows] = await Promise.all([
       p.query<RowDataPacket[]>(
@@ -378,12 +385,18 @@ export const influencerBdRouter = router({
       ),
       p.query<RowDataPacket[]>("SELECT * FROM influencer_bd_settings WHERE id=1 LIMIT 1"),
     ]);
+    const storeBrandLinks = await loadStoreBrandLinks(
+      p,
+      (storeRows[0] as any[]).map(row => Number(row.id)),
+    );
     return {
       actor: { id: scope.id, name: scope.name, isAdmin: scope.isAdmin, staffId: scope.staffId, staffName: scope.staffName },
       campaigns: campaigns[0],
       staff: scope.isAdmin ? staffRows[0] : (staffRows[0] as any[]).filter(row => Number(row.id) === scope.staffId),
       brands: brandRows[0],
-      stores: storeRows[0],
+      stores: (storeRows[0] as any[]).map(store =>
+        attachStoreBrandLinks(store, storeBrandLinks.get(Number(store.id)) || []),
+      ),
       products: productRows[0],
       settings: settingsRows[0][0] || null,
     };
@@ -401,25 +414,13 @@ export const influencerBdRouter = router({
 
   saveCampaign: adminProcedure.input(campaignInput).mutation(async ({ input, ctx }) => {
     const p = dbPool();
+    await ensureStoreBrandRelations(p);
     const connection = await p.getConnection();
     const a = actor(ctx);
     try {
       await connection.beginTransaction();
       let id = input.id;
       let before: any = null;
-      let effectiveBrandId = input.brandId || null;
-      if (input.storeId) {
-        const [storeRows] = await connection.query<RowDataPacket[]>(
-          'SELECT id,brandId FROM managed_stores WHERE id=? AND isActive=1 LIMIT 1',
-          [input.storeId],
-        );
-        const store = storeRows[0];
-        if (!store) throw new TRPCError({ code: 'BAD_REQUEST', message: '[BD-STORE-NOT-FOUND] 店铺不存在或已归档' });
-        if (effectiveBrandId && Number(store.brandId || 0) !== effectiveBrandId) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: '[BD-STORE-BRAND-MISMATCH] 店铺与服务品牌不一致' });
-        }
-        effectiveBrandId = effectiveBrandId || (store.brandId ? Number(store.brandId) : null);
-      }
       if (id) {
         const [rows] = await connection.query<RowDataPacket[]>(
           "SELECT * FROM influencer_bd_campaigns WHERE id=? AND deletedAt IS NULL FOR UPDATE",
@@ -427,14 +428,38 @@ export const influencerBdRouter = router({
         );
         before = rows[0];
         if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "[BD-CAMPAIGN-NOT-FOUND] 推广方案不存在" });
+      }
+      const effectiveStoreId = input.storeId === undefined
+        ? (before?.storeId ? Number(before.storeId) : null)
+        : input.storeId;
+      let effectiveBrandId = input.brandId === undefined
+        ? (before?.brandId ? Number(before.brandId) : null)
+        : input.brandId;
+      if (effectiveStoreId) {
+        const [storeRows] = await connection.query<RowDataPacket[]>(
+          'SELECT id,brandId FROM managed_stores WHERE id=? AND isActive=1 LIMIT 1',
+          [effectiveStoreId],
+        );
+        const store = storeRows[0];
+        if (!store) throw new TRPCError({ code: 'BAD_REQUEST', message: '[BD-STORE-NOT-FOUND] 店铺不存在或已归档' });
+        const storeBrandIds = await loadStoreBrandIds(connection, effectiveStoreId, { forUpdate: true });
+        if (effectiveBrandId && !storeBrandIds.includes(effectiveBrandId)) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '[BD-STORE-BRAND-MISMATCH] 店铺与服务品牌不一致' });
+        }
+        if (!effectiveBrandId && storeBrandIds.length > 1) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '[BD-STORE-BRAND-REQUIRED] 该店铺关联多个品牌，请明确选择本次推广品牌' });
+        }
+        effectiveBrandId = effectiveBrandId || storeBrandIds[0] || (store.brandId ? Number(store.brandId) : null);
+      }
+      if (id) {
         await connection.query(
           `UPDATE influencer_bd_campaigns SET name=?,brandId=?,storeId=?,productId=?,productNameSnapshot=?,coreSellingPoints=?,creatorBenefits=?,commissionPolicy=?,samplePolicy=?,targetCreatorProfile=?,referenceOpeningScript=?,referenceFollowUpScript=?,objectionHandling=?,status=?,updatedById=?,updatedByName=? WHERE id=?`,
-          [input.name,effectiveBrandId,input.storeId || null,input.productId || null,input.productNameSnapshot || null,input.coreSellingPoints || null,input.creatorBenefits || null,input.commissionPolicy || null,input.samplePolicy || null,input.targetCreatorProfile || null,input.referenceOpeningScript || null,input.referenceFollowUpScript || null,input.objectionHandling || null,input.status,a.id,a.name,id],
+          [input.name,effectiveBrandId,effectiveStoreId,input.productId || null,input.productNameSnapshot || null,input.coreSellingPoints || null,input.creatorBenefits || null,input.commissionPolicy || null,input.samplePolicy || null,input.targetCreatorProfile || null,input.referenceOpeningScript || null,input.referenceFollowUpScript || null,input.objectionHandling || null,input.status,a.id,a.name,id],
         );
       } else {
         const [result] = await connection.query<any>(
           `INSERT INTO influencer_bd_campaigns (name,brandId,storeId,productId,productNameSnapshot,coreSellingPoints,creatorBenefits,commissionPolicy,samplePolicy,targetCreatorProfile,referenceOpeningScript,referenceFollowUpScript,objectionHandling,status,createdById,createdByName,updatedById,updatedByName) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          [input.name,effectiveBrandId,input.storeId || null,input.productId || null,input.productNameSnapshot || null,input.coreSellingPoints || null,input.creatorBenefits || null,input.commissionPolicy || null,input.samplePolicy || null,input.targetCreatorProfile || null,input.referenceOpeningScript || null,input.referenceFollowUpScript || null,input.objectionHandling || null,input.status,a.id,a.name,a.id,a.name],
+          [input.name,effectiveBrandId,effectiveStoreId,input.productId || null,input.productNameSnapshot || null,input.coreSellingPoints || null,input.creatorBenefits || null,input.commissionPolicy || null,input.samplePolicy || null,input.targetCreatorProfile || null,input.referenceOpeningScript || null,input.referenceFollowUpScript || null,input.objectionHandling || null,input.status,a.id,a.name,a.id,a.name],
         );
         id = Number(result.insertId);
       }

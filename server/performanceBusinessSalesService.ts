@@ -79,11 +79,15 @@ export async function getBusinessSalesConfiguration(
       ORDER BY department, name
     `),
     db.execute(sql`
-      SELECT store.id, store.name, store.brandId, brand.name AS brandName
+      SELECT store.id, store.name, store.brandId,
+        GROUP_CONCAT(relation.brandId ORDER BY relation.isPrimary DESC, relation.brandId) AS brandIdsCsv,
+        GROUP_CONCAT(COALESCE(NULLIF(brand.nameJa, ''), brand.name) ORDER BY relation.isPrimary DESC, relation.brandId SEPARATOR ' / ') AS brandName
       FROM managed_stores store
-      LEFT JOIN brands brand ON brand.id = store.brandId
+      LEFT JOIN managed_store_brands relation ON relation.storeId = store.id
+      LEFT JOIN brands brand ON brand.id = relation.brandId AND brand.deletedAt IS NULL
       WHERE store.isActive = 1
-      ORDER BY brand.name, store.name
+      GROUP BY store.id, store.name, store.brandId
+      ORDER BY brandName, store.name
     `),
     db.execute(sql`
       SELECT contract.id, contract.brandId, brand.name AS brandName,
@@ -128,6 +132,14 @@ export async function getBusinessSalesConfiguration(
       ...row,
       id: Number(row.id),
       brandId: row.brandId ? Number(row.brandId) : null,
+      brandIds: String(row.brandIdsCsv || row.brandId || "")
+        .split(",")
+        .map(Number)
+        .filter(value => Number.isSafeInteger(value) && value > 0),
+      brandNames: String(row.brandName || "")
+        .split(" / ")
+        .map(value => value.trim())
+        .filter(Boolean),
     })),
     unattributedContracts: rowsOf<any>(contractResult)
       .filter(row => !activeContractSourceIds.has(String(row.id)))
@@ -154,6 +166,7 @@ export async function createBusinessSalesAttribution(
   input: {
     staffId: number;
     storeId: number;
+    brandId?: number | null;
     sourceType: "brand_contract" | "manual_confirmed" | "order";
     sourceId: string;
     businessDate?: string | null;
@@ -173,7 +186,13 @@ export async function createBusinessSalesAttribution(
   `))[0];
   if (!member) throw new TRPCError({ code: "BAD_REQUEST", message: "归属员工不存在或已归档" });
   const store = rowsOf<any>(await db.execute(sql`
-    SELECT id, name, brandId FROM managed_stores WHERE id = ${input.storeId} AND isActive = 1 LIMIT 1
+    SELECT store.id, store.name, store.brandId,
+      GROUP_CONCAT(relation.brandId ORDER BY relation.isPrimary DESC, relation.brandId) AS brandIdsCsv
+    FROM managed_stores store
+    LEFT JOIN managed_store_brands relation ON relation.storeId = store.id
+    WHERE store.id = ${input.storeId} AND store.isActive = 1
+    GROUP BY store.id, store.name, store.brandId
+    LIMIT 1
   `))[0];
   if (!store) throw new TRPCError({ code: "BAD_REQUEST", message: "店铺不存在或已归档" });
 
@@ -181,7 +200,14 @@ export async function createBusinessSalesAttribution(
   let businessDate = String(input.businessDate || "");
   let currency = String(input.currency || "JPY").trim().toUpperCase();
   let amount = Number(input.amount || 0);
-  let brandId = store.brandId ? Number(store.brandId) : null;
+  const storeBrandIds = String(store.brandIdsCsv || store.brandId || "")
+    .split(",")
+    .map(Number)
+    .filter(value => Number.isSafeInteger(value) && value > 0);
+  let brandId = input.brandId ? Number(input.brandId) : null;
+  if (brandId && !storeBrandIds.includes(brandId)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "所选品牌不属于该店铺" });
+  }
   let evidence: Record<string, unknown>;
 
   if (!sourceId) throw new TRPCError({ code: "BAD_REQUEST", message: "必须填写可追溯业务证据编号" });
@@ -201,7 +227,8 @@ export async function createBusinessSalesAttribution(
     if (!contract || Number(contract.fixedFee || 0) <= 0) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "合同不存在或没有可确认金额" });
     }
-    if (!brandId || brandId !== Number(contract.brandId)) {
+    brandId = Number(contract.brandId);
+    if (!storeBrandIds.includes(brandId)) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "所选店铺与合同品牌不一致，系统不会自动猜测店铺" });
     }
     amount = Number(contract.fixedFee);
@@ -217,6 +244,10 @@ export async function createBusinessSalesAttribution(
       note: String(input.note || "").trim() || null,
     };
   } else {
+    if (!brandId && storeBrandIds.length > 1) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "该店铺关联多个品牌，请明确选择本次销售所属品牌" });
+    }
+    brandId = brandId || storeBrandIds[0] || null;
     if (!/^\d{4}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(businessDate)) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "业务日期必须为YYYY-MM-DD" });
     }

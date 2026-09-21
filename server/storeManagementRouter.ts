@@ -4,6 +4,7 @@
  * 全屏店铺管理：店铺CRUD、运营人员指定、CSV数据导入、KPI展示
  */
 import { createHash } from 'node:crypto';
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { router, protectedProcedure, publicProcedure } from './_core/trpc.js';
 import { getStoreProfileUpgradeHealth } from './storeProfileUpgrade.js';
@@ -28,6 +29,12 @@ import {
 } from './storeImportedDailyTrend.js';
 import { resolveStoreUploadData } from './storeUploadReadModel.js';
 import { inspectStoreAdReportPdf } from './storeAdReportPdf.js';
+import {
+  attachStoreBrandLinks,
+  ensureStoreBrandRelations,
+  loadStoreBrandLinks,
+  replaceStoreBrandLinks,
+} from './storeBrandRelations.js';
 
 let poolInstance: any = null;
 async function getPool() {
@@ -39,6 +46,54 @@ async function getPool() {
     connectionLimit: 5,
   });
   return poolInstance;
+}
+
+const STORE_MANAGEMENT_PAGE_KEY = '/master/store-management';
+
+async function resolveStoreWriteAccess(connection: any, ctx: any, store?: any) {
+  if (ctx?.user?.role === 'admin') {
+    return { canManageAll: true, isStoreOperator: true };
+  }
+  const userId = Number(ctx?.user?.id || 0);
+  const email = String(ctx?.user?.email || '').trim().toLowerCase();
+  const [roleRows] = userId
+    ? await connection.query(
+        `SELECT role.isSystem,permission.canEdit
+           FROM user_role_assignments assignment
+           JOIN system_roles role ON role.id=assignment.roleId
+           LEFT JOIN role_permissions permission
+             ON permission.roleId=role.id AND permission.pageKey=?
+          WHERE assignment.userId=? LIMIT 1`,
+        [STORE_MANAGEMENT_PAGE_KEY, userId],
+      )
+    : [[]];
+  const role = (roleRows as any[])[0];
+  const canManageAll =
+    Number(role?.isSystem || 0) === 1 || Number(role?.canEdit || 0) === 1;
+  if (canManageAll) return { canManageAll: true, isStoreOperator: true };
+
+  if (!store || !email) return { canManageAll: false, isStoreOperator: false };
+  const [staffRows] = await connection.query(
+    `SELECT id FROM staff
+      WHERE LOWER(TRIM(email))=? AND isActive='active'
+        AND archivedAt IS NULL AND mergedIntoStaffId IS NULL
+      LIMIT 1`,
+    [email],
+  );
+  const staffId = Number((staffRows as any[])[0]?.id || 0);
+  return {
+    canManageAll: false,
+    isStoreOperator:
+      staffId > 0 &&
+      [Number(store.operatorId || 0), Number(store.operator2Id || 0)].includes(staffId),
+  };
+}
+
+function denyStoreWrite(): never {
+  throw new TRPCError({
+    code: 'FORBIDDEN',
+    message: '没有该店铺的编辑权限 / 店舗の編集権限がありません',
+  });
 }
 
 async function ensureStoreTables() {
@@ -110,6 +165,7 @@ async function ensureStoreTables() {
   await pool.query("ALTER TABLE managed_stores ADD COLUMN avatarKey VARCHAR(500)").catch(() => {});
   await pool.query("ALTER TABLE managed_stores ADD COLUMN contactEmail VARCHAR(320)").catch(() => {});
   await pool.query("ALTER TABLE managed_stores ADD COLUMN contactPhone VARCHAR(64)").catch(() => {});
+  await ensureStoreBrandRelations(pool);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS store_profile_audit_logs (
       id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -129,6 +185,7 @@ async function ensureStoreTables() {
 }
 
 const PROFILE_AUDIT_FIELDS = [
+  'brandId', 'brandIds',
   'name', 'platform', 'country', 'storeUrl',
   'operatorId', 'operatorName', 'operator2Id', 'operator2Name',
   'notes', 'avatarUrl', 'avatarKey', 'contactEmail', 'contactPhone', 'isActive',
@@ -366,15 +423,6 @@ async function writeProfileAudit(connection: any, input: {
   );
 }
 
-async function assertServiceBrandExists(pool: any, brandId: number | null | undefined) {
-  if (brandId === null || brandId === undefined) return;
-  const [rows] = await pool.query(
-    'SELECT id FROM brands WHERE id = ? AND deletedAt IS NULL LIMIT 1',
-    [brandId],
-  );
-  if (!(rows as any[])[0]) throw new Error('所选服务品牌不存在或已归档');
-}
-
 async function normalizeOperatorPair(pool: any, fields: Record<string, any>, idKey: 'operatorId' | 'operator2Id', nameKey: 'operatorName' | 'operator2Name'): Promise<void> {
   const idProvided = Object.prototype.hasOwnProperty.call(fields, idKey);
   const nameProvided = Object.prototype.hasOwnProperty.call(fields, nameKey);
@@ -405,7 +453,14 @@ export const storeManagementRouter = router({
         WHERE ms.isActive = 1
         ORDER BY COALESCE(NULLIF(b.nameJa, ''), b.name, ms.name), ms.platform, ms.name`,
     );
-    return rows as any[];
+    const stores = rows as any[];
+    const brandLinks = await loadStoreBrandLinks(
+      pool,
+      stores.map(store => Number(store.id)),
+    );
+    return stores.map(store =>
+      attachStoreBrandLinks(store, brandLinks.get(Number(store.id)) || []),
+    );
   }),
 
   serviceBrands: protectedProcedure.query(async () => {
@@ -671,6 +726,7 @@ export const storeManagementRouter = router({
   create: protectedProcedure
     .input(z.object({
       name: z.string().min(1),
+      brandIds: z.array(z.number().int().positive()).max(200).optional(),
       brandId: z.number().int().positive().nullable().optional(),
       platform: z.string().default('tiktok_shop'),
       country: z.string().default('japan'),
@@ -691,14 +747,20 @@ export const storeManagementRouter = router({
       const connection = await pool.getConnection();
       try {
         await connection.beginTransaction();
+        const writeAccess = await resolveStoreWriteAccess(connection, ctx);
+        if (!writeAccess.canManageAll) denyStoreWrite();
         const fields: Record<string, any> = { ...input };
-        await assertServiceBrandExists(connection, fields.brandId);
+        const requestedBrandIds = fields.brandIds === undefined
+          ? (fields.brandId ? [Number(fields.brandId)] : [])
+          : fields.brandIds.map(Number);
+        delete fields.brandIds;
+        delete fields.brandId;
         await normalizeOperatorPair(connection, fields, 'operatorId', 'operatorName');
         await normalizeOperatorPair(connection, fields, 'operator2Id', 'operator2Name');
         const [result] = await connection.query(
           `INSERT INTO managed_stores (brandId, name, platform, country, storeUrl, operatorId, operatorName, operator2Id, operator2Name, notes, avatarUrl, avatarKey, contactEmail, contactPhone, manualRevisionAt, manualRevisionBy)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)`,
-          [fields.brandId ?? null, fields.name, fields.platform, fields.country, fields.storeUrl || null,
+          [null, fields.name, fields.platform, fields.country, fields.storeUrl || null,
            fields.operatorId ?? null, fields.operatorName ?? null,
            fields.operator2Id ?? null, fields.operator2Name ?? null,
            fields.notes || null,
@@ -707,8 +769,13 @@ export const storeManagementRouter = router({
            ctx.user.id],
         );
         const storeId = Number((result as any).insertId);
+        await replaceStoreBrandLinks(connection, storeId, requestedBrandIds);
         const [afterRows] = await connection.query('SELECT * FROM managed_stores WHERE id = ? LIMIT 1', [storeId]);
-        const after = (afterRows as any[])[0];
+        const afterLinks = await loadStoreBrandLinks(connection, [storeId]);
+        const after = attachStoreBrandLinks(
+          (afterRows as any[])[0],
+          afterLinks.get(storeId) || [],
+        );
         await writeProfileAudit(connection, { storeId, action: 'profile_created', before: null, after, ctx });
         await connection.commit();
         return { id: storeId };
@@ -724,6 +791,7 @@ export const storeManagementRouter = router({
   update: protectedProcedure
     .input(z.object({
       id: z.number(),
+      brandIds: z.array(z.number().int().positive()).max(200).optional(),
       brandId: z.number().int().positive().nullable().optional(),
       name: z.string().optional(),
       platform: z.string().optional(),
@@ -747,12 +815,34 @@ export const storeManagementRouter = router({
         await connection.beginTransaction();
         const { id, ...rawFields } = input;
         const [beforeRows] = await connection.query('SELECT * FROM managed_stores WHERE id = ? LIMIT 1 FOR UPDATE', [id]);
-        const before = (beforeRows as any[])[0];
-        if (!before) throw new Error('店铺不存在');
+        const beforeRow = (beforeRows as any[])[0];
+        if (!beforeRow) throw new Error('店铺不存在');
+        const writeAccess = await resolveStoreWriteAccess(connection, ctx, beforeRow);
+        if (!writeAccess.canManageAll && !writeAccess.isStoreOperator) denyStoreWrite();
+        const beforeLinks = await loadStoreBrandLinks(connection, [id]);
+        const before = attachStoreBrandLinks(
+          beforeRow,
+          beforeLinks.get(id) || [],
+        );
         const fields: Record<string, any> = { ...rawFields };
-        await assertServiceBrandExists(connection, fields.brandId);
+        const brandSelectionProvided = Object.prototype.hasOwnProperty.call(fields, 'brandIds')
+          || Object.prototype.hasOwnProperty.call(fields, 'brandId');
+        const requestedBrandIds = fields.brandIds === undefined
+          ? (fields.brandId ? [Number(fields.brandId)] : [])
+          : fields.brandIds.map(Number);
+        const brandSelectionChanged =
+          brandSelectionProvided &&
+          JSON.stringify(requestedBrandIds) !== JSON.stringify(before.brandIds || []);
+        delete fields.brandIds;
+        delete fields.brandId;
         await normalizeOperatorPair(connection, fields, 'operatorId', 'operatorName');
         await normalizeOperatorPair(connection, fields, 'operator2Id', 'operator2Name');
+        const operatorSelectionChanged = ['operatorId', 'operatorName', 'operator2Id', 'operator2Name']
+          .some(key =>
+            Object.prototype.hasOwnProperty.call(fields, key) &&
+            (fields[key] ?? null) !== (before[key] ?? null),
+          );
+        if ((brandSelectionChanged || operatorSelectionChanged) && !writeAccess.canManageAll) denyStoreWrite();
         const sets: string[] = [];
         const params: any[] = [];
         for (const [key, val] of Object.entries(fields)) {
@@ -761,7 +851,7 @@ export const storeManagementRouter = router({
             params.push(val === '' ? null : val);
           }
         }
-        if (sets.length === 0) {
+        if (sets.length === 0 && !brandSelectionProvided) {
           await connection.rollback();
           return { success: true, changedFields: [] as string[] };
         }
@@ -769,8 +859,15 @@ export const storeManagementRouter = router({
         params.push(ctx.user.id, id);
         const [updateResult] = await connection.query(`UPDATE managed_stores SET ${sets.join(', ')} WHERE id = ?`, params);
         if (Number((updateResult as any).affectedRows || 0) !== 1) throw new Error('店铺保存失败：更新行数不一致');
+        if (brandSelectionProvided) {
+          await replaceStoreBrandLinks(connection, id, requestedBrandIds);
+        }
         const [afterRows] = await connection.query('SELECT * FROM managed_stores WHERE id = ? LIMIT 1', [id]);
-        const after = (afterRows as any[])[0];
+        const afterLinks = await loadStoreBrandLinks(connection, [id]);
+        const after = attachStoreBrandLinks(
+          (afterRows as any[])[0],
+          afterLinks.get(id) || [],
+        );
         const changedFields = changedProfileFields(before, after);
         await writeProfileAudit(connection, { storeId: id, action: 'profile_updated', before, after, ctx });
         await connection.commit();
@@ -795,6 +892,8 @@ export const storeManagementRouter = router({
         const [beforeRows] = await connection.query('SELECT * FROM managed_stores WHERE id = ? LIMIT 1 FOR UPDATE', [input.id]);
         const before = (beforeRows as any[])[0];
         if (!before) throw new Error('店铺不存在');
+        const writeAccess = await resolveStoreWriteAccess(connection, ctx, before);
+        if (!writeAccess.canManageAll) denyStoreWrite();
         const [deleteResult] = await connection.query(
           'UPDATE managed_stores SET isActive = 0, manualRevisionAt = CURRENT_TIMESTAMP, manualRevisionBy = ? WHERE id = ?',
           [ctx.user.id, input.id],

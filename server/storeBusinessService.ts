@@ -15,6 +15,15 @@ import {
   type StoreDataUploadSnapshot,
 } from "./storeImportedDailyTrend";
 import { resolveStoreUploadData } from "./storeUploadReadModel";
+import {
+  attachStoreBrandLinks,
+  ensureStoreBrandRelations,
+  loadStoreBrandLinks,
+} from "./storeBrandRelations";
+import {
+  buildActiveStoreIdsByBrand,
+  canUseUnallocatedBrandMetrics,
+} from "./storeBrandMetricScope";
 
 let poolInstance: mysql.Pool | null = null;
 
@@ -86,6 +95,7 @@ export async function getStoreBusinessOverview(input: { month: string }) {
   const [periodYear, periodMonth] = input.month.split("-").map(Number);
   const today = currentJapanDate();
   const p = pool();
+  await ensureStoreBrandRelations(p);
   const [
     storeRows,
     adRows,
@@ -145,7 +155,14 @@ export async function getStoreBusinessOverview(input: { month: string }) {
     ),
   ]);
 
-  const stores = storeRows[0] as any[];
+  const rawStores = storeRows[0] as any[];
+  const brandLinks = await loadStoreBrandLinks(
+    p,
+    rawStores.map(store => Number(store.id))
+  );
+  const stores = rawStores.map(store =>
+    attachStoreBrandLinks(store, brandLinks.get(Number(store.id)) || [])
+  );
   const adPlans = adRows[0] as any[];
   const outreach = outreachRows[0] as any[];
   const masterReports = masterReportRows[0] as any[];
@@ -186,9 +203,13 @@ export async function getStoreBusinessOverview(input: { month: string }) {
   );
 
   const storesByBrand = new Map<string, any[]>();
+  const activeStoreIdsByBrand = buildActiveStoreIdsByBrand(stores);
   for (const store of stores) {
-    const key = store.brandId
-      ? `brand:${Number(store.brandId)}`
+    const brandIds = Array.isArray(store.brandIds)
+      ? store.brandIds.map(Number).sort((left: number, right: number) => left - right)
+      : [];
+    const key = brandIds.length > 0
+      ? `brands:${brandIds.join(",")}`
       : `store:${Number(store.id)}`;
     const rows = storesByBrand.get(key) || [];
     rows.push(store);
@@ -203,21 +224,25 @@ export async function getStoreBusinessOverview(input: { month: string }) {
       importedAdCoverage,
       importedAdUpdatedAt,
     }) => {
-    const brandStores = storesByBrand.get(
-      store.brandId
-        ? `brand:${Number(store.brandId)}`
-        : `store:${Number(store.id)}`
-    ) || [store];
+    const storeBrandIds = Array.isArray(store.brandIds)
+      ? store.brandIds.map(Number).sort((left: number, right: number) => left - right)
+      : [];
     const storePlanRows = adPlans.filter(
       row => Number(row.storeId || 0) === Number(store.id)
     );
-    const brandPlanRows = adPlans.filter(
-      row =>
-        !row.storeId && Number(row.brandId || 0) === Number(store.brandId || 0)
+    const brandPlanRows = storeBrandIds.length === 1
+      ? adPlans.filter(
+          row =>
+            !row.storeId && Number(row.brandId || 0) === storeBrandIds[0]
+        )
+      : [];
+    const allowBrandFallback = canUseUnallocatedBrandMetrics(
+      storeBrandIds,
+      activeStoreIdsByBrand
     );
     const selectedPlanRows = storePlanRows.length
       ? storePlanRows
-      : brandStores.length === 1
+      : allowBrandFallback
         ? brandPlanRows
         : [];
     const periodAds = resolveStorePeriodAdMetrics({
@@ -242,13 +267,15 @@ export async function getStoreBusinessOverview(input: { month: string }) {
     const storeOutreachRows = outreach.filter(
       row => Number(row.storeId || 0) === Number(store.id)
     );
-    const brandOutreachRows = outreach.filter(
-      row =>
-        !row.storeId && Number(row.brandId || 0) === Number(store.brandId || 0)
-    );
+    const brandOutreachRows = storeBrandIds.length === 1
+      ? outreach.filter(
+          row =>
+            !row.storeId && Number(row.brandId || 0) === storeBrandIds[0]
+        )
+      : [];
     const selectedOutreachRows = storeOutreachRows.length
       ? storeOutreachRows
-      : brandStores.length === 1
+      : allowBrandFallback
         ? brandOutreachRows
         : [];
     const master = masterReports.find(
@@ -274,6 +301,8 @@ export async function getStoreBusinessOverview(input: { month: string }) {
     return {
       id: Number(store.id),
       brandId: store.brandId ? Number(store.brandId) : null,
+      brandIds: storeBrandIds,
+      brands: Array.isArray(store.brands) ? store.brands : [],
       brandName: store.brandName || null,
       brandNameJa: store.brandNameJa || null,
       name: String(store.name),
@@ -390,13 +419,22 @@ export async function getStoreBusinessOverview(input: { month: string }) {
       const cards = storeCards.filter(card =>
         brandStores.some(store => Number(store.id) === card.id)
       );
-      const brandId = brandStores[0]?.brandId
-        ? Number(brandStores[0].brandId)
-        : null;
+      const groupBrands = Array.isArray(brandStores[0]?.brands)
+        ? brandStores[0].brands
+        : [];
+      const brandIds = groupBrands.map((brand: any) => Number(brand.id));
+      const brandId = brandIds.length === 1 ? brandIds[0] : null;
+      const isGlobalUniqueBrand = canUseUnallocatedBrandMetrics(
+        brandIds,
+        activeStoreIdsByBrand
+      );
+      const brandNames = groupBrands.map((brand: any) =>
+        String(brand.nameJa || brand.name || `品牌 #${brand.id}`)
+      );
       const hasAnyStoreAdUpload = cards.some(
         card => card.metrics.adSpend.source === "store_ads_upload"
       );
-      const unallocatedBrandPlans = brandId
+      const unallocatedBrandPlans = isGlobalUniqueBrand
         ? adPlans.filter(
             row => !row.storeId && Number(row.brandId || 0) === brandId
           )
@@ -408,6 +446,12 @@ export async function getStoreBusinessOverview(input: { month: string }) {
       const cardAdGmv = cards.reduce(
         (sum, card) => sum + (card.metrics.adAttributedGmv.value || 0),
         0
+      );
+      const hasCardAdSpend = cards.some(
+        card => card.metrics.adSpend.value !== null
+      );
+      const hasCardAdGmv = cards.some(
+        card => card.metrics.adAttributedGmv.value !== null
       );
       const brandPlanSpend = unallocatedBrandPlans.reduce(
         (sum, row) => sum + number(row.adSpend),
@@ -423,9 +467,10 @@ export async function getStoreBusinessOverview(input: { month: string }) {
       const adAttributedGmv = hasAnyStoreAdUpload
         ? cardAdGmv
         : Math.max(cardAdGmv, brandPlanGmv);
-      const brandOutreach = brandId
-        ? outreach.filter(row => Number(row.brandId || 0) === brandId)
-        : [];
+      const sumCardMetric = (field: "creatorOutreach" | "creatorContactCount" | "creatorReplies" | "creatorCollaborations") =>
+        cards.some(card => card.metrics[field] !== null)
+          ? cards.reduce((sum, card) => sum + number(card.metrics[field]), 0)
+          : null;
       const reportStatuses = cards.map(card => card.todayReport.status);
       const todayReportStatus = reportStatuses.every(
         status => status === "confirmed"
@@ -443,12 +488,14 @@ export async function getStoreBusinessOverview(input: { month: string }) {
       return {
         key,
         brandId,
+        brandIds,
+        brandNames,
         name:
-          brandStores[0]?.brandNameJa ||
-          brandStores[0]?.brandName ||
+          brandNames.join(" / ") ||
           brandStores[0]?.name ||
           "未命名品牌",
-        isLinkedBrand: Boolean(brandId),
+        isLinkedBrand: brandIds.length > 0,
+        isMultiBrand: brandIds.length > 1,
         stores: cards,
         metrics: {
           storeGmv: cards.some(card => card.metrics.storeGmv.value !== null)
@@ -474,40 +521,18 @@ export async function getStoreBusinessOverview(input: { month: string }) {
               )
             : null,
           adSpend:
-            hasAnyStoreAdUpload ||
-            adPlans.some(row => Number(row.brandId || 0) === brandId)
+            hasCardAdSpend || unallocatedBrandPlans.length > 0
               ? adSpend
               : null,
           adAttributedGmv:
-            hasAnyStoreAdUpload ||
-            adPlans.some(row => Number(row.brandId || 0) === brandId)
+            hasCardAdGmv || unallocatedBrandPlans.length > 0
               ? adAttributedGmv
               : null,
           adRoas: adSpend > 0 ? adAttributedGmv / adSpend : null,
-          creatorOutreach: brandOutreach.length
-            ? brandOutreach.reduce(
-                (sum, row) => sum + number(row.creatorOutreach),
-                0
-              )
-            : null,
-          creatorContactCount: brandOutreach.length
-            ? brandOutreach.reduce(
-                (sum, row) => sum + number(row.creatorContactCount),
-                0
-              )
-            : null,
-          creatorReplies: brandOutreach.length
-            ? brandOutreach.reduce(
-                (sum, row) => sum + number(row.creatorReplies),
-                0
-              )
-            : null,
-          creatorCollaborations: brandOutreach.length
-            ? brandOutreach.reduce(
-                (sum, row) => sum + number(row.creatorCollaborations),
-                0
-              )
-            : null,
+          creatorOutreach: sumCardMetric("creatorOutreach"),
+          creatorContactCount: sumCardMetric("creatorContactCount"),
+          creatorReplies: sumCardMetric("creatorReplies"),
+          creatorCollaborations: sumCardMetric("creatorCollaborations"),
         },
         todayReportStatus,
         reportSummary: {

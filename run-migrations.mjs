@@ -247,6 +247,18 @@ async function main() {
       { name: 'deletedByName', definition: 'varchar(255) NULL AFTER `deletedBy`' },
     ]);
     console.log('[Migration] LCJ Brain project soft-delete columns ensured.');
+
+    console.log('[Migration] Ensuring managed store multi-brand relations...');
+    const storeBrandMigrationPath = path.join(__dirname, 'drizzle', '0153_managed_store_brands.sql');
+    const storeBrandSql = await fs.readFile(storeBrandMigrationPath, 'utf8');
+    const storeBrandStatements = storeBrandSql
+      .split('--> statement-breakpoint')
+      .map(statement => statement.trim())
+      .filter(Boolean);
+    for (const statement of storeBrandStatements) {
+      await connection.execute(statement);
+    }
+    console.log(`[Migration] Managed store multi-brand relations ensured (${storeBrandStatements.length} statements).`);
   } catch (fallbackErr) {
     console.error('[Migration] Fallback error:', fallbackErr.message);
   } finally {

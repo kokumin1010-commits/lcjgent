@@ -8,6 +8,11 @@ import { getUserManagementAccess } from "./userManagementAccess";
 import { ensureStoreBusinessUpgradeReady } from "./storeBusinessUpgrade";
 import { ensurePerformanceTables } from "./performanceUpgrade";
 import {
+  attachStoreBrandLinks,
+  ensureStoreBrandRelations,
+  loadStoreBrandLinks,
+} from "./storeBrandRelations";
+import {
   calculateActualSales,
   createEmptyStoreDailyReportPayload,
   diffStoreDailyReportPayload,
@@ -277,6 +282,12 @@ async function getBusinessAttributedSales(
   store: any,
   reportDate: string
 ): Promise<StoreDailyReportPayload["businessAttributedSales"]> {
+  const storeBrandIds = Array.isArray(store.brandIds)
+    ? store.brandIds.map(Number).filter((value: number) => Number.isSafeInteger(value) && value > 0)
+    : store.brandId
+      ? [Number(store.brandId)]
+      : [];
+  const brandPlaceholders = storeBrandIds.map(() => "?").join(",");
   const [attributionRows, contractRows, activeContractRows] = await Promise.all([
     p.query<RowDataPacket[]>(
       `SELECT attribution.id,attribution.staffId,member.name AS staffName,
@@ -290,17 +301,17 @@ async function getBusinessAttributedSales(
         ORDER BY member.name,attribution.id`,
       [store.id, reportDate]
     ),
-    store.brandId
+    storeBrandIds.length > 0
       ? p.query<RowDataPacket[]>(
           `SELECT contract.id
              FROM brand_contracts contract
-            WHERE contract.brandId=? AND contract.deletedAt IS NULL
+            WHERE contract.brandId IN (${brandPlaceholders}) AND contract.deletedAt IS NULL
               AND contract.fixedFee IS NOT NULL AND contract.fixedFee>0
               AND DATE(COALESCE(contract.startDate,contract.createdAt))=?`,
-          [store.brandId, reportDate]
+          [...storeBrandIds, reportDate]
         )
       : Promise.resolve([[] as RowDataPacket[], []] as any),
-    store.brandId
+    storeBrandIds.length > 0
       ? p.query<RowDataPacket[]>(
           `SELECT credit.sourceId
              FROM performance_business_sales_attributions credit
@@ -352,6 +363,10 @@ async function getBusinessAttributedSales(
 }
 
 async function getAutomaticCore(store: any, reportDate: string) {
+  const p = await readyPool();
+  await ensureStoreBrandRelations(p);
+  const brandLinks = await loadStoreBrandLinks(p, [Number(store.id)]);
+  store = attachStoreBrandLinks(store, brandLinks.get(Number(store.id)) || []);
   const snapshot = await buildStoreKpiSnapshot(
     Number(store.id),
     reportDate,
@@ -364,19 +379,22 @@ async function getAutomaticCore(store: any, reportDate: string) {
   const adEvidence = snapshot.evidence.filter(
     (item: any) => item.dataType === "ads" && Number(item.usedRows || 0) > 0
   );
-  const p = await readyPool();
-  const [brandCountRows] = store.brandId
+  const storeBrandIds = Array.isArray(store.brandIds) ? store.brandIds.map(Number) : [];
+  const singleBrandId = storeBrandIds.length === 1 ? storeBrandIds[0] : null;
+  const [brandCountRows] = singleBrandId
     ? await p.query<RowDataPacket[]>(
-        "SELECT COUNT(*) AS count FROM managed_stores WHERE brandId=? AND isActive=1",
-        [store.brandId]
+        `SELECT COUNT(DISTINCT relation.storeId) AS count
+           FROM managed_store_brands relation
+           JOIN managed_stores managedStore ON managedStore.id=relation.storeId AND managedStore.isActive=1
+          WHERE relation.brandId=?`,
+        [singleBrandId]
       )
     : ([[] as RowDataPacket[], []] as any);
   const brandStoreCount = Number((brandCountRows as any[])?.[0]?.count || 0);
   const allowBrandFallback = brandStoreCount <= 1;
   const [creatorRows, adPlanRows, businessAttributedSales] = await Promise.all([
-    store.brandId
-      ? p.query<RowDataPacket[]>(
-          `SELECT COUNT(outreach.id) AS sourceCount,
+    p.query<RowDataPacket[]>(
+      `SELECT COUNT(outreach.id) AS sourceCount,
                   COUNT(DISTINCT outreach.creatorId) AS creatorOutreach,
                   COALESCE(SUM(outreach.contactCount),0) AS creatorContactCount,
                   COUNT(DISTINCT CASE WHEN outreach.replyReceived=1 THEN outreach.creatorId END) AS creatorReplies,
@@ -386,23 +404,20 @@ async function getAutomaticCore(store: any, reportDate: string) {
              JOIN influencer_bd_campaigns campaign ON campaign.id=outreach.campaignId AND campaign.deletedAt IS NULL
             WHERE outreach.deletedAt IS NULL AND outreach.activityDate=?
               AND (campaign.storeId=? OR (?=1 AND campaign.storeId IS NULL AND campaign.brandId=?))`,
-          [reportDate, store.id, allowBrandFallback ? 1 : 0, store.brandId]
-        )
-      : Promise.resolve([[] as RowDataPacket[], []] as any),
-    store.brandId
-      ? p.query<RowDataPacket[]>(
-          `SELECT COUNT(*) AS sourceCount,COALESCE(SUM(actualSpend),0) AS adSpend,MAX(updatedAt) AS updatedAt
+      [reportDate, store.id, allowBrandFallback && singleBrandId ? 1 : 0, singleBrandId]
+    ),
+    p.query<RowDataPacket[]>(
+      `SELECT COUNT(*) AS sourceCount,COALESCE(SUM(actualSpend),0) AS adSpend,MAX(updatedAt) AS updatedAt
              FROM ad_monthly_plans
             WHERE month=? AND planType='shop'
               AND (storeId=? OR (?=1 AND storeId IS NULL AND brandId=?))`,
-          [
-            reportDate.slice(0, 7),
-            store.id,
-            allowBrandFallback ? 1 : 0,
-            store.brandId,
-          ]
-        )
-      : Promise.resolve([[] as RowDataPacket[], []] as any),
+      [
+        reportDate.slice(0, 7),
+        store.id,
+        allowBrandFallback && singleBrandId ? 1 : 0,
+        singleBrandId,
+      ]
+    ),
     getBusinessAttributedSales(p, store, reportDate),
   ]);
   const creator = (creatorRows[0] as any[])?.[0];

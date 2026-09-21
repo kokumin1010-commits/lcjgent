@@ -6,6 +6,7 @@ const PRE_REASON = "pre-store-business-v3";
 const LOCK_KEY = "lcj_store_business_command_center_v3";
 let setupPromise: Promise<void> | null = null;
 const REQUIRED_TABLES = [
+  "managed_store_brands",
   "store_daily_master_reports",
   "store_daily_master_report_versions",
   "store_daily_master_report_field_audits",
@@ -73,6 +74,8 @@ async function schemaState(pool: Pool) {
     }
   }
   const requiredIndexes = [
+    ["managed_store_brands", "idx_managed_store_brand_lookup"],
+    ["managed_store_brands", "idx_managed_store_primary"],
     ["managed_stores", "idx_managed_store_brand"],
     ["ad_monthly_plans", "idx_ad_plan_store_month"],
     ["influencer_bd_campaigns", "idx_influencer_campaign_store"],
@@ -256,6 +259,23 @@ async function ensureColumns(pool: Pool) {
 }
 
 async function createTables(pool: Pool) {
+  await pool.query(`CREATE TABLE IF NOT EXISTS managed_store_brands (
+    storeId INT NOT NULL,
+    brandId INT NOT NULL,
+    isPrimary TINYINT(1) NOT NULL DEFAULT 0,
+    createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (storeId,brandId),
+    INDEX idx_managed_store_brand_lookup (brandId,storeId),
+    INDEX idx_managed_store_primary (storeId,isPrimary)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  await pool.query(`INSERT IGNORE INTO managed_store_brands (storeId,brandId,isPrimary)
+    SELECT id,brandId,1 FROM managed_stores WHERE brandId IS NOT NULL`);
+  await pool.query(`UPDATE managed_store_brands relation
+    JOIN managed_stores store ON store.id=relation.storeId
+    SET relation.isPrimary=CASE WHEN relation.brandId=store.brandId THEN 1 ELSE 0 END
+    WHERE store.brandId IS NOT NULL
+      AND relation.isPrimary<>CASE WHEN relation.brandId=store.brandId THEN 1 ELSE 0 END`);
   await pool.query(`CREATE TABLE IF NOT EXISTS store_daily_master_reports (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     storeId INT NOT NULL,

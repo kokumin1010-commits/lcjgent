@@ -207,7 +207,11 @@ export function StoreBusinessOverview({
                     </div>
                     <p className="mt-1 text-xs text-slate-500">
                       {brand.stores.length} 个店铺 ·{" "}
-                      {brand.isLinkedBrand ? "已关联服务品牌" : "尚未绑定品牌"}
+                      {brand.isMultiBrand
+                        ? `已关联 ${brand.brandIds.length} 个服务品牌`
+                        : brand.isLinkedBrand
+                          ? "已关联服务品牌"
+                          : "尚未绑定品牌"}
                     </p>
                   </div>
                   <span
@@ -309,6 +313,11 @@ export function StoreBusinessOverview({
                             {store.platform} · {store.country} ·{" "}
                             {store.operatorName || "负责人未指定"}
                           </p>
+                          {Array.isArray(store.brands) && store.brands.length > 1 ? (
+                            <p className="mt-1 truncate text-[10px] font-medium text-orange-600">
+                              {store.brands.map((item: any) => item.nameJa || item.name).filter(Boolean).join(" · ")}
+                            </p>
+                          ) : null}
                         </button>
                         <div className="hidden text-right md:block">
                           <p className="text-xs font-bold text-slate-800">

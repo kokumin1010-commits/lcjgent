@@ -54,8 +54,21 @@ function previewPool(options: {
   }];
   const query = vi.fn(async (sqlValue: unknown) => {
     const sql = String(sqlValue);
+    if (sql.includes("CREATE TABLE IF NOT EXISTS managed_store_brands")) return [[], []];
+    if (sql.includes("INSERT IGNORE INTO managed_store_brands")) return [[], []];
+    if (sql.includes("UPDATE managed_store_brands relation")) return [[], []];
     if (sql.includes("FROM managed_stores ms")) return [[store], []];
-    if (sql.includes("FROM selection_products sp") && sql.includes("sp.brandId=?")) return [sources, []];
+    if (sql.includes("FROM managed_store_brands relation")) {
+      return [store.brandId ? [{
+        storeId: store.id,
+        brandId: store.brandId,
+        isPrimary: 1,
+        brandName: store.brandName,
+        brandNameJa: store.brandNameJa,
+        companyName: store.companyName,
+      }] : [], []];
+    }
+    if (sql.includes("FROM selection_products sp") && sql.includes("sp.brandId IN")) return [sources, []];
     if (sql.includes("WHERE parentProductId IN")) return [children, []];
     if (sql.includes("FROM store_products") && sql.includes("selectionSourceRevision")) return [products, []];
     throw new Error(`unexpected query: ${sql.slice(0, 160)}`);
@@ -93,7 +106,7 @@ describe("store selection bulk sync preview", () => {
     const result = await previewStoreSelectionBulkSync(pool, 7);
 
     expect(result).toMatchObject({ brandConfigured: false, brandId: null, ready: 0, sourceParentCount: 0 });
-    expect(query).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls.some(([sqlValue]) => String(sqlValue).includes("FROM selection_products sp"))).toBe(false);
   });
 
   it("does not auto-link a same-name store product without an exact product ID", async () => {

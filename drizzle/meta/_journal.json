@@ -1037,6 +1037,13 @@
       "when": 1789961800000,
       "tag": "0152_lcm_campaign_pages",
       "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "5",
+      "when": 1789974960883,
+      "tag": "0153_managed_store_brands",
+      "breakpoints": true
     }
   ]
 }

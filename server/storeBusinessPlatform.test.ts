@@ -195,14 +195,13 @@ describe("store business platform source contract", () => {
 
   it("requires explicit brand bindings instead of guessing by names", () => {
     expect(managementRouter).toContain("serviceBrands: protectedProcedure");
-    expect(managementRouter).toContain("assertServiceBrandExists");
+    expect(managementRouter).toContain("replaceStoreBrandLinks");
     expect(managementRouter).toContain(
-      "brandId: z.number().int().positive().nullable()"
+      "brandIds: z.array(z.number().int().positive()).max(200)"
     );
-    expect(influencerRouter).toContain("SELECT id,brandId FROM managed_stores");
-    expect(influencerRouter).toContain(
-      "Number(store.brandId || 0) !== effectiveBrandId"
-    );
+    expect(influencerRouter).toContain("loadStoreBrandIds");
+    expect(influencerRouter).toContain("storeBrandIds.includes(effectiveBrandId)");
+    expect(influencerRouter).toContain("该店铺关联多个品牌，请明确选择本次推广品牌");
     expect(influencerRouter).toContain("店铺与服务品牌不一致");
     expect(adRouter).toContain(
       "storeId: z.number().int().positive().nullable().optional()"
@@ -224,10 +223,10 @@ describe("store business platform source contract", () => {
       "GROUP BY campaign.brandId,campaign.storeId"
     );
     expect(businessService).toContain("storeOutreachRows.length");
-    expect(businessService).toContain("brandStores.length === 1");
+    expect(businessService).toContain("canUseUnallocatedBrandMetrics");
     expect(businessService).toContain("brandOutreachRows");
     expect(businessService).toMatch(
-      /selectedPlanRows\s*=\s*storePlanRows\.length[\s\S]{0,180}brandStores\.length === 1/
+      /selectedPlanRows\s*=\s*storePlanRows\.length[\s\S]{0,180}allowBrandFallback/
     );
     expect(businessService).toContain("buildImportedStoreDailyRows");
     expect(businessService).toContain("summarizeImportedStoreDailyRows");
