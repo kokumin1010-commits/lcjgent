@@ -67,6 +67,23 @@ export const memberIdentityRouter = router({
         "points",
         "order",
       ]);
+      const expectedCombinedBalance =
+        input.expectedTargetBalance + input.expectedSourceBalance;
+      const centralLedger = await bwAuditCentralLedgerByEmail(
+        input.expectedEmail
+      );
+      if (
+        !centralLedger.success ||
+        !centralLedger.centralLedgerAvailable ||
+        !centralLedger.historyComplete ||
+        centralLedger.unifiedTotal !== expectedCombinedBalance
+      ) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Beauty Wallet統一主台帳を完全照合できないため、会員統合を停止しました",
+        });
+      }
       try {
         return await mergeEmailAndLineMemberAccounts({
           ...input,

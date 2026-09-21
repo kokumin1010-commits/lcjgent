@@ -16,10 +16,20 @@ const mocks = vi.hoisted(() => ({
     uniqueTransactionCount: 2,
     duplicateRowsRemoved: 0,
   })),
+  merge: vi.fn(async () => ({ success: true })),
+  assertAllowed: vi.fn(async () => undefined),
 }));
 
 vi.mock("./bw-api", () => ({
   bwAuditCentralLedgerByEmail: mocks.audit,
+}));
+
+vi.mock("./memberAccountMergeService", () => ({
+  mergeEmailAndLineMemberAccounts: mocks.merge,
+}));
+
+vi.mock("./memberRestrictionService", () => ({
+  assertMemberActionAllowed: mocks.assertAllowed,
 }));
 
 import { memberIdentityRouter } from "./memberIdentityRouter";
@@ -90,5 +100,78 @@ describe("member identity Beauty Wallet ledger audit authorization", () => {
       "ウォレット作成・残高同期・ポイント変更は行いません"
     );
     expect(page).toContain("統一残高（唯一の現在残高）");
+  });
+});
+
+describe("member account merge central-ledger gate", () => {
+  const mergeInput = {
+    targetEmailMemberId: 101,
+    sourceLineMemberId: 202,
+    expectedEmail: "member@example.com",
+    expectedLineUserId: `U${"a".repeat(32)}`,
+    expectedTargetBalance: 2067,
+    expectedSourceBalance: 4188,
+    reason: "verified identity merge test",
+  };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it("stops before local merge when the Beauty Wallet identity is missing", async () => {
+    mocks.audit.mockResolvedValueOnce({
+      success: true,
+      emailHash: "a".repeat(64),
+      lookupFound: false,
+      walletFound: false,
+      centralLedgerAvailable: false,
+      unifiedTotal: null,
+      storeCount: 0,
+      stores: [],
+      historyComplete: false,
+      historyRowsFetched: 0,
+      uniqueTransactionCount: 0,
+      duplicateRowsRemoved: 0,
+      failureCode: "CUSTOMER_NOT_FOUND",
+    });
+    const caller = memberIdentityRouter.createCaller(
+      context({ id: 1, role: "admin" })
+    );
+    await expect(caller.mergeEmailAndLineAccounts(mergeInput)).rejects.toMatchObject(
+      { code: "PRECONDITION_FAILED" }
+    );
+    expect(mocks.merge).not.toHaveBeenCalled();
+  });
+
+  it("stops before local merge when the authoritative balance differs", async () => {
+    mocks.audit.mockResolvedValueOnce({
+      success: true,
+      emailHash: "a".repeat(64),
+      lookupFound: true,
+      walletFound: true,
+      centralLedgerAvailable: true,
+      unifiedTotal: 4188,
+      storeCount: 1,
+      stores: ["beautypass"],
+      historyComplete: true,
+      historyRowsFetched: 2,
+      uniqueTransactionCount: 2,
+      duplicateRowsRemoved: 0,
+    });
+    const caller = memberIdentityRouter.createCaller(
+      context({ id: 1, role: "admin" })
+    );
+    await expect(caller.mergeEmailAndLineAccounts(mergeInput)).rejects.toMatchObject(
+      { code: "PRECONDITION_FAILED" }
+    );
+    expect(mocks.merge).not.toHaveBeenCalled();
+  });
+
+  it("allows the existing audited merge only when the unified total matches", async () => {
+    const caller = memberIdentityRouter.createCaller(
+      context({ id: 1, role: "admin" })
+    );
+    await expect(caller.mergeEmailAndLineAccounts(mergeInput)).resolves.toEqual({
+      success: true,
+    });
+    expect(mocks.merge).toHaveBeenCalledOnce();
   });
 });

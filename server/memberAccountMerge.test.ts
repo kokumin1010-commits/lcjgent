@@ -107,6 +107,17 @@ describe("member account merge authorization and operator safety", () => {
     );
     expect(router).toContain("expectedTargetBalance");
     expect(router).toContain("expectedSourceBalance");
+    expect(router).toContain(
+      "const centralLedger = await bwAuditCentralLedgerByEmail("
+    );
+    expect(router).toContain("!centralLedger.centralLedgerAvailable");
+    expect(router).toContain("!centralLedger.historyComplete");
+    expect(router).toContain(
+      "centralLedger.unifiedTotal !== expectedCombinedBalance"
+    );
+    expect(router).toContain(
+      "Beauty Wallet統一主台帳を完全照合できないため、会員統合を停止しました"
+    );
   });
 
   it("exposes the Beauty Wallet ledger audit only to admins", () => {
