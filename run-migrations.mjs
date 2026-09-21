@@ -275,6 +275,18 @@ async function main() {
       }
     }
     console.log(`[Migration] LINE group automation defaults ensured (${lineGroupAutomationStatements.length} statements).`);
+
+    console.log('[Migration] Ensuring brand BD command center tables...');
+    const brandBdCommandMigrationPath = path.join(__dirname, 'drizzle', '0155_brand_bd_command_center.sql');
+    const brandBdCommandSql = await fs.readFile(brandBdCommandMigrationPath, 'utf8');
+    const brandBdCommandStatements = brandBdCommandSql
+      .split('--> statement-breakpoint')
+      .map(statement => statement.trim())
+      .filter(Boolean);
+    for (const statement of brandBdCommandStatements) {
+      await connection.execute(statement);
+    }
+    console.log(`[Migration] Brand BD command center tables ensured (${brandBdCommandStatements.length} statements).`);
   } catch (fallbackErr) {
     console.error('[Migration] Fallback error:', fallbackErr.message);
   } finally {

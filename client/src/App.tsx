@@ -29,6 +29,7 @@ const MonthlyRoleReview = lazy(() => import("./pages/MonthlyRoleReview"));
 const ReportForm = lazy(() => import("./pages/ReportForm"));
 const ReportAnalysis = lazy(() => import("./pages/ReportAnalysis"));
 const BrandList = lazy(() => import("./pages/BrandList"));
+const BrandBdCommandCenter = lazy(() => import("./pages/BrandBdCommandCenter"));
 const BrandForm = lazy(() => import("./pages/BrandForm"));
 const BrandDetail = lazy(() => import("./pages/BrandDetail"));
 const BrandFinance = lazy(() => import("./pages/BrandFinance"));
@@ -396,6 +397,11 @@ function Router() {
         </Route>
         <Route path={"/master/brands"}>
           <BrandList />
+        </Route>
+        <Route path={"/master/brand-bd-command"}>
+          <DashboardLayout>
+            <BrandBdCommandCenter />
+          </DashboardLayout>
         </Route>
         <Route path={"/master/recruitment"}>
           <RecruitmentManagement />

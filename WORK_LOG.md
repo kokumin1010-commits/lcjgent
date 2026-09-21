@@ -3581,3 +3581,18 @@ LCM专项回归7个测试文件共 **61/61** 通过，LCM路由与管理页bundl
 過去履歴に対する即時一斉送信を防ぐため`line_groups.autoFollowUpEnabledAt`を追加し、follow-up候補・送信直前claimの双方で`lastMessageAt`、`createdAt`、`autoFollowUpEnabledAt`の最大値を共通activity anchorとして使う。独立初回reviewでcandidateが新anchorを計算してもschedulerが旧`lastMessageAt`をclaimへ渡すP1を検出し、候補payloadの`followUpActivityAt`をそのままlocked claimへ渡すよう修正した。ON直前、既定2日経過の1ms前は対象外、境界時刻で対象となるunit testを追加した。最終独立reviewはGO（blocker 0件）。明示的`@LCJ`、連携済み有効ライブコマーサー、営業時間、active、最新会話revision、送信監査・retry key等の既存送信guardは維持している。
 
 グループtextはメンション有無に関係なくLINE message ID一意で返信判定前に保存する。UIには「履歴保存: 有効」と全自動ON案内を表示し、公式LINE参加後の新着だけ保存可能で、参加前の過去会話はLINE Messaging APIから取得できないことをgroup一覧・会話Dialogへ明記した。focused回帰は9ファイル120件成功。LINE関連全体は29ファイル300件成功し、既知の固定repository path、Stripe、LINE Login／Messaging API credentials、APP_URL依存による5ファイル10件だけ失敗。production build成功。全量TypeScriptは既存診断でexit 2だが、今回変更範囲に新規診断はない。実LINE送信・本番DB直接更新は行っていない。
+## 2026-09-21｜品牌管理域新增“品牌 BD 指挥塔”（本番反映前）
+
+按照已确认方案，在品牌管理域新增 `/master/brand-bd-command`，并同时加入品牌管理页头部和商务部侧边栏入口。页面提供品牌BD进度、逾期跟进、缺少下一步、未来会议、洽谈时间线、全部日程和老板视角；现有 `brand_business_deals` 状态机继续作为唯一阶段主数据，坑位费、保证ROI 1:2、纯佣和签约条件不另建第二套阶段口径。
+
+新增0155迁移和品牌商务upgrade自包含建表，保存洽谈事实、附件绑定、会议、任务链接、AI快照、提醒outbox和不可变审计。每次洽谈可登记结果、下一步、跟进时间、负责人并上传PDF/文本/Office/图片；PDF与文本只提取最多10万字符作为AI证据，LCJ Brain工具和AI上下文不包含原文件名、公开URL或存储key。旧品牌文件上传端点也补上登录与品牌对象权限，避免任意登录账号向无权品牌写入存储。
+
+权限不采用“登录即全品牌”：超级管理员可跨品牌，配置的部门负责人只能在其管理人员范围内，普通员工只能处理自己负责的品牌；负责人、参会人和任务受让人同样按这一范围在服务端复核。会议创建在单一事务中写入会议、正式任务、task_staff、任务通知outbox、BD任务链接和审计，幂等key包含操作者、品牌和请求UUID；会议会进入既有任务/积分执行链路。品牌BD提醒使用独立租约outbox、唯一通知key和最多5次退避重试，向负责人/参会人发送，并可按显式开关同步核心管理者；不会把内部BD会议写入公开活动日历。
+
+AI商务副驾使用实时目录中可用的 `gpt-5-mini` 和严格JSON Schema，提供品牌画像、下一轮策略、问题清单、会前brief、会后行动、跟进草稿和超级管理员全局老板摘要。系统提示要求只依据授权范围内的品牌事实、洽谈记录和已提取附件文本；缺失信息必须明确标注，不可编造报价或承诺；所有对外文案只能生成草稿，不自动发邮件/消息、不自动改阶段、不自动创建任务。相同证据摘要、分析类型和模型会复用快照，避免重复扣费和结果漂移；所有AI生成写入审计。
+
+首次独立只读发布复审发现3项P1后继续加固：附件在multer、存储和文本提取之前先验证登录、品牌及洽谈记录对象权限，数据库只保存随机`fileKey`和内部下载路径，下载时再次授权后才生成短期签名URL；上传同时验证实际文件魔数并在数据库失败时删除已写对象。会议弹窗在一次打开期间保持同一请求UUID，响应丢失后的重试不会产生第二场会议或第二个任务。提醒调度会恢复尚未开始投递的过期租约，已进入外部投递但结果不确定的记录转`manual_review`，不自动重发，避免重复通知；普通参会人邮件链接进入本人今日事项，老板链接进入BD指挥塔。
+
+修复并合并最新LINE并行提交后，品牌BD、品牌商务、LCJ Brain权限、绩效策略与LINE相关跨模块回归共8文件125项通过；新服务、路由、提醒调度器和页面esbuild通过；LINE 0154共4条、品牌BD 0155共8条幂等SQL及journal顺序校验通过；8GB堆完整 `pnpm build` 成功，仅保留既有 `receiptMaskingService.ts` sharp namespace warning。全量 `pnpm check` 仍因仓库既有723条诊断返回2，但本次新增品牌BD服务、路由、提醒、共享规则和页面诊断为0。第二次独立只读复审结论为 **GO，P0/P1阻断0项**。
+
+首个品牌BD候选提交在GitHub CI通过后Railway部署失败，随即按规则以独立revert提交撤回，生产始终保留上一正常版本。提交状态审计确认首次失败从并行LINE自动化提交开始，品牌BD提交及其revert只是继承同一启动失败；后续LINE启动修复 `4cf64d1c` 已单独Railway成功并恢复安全基线。品牌BD从该成功基线重新应用后再加固：品牌商务v2备份/迁移不再阻塞HTTP监听，而是在listen成功后后台执行并指数退避；所有品牌BD路由仍等待同一upgrade promise，未ready或失败时保持fail-closed；新增无PII `/api/health/brand-bd-command`，只返回版本、迁移状态和是否有错误，供生产确认0155真实完成。

@@ -14,6 +14,7 @@ import { getTaskByCompletionToken } from "../db";
 import { getLineWebhookLifecycleEventId } from "../lineGroupLifecycleOrder";
 import { createLineRetryKey } from "../lineRetryKey";
 import { startTaskNotificationScheduler } from "../reminderScheduler";
+import { startBrandBdMeetingReminderScheduler } from "../brandBdMeetingReminderScheduler";
 import { startGroupFollowUpScheduler } from "../groupFollowUpScheduler";
 import { startResponseReminderScheduler } from "../responseReminderScheduler";
 import { startScheduleReminderScheduler } from "../scheduleReminderScheduler";
@@ -34,7 +35,10 @@ import { startPeerBonusResetScheduler } from "../peerBonusResetScheduler";
 import { startDailyRankingScheduler } from "../dailyRankingScheduler";
 import { ensureFestivalTables } from "../ensureFestivalTables";
 import { ensureBrandsColumns } from "../ensureBrandsColumns";
-import { startBrandBusinessUpgradeSetup } from "../brandBusinessUpgrade";
+import {
+  getBrandBusinessUpgradeHealth,
+  startBrandBusinessUpgradeSetup,
+} from "../brandBusinessUpgrade";
 import { ensureBrandDataIntegrityReady } from "../brandDataIntegrityUpgrade";
 import { startPreBriefingScheduler } from "../preBriefingScheduler";
 import { startFeishuSyncScheduler } from "../feishuSyncScheduler";
@@ -309,6 +313,26 @@ async function startServer() {
         configuredCoreSuperAdminCount: 0,
         expectedCoreSuperAdminCount: 2,
         ...diagnostic,
+      });
+    }
+  });
+
+  app.get("/api/health/brand-bd-command", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    try {
+      const health = await getBrandBusinessUpgradeHealth();
+      return res.status(health.healthy ? 200 : 503).json({
+        ok: health.healthy,
+        schemaVersion: "brand-business-v2",
+        migrationStatus: health.run?.status || "pending",
+        hasError: Boolean(health.run?.hasError),
+      });
+    } catch {
+      return res.status(503).json({
+        ok: false,
+        schemaVersion: "brand-business-v2",
+        migrationStatus: "unavailable",
+        hasError: true,
       });
     }
   });
@@ -809,6 +833,7 @@ async function startServer() {
   const multer = await import("multer");
   const upload = multer.default({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
   const influencerBdUpload = multer.default({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
+  const brandBdUpload = multer.default({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 1 } });
   const { storagePut } = await import("../storage");
   const { nanoid } = await import("nanoid");
   const { tmpdir } = await import("node:os");
@@ -1506,7 +1531,207 @@ async function startServer() {
     }
   });
 
-  app.post("/api/brand-file-upload", upload.single("file"), async (req, res) => {
+  app.post(
+    "/api/brand-bd-interaction-file-upload",
+    async (req: any, res, next) => {
+      try {
+        const user = await sdk.authenticateRequest(req).catch(() => null);
+        if (!user || !Number.isInteger(Number(user.id))) {
+          return res.status(401).json({ error: "请先登录" });
+        }
+        const brandId = Number(req.query.brandId);
+        const interactionId = Number(req.query.interactionId);
+        if (!Number.isInteger(brandId) || !Number.isInteger(interactionId)) {
+          return res.status(400).json({ error: "品牌和洽谈记录不能为空" });
+        }
+        const { requireBrandBdInteractionAccess } = await import("../brandBdCommandService");
+        await requireBrandBdInteractionAccess(
+          {
+            id: Number(user.id),
+            email: user.email || null,
+            name: user.name || user.email || null,
+          },
+          brandId,
+          interactionId,
+        );
+        req.brandBdUploadUser = user;
+        req.brandBdUploadContext = { brandId, interactionId };
+        next();
+      } catch (error: any) {
+        const status = error?.code === "FORBIDDEN" ? 403
+          : error?.code === "NOT_FOUND" ? 404
+            : error?.code === "BAD_REQUEST" ? 400
+              : error?.code === "UNAUTHORIZED" ? 401
+                : 500;
+        return res.status(status).json({ error: status === 500 ? "附件权限检查失败" : String(error?.message || "请先登录").slice(0, 300) });
+      }
+    },
+    (req: any, res, next) =>
+      brandBdUpload.single("file")(req, res, (error: any) => {
+        if (error?.code === "LIMIT_FILE_SIZE") {
+          return res.status(413).json({ error: "单个文件最大15MB" });
+        }
+        if (error) {
+          return res.status(400).json({ error: "无法读取上传文件" });
+        }
+        next();
+      }),
+    async (req: any, res) => {
+      let storedKey: string | null = null;
+      try {
+        const file = req.file as Express.Multer.File | undefined;
+        const brandId = Number(req.brandBdUploadContext?.brandId);
+        const interactionId = Number(req.brandBdUploadContext?.interactionId);
+        if (!file || !Number.isInteger(brandId) || !Number.isInteger(interactionId)) {
+          return res.status(400).json({ error: "文件、品牌和洽谈记录不能为空" });
+        }
+        const allowedMimeTypes = new Set([
+          "application/pdf",
+          "text/plain",
+          "text/csv",
+          "text/markdown",
+          "application/json",
+          "application/msword",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "application/vnd.ms-excel",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+        ]);
+        if (!allowedMimeTypes.has(file.mimetype)) {
+          return res.status(400).json({ error: "不支持该文件类型" });
+        }
+        const isPdf = file.buffer.length >= 5 && file.buffer.subarray(0, 5).toString("ascii") === "%PDF-";
+        const isZip = file.buffer.length >= 4 && file.buffer[0] === 0x50 && file.buffer[1] === 0x4b
+          && ((file.buffer[2] === 0x03 && file.buffer[3] === 0x04) || (file.buffer[2] === 0x05 && file.buffer[3] === 0x06));
+        const oleSignature = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+        const isOle = file.buffer.length >= oleSignature.length
+          && oleSignature.every((byte, index) => file.buffer[index] === byte);
+        const isJpeg = file.buffer.length >= 3 && file.buffer[0] === 0xff && file.buffer[1] === 0xd8 && file.buffer[2] === 0xff;
+        const isPng = file.buffer.length >= 8 && file.buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+        const isWebp = file.buffer.length >= 12
+          && file.buffer.subarray(0, 4).toString("ascii") === "RIFF"
+          && file.buffer.subarray(8, 12).toString("ascii") === "WEBP";
+        const isText = !file.buffer.includes(0)
+          && !file.buffer.toString("utf8").includes("\uFFFD");
+        const signatureValid = file.mimetype === "application/pdf" ? isPdf
+          : file.mimetype.startsWith("text/") || file.mimetype === "application/json" ? isText
+            : file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              || file.mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ? isZip
+              : file.mimetype === "application/msword" || file.mimetype === "application/vnd.ms-excel" ? isOle
+                : file.mimetype === "image/jpeg" ? isJpeg
+                  : file.mimetype === "image/png" ? isPng
+                    : file.mimetype === "image/webp" ? isWebp
+                      : false;
+        if (!signatureValid) {
+          return res.status(400).json({ error: "文件内容与声明类型不一致" });
+        }
+        const decodedFileName = Buffer.from(file.originalname, "latin1").toString("utf-8");
+        const extension = (decodedFileName.split(".").pop() || "bin")
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, "") || "bin";
+        storedKey = `brand-bd/${brandId}/${interactionId}/${nanoid(24)}.${extension}`;
+        await storagePut(storedKey, file.buffer, file.mimetype);
+        let extractionStatus: "extracted" | "empty" | "not_supported" | "failed" = "not_supported";
+        let extractedText: string | null = null;
+        try {
+          if (file.mimetype === "application/pdf") {
+            const pdfModule = await import("pdf-parse");
+            const parsePdf = (pdfModule as any).default || pdfModule;
+            const parsed = await parsePdf(file.buffer);
+            extractedText = String(parsed?.text || "").trim().slice(0, 100_000) || null;
+            extractionStatus = extractedText ? "extracted" : "empty";
+          } else if (["text/plain", "text/csv", "text/markdown", "application/json"].includes(file.mimetype)) {
+            extractedText = file.buffer.toString("utf8").trim().slice(0, 100_000) || null;
+            extractionStatus = extractedText ? "extracted" : "empty";
+          }
+        } catch {
+          extractionStatus = "failed";
+          extractedText = null;
+        }
+        const { attachBrandBdInteractionFile } = await import("../brandBdCommandService");
+        const result = await attachBrandBdInteractionFile(
+          {
+            id: Number(req.brandBdUploadUser.id),
+            email: req.brandBdUploadUser.email || null,
+            name: req.brandBdUploadUser.name || req.brandBdUploadUser.email || null,
+          },
+          {
+            brandId,
+            interactionId,
+            fileName: decodedFileName,
+            fileKey: storedKey,
+            fileSize: file.size,
+            mimeType: file.mimetype,
+            extractedText,
+            extractionStatus,
+          },
+        );
+        return res.json({
+          success: true,
+          brandFileId: result.brandFileId,
+          fileName: decodedFileName,
+          fileUrl: result.downloadPath,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          extractionStatus,
+        });
+      } catch (error: any) {
+        if (storedKey) {
+          const { storageDelete } = await import("../storage");
+          await storageDelete(storedKey).catch(() => undefined);
+        }
+        const status = error?.code === "FORBIDDEN" ? 403 : error?.code === "NOT_FOUND" ? 404 : error?.code === "BAD_REQUEST" ? 400 : 500;
+        return res.status(status).json({ error: String(error?.message || "上传失败").slice(0, 300) });
+      }
+    },
+  );
+
+  app.get("/api/brand-bd-interaction-files/:fileId", async (req: any, res) => {
+    try {
+      const user = await sdk.authenticateRequest(req).catch(() => null);
+      if (!user || !Number.isInteger(Number(user.id))) {
+        return res.status(401).json({ error: "请先登录" });
+      }
+      const fileId = Number(req.params.fileId);
+      if (!Number.isInteger(fileId) || fileId <= 0) {
+        return res.status(400).json({ error: "附件ID无效" });
+      }
+      const { getAuthorizedBrandBdAttachment } = await import("../brandBdCommandService");
+      const attachment = await getAuthorizedBrandBdAttachment(
+        {
+          id: Number(user.id),
+          email: user.email || null,
+          name: user.name || user.email || null,
+        },
+        fileId,
+      );
+      if (!attachment.fileKey) {
+        return res.status(404).json({ error: "附件存储记录不存在" });
+      }
+      const { storageGet } = await import("../storage");
+      const signed = await storageGet(attachment.fileKey);
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.redirect(302, signed.url);
+    } catch (error: any) {
+      const status = error?.code === "FORBIDDEN" ? 403 : error?.code === "NOT_FOUND" ? 404 : 500;
+      return res.status(status).json({ error: status === 500 ? "附件读取失败" : String(error.message || "无权读取附件") });
+    }
+  });
+
+  app.post("/api/brand-file-upload", async (req: any, res, next) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      if (!user || !Number.isInteger(Number(user.id))) {
+        return res.status(401).json({ error: "Please sign in" });
+      }
+      req.brandFileUploadUser = user;
+      next();
+    } catch {
+      return res.status(401).json({ error: "Please sign in" });
+    }
+  }, upload.single("file"), async (req: any, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -1518,6 +1743,15 @@ async function startServer() {
       if (!brandId) {
         return res.status(400).json({ error: "Brand ID is required" });
       }
+      const { requireBrandBdCommandAccess } = await import("../brandBdCommandService");
+      await requireBrandBdCommandAccess(
+        {
+          id: Number(req.brandFileUploadUser.id),
+          email: req.brandFileUploadUser.email || null,
+          name: req.brandFileUploadUser.name || req.brandFileUploadUser.email || null,
+        },
+        Number(brandId),
+      );
       
       // Generate unique file key
       const fileExtension = file.originalname.split(".").pop() || "bin";
@@ -1535,9 +1769,10 @@ async function startServer() {
         fileSize: file.size,
         mimeType: file.mimetype,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("[Brand File Upload] Error:", error);
-      res.status(500).json({ error: "Failed to upload file" });
+      const status = error?.code === "FORBIDDEN" ? 403 : error?.code === "NOT_FOUND" ? 404 : 500;
+      res.status(status).json({ error: status === 500 ? "Failed to upload file" : String(error.message || "Forbidden") });
     }
   });
 
@@ -3857,13 +4092,6 @@ async function startServer() {
     console.error("[StoreBusinessUpgrade] background setup failed", error);
   });
 
-  try {
-    await startBrandBusinessUpgradeSetup();
-  } catch (error) {
-    console.error("[BrandBusinessUpgrade] pre-listen setup failed", error);
-    throw error;
-  }
-
   // Lark source snapshots, field-level audits and recovery ledgers must exist before
   // any startup recovery or scheduled synchronization can touch brand data.
   try {
@@ -3949,6 +4177,7 @@ async function startServer() {
         startPerformanceScheduler();
         startReportFollowupRetryScheduler();
         startTaskNotificationScheduler();
+        startBrandBdMeetingReminderScheduler();
       }
     }).catch(error => {
       const delayMs = Math.min(10 * 60_000, 30_000 * 2 ** Math.min(attempt - 1, 5));
@@ -3965,6 +4194,39 @@ async function startServer() {
 
   server.listen(port, async () => {
     console.log(`Server running on http://localhost:${port}/`);
+
+    const initializeBrandBusinessStorage = (attempt = 1) => {
+      void startBrandBusinessUpgradeSetup()
+        .then(() => {
+          console.info("[BrandBusinessUpgrade] Storage ready", {
+            code: "BRAND_BUSINESS_V2_READY",
+          });
+        })
+        .catch(error => {
+          const delayMs = Math.min(
+            10 * 60_000,
+            30_000 * 2 ** Math.min(attempt - 1, 5),
+          );
+          console.error(
+            "[BrandBusinessUpgrade] Storage unavailable; related routes remain fail-closed",
+            {
+              code: "BRAND_BUSINESS_V2_UPGRADE_FAILED",
+              attempt,
+              retryInMs: delayMs,
+              errorCode:
+                error && typeof error === "object" && "code" in error
+                  ? String(error.code)
+                  : "SCHEMA_UPGRADE_FAILED",
+            },
+          );
+          const retryTimer = setTimeout(
+            () => initializeBrandBusinessStorage(attempt + 1),
+            delayMs,
+          );
+          retryTimer.unref?.();
+        });
+    };
+    initializeBrandBusinessStorage();
 
     const {
       ensureLineGroupAutomationDefaults,
