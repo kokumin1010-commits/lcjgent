@@ -36,6 +36,7 @@ const LINE_GROUP_INSIGHT_SWEEP_MS = 5 * 60 * 1000;
 const LINE_GROUP_INSIGHT_COOLDOWN_MS = 15 * 60 * 1000;
 const LINE_GROUP_INSIGHT_MIN_MESSAGES = 3;
 const LINE_GROUP_INSIGHT_LEASE_MS = 5 * 60 * 1000;
+const LINE_GROUP_INSIGHT_EVENT_DEBOUNCE_MS = 1_000;
 const LINE_GROUP_DRAFT_COOLDOWN_MS = 30 * 1000;
 const LINE_GROUP_AUTOMATION_DEFAULTS_ROLLOUT = "all_active_groups_auto_on_v1";
 const DEFAULT_LINE_GROUP_RELATIONSHIP_OBJECTIVE = "ライブコマーサーとの信頼を育て、合うLCM商品を自然に紹介できる状態をつくる";
@@ -53,6 +54,9 @@ let lineGroupAutomationRolloutStatus: {
 };
 let aiManagerScheduler: NodeJS.Timeout | null = null;
 let aiManagerRunInProgress = false;
+const lineGroupInsightRefreshTimers = new Map<string, NodeJS.Timeout>();
+const lineGroupInsightRefreshRunning = new Set<string>();
+const lineGroupInsightRefreshDirty = new Set<string>();
 let lastProactiveSweepAt = 0;
 let lastGroupInsightSweepAt = 0;
 const tiktokRefreshAttemptAt = new Map<string, number>();
@@ -349,24 +353,6 @@ async function getGroupConversationContext(
       : null,
     isActive: Boolean(group?.isActive),
   };
-}
-
-async function hasLinkedActiveLiverInGroup(lineGroupId: string): Promise<boolean> {
-  const db = await getDb();
-  if (!db) return false;
-  const [linkedLiver] = await db.select({ liverId: livers.id })
-    .from(lineMessages)
-    .innerJoin(lineUsers, eq(lineMessages.lineUserId, lineUsers.lineUserId))
-    .innerJoin(livers, or(
-      eq(lineUsers.liverId, livers.id),
-      and(isNull(lineUsers.liverId), eq(lineUsers.lineUserId, livers.lineUserId)),
-    ))
-    .where(and(
-      eq(lineMessages.lineGroupId, lineGroupId),
-      eq(livers.isActive, true),
-    ))
-    .limit(1);
-  return Boolean(linkedLiver?.liverId);
 }
 
 function isWithinAiManagerHours(now = new Date()): boolean {
@@ -1393,8 +1379,10 @@ async function acquireLineGroupInsightLease(lineGroupId: string): Promise<string
   return db.transaction(async tx => {
     await lockLineGroupConversationUsingExecutor(tx, lineGroupId, false);
     await tx.execute(sql`
-      INSERT INTO line_group_settings (lineGroupId)
-      VALUES (${lineGroupId})
+      INSERT INTO line_group_settings (
+        lineGroupId, autoReplyEnabled, analysisEnabled, proactiveAiEnabled
+      )
+      VALUES (${lineGroupId}, TRUE, TRUE, TRUE)
       ON DUPLICATE KEY UPDATE lineGroupId = VALUES(lineGroupId)
     `);
     const result = await tx.execute(sql`
@@ -1430,15 +1418,10 @@ export async function analyzeLineGroupConversation(
 ): Promise<LineGroupAiInsight> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const [groupContext, products, settings, hasLinkedLiver] = await Promise.all([
+  const [groupContext, settings] = await Promise.all([
     getGroupConversationContext(lineGroupId),
-    getPublishedProductContext(),
     getLineGroupAiInsight(lineGroupId),
-    hasLinkedActiveLiverInGroup(lineGroupId),
   ]);
-  if (!hasLinkedLiver) {
-    throw new Error("連携済みの有効なライブコマーサーが発言したグループだけ分析できます");
-  }
   if (!settings.analysisEnabled) {
     if (settings.insight) return settings.insight;
     throw new Error("このグループの会話分析は停止中です");
@@ -1447,6 +1430,7 @@ export async function analyzeLineGroupConversation(
     if (settings.insight) return settings.insight;
     throw new Error(`分析にはグループメッセージが${LINE_GROUP_INSIGHT_MIN_MESSAGES}件以上必要です`);
   }
+  const products = await getPublishedProductContext();
 
   if (
     settings.lastAnalyzedMessageAt &&
@@ -1457,7 +1441,11 @@ export async function analyzeLineGroupConversation(
   }
   const leaseToken = await acquireLineGroupInsightLease(lineGroupId);
   if (!leaseToken) {
-    if (isLineGroupInsightCurrent(settings.insight, groupContext)) return settings.insight!;
+    const latestSettings = await getLineGroupAiInsight(lineGroupId);
+    if (!latestSettings.analysisEnabled) {
+      throw new Error("このグループの会話分析は停止中です");
+    }
+    if (isLineGroupInsightCurrent(latestSettings.insight, groupContext)) return latestSettings.insight!;
     throw new Error("このグループの会話分析は別のworkerが実行中です");
   }
 
@@ -1539,6 +1527,10 @@ export async function analyzeLineGroupConversation(
     ) {
       throw new Error("分析中にグループ会話が変更されたため再分析します");
     }
+    const currentSettings = await readLineGroupAiInsightUsingExecutor(tx, lineGroupId, true);
+    if (!currentSettings.analysisEnabled) {
+      throw new Error("このグループの会話分析は停止中です");
+    }
     return tx.execute(sql`
       UPDATE line_group_settings
       SET groupInsightJson = ${JSON.stringify(insight)},
@@ -1547,6 +1539,7 @@ export async function analyzeLineGroupConversation(
           groupInsightMessageCount = ${groupContext.messageCount}
       WHERE lineGroupId = ${lineGroupId}
         AND groupInsightLeaseToken = ${leaseToken}
+        AND analysisEnabled = TRUE
     `);
   });
   const affectedRows = Number((persistResult as any)?.[0]?.affectedRows || (persistResult as any)?.affectedRows || 0);
@@ -1557,6 +1550,83 @@ export async function analyzeLineGroupConversation(
   } finally {
     await releaseLineGroupInsightLease(lineGroupId, leaseToken);
   }
+}
+
+function classifyLineGroupInsightRefreshError(error: unknown): "skip" | "retry" | "unexpected" {
+  if (!(error instanceof Error)) return "unexpected";
+  if (
+    error.message.includes(`グループメッセージが${LINE_GROUP_INSIGHT_MIN_MESSAGES}件以上`) ||
+    error.message.includes("会話分析は停止中") ||
+    error.message.includes("アクティブではありません")
+  ) {
+    return "skip";
+  }
+  if (
+    error.message.includes("別のworkerが実行中") ||
+    error.message.includes("分析中にグループ会話が変更されたため再分析します") ||
+    error.message.includes("グループ会話分析leaseが失効")
+  ) {
+    return "retry";
+  }
+  return "unexpected";
+}
+
+export async function refreshLineGroupInsightAfterInbound(lineGroupId: string): Promise<"completed" | "skip" | "retry"> {
+  try {
+    await analyzeLineGroupConversation(lineGroupId);
+    return "completed";
+  } catch (error) {
+    const outcome = classifyLineGroupInsightRefreshError(error);
+    if (outcome === "unexpected") {
+      console.error(
+        `[LINE AI Manager] Event-driven group insight refresh failed for ${lineGroupId}:`,
+        compactErrorCode(error),
+      );
+    }
+    return outcome === "retry" ? "retry" : "skip";
+  }
+}
+
+type LineGroupInsightRefresh = (
+  lineGroupId: string,
+) => Promise<"completed" | "skip" | "retry">;
+
+async function runScheduledLineGroupInsightRefresh(
+  lineGroupId: string,
+  refresh: LineGroupInsightRefresh,
+): Promise<void> {
+  if (lineGroupInsightRefreshRunning.has(lineGroupId)) {
+    lineGroupInsightRefreshDirty.add(lineGroupId);
+    return;
+  }
+  lineGroupInsightRefreshRunning.add(lineGroupId);
+  lineGroupInsightRefreshDirty.delete(lineGroupId);
+  try {
+    const outcome = await refresh(lineGroupId);
+    if (outcome === "retry") lineGroupInsightRefreshDirty.add(lineGroupId);
+  } finally {
+    lineGroupInsightRefreshRunning.delete(lineGroupId);
+    if (lineGroupInsightRefreshDirty.delete(lineGroupId)) {
+      scheduleLineGroupInsightRefresh(lineGroupId, refresh);
+    }
+  }
+}
+
+export function scheduleLineGroupInsightRefresh(
+  lineGroupId: string,
+  refresh: LineGroupInsightRefresh = refreshLineGroupInsightAfterInbound,
+): void {
+  if (lineGroupInsightRefreshRunning.has(lineGroupId)) {
+    lineGroupInsightRefreshDirty.add(lineGroupId);
+    return;
+  }
+  if (lineGroupInsightRefreshTimers.has(lineGroupId)) return;
+  const timer = setTimeout(() => {
+    lineGroupInsightRefreshTimers.delete(lineGroupId);
+    void runScheduledLineGroupInsightRefresh(lineGroupId, refresh);
+  }, LINE_GROUP_INSIGHT_EVENT_DEBOUNCE_MS);
+  timer.unref?.();
+  lineGroupInsightRefreshTimers.set(lineGroupId, timer);
 }
 
 async function buildAiManagerContext(
@@ -2495,7 +2565,7 @@ async function refreshOneLineGroupInsight(now = new Date()): Promise<void> {
     FROM line_groups g
     LEFT JOIN line_group_settings s ON s.lineGroupId = g.lineGroupId
     WHERE g.isActive = TRUE
-      AND COALESCE(s.analysisEnabled, FALSE) = TRUE
+      AND COALESCE(s.analysisEnabled, TRUE) = TRUE
       AND g.lastMessageAt IS NOT NULL
     ORDER BY COALESCE(s.groupInsightUpdatedAt, '1970-01-01') ASC
     LIMIT 20
@@ -2515,12 +2585,8 @@ async function refreshOneLineGroupInsight(now = new Date()): Promise<void> {
     if (updatedAt && now.getTime() - updatedAt < LINE_GROUP_INSIGHT_COOLDOWN_MS) continue;
     try {
       await analyzeLineGroupConversation(String(row.lineGroupId));
-      return;
     } catch (error) {
-      if (!(error instanceof Error && (
-        error.message.includes("メッセージが3件以上") ||
-        error.message.includes("連携済みの有効なライブコマーサー")
-      ))) {
+      if (classifyLineGroupInsightRefreshError(error) === "unexpected") {
         console.error(
           `[LINE AI Manager] Group insight refresh failed for ${String(row.lineGroupId)}:`,
           compactErrorCode(error),

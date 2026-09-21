@@ -71,7 +71,7 @@ LINE Messaging APIにはグループ名変更専用Webhookを前提にできな�
 
 グループ会話分析は既存LINE基盤へ追加し、別システムは作成していない。テキスト投稿は明示メンションの有無にかかわらず、外部LINE APIを呼ぶ前にLINE message IDを一意キーとして`line_messages`へ先行保存する。メンションなし投稿は返信せず、AI返信eventを作らず、要返信にも設定しない。投稿者プロフィール・グループ名称のenrichmentはWebhook応答後のbest-effort処理へ分離し、グループsummaryは1分debounceする。重複再配信ではenrichmentを再実行しない。投稿者プロフィールは既存キャッシュを優先し、未取得時だけ2秒timeoutのグループメンバープロフィールAPIを使い、取得後に保存済みメッセージへ送信者名を追記する。グループ最終活動日時はLINE event timestampが既存値より新しい場合だけ更新し、Webhook再配信・順序逆転で巻き戻さない。
 
-会話分析はWebhook内でLLMを呼ばず、5分ごとの永続ワーカーで最大1グループずつ行う。対象は会話分析がONで、連携済み・有効なライブコマーサーが実際に発言し、保存済みテキストが3件以上あるアクティブグループに限定する。1回の分析は直近40件、同一グループの更新間隔は15分以上とする。LLM payloadでは実グループ名を固定名へ置換し、各送信者を`参加者1`等のbatch内aliasへ変換する。登録済み送信者名、メール、電話、handle、郵便番号、短い業務IDをマスクし、住所・生年月日・口座・カード等の高リスク語を含む発言は全文を分析対象から省略する。会話内の命令は信頼しないデータとして扱い、センシティブ属性・性格・親密度の推測を禁止する。複数replica・手動更新競合はDB上の5分lease tokenで排他し、同じ会話versionは既存結果を再利用する。分析中に新着投稿があれば古いworkerの保存を拒否する。結果は話題、明示ニーズ、関係構築機会、公開済みLCM商品の適合候補、リスク、推奨次アクション、送信前ドラフト、信頼度、対象件数・期間からなる構造化JSONで保存する。商品候補は`published`のブランド・商品だけで、商品名は公開商品一覧との完全一致を再検証する。
+会話分析は外部LLMへ生の会話を送らず、サーバー内の有限シグナル判定だけで行う。会話分析がONで保存済みテキストが3件以上あるアクティブグループは、参加者がLCJ会員・ライブコマーサーへ連携済みかどうかに関係なく対象とする。重複でないgroup textを先行保存した直後に1秒debounceでevent-driven更新を起動し、その後も新着会話ごとに`conversationRevision`が変われば再分析する。5分ごとの永続ワーカーは取りこぼしを補完し、最大20グループを順に確認する。1回の分析は直近40件を使い、補完sweepだけは同一グループ15分cooldownを置く。実グループ名を固定名へ置換し、各送信者を`参加者1`等のbatch内aliasへ変換する。登録済み送信者名、メール、電話、handle、郵便番号、短い業務IDをマスクし、住所・生年月日・口座・カード等の高リスク語を含む発言は全文を分析対象から省略する。会話内の命令は信頼しないデータとして扱い、センシティブ属性・性格・親密度の推測を禁止する。複数replica・手動更新競合はDB上の5分lease tokenで排他し、同じ会話versionは既存結果を再利用する。分析中に新着投稿があれば古いworkerの保存を拒否する。結果は話題、明示ニーズ、関係構築機会、公開済みLCM商品の適合候補、リスク、推奨次アクション、送信前ドラフト、信頼度、対象件数・期間からなる構造化JSONで保存する。商品候補は`published`のブランド・商品だけで、商品名は公開商品一覧との完全一致を再検証する。
 
 グループでの返信境界は従来より厳格なままである。`@LCJ`等の明示メンションかつ連携本人の場合だけ専属AI返信キューへ渡し、グループ別`@LCJ返信`設定がOFFまたは設定読取失敗なら送信しない。グループ返信用promptには生のグループ履歴を再送せず、保存済み要約インサイトだけを渡す。即時@LCJ受信文にも分析用と同じ強化PII除去を適用し、ライバー実名は`グループ参加者`、実グループ名は`対象LINEグループ`へ置換する。DM履歴、売上、内部メモ、個別bio、TikTok account/insightはNULLに固定する。`unsend`受信時は原文を既存仕様どおり`[送信取消済み]`へ置換すると同時に、派生インサイトを無効化して次回分析から取消内容を除外する。
 
@@ -126,3 +126,15 @@ LINE Messaging APIにはグループ名変更専用Webhookを前提にできな�
 本番初回healthでrolloutが`pending`のままになることを検出した際もschedulerは停止したままで、実LINE送信は発生しなかった。rolloutは、一括`INSERT ... SELECT ... ON DUPLICATE KEY`を廃止し、active group IDを親row `FOR UPDATE`で確定後、各IDのautomation stateとsettingsを1件ずつ冪等反映する方式へ変更した。raw Drizzle/mysql2の`[rows, fields]`とdirect rowsの両shapeを正規化し、active group、settings、automation stateの件数が選択ID数と完全一致しない限りmarkerをcommitしない。countは予約語・複合subqueryに依存しない3つの単純queryへ分離した。最終再レビューは**GO（P0/P1 blocker 0件）**である。
 
 最終機能commit`0f07077f40b867fa549bfb9cec282afe9e296547`はGitHub CI success、Railway `Success - www.livecommercefestival.com`を同一SHAで確認した。read-only本番確認で`https://lcjmall.com/api/health/line-ai-manager`はHTTP 200、`aiManagerStorage: ready`、`groupAutomationDefaults: ready`、runtime `state: ready`、`step: ready`、`failureCode: null`を返した。`https://lcjmall.com/master/line`の配信chunk`LineManagement-zHrGN-2F.js`に「履歴保存」「既定でON」「公式LINEが参加した後」の文言が含まれることも確認した。実LINE送信、管理画面からの設定変更、本番DB直接操作は行っていない。
+
+## 全グループ継続分析・未連携参加者対応（2026-09-21追加）
+
+会話分析から「連携済み・有効なライブコマーサーが発言していること」という資格条件を除外した。会話分析がONのactive groupは、参加者の会員・ライブコマーサー連携状態を問わず、LINE公式アカウント参加後に一意保存されたtextが3件に達した時点から分析対象になる。重複でないgroup messageのtransactional保存後にだけ1秒debounceのevent-driven refreshを予約するため、duplicate webhookは分析を重複予約しない。3件未満は履歴保存だけを継続する。
+
+新着が分析中に重なった場合はgroup別のrunning／dirty状態へ記録し、処理終了直後に再度debounce実行する。別replicaのlease、分析中の`conversationRevision`変更、lease失効はretry outcomeとして再予約する。最終保存では親`line_groups` rowをlockしてrevision／active状態を再確認した後、`line_group_settings`を`FOR UPDATE`で再読し、`analysisEnabled = TRUE`かつ同一lease tokenの場合だけinsightを更新する。管理者が分析をOFFへ変更した後に、進行中workerが新しい結果を保存することはできない。5分sweepは最大20groupを順に確認する補完経路であり、settings row未作成groupも既定ONとして扱う。
+
+この変更は分析対象だけを広げ、実LINE送信資格は変更していない。未連携参加者の通常投稿も履歴・分析には反映するが返信しない。即時group返信は引き続き、連携済み・有効な本人からの明示的`@LCJ`／bot self mention、group別返信設定、本人reply設定、配送直前revalidationをすべて満たす場合だけである。分析は外部LLMへ生のgroup transcriptを送らず、既存のサーバー内有限シグナル・匿名alias・PII除去・高リスク発言省略を維持する。
+
+管理画面は「連携状態に関係なく保存済みグループ会話を分析」「保存3件目から新着ごとに更新」と表示する。分析OFFのgroupでは、履歴は保存するが自動分析は停止中であることを別文言で示す。会話Dialogのflex shrinkを除去し、AIインサイトと「グループ会話履歴」の見出し・説明が重なる表示不具合も修正した。
+
+最終focused回帰は4ファイル69件成功。LINE関連全体は35ファイル320件中310件成功し、残る5ファイル10件はローカル本番DB、LINE Login／Messaging API secret・token・APP_URL未設定による既存環境依存だった。production buildは成功。全量TypeScriptは既存1,164件でexit 2だが、今回変更した`LineManagement.tsx`、`lineAiManager.ts`、各testに新規診断はなく、`lineAgent.ts`の既存2件は今回の変更行外である。初回独立reviewのP1 3件を修正し、最終独立reviewは**GO（P0/P1 blocker 0件）**。検証中に実LINE送信、本番DB直接更新、group設定変更は行っていない。

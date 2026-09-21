@@ -81,13 +81,25 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     );
   });
 
-  it("batches group insight analysis and keeps default-on proactive sending guarded", () => {
+  it("continuously analyzes every eligible group while keeping actual sending guarded", () => {
     expect(manager).toContain("LINE_GROUP_INSIGHT_SWEEP_MS = 5 * 60 * 1000");
     expect(manager).toContain("LINE_GROUP_INSIGHT_COOLDOWN_MS = 15 * 60 * 1000");
+    expect(manager).toContain("LINE_GROUP_INSIGHT_MIN_MESSAGES = 3");
+    expect(manager).toContain("LINE_GROUP_INSIGHT_EVENT_DEBOUNCE_MS = 1_000");
     expect(manager).toContain("refreshOneLineGroupInsight");
     expect(manager).toContain("analyzeLineGroupConversation");
-    expect(manager).toContain("hasLinkedActiveLiverInGroup");
-    expect(manager).toContain("連携済みの有効なライブコマーサーが発言したグループだけ分析できます");
+    expect(manager).toContain("export function scheduleLineGroupInsightRefresh");
+    expect(manager).toContain("export async function refreshLineGroupInsightAfterInbound");
+    expect(manager).toContain("lineGroupInsightRefreshRunning");
+    expect(manager).toContain("lineGroupInsightRefreshDirty");
+    expect(manager).toContain('if (outcome === "retry") lineGroupInsightRefreshDirty.add(lineGroupId)');
+    expect(manager).not.toContain("hasLinkedActiveLiverInGroup");
+    expect(manager).not.toContain("連携済みの有効なライブコマーサーが発言したグループだけ分析できます");
+    expect(manager).toContain("COALESCE(s.analysisEnabled, TRUE) = TRUE");
+    expect(agent).toContain("if (stored) {");
+    expect(agent).toContain("scheduleLineGroupInsightRefresh(lineGroupId)");
+    expect(manager).toContain("readLineGroupAiInsightUsingExecutor(tx, lineGroupId, true)");
+    expect(manager).toContain("AND analysisEnabled = TRUE");
     expect(manager).toContain("sanitizeGroupMessageForAi");
     expect(manager).toContain("participantAliases");
     expect(manager).toContain('groupName: "対象LINEグループ"');
@@ -247,7 +259,7 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(manager).toContain("if (!latestSettings.analysisEnabled)");
     expect(manager).toContain("isLineGroupInsightCurrent(settings.insight, groupContext)");
     expect(manager).toContain('throw new Error("LINE_GROUP_AI_DRAFT_INSIGHT_STALE")');
-    expect(manager).toContain("if (isLineGroupInsightCurrent(settings.insight, groupContext)) return settings.insight!");
+    expect(manager).toContain("if (isLineGroupInsightCurrent(latestSettings.insight, groupContext)) return latestSettings.insight!");
     expect(manager).toContain("conversationRevision: groupContext.conversationRevision");
     expect(manager).toContain("Number(currentGroup.conversationRevision || 0) !== groupContext.conversationRevision");
     expect(manager).toContain("LINE_GROUP_DRAFT_COOLDOWN_MS = 30 * 1000");
@@ -371,7 +383,11 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(ui).toContain("グループAIインサイト");
     expect(ui).toContain("グループ会話を分析");
     expect(ui).toContain("分析したAI提案を自動追いに使用");
-    expect(ui).toContain("保存済みグループ会話だけを使用");
+    expect(ui).toContain("連携状態に関係なく保存済みグループ会話を分析");
+    expect(ui).toContain("会話が3件に達すると、連携状況に関係なく自動分析を開始");
+    expect(ui).toContain("会話履歴は保存されていますが、自動分析は停止中です");
+    expect(ui).toContain('className="max-w-4xl max-h-[90vh] overflow-y-auto"');
+    expect(ui).not.toContain('max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col');
     expect(ui).toContain("グループ会話履歴");
     expect(ui).toContain("会話・送信");
     expect(ui).toContain("LCJ公式AIフォロー設定");

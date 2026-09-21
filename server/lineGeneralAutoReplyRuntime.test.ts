@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   canLineAiManagerReplyInGroup: vi.fn(async () => true),
   tryHandleLineAiManagerMessage: vi.fn(async () => false),
   recordLineAiManagerInboundActivity: vi.fn(async () => false),
+  scheduleLineGroupInsightRefresh: vi.fn(),
   getGroupMemberProfile: vi.fn(),
   syncLineGroupMetadata: vi.fn(),
   containsReminderKeyword: vi.fn(() => false),
@@ -34,6 +35,7 @@ vi.mock("./lineAiManager", () => ({
   canLineAiManagerReplyInGroup: mocks.canLineAiManagerReplyInGroup,
   tryHandleLineAiManagerMessage: mocks.tryHandleLineAiManagerMessage,
   recordLineAiManagerInboundActivity: mocks.recordLineAiManagerInboundActivity,
+  scheduleLineGroupInsightRefresh: mocks.scheduleLineGroupInsightRefresh,
 }));
 
 vi.mock("./line", async () => {
@@ -255,6 +257,7 @@ describe("LINE general AI auto-reply runtime behavior", () => {
 
     expect(mocks.tryHandleLineAiManagerMessage).not.toHaveBeenCalled();
     expect(mocks.recordLineAiManagerInboundActivity).not.toHaveBeenCalled();
+    expect(mocks.scheduleLineGroupInsightRefresh).toHaveBeenCalledWith("C-group-ineligible");
     expect(mocks.getLinePointBalance).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -351,6 +354,7 @@ describe("LINE general AI auto-reply runtime behavior", () => {
       messageId: "group-message-no-mention",
       lineGroupId: "C-group-no-mention",
     }));
+    expect(mocks.scheduleLineGroupInsightRefresh).toHaveBeenCalledWith("C-group-no-mention");
     expect(mocks.updateLineMessageSenderName).toHaveBeenCalledWith(
       "group-message-no-mention",
       "U-group-liver",
@@ -374,6 +378,7 @@ describe("LINE general AI auto-reply runtime behavior", () => {
 
     expect(mocks.getGroupMemberProfile).not.toHaveBeenCalled();
     expect(mocks.syncLineGroupMetadata).not.toHaveBeenCalled();
+    expect(mocks.scheduleLineGroupInsightRefresh).not.toHaveBeenCalled();
     expect(mocks.tryHandleLineAiManagerMessage).not.toHaveBeenCalled();
   });
 

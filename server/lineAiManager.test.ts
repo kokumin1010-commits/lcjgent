@@ -3,6 +3,7 @@ import {
   __lineAiManagerTestUtils,
   getLineGroupAutomationDefaultsRuntimeStatus,
   LINE_AI_MANAGER_MODEL,
+  scheduleLineGroupInsightRefresh,
   tryHandleLineAiManagerMessage,
 } from "./lineAiManager";
 
@@ -58,6 +59,49 @@ describe("LCJ LINE AI manager", () => {
     expect(isWithinAiManagerHours(new Date("2026-09-21T02:00:00Z"))).toBe(true);
     expect(isWithinAiManagerHours(new Date("2026-09-20T02:00:00Z"))).toBe(false);
     expect(isWithinAiManagerHours(new Date("2026-09-21T10:00:00Z"))).toBe(false);
+  });
+
+  it("reruns group insight when a new message arrives during analysis", async () => {
+    vi.useFakeTimers();
+    try {
+      let finishFirst: ((value: "completed") => void) | undefined;
+      const firstRun = new Promise<"completed">(resolve => {
+        finishFirst = resolve;
+      });
+      const refresh = vi.fn()
+        .mockReturnValueOnce(firstRun)
+        .mockResolvedValue("completed");
+
+      scheduleLineGroupInsightRefresh("C-insight-dirty", refresh);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(refresh).toHaveBeenCalledTimes(1);
+
+      scheduleLineGroupInsightRefresh("C-insight-dirty", refresh);
+      finishFirst?.("completed");
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(refresh).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries group insight after a lease or revision race", async () => {
+    vi.useFakeTimers();
+    try {
+      const refresh = vi.fn()
+        .mockResolvedValueOnce("retry")
+        .mockResolvedValue("completed");
+
+      scheduleLineGroupInsightRefresh("C-insight-retry", refresh);
+      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(refresh).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("redacts common sensitive identifiers before LLM context", () => {

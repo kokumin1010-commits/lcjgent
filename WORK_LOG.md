@@ -3612,3 +3612,13 @@ AI商务副驾使用实时目录中可用的 `gpt-5-mini` 和严格JSON Schema�
 本地验证：选品中心相关28个测试文件160项全部通过；并行Beauty Wallet/账户链路8个文件54项通过、1项既有跳过；production build成功，仅保留仓库既有`receiptMaskingService.ts` sharp namespace warning。全量`pnpm check`因仓库既有1,164条诊断返回2，本次新增的批量服务、RBAC、软归档服务、对话框诊断为0，修改目标的规范化诊断集合相对本次加固前未增加。1280×900与390×844的Mock视觉/交互验收均完成，批量提交成功，对话框边界正常，无console、page或request error。本地测试未访问生产数据库、未修改生产商品、价格、库存或历史记录。
 
 独立只读发布复审初次指出同页旧写入口RBAC绕过、仅更新价格时最低价不同步、deploy-time schema语法兼容三项P1；逐项修复并补回归后结论为 **GO，P0/P1阻断0项**。首个候选提交`990fc789`的GitHub CI通过，但Railway在新增部署迁移窗口失败；已立即以`6f5a0af7`恢复上一正常代码树，失败候选未替换既有production实例。后续候选基于Railway成功的并行迁移热修复`9bef6475`，移除新增deploy-time migration，改为上述写入口前运行时幂等保障；再次独立只读复审仍为 **GO，P0/P1阻断0项**。复审建议的“非重复DDL失败后清空共享promise并从首条语句完整重试”也已补为可执行回归。
+
+## 2026-09-21｜LINEグループ分析を未連携参加者にも拡張・新着ごとに継続更新
+
+`/master/line`で保存済み会話が3件あるにもかかわらず、ライブコマーサー連携がないため「分析更新」を拒否していた条件を撤廃した。会話分析がONのactive groupは、参加者がLCJ会員・ライブコマーサーへ連携済みかどうかに関係なく、保存済みtext 3件から分析する。重複でないgroup textをLINE message ID一意で保存した後に1秒debounceで分析を予約し、その後も新着会話ごとに更新する。duplicate webhookでは予約しない。5分sweepはmissing settings rowも既定ONとして最大20groupを順に確認し、event-driven処理の取りこぼしだけを補完する。
+
+分析は従来どおり外部LLMへ生会話を送らないサーバー内有限シグナル判定で、3件未満・明示OFF・inactive groupは対象外とする。分析中の新着はgroup別dirty/running状態に記録し、完了直後に再実行する。別worker lease・conversation revision競合もretryし、新着が分析途中に重なっても古いinsightで止まらない。最終保存transactionでは親group rowに続いてsettings rowをlockして`analysisEnabled`を再読し、UPDATEにも`analysisEnabled = TRUE`とlease tokenを要求するため、管理者がOFFへ変更した後の結果保存を拒否する。
+
+実LINE送信条件は一切広げていない。通常会話は分析・履歴へ使うだけで返信せず、即時AI返信は従来どおり連携済み・有効な本人からの明示的`@LCJ`／bot self mention、group設定、本人設定、配送直前revalidationを満たす場合だけである。管理画面は「分析は連携不要」「3件目から新着ごとに更新」と明示し、分析OFF時は履歴だけ保存して自動分析停止中と表示する。会話Dialogから`flex flex-col`圧縮を外し、ユーザー提示画面で発生していたAIインサイト・履歴見出しの重なりも修正した。
+
+最終focused回帰は独立review実行分を含む4ファイル69件成功。LINE関連全体は35ファイル320件中310件成功し、残る5ファイル10件はローカル本番DB、LINE Login／Messaging API secret・token・APP_URL未設定による既存環境依存だった。production buildは成功し、既存`sharp` warningとbuild sandboxのDB未接続fallback以外に今回起因のfailureはない。全量TypeScriptは既存1,164件でexit 2だが、今回変更した`LineManagement.tsx`、`lineAiManager.ts`、各testに新規診断はなく、`lineAgent.ts`の2件は今回変更範囲外に以前から存在する`getMessageContent`／`storagePut`未定義診断である。初回独立reviewの3件のP1（分析中新着の取りこぼし、OFF変更後の保存race、OFF時の誤説明）を修正し、最終reviewは**GO（P0/P1 blocker 0件）**となった。

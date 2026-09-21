@@ -44,6 +44,14 @@ async function captureGroupTextMessage(
     content: event.message?.text,
     lineTimestamp: event.timestamp,
   });
+  if (stored) {
+    try {
+      const { scheduleLineGroupInsightRefresh } = await import("./lineAiManager");
+      scheduleLineGroupInsightRefresh(lineGroupId);
+    } catch (error) {
+      console.error("[LINE Agent] Failed to schedule group insight refresh:", error);
+    }
+  }
   if (!stored && !waitForEnrichment) return null;
 
   const enrich = async (): Promise<CapturedGroupProfile> => {

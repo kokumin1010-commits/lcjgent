@@ -1730,8 +1730,8 @@ export default function LineManagement() {
                   </p>
                   <p className="mt-1 text-xs leading-relaxed opacity-80">
                     {language === "ja"
-                      ? "連携済みライブコマーサーが明示的に@LCJした時はAIが返信。会話分析とAIフォローもONなら、保存会話を基に営業時間内に自然なフォローを送ります。"
-                      : "已关联主播明确@LCJ时AI会回复；同时开启群聊分析和AI跟进后，会基于已保存对话在营业时间内自然跟进。"}
+                      ? "会話分析は連携不要で、保存3件目から新着ごとに更新します。実際のAI返信は、連携済みライブコマーサーが明示的に@LCJした場合など既存の安全条件を満たす時だけ送信します。"
+                      : "群聊分析无需关联，从保存第3条起会随新消息持续更新；实际AI回复仅在已关联主播明确@LCJ等既有安全条件满足时发送。"}
                   </p>
                 </div>
                 <Button
@@ -1929,7 +1929,7 @@ export default function LineManagement() {
       <Dialog open={showGroupDetailDialog} onOpenChange={(open) => {
         setShowGroupDetailDialog(open);
       }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
               {selectedGroup?.pictureUrl ? (
@@ -1978,8 +1978,8 @@ export default function LineManagement() {
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {language === "ja"
-                    ? "保存済みグループ会話だけを使用。DM・売上・内部メモはグループ応答に使用しません。"
-                    : "仅使用已保存群聊；不会将私聊、销售额或内部备注用于群内回复。"}
+                    ? "連携状態に関係なく保存済みグループ会話を分析。DM・売上・内部メモは使用しません。"
+                    : "无论是否已关联，均分析已保存群聊；不会使用私聊、销售额或内部备注。"}
                 </p>
               </div>
               <Button
@@ -2057,9 +2057,13 @@ export default function LineManagement() {
               </div>
             ) : (
               <div className="mt-4 rounded-lg border border-dashed bg-background/70 p-4 text-sm text-muted-foreground">
-                {language === "ja"
-                  ? "会話が3件以上保存されると自動でバッチ分析します。すぐ確認する場合は「分析更新」を押してください。"
-                  : "保存3条以上群聊后将自动批量分析；也可点击“更新分析”立即查看。"}
+                {selectedGroup?.analysisEnabled === true
+                  ? (language === "ja"
+                      ? "会話が3件に達すると、連携状況に関係なく自動分析を開始し、その後も新しい会話ごとに更新します。すぐ確認する場合は「分析更新」を押してください。"
+                      : "群聊达到3条后，无论是否已关联都会开始自动分析，之后每有新消息都会更新；也可点击“更新分析”立即查看。")
+                  : (language === "ja"
+                      ? "会話履歴は保存されていますが、自動分析は停止中です。設定から「グループ会話を分析」をONにすると、保存3件目から分析を開始します。"
+                      : "群聊记录仍会保存，但自动分析目前已停止；请在设置中开启“分析群聊”，达到3条后开始分析。")}
               </div>
             )}
           </div>
