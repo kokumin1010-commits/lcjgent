@@ -3516,7 +3516,8 @@ Brand Day関連6ファイルの回帰は17件成功、データベース環境�
 品牌资料读取、编辑、图片上传、商品创建／编辑／发布和品牌发布等服务端操作已统一要求 `active` 品牌成员权限，不能通过直接调用API或深链绕过前端。待确认申请提交后不再自动打开编辑器，也不再宣称可以编辑草稿；后台拒绝或停止的相同账号不能从前台立即重新申请，需联系LCM运营重新确认。公开市场仍只展示 `published` 品牌和商品，不改变既有已发布品牌的公共展示规则。
 
 专项LCM回归7个测试文件共 **60/60** 通过，LCM路由与管理页bundle通过，完整production build成功。全量TypeScript仍有既有 **721** 条诊断，本次修改文件新增诊断为0。
-## 2026-09-21｜LINEグループ会話から確認用AI文案を生成（release候補）
+
+## 2026-09-21｜LINEグループ会話から確認用AI文案を生成（本番反映済み）
 
 `/master/line`のグループ「会話・送信」Dialogへ、`gpt-5-mini`で新しい下書きを作る「AI文案を作る」と、入力済み文の意図を安全な文案へ変換する「安全なAI文案にする」を追加した。生成結果は入力欄へ入れるだけで、生成APIはLINE送信APIを呼ばない。AI文案は「内容を確認しました」を明示操作するまで送信buttonとEnter handlerの両方で拒否し、確認後に1文字でも編集すれば未確認へ戻す。通常の手入力文は従来どおり送信できる。生成中は入力・送信を無効化し、別グループへ移動またはDialogを閉じた後に遅れて返った結果では入力欄を上書きしない。
 
@@ -3527,3 +3528,5 @@ APIはadmin限定かつアクティブグループ限定で、分析OFF、履歴
 文案生成時は親group rowを`FOR UPDATE`して有限windowのmessage選択とrevision snapshotを原子的に取得する。LLM後は同一transactionでgroup、`line_group_settings`、選択された公開商品rowを順にlocking readし、revision・設定・insight・商品／ブランド内容の完全一致時だけ固定composerへ進む。処理中の設定変更、退会→再参加、新着／順不同会話、unsend、インサイト更新、商品変更、非公開→再公開を含む一時的変更でも古い文案を返さない。`line_group_ai_draft_audit`（migration `0151`）へ本文も本文hashも保存せず、管理者ID、グループID、既存下書き有無、状態、モデル、token数、latency、採用商品ID、固定分類error codeだけを記録する。グループ別・管理者別の30秒bucket unique indexで複数Railway replicaからの同時生成も抑止する。
 
 最終focused回帰は8ファイル73件成功。LINE-prefix＋group follow-up回帰は29ファイル297件成功し、残る5ファイル10件はローカルに本番DB、LINE Login／Messaging API secret・token・APP_URLがない既存環境依存である。production build成功（既存`receiptMaskingService.ts`のsharp namespace warningとローカルDB未起動のmigration `ECONNREFUSED`のみ）。8GB heapの全量TypeScriptは既存721件で、今回変更対象・revision実装範囲の新規診断0件。複数回のNO-GO指摘をすべて修正した最終独立再reviewは**GO（release blocker 0件）**。実LINE送信、グループ設定ON、会員・グループデータ変更は行っていない。
+
+機能commit `ca49c60e9fc822e16c52aabbbdd4fe31d9c55631`をGitHub `main`へpushし、GitHub CI success、Railway `Success - www.livecommercefestival.com`を同一SHAで確認した。本番read-only受入では`https://lcjmall.com/api/health/line-ai-manager`がHTTP 200で`{"ok":true,"aiManagerStorage":"ready"}`、`https://lcjmall.com/master/line`がHTTP 200を返した。配信中`LineManagement-DR8Lg53y.js`に「AI文案を作る」「安全なAI文案にする」「内容を確認しました」「AI文案はまだ送信できません」を確認した。実LINE送信、設定変更、会員・グループデータ更新は実施していない。
