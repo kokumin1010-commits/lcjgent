@@ -3573,3 +3573,11 @@ LCM专项回归7个测试文件共 **61/61** 通过，LCM路由与管理页bundl
 独立发布复审发现三项P1后继续加固：经营总览不再按局部品牌组合判断回退，而是计算品牌在全部活动店铺中的真实关联数；只有单品牌且全局唯一时才使用未分配的品牌级广告/达人数据，品牌卡达人指标只汇总店铺卡结果，避免 `[A]` 与 `[A,B]` 店铺并存时重复。店铺创建/归档仅允许系统管理员或拥有店铺管理编辑权限的角色，店铺负责人只能编辑本人负责店铺的普通资料，不能改变品牌关系或负责人分配。达人BD推广方案新增店铺选择及店铺品牌联动，编辑时保留原 `storeId`，多品牌店铺必须明确品牌；服务端同时区分“字段未提交=保留”和“显式null=清除”，避免旧客户端编辑时意外解除店铺关联。
 
 三项P1修复后的第二次独立复审确认相关数据归属、权限和BD编辑链路已闭合，无剩余P0/P1功能阻断；复审指出的新增TS2345也已通过调整动态数据库行的helper输入类型修复。随后使用8GB Node堆复跑全量`pnpm check`，本次新增/修改的多品牌服务端文件诊断为0；全库命令仍因既有其他模块诊断返回2。
+
+## 2026-09-21｜LINEグループ履歴保存表示・全active group自動ON
+
+ユーザー提示のLINEグループ履歴を踏まえ、`/master/line`で履歴保存状態を明示し、既存active groupと今後の新規・再招待groupについて、`@LCJ返信`、会話分析、AI提案、自動追いを既定ONへ変更した。既存groupは`line_group_automation_rollouts`の一意markerをclaimするtransactionで一度だけ更新するため、配備後に管理者が個別OFFへ変更しても再起動時には上書きしない。新規・再招待groupは親group rowと`line_group_settings`を同一transactionでON初期化する。
+
+過去履歴に対する即時一斉送信を防ぐため`line_groups.autoFollowUpEnabledAt`を追加し、follow-up候補・送信直前claimの双方で`lastMessageAt`、`createdAt`、`autoFollowUpEnabledAt`の最大値を共通activity anchorとして使う。独立初回reviewでcandidateが新anchorを計算してもschedulerが旧`lastMessageAt`をclaimへ渡すP1を検出し、候補payloadの`followUpActivityAt`をそのままlocked claimへ渡すよう修正した。ON直前、既定2日経過の1ms前は対象外、境界時刻で対象となるunit testを追加した。最終独立reviewはGO（blocker 0件）。明示的`@LCJ`、連携済み有効ライブコマーサー、営業時間、active、最新会話revision、送信監査・retry key等の既存送信guardは維持している。
+
+グループtextはメンション有無に関係なくLINE message ID一意で返信判定前に保存する。UIには「履歴保存: 有効」と全自動ON案内を表示し、公式LINE参加後の新着だけ保存可能で、参加前の過去会話はLINE Messaging APIから取得できないことをgroup一覧・会話Dialogへ明記した。focused回帰は9ファイル120件成功。LINE関連全体は29ファイル300件成功し、既知の固定repository path、Stripe、LINE Login／Messaging API credentials、APP_URL依存による5ファイル10件だけ失敗。production build成功。全量TypeScriptは既存診断でexit 2だが、今回変更範囲に新規診断はない。実LINE送信・本番DB直接更新は行っていない。

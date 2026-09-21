@@ -36,16 +36,18 @@ const dueGroup = {
   autoFollowUpDays: 2,
   autoFollowUpMessage: "固定文面",
   lastMessageAt: new Date("2026-09-18T00:00:00.000Z"),
+  autoFollowUpEnabledAt: new Date("2026-09-18T12:00:00.000Z"),
+  followUpActivityAt: new Date("2026-09-18T12:00:00.000Z"),
   createdAt: new Date("2026-09-01T00:00:00.000Z"),
-  daysSinceLastMessage: 3,
+  daysSinceLastMessage: 2,
 };
 
 const claimContext = {
   lineGroupId: dueGroup.lineGroupId,
   groupName: dueGroup.groupName,
   autoFollowUpMessage: dueGroup.autoFollowUpMessage,
-  lastActivityAt: dueGroup.lastMessageAt,
-  daysSinceLastMessage: 3,
+  lastActivityAt: dueGroup.followUpActivityAt,
+  daysSinceLastMessage: 2,
   mode: "fixed" as const,
 };
 
@@ -90,7 +92,7 @@ describe("group follow-up scheduler AI safety", () => {
     mocks.withLineGroupFollowUpClaim.mockImplementation(async (params, deliver) => {
       expect(params).toEqual({
         lineGroupId: dueGroup.lineGroupId,
-        expectedLastActivityAt: dueGroup.lastMessageAt,
+        expectedLastActivityAt: dueGroup.followUpActivityAt,
         expectedMode: "ai",
       });
       const result = await deliver({ ...claimContext, mode: "ai" });

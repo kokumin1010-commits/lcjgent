@@ -37,6 +37,8 @@ const LINE_GROUP_INSIGHT_COOLDOWN_MS = 15 * 60 * 1000;
 const LINE_GROUP_INSIGHT_MIN_MESSAGES = 3;
 const LINE_GROUP_INSIGHT_LEASE_MS = 5 * 60 * 1000;
 const LINE_GROUP_DRAFT_COOLDOWN_MS = 30 * 1000;
+const LINE_GROUP_AUTOMATION_DEFAULTS_ROLLOUT = "all_active_groups_auto_on_v1";
+const DEFAULT_LINE_GROUP_RELATIONSHIP_OBJECTIVE = "ライブコマーサーとの信頼を育て、合うLCM商品を自然に紹介できる状態をつくる";
 let aiManagerScheduler: NodeJS.Timeout | null = null;
 let aiManagerRunInProgress = false;
 let lastProactiveSweepAt = 0;
@@ -836,9 +838,9 @@ async function readLineGroupAiInsightUsingExecutor(
     ? new Date(row.groupInsightLastMessageAt)
     : null;
   return {
-    analysisEnabled: row ? Boolean(row.analysisEnabled) : false,
-    proactiveAiEnabled: row ? Boolean(row.proactiveAiEnabled) : false,
-    relationshipObjective: String(row?.relationshipObjective || "ライブコマーサーとの信頼を育て、合うLCM商品を自然に紹介できる状態をつくる"),
+    analysisEnabled: row ? Boolean(row.analysisEnabled) : true,
+    proactiveAiEnabled: row ? Boolean(row.proactiveAiEnabled) : true,
+    relationshipObjective: String(row?.relationshipObjective || DEFAULT_LINE_GROUP_RELATIONSHIP_OBJECTIVE),
     insight: parseStoredLineGroupInsight(row?.groupInsightJson),
     lastAnalyzedMessageAt: lastAnalyzedDate && !Number.isNaN(lastAnalyzedDate.getTime())
       ? lastAnalyzedDate.toISOString()
@@ -2686,6 +2688,68 @@ export function startLineAiManagerScheduler() {
   console.log("[LINE AI Manager] Queue worker started (30 seconds; proactive sweep every 30 minutes)");
 }
 
+function mysqlAffectedRows(result: unknown): number {
+  const value = result as any;
+  return Number(value?.[0]?.affectedRows ?? value?.affectedRows ?? 0);
+}
+
+async function applyLineGroupAutomationDefaultsRolloutUsingDb(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+): Promise<{ applied: boolean; activeGroupCount: number; settingsRowCount: number }> {
+  return db.transaction(async tx => {
+    const claimResult = await tx.execute(sql`
+      INSERT IGNORE INTO line_group_automation_rollouts
+        (rolloutKey, activeGroupCount, settingsRowCount)
+      VALUES
+        (${LINE_GROUP_AUTOMATION_DEFAULTS_ROLLOUT}, 0, 0)
+    `);
+    if (mysqlAffectedRows(claimResult) !== 1) {
+      return { applied: false, activeGroupCount: 0, settingsRowCount: 0 };
+    }
+
+    await tx.execute(sql`
+      UPDATE line_groups
+      SET autoFollowUpEnabled = true,
+          autoFollowUpEnabledAt = CURRENT_TIMESTAMP
+      WHERE isActive = true
+    `);
+    await tx.execute(sql`
+      INSERT INTO line_group_settings
+        (lineGroupId, autoReplyEnabled, analysisEnabled, proactiveAiEnabled, relationshipObjective)
+      SELECT lineGroupId, true, true, true, ${DEFAULT_LINE_GROUP_RELATIONSHIP_OBJECTIVE}
+      FROM line_groups
+      WHERE isActive = true
+      ON DUPLICATE KEY UPDATE
+        autoReplyEnabled = true,
+        analysisEnabled = true,
+        proactiveAiEnabled = true,
+        relationshipObjective = COALESCE(
+          NULLIF(TRIM(line_group_settings.relationshipObjective), ''),
+          VALUES(relationshipObjective)
+        )
+    `);
+    const countResult = await tx.execute(sql`
+      SELECT
+        (SELECT COUNT(*) FROM line_groups WHERE isActive = true) AS activeGroupCount,
+        (SELECT COUNT(*)
+           FROM line_group_settings AS settings
+           INNER JOIN line_groups AS groups ON groups.lineGroupId = settings.lineGroupId
+          WHERE groups.isActive = true) AS settingsRowCount
+    `);
+    const countRow = firstExecuteRow(countResult);
+    const activeGroupCount = Number(countRow?.activeGroupCount || 0);
+    const settingsRowCount = Number(countRow?.settingsRowCount || 0);
+    await tx.execute(sql`
+      UPDATE line_group_automation_rollouts
+      SET activeGroupCount = ${activeGroupCount},
+          settingsRowCount = ${settingsRowCount},
+          appliedAt = CURRENT_TIMESTAMP
+      WHERE rolloutKey = ${LINE_GROUP_AUTOMATION_DEFAULTS_ROLLOUT}
+    `);
+    return { applied: true, activeGroupCount, settingsRowCount };
+  });
+}
+
 export async function ensureLineAiManagerStorage(): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available while ensuring LINE AI manager storage");
@@ -2694,8 +2758,8 @@ export async function ensureLineAiManagerStorage(): Promise<void> {
     \`lineGroupId\` varchar(255) NOT NULL,
     \`autoReplyEnabled\` boolean NOT NULL DEFAULT true,
     \`autoReplyMessage\` text,
-    \`analysisEnabled\` boolean NOT NULL DEFAULT false,
-    \`proactiveAiEnabled\` boolean NOT NULL DEFAULT false,
+    \`analysisEnabled\` boolean NOT NULL DEFAULT true,
+    \`proactiveAiEnabled\` boolean NOT NULL DEFAULT true,
     \`relationshipObjective\` text,
     \`groupInsightJson\` longtext,
     \`groupInsightUpdatedAt\` timestamp NULL,
@@ -2708,8 +2772,8 @@ export async function ensureLineAiManagerStorage(): Promise<void> {
     PRIMARY KEY (\`id\`), UNIQUE KEY \`uq_line_group_settings_group\` (\`lineGroupId\`)
   )`));
   const lineGroupSettingColumns = [
-    "ADD COLUMN `analysisEnabled` boolean NOT NULL DEFAULT false",
-    "ADD COLUMN `proactiveAiEnabled` boolean NOT NULL DEFAULT false",
+    "ADD COLUMN `analysisEnabled` boolean NOT NULL DEFAULT true",
+    "ADD COLUMN `proactiveAiEnabled` boolean NOT NULL DEFAULT true",
     "ADD COLUMN `relationshipObjective` text",
     "ADD COLUMN `groupInsightJson` longtext",
     "ADD COLUMN `groupInsightUpdatedAt` timestamp NULL",
@@ -2731,6 +2795,28 @@ export async function ensureLineAiManagerStorage(): Promise<void> {
     ));
   } catch (error) {
     if (!isDuplicateMysqlColumn(error)) throw error;
+  }
+  try {
+    await db.execute(sql.raw(
+      "ALTER TABLE `line_groups` ADD COLUMN `autoFollowUpEnabledAt` timestamp NULL AFTER `autoFollowUpMessage`",
+    ));
+  } catch (error) {
+    if (!isDuplicateMysqlColumn(error)) throw error;
+  }
+  await db.execute(sql.raw(`CREATE TABLE IF NOT EXISTS \`line_group_automation_rollouts\` (
+    \`rolloutKey\` varchar(100) NOT NULL,
+    \`activeGroupCount\` int NOT NULL DEFAULT 0,
+    \`settingsRowCount\` int NOT NULL DEFAULT 0,
+    \`appliedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (\`rolloutKey\`)
+  )`));
+  const rollout = await applyLineGroupAutomationDefaultsRolloutUsingDb(db);
+  if (rollout.applied) {
+    console.info("[LINE AI Manager] Applied group automation defaults", {
+      code: "LINE_GROUP_AUTOMATION_DEFAULTS_APPLIED",
+      activeGroupCount: rollout.activeGroupCount,
+      settingsRowCount: rollout.settingsRowCount,
+    });
   }
   await db.execute(sql.raw(`CREATE TABLE IF NOT EXISTS \`line_ai_manager_settings\` (
     \`id\` int AUTO_INCREMENT NOT NULL,
@@ -2807,12 +2893,18 @@ export async function checkLineAiManagerStorage(): Promise<boolean> {
   await db.select({
     lineGroupId: lineGroups.lineGroupId,
     conversationRevision: lineGroups.conversationRevision,
+    autoFollowUpEnabledAt: lineGroups.autoFollowUpEnabledAt,
   }).from(lineGroups).limit(1);
   await db.execute(sql`
     SELECT lineGroupId, analysisEnabled, proactiveAiEnabled, relationshipObjective,
       groupInsightJson, groupInsightUpdatedAt, groupInsightLastMessageAt,
       groupInsightMessageCount, groupInsightLeaseToken, groupInsightLeaseExpiresAt
     FROM line_group_settings
+    LIMIT 1
+  `);
+  await db.execute(sql`
+    SELECT rolloutKey, activeGroupCount, settingsRowCount, appliedAt
+    FROM line_group_automation_rollouts
     LIMIT 1
   `);
   await db.select({
@@ -2949,6 +3041,7 @@ export async function checkLineAiManagerStorage(): Promise<boolean> {
 
 export const LINE_AI_MANAGER_MODEL = AI_MANAGER_MODEL;
 export const __lineAiManagerTestUtils = {
+  applyLineGroupAutomationDefaultsRolloutUsingDb,
   normalizeTikTokUsername,
   sanitizeForAi,
   sanitizeGroupMessageForAi,

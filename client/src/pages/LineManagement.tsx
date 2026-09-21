@@ -57,12 +57,12 @@ export default function LineManagement() {
   const [leavingGroupName, setLeavingGroupName] = useState<string>("");
   const [showAutoFollowUpDialog, setShowAutoFollowUpDialog] = useState(false);
   const [editingGroup, setEditingGroup] = useState<any>(null);
-  const [autoFollowUpEnabled, setAutoFollowUpEnabled] = useState(false);
+  const [autoFollowUpEnabled, setAutoFollowUpEnabled] = useState(true);
   const [autoFollowUpDays, setAutoFollowUpDays] = useState("2");
   const [autoFollowUpMessage, setAutoFollowUpMessage] = useState("");
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(true);
-  const [analysisEnabled, setAnalysisEnabled] = useState(false);
-  const [proactiveAiEnabled, setProactiveAiEnabled] = useState(false);
+  const [analysisEnabled, setAnalysisEnabled] = useState(true);
+  const [proactiveAiEnabled, setProactiveAiEnabled] = useState(true);
   const [relationshipObjective, setRelationshipObjective] = useState("");
   const [showGroupDetailDialog, setShowGroupDetailDialog] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
@@ -1086,6 +1086,21 @@ export default function LineManagement() {
 
         {/* Groups Tab */}
         <TabsContent value="groups" className="space-y-4">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
+            <div className="flex items-start gap-3">
+              <History className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+              <div>
+                <p className="font-semibold">
+                  {language === "ja" ? "履歴保存・@LCJ返信・会話分析・AI自動追いは既定でONです" : "聊天记录、@LCJ回复、群聊分析和AI自动跟进默认开启"}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed opacity-85">
+                  {language === "ja"
+                    ? "公式LINEをグループへ招待した後の新着メッセージを自動保存します。LINE APIの仕様上、招待前の過去メッセージは取得できません。自動返信は連携済みライブコマーサーが明示的に@LCJした時だけです。"
+                    : "官方LINE加入群聊后会自动保存新消息。受LINE API限制，加入前的历史消息无法取得。自动回复仅在已关联主播明确@LCJ时触发。"}
+                </p>
+              </div>
+            </div>
+          </div>
           {loadingGroups ? (
             <div className="text-center py-8 text-muted-foreground">
               {language === "ja" ? "読み込み中..." : "加载中..."}
@@ -1149,6 +1164,10 @@ export default function LineManagement() {
                         <Calendar className="h-3 w-3" />
                         {language === "ja" ? "登録: " : "注册: "}
                         {format(new Date(group.createdAt), "yyyy/MM/dd")}
+                      </div>
+                      <div className="flex items-center gap-2 text-emerald-600">
+                        <History className="h-3 w-3" />
+                        <span>{language === "ja" ? "履歴保存: 有効" : "聊天记录: 开启"}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         {group.autoFollowUpEnabled ? (
@@ -1224,12 +1243,12 @@ export default function LineManagement() {
                         onClick={(e) => {
                           e.stopPropagation();
                           setEditingGroup(group);
-                          setAutoFollowUpEnabled(group.autoFollowUpEnabled || false);
+                          setAutoFollowUpEnabled(group.autoFollowUpEnabled !== false);
                           setAutoFollowUpDays(String(group.autoFollowUpDays || 2));
                           setAutoReplyEnabled(group.autoReplyEnabled !== false);
                           setAutoFollowUpMessage(group.autoFollowUpMessage || "");
-                          setAnalysisEnabled(group.analysisEnabled === true);
-                          setProactiveAiEnabled(Boolean(group.proactiveAiEnabled));
+                          setAnalysisEnabled(group.analysisEnabled !== false);
+                          setProactiveAiEnabled(group.proactiveAiEnabled !== false);
                           setRelationshipObjective(group.relationshipObjective || "");
                           setShowAutoFollowUpDialog(true);
                         }}
@@ -1753,8 +1772,8 @@ export default function LineManagement() {
                 <span>{language === "ja" ? "グループ会話を分析" : "分析群聊"}</span>
                 <span className="text-xs text-muted-foreground font-normal">
                   {language === "ja"
-                    ? "初期OFF。参加者へ利用目的を案内したうえで有効化すると、保存会話をサーバー内で有限シグナルへ縮約して分析"
-                    : "默认关闭。请先向群成员说明用途；启用后，仅在服务器内将已保存对话归纳为有限信号进行分析"}
+                      ? "既定ON。参加者へ利用目的を案内し、保存会話をサーバー内で有限シグナルへ縮約して分析。不要なグループだけOFFにできます"
+                      : "默认开启。请向群成员说明用途；保存的对话仅在服务器内归纳为有限信号。不需要的群可单独关闭"}
                 </span>
               </Label>
               <Switch
@@ -1784,8 +1803,8 @@ export default function LineManagement() {
                     <span>{language === "ja" ? "分析したAI提案を自動追いに使用" : "将AI分析建议用于自动跟进"}</span>
                     <span className="text-xs text-muted-foreground font-normal">
                       {language === "ja"
-                        ? "初期値OFF。下の自動追いもONの時だけ、営業時間内・無活動日数後に送信"
-                        : "默认关闭；仅在下方自动跟进也开启时，于营业时间内发送"}
+                        ? "既定ON。下の自動追いもONの時だけ、営業時間内・無活動日数後に送信"
+                        : "默认开启；仅在下方自动跟进也开启时，于营业时间内发送"}
                     </span>
                   </Label>
                   <Switch
@@ -2061,6 +2080,11 @@ export default function LineManagement() {
               {language === "ja" ? "履歴更新" : "更新记录"}
             </Button>
           </div>
+          <p className="-mt-1 text-xs text-muted-foreground">
+            {language === "ja"
+              ? "公式LINEが参加した後に受信した会話を自動保存します。参加前の過去メッセージはLINE APIから取得できません。"
+              : "自动保存官方LINE加入群聊后收到的消息；加入前的历史消息无法通过LINE API取得。"}
+          </p>
           <div className="flex-1 overflow-y-auto border rounded-lg p-4 bg-muted/30 min-h-[280px] max-h-[420px]">
             {loadingGroupMessages ? (
               <div className="flex items-center justify-center h-full">
@@ -2259,12 +2283,12 @@ export default function LineManagement() {
               variant="outline"
               onClick={() => {
                 setEditingGroup(selectedGroup);
-                setAutoFollowUpEnabled(selectedGroup?.autoFollowUpEnabled || false);
+                setAutoFollowUpEnabled(selectedGroup?.autoFollowUpEnabled !== false);
                 setAutoFollowUpDays(String(selectedGroup?.autoFollowUpDays || 2));
                 setAutoFollowUpMessage(selectedGroup?.autoFollowUpMessage || "");
                 setAutoReplyEnabled(selectedGroup?.autoReplyEnabled !== false);
-                setAnalysisEnabled(selectedGroup?.analysisEnabled === true);
-                setProactiveAiEnabled(Boolean(selectedGroup?.proactiveAiEnabled));
+                setAnalysisEnabled(selectedGroup?.analysisEnabled !== false);
+                setProactiveAiEnabled(selectedGroup?.proactiveAiEnabled !== false);
                 setRelationshipObjective(selectedGroup?.relationshipObjective || "");
                 setShowGroupDetailDialog(false);
                 setShowAutoFollowUpDialog(true);

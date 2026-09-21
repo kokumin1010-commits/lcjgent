@@ -13680,7 +13680,7 @@ ${conversationText}
           settingsMap.set(row.lineGroupId, { 
             autoReplyEnabled: Boolean(row.autoReplyEnabled), 
             autoReplyMessage: row.autoReplyMessage || "",
-            analysisEnabled: row.analysisEnabled === undefined ? false : Boolean(row.analysisEnabled),
+            analysisEnabled: row.analysisEnabled === undefined ? true : Boolean(row.analysisEnabled),
             proactiveAiEnabled: Boolean(row.proactiveAiEnabled),
             relationshipObjective: row.relationshipObjective || "",
             groupInsight,
@@ -13692,8 +13692,8 @@ ${conversationText}
         ...g,
         autoReplyEnabled: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.autoReplyEnabled : true,
         autoReplyMessage: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.autoReplyMessage : "",
-        analysisEnabled: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.analysisEnabled : false,
-        proactiveAiEnabled: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.proactiveAiEnabled : false,
+        analysisEnabled: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.analysisEnabled : true,
+        proactiveAiEnabled: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.proactiveAiEnabled : true,
         relationshipObjective: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.relationshipObjective : "",
         groupInsight: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.groupInsight : null,
         groupInsightUpdatedAt: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.groupInsightUpdatedAt : null,
@@ -14134,7 +14134,7 @@ ${conversationText}
 
         await sdb.transaction(async tx => {
           const lockedGroupResult: any = await tx.execute(sql`
-            SELECT lineGroupId, isActive, autoFollowUpEnabled
+            SELECT lineGroupId, isActive, autoFollowUpEnabled, autoFollowUpEnabledAt
             FROM line_groups
             WHERE lineGroupId = ${input.lineGroupId}
             LIMIT 1
@@ -14199,10 +14199,18 @@ ${conversationText}
             input.autoFollowUpDays !== undefined ||
             input.autoFollowUpMessage !== undefined
           ) {
+            const autoFollowUpEnabledAt = input.autoFollowUpEnabled === undefined
+              ? undefined
+              : input.autoFollowUpEnabled
+                ? (Number(lockedGroup.autoFollowUpEnabled) === 1 && lockedGroup.autoFollowUpEnabledAt
+                    ? new Date(lockedGroup.autoFollowUpEnabledAt)
+                    : new Date())
+                : null;
             await tx.update(lineGroups).set({
               autoFollowUpEnabled: input.autoFollowUpEnabled,
               autoFollowUpDays: input.autoFollowUpDays,
               autoFollowUpMessage: input.autoFollowUpMessage,
+              autoFollowUpEnabledAt,
             }).where(eq(lineGroups.lineGroupId, input.lineGroupId));
           }
         });
@@ -14238,8 +14246,8 @@ ${conversationText}
         const row = rows?.[0]?.[0];
         return {
           autoReplyEnabled: row ? Boolean(row.autoReplyEnabled) : true,
-          analysisEnabled: row ? Boolean(row.analysisEnabled) : false,
-          proactiveAiEnabled: row ? Boolean(row.proactiveAiEnabled) : false,
+          analysisEnabled: row ? Boolean(row.analysisEnabled) : true,
+          proactiveAiEnabled: row ? Boolean(row.proactiveAiEnabled) : true,
           relationshipObjective: row?.relationshipObjective || "",
         };
       }),

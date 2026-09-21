@@ -15,6 +15,7 @@ const {
   getLineGroupDraftProductRevision,
   getLineGroupDraftSettingsRevision,
   assertLineGroupDraftConversationSnapshotCurrent,
+  applyLineGroupAutomationDefaultsRolloutUsingDb,
   isLineGroupInsightCurrent,
   reserveLineGroupDraftAuditWithDb,
   parseAiManagerReply,
@@ -320,6 +321,36 @@ describe("LCJ LINE AI manager", () => {
         throw Object.assign(new Error("duplicate"), { code: "ER_DUP_ENTRY", errno: 1062 });
       }),
     }, params, 1_789_960_000_000)).rejects.toThrow("LINE_GROUP_AI_DRAFT_RATE_LIMITED");
+  });
+
+  it("applies automatic group defaults once and records the rollout counts", async () => {
+    const execute = vi.fn()
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([{ affectedRows: 4 }])
+      .mockResolvedValueOnce([{ affectedRows: 4 }])
+      .mockResolvedValueOnce([[{ activeGroupCount: 4, settingsRowCount: 4 }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+    const db = {
+      transaction: vi.fn(async (callback: (tx: { execute: typeof execute }) => Promise<unknown>) => callback({ execute })),
+    };
+
+    await expect(applyLineGroupAutomationDefaultsRolloutUsingDb(db as any)).resolves.toEqual({
+      applied: true,
+      activeGroupCount: 4,
+      settingsRowCount: 4,
+    });
+    expect(execute).toHaveBeenCalledTimes(5);
+
+    const alreadyClaimedExecute = vi.fn().mockResolvedValueOnce([{ affectedRows: 0 }]);
+    const alreadyClaimedDb = {
+      transaction: vi.fn(async (callback: (tx: { execute: typeof alreadyClaimedExecute }) => Promise<unknown>) => callback({ execute: alreadyClaimedExecute })),
+    };
+    await expect(applyLineGroupAutomationDefaultsRolloutUsingDb(alreadyClaimedDb as any)).resolves.toEqual({
+      applied: false,
+      activeGroupCount: 0,
+      settingsRowCount: 0,
+    });
+    expect(alreadyClaimedExecute).toHaveBeenCalledTimes(1);
   });
 
   it("omits Japanese addresses, labeled identities and third-party names from group AI input", () => {

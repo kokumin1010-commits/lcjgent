@@ -50,6 +50,45 @@ function createAuditDb(options?: {
   };
 }
 
+describe("LINE group automatic follow-up grace period", () => {
+  it("uses the newest of message, creation, and automation-enabled timestamps", () => {
+    expect(__lineDbTestUtils.getLineGroupFollowUpActivityAt({
+      createdAt: "2026-09-01T00:00:00.000Z",
+      lastMessageAt: "2026-09-10T00:00:00.000Z",
+      autoFollowUpEnabledAt: "2026-09-21T08:00:00.000Z",
+    }).toISOString()).toBe("2026-09-21T08:00:00.000Z");
+
+    expect(__lineDbTestUtils.getLineGroupFollowUpActivityAt({
+      createdAt: "2026-09-01T00:00:00.000Z",
+      lastMessageAt: "2026-09-22T00:00:00.000Z",
+      autoFollowUpEnabledAt: "2026-09-21T08:00:00.000Z",
+    }).toISOString()).toBe("2026-09-22T00:00:00.000Z");
+  });
+
+  it("waits the full configured period after automatic enablement before becoming eligible", () => {
+    const group = {
+      createdAt: "2026-08-01T00:00:00.000Z",
+      lastMessageAt: "2026-09-01T00:00:00.000Z",
+      autoFollowUpEnabledAt: "2026-09-21T08:00:00.000Z",
+      autoFollowUpDays: 2,
+      lastAutoFollowUpAt: null,
+    };
+    const before = __lineDbTestUtils.getLineGroupFollowUpEligibility(
+      group,
+      new Date("2026-09-23T07:59:59.999Z"),
+    );
+    expect(before.eligible).toBe(false);
+    expect(before.lastActivityAt.toISOString()).toBe("2026-09-21T08:00:00.000Z");
+
+    const after = __lineDbTestUtils.getLineGroupFollowUpEligibility(
+      group,
+      new Date("2026-09-23T08:00:00.000Z"),
+    );
+    expect(after.eligible).toBe(true);
+    expect(after.lastActivityAt.toISOString()).toBe("2026-09-21T08:00:00.000Z");
+  });
+});
+
 describe("LINE outbound audit reliability", () => {
   it("finalizes only a pending audit row", async () => {
     const updateWhere = vi.fn(async () => [{ affectedRows: 1 }]);
@@ -111,9 +150,10 @@ describe("LINE outbound audit reliability", () => {
       direction: "outgoing",
       responseStatus: "pending",
     }));
-    expect(fake.execute).toHaveBeenCalledTimes(3);
+    expect(fake.execute).toHaveBeenCalledTimes(4);
     expect(fake.execute.mock.invocationCallOrder[1]).toBeLessThan(fake.values.mock.invocationCallOrder[0]);
-    expect(fake.values.mock.invocationCallOrder[0]).toBeLessThan(fake.execute.mock.invocationCallOrder[2]);
+    expect(fake.execute.mock.invocationCallOrder[2]).toBeLessThan(fake.values.mock.invocationCallOrder[0]);
+    expect(fake.values.mock.invocationCallOrder[0]).toBeLessThan(fake.execute.mock.invocationCallOrder[3]);
     expect(fake.transaction).toHaveBeenCalledTimes(1);
   });
 
@@ -134,7 +174,7 @@ describe("LINE outbound audit reliability", () => {
       created: false,
       status: "responded",
     });
-    expect(fake.execute).toHaveBeenCalledTimes(2);
+    expect(fake.execute).toHaveBeenCalledTimes(3);
   });
 
   it("rejects the same request UUID with different content or target", async () => {
@@ -382,9 +422,10 @@ describe("LINE group inbound persistence and activity", () => {
     await expect(__lineDbTestUtils.saveLineGroupInboundMessageAndActivityWithDb(fake.db, data))
       .resolves.toEqual({ id: 77, ...data });
     expect(fake.transaction).toHaveBeenCalledTimes(1);
-    expect(fake.execute).toHaveBeenCalledTimes(3);
+    expect(fake.execute).toHaveBeenCalledTimes(4);
     expect(fake.execute.mock.invocationCallOrder[1]).toBeLessThan(fake.values.mock.invocationCallOrder[0]);
-    expect(fake.values.mock.invocationCallOrder[0]).toBeLessThan(fake.execute.mock.invocationCallOrder[2]);
+    expect(fake.execute.mock.invocationCallOrder[2]).toBeLessThan(fake.values.mock.invocationCallOrder[0]);
+    expect(fake.values.mock.invocationCallOrder[0]).toBeLessThan(fake.execute.mock.invocationCallOrder[3]);
   });
 
   it("does not move activity for a duplicate webhook message", async () => {
@@ -397,7 +438,7 @@ describe("LINE group inbound persistence and activity", () => {
       content: "再配信",
       lineTimestamp: Date.parse("2026-09-20T02:00:00.000Z"),
     })).resolves.toBeNull();
-    expect(fake.execute).toHaveBeenCalledTimes(2);
+    expect(fake.execute).toHaveBeenCalledTimes(3);
   });
 });
 

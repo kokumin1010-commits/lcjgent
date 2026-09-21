@@ -133,7 +133,7 @@ export async function checkAndSendGroupFollowUps(): Promise<{
         }
         const claim = await withLineGroupFollowUpClaim({
           lineGroupId: group.lineGroupId,
-          expectedLastActivityAt: group.lastMessageAt || group.createdAt,
+          expectedLastActivityAt: group.followUpActivityAt,
           expectedMode,
         }, async current => {
           const message = current.mode === "ai"

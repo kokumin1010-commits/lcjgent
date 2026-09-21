@@ -259,6 +259,25 @@ async function main() {
       await connection.execute(statement);
     }
     console.log(`[Migration] Managed store multi-brand relations ensured (${storeBrandStatements.length} statements).`);
+
+    console.log('[Migration] Ensuring LINE group automation defaults...');
+    const lineGroupAutomationMigrationPath = path.join(__dirname, 'drizzle', '0154_line_group_automation_defaults.sql');
+    const lineGroupAutomationSql = await fs.readFile(lineGroupAutomationMigrationPath, 'utf8');
+    const lineGroupAutomationStatements = lineGroupAutomationSql
+      .split('--> statement-breakpoint')
+      .map(statement => statement.trim())
+      .filter(Boolean);
+    for (const statement of lineGroupAutomationStatements) {
+      try {
+        await connection.execute(statement);
+      } catch (error) {
+        if (!isDuplicateMysqlColumn(error)) throw error;
+      }
+    }
+    await ensureMysqlColumns(connection, 'line_groups', [
+      { name: 'autoFollowUpEnabledAt', definition: 'timestamp NULL AFTER `autoFollowUpMessage`' },
+    ]);
+    console.log(`[Migration] LINE group automation defaults ensured (${lineGroupAutomationStatements.length} statements).`);
   } catch (fallbackErr) {
     console.error('[Migration] Fallback error:', fallbackErr.message);
   } finally {

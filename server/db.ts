@@ -3465,17 +3465,42 @@ export async function createOrUpdateLineGroup(data: {
       .where(eq(lineGroups.lineGroupId, data.lineGroupId));
     return existing[0];
   } else {
-    // New groups must explicitly opt in before any proactive message is sent.
-    const result = await db.insert(lineGroups).values({
-      lineGroupId: data.lineGroupId,
-      groupName: data.groupName,
-      pictureUrl: data.pictureUrl,
-      brandId: data.brandId,
-      autoFollowUpEnabled: false,
-      autoFollowUpDays: 2, // Default to 2 days
-      lastMessageAt: new Date(), // Set initial lastMessageAt to now
+    const enabledAt = new Date();
+    const result = await db.transaction(async tx => {
+      const inserted = await tx.insert(lineGroups).values({
+        lineGroupId: data.lineGroupId,
+        groupName: data.groupName,
+        pictureUrl: data.pictureUrl,
+        brandId: data.brandId,
+        autoFollowUpEnabled: true,
+        autoFollowUpDays: 2,
+        autoFollowUpEnabledAt: enabledAt,
+        lastMessageAt: enabledAt,
+      });
+      await tx.execute(sql`
+        INSERT INTO line_group_settings
+          (lineGroupId, autoReplyEnabled, analysisEnabled, proactiveAiEnabled, relationshipObjective)
+        VALUES
+          (${data.lineGroupId}, true, true, true,
+           'ライブコマーサーとの信頼を育て、合うLCM商品を自然に紹介できる状態をつくる')
+        ON DUPLICATE KEY UPDATE
+          autoReplyEnabled = true,
+          analysisEnabled = true,
+          proactiveAiEnabled = true,
+          relationshipObjective = COALESCE(
+            NULLIF(TRIM(line_group_settings.relationshipObjective), ''),
+            VALUES(relationshipObjective)
+          )
+      `);
+      return inserted;
     });
-    return { id: result[0].insertId, ...data, autoFollowUpEnabled: false, autoFollowUpDays: 2 };
+    return {
+      id: result[0].insertId,
+      ...data,
+      autoFollowUpEnabled: true,
+      autoFollowUpDays: 2,
+      autoFollowUpEnabledAt: enabledAt,
+    };
   }
 }
 
@@ -3555,8 +3580,30 @@ export async function updateLineGroupActive(
 
     await tx
       .update(lineGroups)
-      .set({ isActive })
+      .set(isActive ? {
+        isActive: true,
+        autoFollowUpEnabled: true,
+        autoFollowUpEnabledAt: new Date(),
+      } : { isActive: false })
       .where(eq(lineGroups.lineGroupId, lineGroupId));
+
+    if (isActive) {
+      await tx.execute(sql`
+        INSERT INTO line_group_settings
+          (lineGroupId, autoReplyEnabled, analysisEnabled, proactiveAiEnabled, relationshipObjective)
+        VALUES
+          (${lineGroupId}, true, true, true,
+           'ライブコマーサーとの信頼を育て、合うLCM商品を自然に紹介できる状態をつくる')
+        ON DUPLICATE KEY UPDATE
+          autoReplyEnabled = true,
+          analysisEnabled = true,
+          proactiveAiEnabled = true,
+          relationshipObjective = COALESCE(
+            NULLIF(TRIM(line_group_settings.relationshipObjective), ''),
+            VALUES(relationshipObjective)
+          )
+      `);
+    }
 
     return true;
   });
@@ -3637,11 +3684,51 @@ export async function updateLineGroupAutoFollowUp(lineGroupId: string, settings:
 }) {
   const db = await getDb();
   if (!db) return;
-  
+  const nextSettings = settings.autoFollowUpEnabled === undefined
+    ? settings
+    : {
+        ...settings,
+        autoFollowUpEnabledAt: settings.autoFollowUpEnabled ? new Date() : null,
+      };
   await db
     .update(lineGroups)
-    .set(settings)
+    .set(nextSettings)
     .where(eq(lineGroups.lineGroupId, lineGroupId));
+}
+
+function getLineGroupFollowUpActivityAt(group: {
+  lastMessageAt?: Date | string | number | null;
+  createdAt?: Date | string | number | null;
+  autoFollowUpEnabledAt?: Date | string | number | null;
+}): Date {
+  const candidates = [group.lastMessageAt, group.createdAt, group.autoFollowUpEnabledAt]
+    .map(value => value == null ? Number.NaN : new Date(value).getTime())
+    .filter(Number.isFinite);
+  return new Date(candidates.length > 0 ? Math.max(...candidates) : Date.now());
+}
+
+function getLineGroupFollowUpEligibility(group: {
+  lastMessageAt?: Date | string | number | null;
+  createdAt?: Date | string | number | null;
+  autoFollowUpEnabledAt?: Date | string | number | null;
+  lastAutoFollowUpAt?: Date | string | number | null;
+  autoFollowUpDays?: number | null;
+}, now = new Date()): {
+  eligible: boolean;
+  lastActivityAt: Date;
+  daysSinceLastMessage: number;
+} {
+  const lastActivityAt = getLineGroupFollowUpActivityAt(group);
+  const inactiveDays = group.autoFollowUpDays || 2;
+  const daysSinceLastMessage = Math.floor(
+    (now.getTime() - lastActivityAt.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  const lastFollowUpAt = group.lastAutoFollowUpAt ? new Date(group.lastAutoFollowUpAt) : null;
+  return {
+    eligible: daysSinceLastMessage >= inactiveDays && (!lastFollowUpAt || lastFollowUpAt < lastActivityAt),
+    lastActivityAt,
+    daysSinceLastMessage,
+  };
 }
 
 // Get groups that need auto follow-up (inactive for X days)
@@ -3686,24 +3773,13 @@ export async function getGroupsNeedingFollowUp() {
       continue;
     }
     
-    const inactiveDays = group.autoFollowUpDays || 2;
-    const lastActivity = group.lastMessageAt || group.createdAt;
-    const lastFollowUp = group.lastAutoFollowUpAt;
-    
-    // Calculate days since last message
-    const daysSinceLastMessage = Math.floor(
-      (now.getTime() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24)
-    );
-    
-    // Check if we need to send follow-up
-    if (daysSinceLastMessage >= inactiveDays) {
-      // Don't send if we already sent a follow-up recently (within the same inactive period)
-      if (!lastFollowUp || new Date(lastFollowUp) < new Date(lastActivity)) {
-        groupsNeedingFollowUp.push({
-          ...group,
-          daysSinceLastMessage,
-        });
-      }
+    const eligibility = getLineGroupFollowUpEligibility(group, now);
+    if (eligibility.eligible) {
+      groupsNeedingFollowUp.push({
+        ...group,
+        followUpActivityAt: eligibility.lastActivityAt,
+        daysSinceLastMessage: eligibility.daysSinceLastMessage,
+      });
     }
   }
   
@@ -3751,7 +3827,7 @@ async function withLineGroupFollowUpClaimUsingDb<T>(
   const claim = await db.transaction(async tx => {
     const groupResult = await tx.execute(sql`
       SELECT lineGroupId, groupName, isActive, autoFollowUpEnabled,
-        autoFollowUpDays, autoFollowUpMessage, lastAutoFollowUpAt,
+        autoFollowUpDays, autoFollowUpMessage, autoFollowUpEnabledAt, lastAutoFollowUpAt,
         lastMessageAt, createdAt
       FROM line_groups
       WHERE lineGroupId = ${params.lineGroupId}
@@ -3763,7 +3839,7 @@ async function withLineGroupFollowUpClaimUsingDb<T>(
       return { claimed: false as const, reason: "group_inactive_or_opted_out" };
     }
 
-    const lastActivityAt = new Date(group.lastMessageAt || group.createdAt);
+    const lastActivityAt = getLineGroupFollowUpActivityAt(group);
     const currentActivityMs = lineGroupClaimTime(lastActivityAt);
     const expectedActivityMs = lineGroupClaimTime(params.expectedLastActivityAt);
     if (
@@ -3893,9 +3969,9 @@ export async function lockLineGroupConversationUsingExecutor(
   if (ensureRow) {
     await executor.execute(sql`
       INSERT IGNORE INTO line_groups
-        (lineGroupId, groupName, isActive, notificationsEnabled, autoFollowUpEnabled)
+        (lineGroupId, groupName, isActive, notificationsEnabled, autoFollowUpEnabled, autoFollowUpEnabledAt)
       VALUES
-        (${lineGroupId}, 'LINE Group', true, true, false)
+        (${lineGroupId}, 'LINE Group', true, true, true, CURRENT_TIMESTAMP)
     `);
   }
   const lockedResult = await executor.execute(sql`
@@ -3907,6 +3983,16 @@ export async function lockLineGroupConversationUsingExecutor(
   `);
   if (!firstLineGroupClaimRow(lockedResult)) {
     throw new Error("LINE_GROUP_CONVERSATION_LOCK_UNAVAILABLE");
+  }
+  if (ensureRow) {
+    await executor.execute(sql`
+      INSERT INTO line_group_settings
+        (lineGroupId, autoReplyEnabled, analysisEnabled, proactiveAiEnabled, relationshipObjective)
+      VALUES
+        (${lineGroupId}, true, true, true,
+         'ライブコマーサーとの信頼を育て、合うLCM商品を自然に紹介できる状態をつくる')
+      ON DUPLICATE KEY UPDATE lineGroupId = VALUES(lineGroupId)
+    `);
   }
 }
 
@@ -4173,6 +4259,8 @@ export async function finalizeLineOutgoingAudit(
 export const __lineDbTestUtils = {
   createLineFollowUpWithDb,
   finalizeLineOutgoingAuditWithDb,
+  getLineGroupFollowUpActivityAt,
+  getLineGroupFollowUpEligibility,
   redactLineMessageByMessageIdWithDb,
   reserveLineOutgoingAuditWithDb,
   saveLineGroupInboundMessageAndActivityWithDb,

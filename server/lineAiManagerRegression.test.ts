@@ -16,6 +16,7 @@ const schema = read("drizzle/schema.ts");
 const migration = read("drizzle/0145_line_ai_manager.sql");
 const groupInsightMigration = read("drizzle/0147_line_group_ai_insights.sql");
 const groupDraftAuditMigration = read("drizzle/0151_line_group_ai_draft_audit.sql");
+const groupAutomationMigration = read("drizzle/0154_line_group_automation_defaults.sql");
 const migrationRunner = read("run-migrations.mjs");
 const ui = read("client/src/pages/LineManagement.tsx");
 const messaging = read("server/_core/lineMessaging.ts");
@@ -80,7 +81,7 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     );
   });
 
-  it("batches group insight analysis and keeps proactive AI sending opt-in", () => {
+  it("batches group insight analysis and keeps default-on proactive sending guarded", () => {
     expect(manager).toContain("LINE_GROUP_INSIGHT_SWEEP_MS = 5 * 60 * 1000");
     expect(manager).toContain("LINE_GROUP_INSIGHT_COOLDOWN_MS = 15 * 60 * 1000");
     expect(manager).toContain("refreshOneLineGroupInsight");
@@ -100,8 +101,8 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(groupInsightMigration).toContain("`groupInsightLeaseExpiresAt` timestamp NULL");
     expect(groupInsightMigration).not.toContain("ADD COLUMN IF NOT EXISTS");
     expect(manager).toContain("センシティブ属性・性格・親密度を推測しない");
-    expect(groupInsightMigration).toContain("`analysisEnabled` boolean NOT NULL DEFAULT false");
-    expect(groupInsightMigration).toContain("`proactiveAiEnabled` boolean NOT NULL DEFAULT false");
+    expect(groupAutomationMigration).toContain("MODIFY COLUMN `analysisEnabled` boolean NOT NULL DEFAULT true");
+    expect(groupAutomationMigration).toContain("MODIFY COLUMN `proactiveAiEnabled` boolean NOT NULL DEFAULT true");
     const groupAnalysis = manager.slice(
       manager.indexOf("export async function analyzeLineGroupConversation"),
       manager.indexOf("async function buildAiManagerContext"),
@@ -138,9 +139,20 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(db).toContain("FOR UPDATE");
     expect(db).toContain('reason: "group_activity_changed"');
     expect(db).toContain('reason: "follow_up_mode_changed"');
-    expect(schema).toContain('autoFollowUpEnabled: boolean("autoFollowUpEnabled").default(false)');
-    expect(db).toContain("autoFollowUpEnabled: false");
-    expect(db).not.toContain("autoFollowUpEnabled: true, // Enable auto follow-up by default");
+    expect(schema).toContain('autoFollowUpEnabled: boolean("autoFollowUpEnabled").default(true)');
+    expect(schema).toContain('autoFollowUpEnabledAt: timestamp("autoFollowUpEnabledAt")');
+    expect(db).toContain("autoFollowUpEnabled: true");
+    expect(db).toContain("getLineGroupFollowUpActivityAt(group)");
+    expect(db).toContain("followUpActivityAt: eligibility.lastActivityAt");
+    expect(groupFollowUp).toContain("expectedLastActivityAt: group.followUpActivityAt");
+    expect(manager).toContain('LINE_GROUP_AUTOMATION_DEFAULTS_ROLLOUT = "all_active_groups_auto_on_v1"');
+    expect(manager).toContain("INSERT IGNORE INTO line_group_automation_rollouts");
+    expect(manager).toContain("autoReplyEnabled = true");
+    expect(manager).toContain("analysisEnabled = true");
+    expect(manager).toContain("proactiveAiEnabled = true");
+    expect(migrationRunner).toContain("0154_line_group_automation_defaults.sql");
+    expect(ui).toContain("履歴保存・@LCJ返信・会話分析・AI自動追いは既定でONです");
+    expect(ui).toContain("LINE APIの仕様上、招待前の過去メッセージは取得できません");
   });
 
   it("persists unique processing events before an AI reply is generated", () => {

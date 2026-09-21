@@ -7,8 +7,8 @@ export async function createLineGroupSettings(db: MySql2Database<any>) {
       lineGroupId VARCHAR(255) NOT NULL UNIQUE,
       autoReplyEnabled BOOLEAN NOT NULL DEFAULT TRUE,
       autoReplyMessage TEXT,
-      analysisEnabled BOOLEAN NOT NULL DEFAULT FALSE,
-      proactiveAiEnabled BOOLEAN NOT NULL DEFAULT FALSE,
+      analysisEnabled BOOLEAN NOT NULL DEFAULT TRUE,
+      proactiveAiEnabled BOOLEAN NOT NULL DEFAULT TRUE,
       relationshipObjective TEXT,
       groupInsightJson LONGTEXT,
       groupInsightUpdatedAt TIMESTAMP NULL,
@@ -22,8 +22,8 @@ export async function createLineGroupSettings(db: MySql2Database<any>) {
   `);
   // Add autoReplyMessage column if it doesn't exist (safe for existing tables)
   await db.execute(sql`ALTER TABLE line_group_settings ADD COLUMN IF NOT EXISTS autoReplyMessage TEXT`).catch(() => {});
-  await db.execute(sql`ALTER TABLE line_group_settings ADD COLUMN IF NOT EXISTS analysisEnabled BOOLEAN NOT NULL DEFAULT FALSE`).catch(() => {});
-  await db.execute(sql`ALTER TABLE line_group_settings ADD COLUMN IF NOT EXISTS proactiveAiEnabled BOOLEAN NOT NULL DEFAULT FALSE`).catch(() => {});
+  await db.execute(sql`ALTER TABLE line_group_settings ADD COLUMN IF NOT EXISTS analysisEnabled BOOLEAN NOT NULL DEFAULT TRUE`).catch(() => {});
+  await db.execute(sql`ALTER TABLE line_group_settings ADD COLUMN IF NOT EXISTS proactiveAiEnabled BOOLEAN NOT NULL DEFAULT TRUE`).catch(() => {});
   await db.execute(sql`ALTER TABLE line_group_settings ADD COLUMN IF NOT EXISTS relationshipObjective TEXT`).catch(() => {});
   await db.execute(sql`ALTER TABLE line_group_settings ADD COLUMN IF NOT EXISTS groupInsightJson LONGTEXT`).catch(() => {});
   await db.execute(sql`ALTER TABLE line_group_settings ADD COLUMN IF NOT EXISTS groupInsightUpdatedAt TIMESTAMP NULL`).catch(() => {});
