@@ -40,6 +40,17 @@ export default function MemberDetail() {
   const [pointDescription, setPointDescription] = useState("");
   const [pointAction, setPointAction] = useState<"add" | "remove">("add");
   const [expandedOrders, setExpandedOrders] = useState<Set<number>>(new Set());
+  const [beautyWalletAudit, setBeautyWalletAudit] = useState<{
+    centralLedgerAvailable: boolean;
+    unifiedTotal: number | null;
+    storeCount: number;
+    stores: string[];
+    historyComplete: boolean;
+    historyRowsFetched: number;
+    uniqueTransactionCount: number;
+    duplicateRowsRemoved: number;
+    failureCode?: string;
+  } | null>(null);
   const utils = trpc.useUtils();
 
   // 会員情報取得
@@ -97,6 +108,33 @@ export default function MemberDetail() {
       toast.error("エラー", { description: error.message });
     },
   });
+
+  const beautyWalletAuditMutation = trpc.memberIdentity.auditBeautyWalletLedger.useMutation({
+    onSuccess: (data) => {
+      setBeautyWalletAudit(data);
+      if (data.centralLedgerAvailable && data.historyComplete) {
+        toast.success("Beauty Wallet主台帳の照合が完了しました");
+      } else {
+        toast.warning("Beauty Wallet主台帳を完全には確認できませんでした", {
+          description: data.failureCode || "再度お試しください",
+        });
+      }
+    },
+    onError: (error) => {
+      setBeautyWalletAudit(null);
+      toast.error("Beauty Wallet主台帳の照合に失敗しました", {
+        description: error.message,
+      });
+    },
+  });
+
+  const handleBeautyWalletAudit = () => {
+    if (!member?.email) {
+      toast.error("メールアドレスが登録されていません");
+      return;
+    }
+    beautyWalletAuditMutation.mutate({ email: member.email });
+  };
 
   const handleAdjustPoints = () => {
     const amount = parseInt(pointAmount);
@@ -298,7 +336,7 @@ export default function MemberDetail() {
           <Card>
             <CardContent className="p-4 text-center">
               <Coins className="h-5 w-5 mx-auto mb-1 text-yellow-500" />
-              <p className="text-xs text-muted-foreground">現在ポイント</p>
+              <p className="text-xs text-muted-foreground">LCJ互換残高</p>
               <p className="text-lg font-bold text-primary">
                 {pointsLoading ? "..." : (pointHistory?.balance?.toLocaleString() || 0)}
               </p>
@@ -420,13 +458,75 @@ export default function MemberDetail() {
               <Coins className="h-4 w-4 text-yellow-500" />
               ポイント
             </CardTitle>
-            <CardDescription>現在のポイント残高と履歴</CardDescription>
+            <CardDescription>Beauty Wallet主台帳とLCJ互換履歴</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-4 space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h4 className="font-semibold flex items-center gap-2">
+                    <Wallet className="h-4 w-4 text-violet-600" />
+                    Beauty Wallet 統一主台帳
+                  </h4>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    メール統合後の全店残高を読み取り専用で照合します。ウォレット作成・残高同期・ポイント変更は行いません。
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleBeautyWalletAudit}
+                  disabled={!member.email || beautyWalletAuditMutation.isPending}
+                  className="shrink-0 border-violet-300 bg-white hover:bg-violet-50"
+                >
+                  {beautyWalletAuditMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Wallet className="h-4 w-4 mr-2" />
+                  )}
+                  主台帳を照合
+                </Button>
+              </div>
+              {beautyWalletAudit && (
+                <div className="rounded-md border bg-white p-3">
+                  {beautyWalletAudit.centralLedgerAvailable ? (
+                    <div className="space-y-2">
+                      <div className="flex items-end justify-between gap-3">
+                        <span className="text-sm text-muted-foreground">統一残高（唯一の現在残高）</span>
+                        <strong className="text-2xl text-violet-700">
+                          {beautyWalletAudit.unifiedTotal?.toLocaleString() ?? "-"} pt
+                        </strong>
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <Badge variant="outline">対象店舗 {beautyWalletAudit.storeCount}</Badge>
+                        <Badge variant="outline">取引 {beautyWalletAudit.uniqueTransactionCount}件</Badge>
+                        <Badge variant="outline">重複除外 {beautyWalletAudit.duplicateRowsRemoved}件</Badge>
+                        <Badge className={beautyWalletAudit.historyComplete ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}>
+                          {beautyWalletAudit.historyComplete ? "履歴完全" : "履歴未完了"}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        店舗: {beautyWalletAudit.stores.join(" / ") || "-"} ・ 取得行数: {beautyWalletAudit.historyRowsFetched}
+                      </p>
+                      {!beautyWalletAudit.historyComplete && (
+                        <p className="text-xs font-medium text-red-700">
+                          履歴が完全ではないため、本人統合やポイント修正は実行しないでください。
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm font-medium text-red-700">
+                      主台帳を確認できませんでした: {beautyWalletAudit.failureCode || "UNKNOWN"}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Point Summary */}
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-lg border p-3 text-center">
-                <p className="text-sm text-muted-foreground">現在のポイント</p>
+                <p className="text-sm text-muted-foreground">LCJ互換残高</p>
                 <p className="text-2xl font-bold text-primary">
                   {pointsLoading ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : (pointHistory?.balance?.toLocaleString() || 0)}
                 </p>

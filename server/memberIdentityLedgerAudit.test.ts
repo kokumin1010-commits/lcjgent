@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -73,5 +74,21 @@ describe("member identity Beauty Wallet ledger audit authorization", () => {
     });
     expect(result.centralLedgerAvailable).toBe(true);
     expect(mocks.audit).toHaveBeenCalledWith("member@example.com");
+  });
+
+  it("exposes an explicit read-only central ledger audit in member details", () => {
+    const page = readFileSync(
+      new URL("../client/src/pages/MemberDetail.tsx", import.meta.url),
+      "utf8"
+    );
+    expect(page).toContain(
+      "trpc.memberIdentity.auditBeautyWalletLedger.useMutation"
+    );
+    expect(page).toContain("Beauty Wallet 統一主台帳");
+    expect(page).toContain("主台帳を照合");
+    expect(page).toContain(
+      "ウォレット作成・残高同期・ポイント変更は行いません"
+    );
+    expect(page).toContain("統一残高（唯一の現在残高）");
   });
 });
