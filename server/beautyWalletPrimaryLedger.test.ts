@@ -128,7 +128,7 @@ describe("Beauty Wallet primary ledger policy", () => {
     expect(runner).not.toContain("ensureMysqlUniqueSingleColumnIndex");
     expect(runner).not.toContain("ALTER TABLE `bw_linked_accounts`");
     expect(migration).not.toContain("ALTER TABLE `bw_linked_accounts`");
-    expect(runner).toContain("Required Beauty Wallet member-link migration failed");
+    expect(runner).toContain("Required post-Drizzle schema migration failed");
     expect(runner).toContain("isBuildDatabaseUnavailable");
     expect(runner).toContain("required schemas will be verified by fail-closed runtime initializers");
     expect(runner).toContain("throw err;");

@@ -123,6 +123,10 @@ import {
 import { memberRiskRouter } from "./memberRiskRouter";
 import { memberIdentityRouter } from "./memberIdentityRouter";
 import { beautyWalletMemberRouter } from "./beautyWalletMemberRouter";
+import {
+  verifyLineAccessToken,
+  verifyLineIdToken,
+} from "./lineIdTokenVerifier";
 import { assertMemberActionAllowed } from "./memberRestrictionService";
 import { LOCAL_POINT_LEDGER_READ_ONLY_MESSAGE } from "./pointLedgerPolicy";
 import { storeProductRouter } from "./storeProductRouter";
@@ -1137,29 +1141,23 @@ export const lineLoginRouter = router({
       referralCode: z.string().length(4).regex(/^\d{4}$/).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      // First try to get profile using access token
-      let profile = await getLineProfile(input.accessToken);
+      // A profile endpoint success is not enough: first bind the access token
+      // to this LINE Login channel and verify that it is still valid.
+      const accessTokenVerified = await verifyLineAccessToken(
+        input.accessToken,
+        LINE_LOGIN_CHANNEL_ID
+      );
+      let profile = accessTokenVerified
+        ? await getLineProfile(input.accessToken)
+        : null;
       
-      // If failed, try to decode as ID token (JWT)
+      // If profile lookup failed, accept an ID token only after LINE verifies
+      // its signature, issuer, audience and expiration for this channel.
       if (!profile) {
-        console.log("[LINE Login] Access token failed, trying to decode as ID token...");
-        try {
-          // ID token is a JWT, decode the payload
-          const parts = input.accessToken.split('.');
-          if (parts.length === 3) {
-            const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-            console.log("[LINE Login] ID token payload:", payload);
-            if (payload.sub) {
-              profile = {
-                userId: payload.sub,
-                displayName: payload.name || 'LINE User',
-                pictureUrl: payload.picture,
-              };
-            }
-          }
-        } catch (decodeErr) {
-          console.error("[LINE Login] ID token decode error:", decodeErr);
-        }
+        profile = await verifyLineIdToken(
+          input.accessToken,
+          LINE_LOGIN_CHANNEL_ID
+        );
       }
       
       if (!profile) {
