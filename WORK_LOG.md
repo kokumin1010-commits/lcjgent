@@ -3741,3 +3741,11 @@ LINEの対外文面で「AIマネージャー」を前面に出さず、公開�
 独立reviewで検出した再発要因をrelease前にすべて解消した。command replyと管理画面manual sendのaudit senderName残存、ポイント／リマインダー本文の署名漏れ、保存済みcustom fixed follow-upの署名素通しを修正した。custom follow-upは送信直前にunsigned／legacy署名／current署名を正規化し、5000文字上限内で署名を必ず1回だけ付け、同一本文をaudit予約とLINE pushの両方へ渡す。ready状態の旧AI署名responseも送信前に新署名へ正規化する。audit-before-push、deterministic retry key、terminal audit no-replay、lifecycle guardは維持した。
 
 検証はfocused 8 files・138 tests、広範LINE 23 files・246 testsが全成功し、最新`origin/main`取込後のproduction buildも成功した。全量TypeScriptは既存baseline 1,163 diagnostics／85 filesでexit 2だが、今回変更したLINE persona filesには新規診断なし。独立最終reviewは**GO（P0/P1 blocker 0件）**。feature commit `9422fe55850ae71fc27385576c7e94b423acc280`はGitHub CIおよびRailway同一SHAでsuccess。本番`https://lcjmall.com/api/health/line-ai-manager`と`/master/line`はHTTP 200、配信chunk`LineManagement-BUv5GXR8.js`から「高橋 悠真」「自動サポート」「自動返信停止」「初回あいさつ＋TikTok確認」をGET/read-onlyで確認した。実LINE送信、group設定変更、group leave、本番DB直接操作は行っていない。
+
+
+## 2026-09-22｜达人数据库删除与平台账号ID安全去重
+在`/master/influencer-bd`为达人卡片增加软删除入口，并新增管理员账号ID查重流程。查重按“平台＋规范化账号ID”分组，兼容`@账号`、大小写、平台主页URL及旧`normalizedHandle`回退；保留未删除且有真实TikTok名称的资料，再按业务状态、进度/附件数量和更新时间确定保留项。合并时先锁定预览指纹和准确数量，使用MySQL命名锁与事务迁移进度、附件及逐条来源映射，再软删除重复资料；全程不硬删除达人，不覆盖历史审计或联系方式。
+
+新增轻量管理员页`/master/influencer-bd/dedupe`，避免大达人卡片页影响查重操作；管理员必须输入待移除的准确数量才能执行。另提供仅返回重复组数、重复资料数和待规范化数的无PII健康检查，用于生产前后只读核验。曾评估自动启动和URL自动执行，但独立安全复审分别发现并发幂等和误触发风险，均在提交前撤销，生产仅保留显式管理员确认路径。
+
+验证结果：达人BD专项7文件46项通过，完整生产构建通过（仅既存`sharp`命名空间警告）；独立最终功能复审在删除、平台URL解析、预览防陈旧、子记录迁移、最小化审计等阻断项关闭后为GO。功能提交`d937f49f`、轻量页提交`7bce42b5`、聚合健康检查提交`c51f1059`均经GitHub主分支触发Railway成功部署。本番主页、达人BD页、轻量查重页和聚合健康检查均HTTP 200。生产只读检测结果为：重复账号组0、待移除重复资料0、待规范化账号0，因此没有执行任何去重或删除写入，也没有直接操作生产数据库。
