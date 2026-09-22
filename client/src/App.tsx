@@ -206,6 +206,7 @@ const BrandDayCreatorLogin = lazy(() => import("./pages/BrandDayCreatorLogin"));
 const BrandDayCreatorDashboard = lazy(() => import("./pages/BrandDayCreatorDashboard"));
 const BrandDayRanking = lazy(() => import("./pages/BrandDayRanking"));
 const InfluencerBd = lazy(() => import("./pages/InfluencerBd"));
+const InfluencerBdDedupe = lazy(() => import("./pages/InfluencerBdDedupe"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -824,6 +825,11 @@ function Router() {
         <Route path="/master/influencer-bd">
           <DashboardLayout>
             <InfluencerBd />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/influencer-bd/dedupe">
+          <DashboardLayout>
+            <InfluencerBdDedupe />
           </DashboardLayout>
         </Route>
         <Route path="/barcode-scanner" component={BarcodeScanner} />
