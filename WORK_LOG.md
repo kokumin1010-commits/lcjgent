@@ -3713,3 +3713,12 @@ join／leave orderingは未知groupのleave tombstoneを保存し、新規metada
 服务端强制校验状态、使用人和日期：使用中必须有在职使用人及领用日；未领用、已退役、已处置不得保留当前使用人；领用日不得早于购置日或晚于当天，购置日不得为未来日，保修期不得早于购置日；购置金额限制为DECIMAL(15,2)可准确保存的最多两位小数，确保台账当前值与审计快照一致。整个模块复用财务8小时二次解锁，重新锁定时清除固定资产查询缓存。
 
 本地验证：固定资产、财务访问会话与页面会话共3个测试文件26项通过（固定资产9项）；固定资产组件、财务页面及路由定向bundle通过；完整production build成功，仅保留既有`receiptMaskingService.ts` sharp namespace warning；8GB全量TypeScript检查仍为最新main既有1,164条诊断，本次新增文件及固定资产接入行诊断0条；迁移日志JSON、`git diff --check`和敏感信息扫描通过。三轮独立只读审查中发现并关闭审计不可变性、虚假交接显示、离职人员恢复、状态日期矩阵、金额精度和类型问题；最终结论为 **PASS（P0/P1 blocker 0件）**。
+
+## 2026-09-22｜Beauty Wallet唯一实时主台账、自助绑定与LINE会员认证加固（生产验证完成）
+完成Beauty Wallet主台账切换：会员端实时余额与履历只从Beauty Wallet读取，LCJ既有LINE/邮箱积分仅保留为历史与审计参考。新积分发放、消费、退款、收据审批、注册抽奖、好友奖励、自动审批、过期处理、恢复脚本及账户积分自动合并均统一fail-closed；在Beauty Wallet写接口具备可验证幂等性前，不从LCJ自动写入中央余额，也不自动合并分散身份的旧积分。
+
+完成会员自助绑定：已登录会员以签名HttpOnly Cookie进入绑定流程，输入邮箱后通过10分钟OTP验证，再由服务器读取Beauty Wallet账户与中央台账。挑战限制每小时次数与最多5次尝试，验证码只保存HMAC摘要，确认过程使用数据库锁与事务；`bw_wallet_active_owners`以Beauty Wallet客户和LCJ会员双向唯一约束防止一个钱包被多个会员占用。会员ID不接受客户端传入，旧公开回调、兑换、非验证绑定和旧解绑路径均已停止。服务器在监听端口前幂等创建缺失的新表并继续验证必需字段与唯一索引；结构不完整时仍会退出，避免迁移被静默跳过。该运行时初始化修复了Railway构建阶段没有`DATABASE_URL`导致迁移跳过、随后健康检查前启动失败的问题。
+
+LINE会员会话统一为30天HS256签名Cookie，前端不再保存或传播Bearer、localStorage或URL令牌。独立发布复审发现LIFF回调曾本地解码未验签JWT并信任`sub`，已作为P1阻断修复：access token必须先通过LINE官方验证接口并匹配本系统Channel、有效期和`profile` scope，ID token必须由LINE官方验签且再次校验issuer、audience和expiration，失败发生在会员写入与`line_session`签发之前。新增路由级负向测试确认伪造JWT返回UNAUTHORIZED且不设置成员Cookie；复审结论为GO，P0/P1阻断0项。
+
+最终验证：最新主线合并后，Beauty Wallet、LINE认证、Cookie、积分只读、恢复/合并、收据与固定资产并行功能共27个测试文件通过182项、跳过1项；完整production build成功，仅保留仓库既有`receiptMaskingService.ts` sharp namespace warning。全量`pnpm check`仍因仓库既有1,164条诊断（86文件）返回2，本次LIFF/Beauty Wallet实际修改行及新验证模块没有新增诊断。代码提交`95e8ef14`已由Railway成功部署；生产`/health`与`/beauty-wallet`均返回200，伪造LIFF令牌POST返回401/UNAUTHORIZED且没有`line_session` Set-Cookie。生产验证未执行账户绑定、积分写入、账户合并或任何生产数据库直接操作，也未记录会员PII、钱包ID、余额或凭据。
