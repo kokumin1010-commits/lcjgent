@@ -13,8 +13,9 @@ COPY patches/ ./patches/
 RUN pnpm install --no-frozen-lockfile
 # Copy source code
 COPY . .
-# Build (vite + esbuild + migrations)
-RUN pnpm run build
+# Build the image without touching the production database. The required
+# additive migration runs once the container starts, under an advisory lock.
+RUN pnpm run build:compile
 # Remove dev dependencies to reduce image size
 RUN pnpm prune --prod
 # Reset NODE_OPTIONS for production (don't need extra memory at runtime)
@@ -22,4 +23,4 @@ ENV NODE_OPTIONS=""
 EXPOSE 8080
 ENV NODE_ENV=production
 ENV PORT=8080
-CMD ["sh", "-c", "node run-migrations.mjs && node dist/index.js"]
+CMD ["sh", "-c", "node run-required-startup-migrations.mjs && node dist/index.js"]

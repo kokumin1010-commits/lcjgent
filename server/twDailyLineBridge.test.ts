@@ -15,7 +15,9 @@ const bridgeSource = readFileSync(new URL("./twDailyLineBridge.ts", import.meta.
 const uiSource = readFileSync(new URL("../client/src/pages/LineManagement.tsx", import.meta.url), "utf8");
 const migrationSource = readFileSync(new URL("../drizzle/0161_tw_daily_line_bridge.sql", import.meta.url), "utf8");
 const migrationRunnerSource = readFileSync(new URL("../run-migrations.mjs", import.meta.url), "utf8");
+const startupMigrationSource = readFileSync(new URL("../run-required-startup-migrations.mjs", import.meta.url), "utf8");
 const dockerfileSource = readFileSync(new URL("../Dockerfile", import.meta.url), "utf8");
+const packageSource = readFileSync(new URL("../package.json", import.meta.url), "utf8");
 
 function digestEvent(): Extract<TwDailyLineBridgeEvent, { eventType: "daily_digest_ready" }> {
   return {
@@ -192,7 +194,17 @@ describe("SalesDash daily report LINE receiver", () => {
     expect(migrationRunnerSource).toContain("0161_tw_daily_line_bridge.sql");
     expect(migrationRunnerSource).toContain("GET_LOCK('lcjgent-required-0161-tw-daily-line'");
     expect(migrationRunnerSource).toContain("process.env.NODE_ENV !== 'production'");
-    expect(dockerfileSource).toContain("node run-migrations.mjs && node dist/index.js");
+    expect(startupMigrationSource).toContain("REQUIRED_MIGRATION_APPLIED 0161");
+    expect(startupMigrationSource).toContain("SELECT GET_LOCK(?, 120) AS acquired");
+    expect(startupMigrationSource).toContain("STARTUP_MIGRATION_PREREQUISITE_MISSING");
+    expect(startupMigrationSource).toContain("INSERT INTO __drizzle_migrations (hash, created_at)");
+    expect(startupMigrationSource).toContain("WHERE created_at = ? ORDER BY id");
+    expect(startupMigrationSource).not.toContain("LIMIT 1\",\n    [descriptor.folderMillis]");
+    expect(startupMigrationSource).not.toContain("from \"drizzle-orm/mysql2/migrator\"");
+    expect(packageSource).toContain('"build:compile"');
+    expect(dockerfileSource).toContain("RUN pnpm run build:compile");
+    expect(dockerfileSource).not.toContain("RUN pnpm run build\n");
+    expect(dockerfileSource).toContain("node run-required-startup-migrations.mjs && node dist/index.js");
     expect(bridgeSource).not.toContain("CREATE TABLE IF NOT EXISTS tw_daily_line_");
   });
 });
