@@ -44,6 +44,14 @@ describe("LINE AI Agent", () => {
       expect(lineAgentModule).toBeDefined();
       expect(lineAgentModule.processLineMessage).toBeDefined();
     });
+
+    it("signs public command replies exactly once as 高橋 悠真", async () => {
+      const { signLineCommandReply } = await import("./lineAgent");
+      expect(signLineCommandReply("ポイント履歴です。"))
+        .toBe("ポイント履歴です。\n\n— 高橋 悠真");
+      expect(signLineCommandReply("ポイント履歴です。\n\n— 高橋 悠真"))
+        .toBe("ポイント履歴です。\n\n— 高橋 悠真");
+    });
   });
 
   describe("Agent Actions", () => {

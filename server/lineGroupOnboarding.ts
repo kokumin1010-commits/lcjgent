@@ -7,11 +7,15 @@ import {
 } from "./db";
 import { pushMessage } from "./line";
 import { createLineRetryKey } from "./lineRetryKey";
+import {
+  LINE_INITIAL_AUTOMATION_NOTICE,
+  LINE_PUBLIC_CONTACT_NAME,
+  LINE_PUBLIC_CONTACT_SIGNATURE,
+} from "../shared/linePublicIdentity";
 
 const ONBOARDING_VERSION = "group_onboarding_v1";
 const ONBOARDING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_AUTOMATIC_REPLIES = 2;
-const OFFICIAL_SENDER_NAME = "LCJ公式AIマネージャー";
 
 type OnboardingStatus =
   | "pending_intro"
@@ -83,7 +87,7 @@ export function normalizeLineGroupBrandName(groupName?: string | null): string {
 export function composeLineGroupOnboardingGreeting(brandName: string): string {
   return [
     "皆さま、はじめまして！",
-    `ブランド「${normalizeLineGroupBrandName(brandName)}」のご案内・サポートを担当するLCJ公式AIマネージャーです。`,
+    `ブランド「${normalizeLineGroupBrandName(brandName)}」のご案内・サポートを担当するLCJの${LINE_PUBLIC_CONTACT_NAME}です。`,
     "今後の商品案内やご連絡のため、差し支えなければ以下を教えてください。",
     "・TikTokのアカウント名／ID",
     "・お呼びする際のお名前（ニックネームでも大丈夫です）",
@@ -91,7 +95,8 @@ export function composeLineGroupOnboardingGreeting(brandName: string): string {
     "この案内に続く最初の確認（最大2回）は、@LCJを付けずそのまま送っていただけます。",
     "どうぞよろしくお願いいたします！",
     "",
-    "— LCJ公式AIマネージャー",
+    LINE_INITIAL_AUTOMATION_NOTICE,
+    LINE_PUBLIC_CONTACT_SIGNATURE,
   ].join("\n");
 }
 
@@ -116,30 +121,30 @@ export function composeLineGroupOnboardingReply(
   if (currentStatus === "awaiting_profile") {
     if (signals.hasSample && signals.hasSchedule) {
       return {
-        replyText: "ありがとうございます！サンプル状況と配信・動画投稿のご予定を確認しました。\n内容をもとに、紹介しやすい商品や進め方をLCJ側で整理します。具体的な条件や可否は確認後にご案内いたします。\n\n— LCJ公式AIマネージャー",
+        replyText: `ありがとうございます！サンプル状況と配信・動画投稿のご予定を確認しました。\n内容をもとに、紹介しやすい商品や進め方をLCJ側で整理します。具体的な条件や可否は確認後にご案内いたします。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`,
         nextStatus: "completed",
       };
     }
     return {
-      replyText: "ありがとうございます！内容を確認しました。\n続けて、現在お手元にあるサンプルや興味のある商品、配信・動画投稿の予定時期があれば、決まっている範囲で教えてください。\n\n— LCJ公式AIマネージャー",
+      replyText: `ありがとうございます！内容を確認しました。\n続けて、現在お手元にあるサンプルや興味のある商品、配信・動画投稿の予定時期があれば、決まっている範囲で教えてください。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`,
       nextStatus: "awaiting_preferences",
     };
   }
 
   if (signals.hasSample && !signals.hasSchedule) {
     return {
-      replyText: "サンプル状況を教えていただき、ありがとうございます！内容を保存しました。\n今後、配信や動画投稿の予定時期を追加でお知らせいただく場合は、@LCJを付けてご連絡ください。\n\n— LCJ公式AIマネージャー",
+      replyText: `サンプル状況を教えていただき、ありがとうございます！内容を保存しました。\n今後、配信や動画投稿の予定時期を追加でお知らせいただく場合は、@LCJを付けてご連絡ください。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`,
       nextStatus: "completed",
     };
   }
   if (signals.hasSchedule && !signals.hasSample) {
     return {
-      replyText: "配信・動画投稿のご予定を教えていただき、ありがとうございます！内容を保存しました。\n今後、サンプル状況や興味のある商品を追加でお知らせいただく場合は、@LCJを付けてご連絡ください。\n\n— LCJ公式AIマネージャー",
+      replyText: `配信・動画投稿のご予定を教えていただき、ありがとうございます！内容を保存しました。\n今後、サンプル状況や興味のある商品を追加でお知らせいただく場合は、@LCJを付けてご連絡ください。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`,
       nextStatus: "completed",
     };
   }
   return {
-    replyText: "ありがとうございます！内容を保存しました。\n紹介しやすい商品や進め方をLCJ側で整理します。具体的な条件や可否は確認後にご案内いたします。\n\n— LCJ公式AIマネージャー",
+    replyText: `ありがとうございます！内容を保存しました。\n紹介しやすい商品や進め方をLCJ側で整理します。具体的な条件や可否は確認後にご案内いたします。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`,
     nextStatus: "completed",
   };
 }
@@ -430,7 +435,7 @@ async function deliverPendingOnboarding(
     messageId: delivery.auditMessageId,
     sourceType: "group",
     lineGroupId: delivery.lineGroupId,
-    senderName: OFFICIAL_SENDER_NAME,
+    senderName: LINE_PUBLIC_CONTACT_NAME,
     content: delivery.replyText,
     lineTimestamp: Date.now(),
     pendingSummary: delivery.isIntro ? "LINEグループ初回案内送信中" : "LINEグループ初回会話応答送信中",

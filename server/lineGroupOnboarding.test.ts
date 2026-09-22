@@ -101,7 +101,10 @@ describe("LINE group onboarding", () => {
     expect(greeting).toContain("ブランド「Example Brand」");
     expect(greeting).toContain("TikTokのアカウント名／ID");
     expect(greeting).toContain("@LCJを付けずそのまま送っていただけます");
-    expect(greeting).toContain("LCJ公式AIマネージャー");
+    expect(greeting).toContain("LCJの高橋 悠真です");
+    expect(greeting).toContain("初回のご案内と確認には自動サポートを利用しています");
+    expect(greeting).toContain("— 高橋 悠真");
+    expect(greeting).not.toContain("LCJ公式AIマネージャー");
   });
 
   it("uses factual limited replies without promising samples, rates, or approval", () => {
@@ -310,6 +313,7 @@ describe("LINE group onboarding", () => {
       messageId: expect.stringMatching(/^line:onboard:i:/),
       sourceType: "group",
       lineGroupId: GROUP_ID,
+      senderName: "高橋 悠真",
       content: expect.stringContaining("ブランド「テストブランド」"),
     }));
     expect(mocks.reserveLineOutgoingAudit.mock.invocationCallOrder[0]).toBeLessThan(
@@ -317,7 +321,7 @@ describe("LINE group onboarding", () => {
     );
     expect(mocks.pushMessage).toHaveBeenCalledWith(
       GROUP_ID,
-      [{ type: "text", text: expect.stringContaining("LCJ公式AIマネージャー") }],
+      [{ type: "text", text: expect.stringContaining("— 高橋 悠真") }],
       expect.stringMatching(/^[0-9a-f-]{36}$/),
     );
     expect(mocks.finalizeLineOutgoingAudit).toHaveBeenCalledWith(

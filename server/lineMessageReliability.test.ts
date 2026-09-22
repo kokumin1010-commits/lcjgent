@@ -8,7 +8,7 @@ const reservation: LineOutgoingAuditReservation = {
   messageId: "manual:00000000-0000-4000-8000-000000000001",
   sourceType: "group",
   lineGroupId: "C00000000000000000000000000000001",
-  senderName: "LCJ運営（手動）",
+  senderName: "高橋 悠真",
   content: "配信準備はいかがですか？",
   lineTimestamp: Date.parse("2026-09-21T00:00:00.000Z"),
   pendingSummary: "LINE管理画面からの手動送信準備中",

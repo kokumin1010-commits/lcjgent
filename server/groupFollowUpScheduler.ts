@@ -13,15 +13,30 @@ import {
 } from "./db";
 import { pushMessage } from "./line";
 import { createLineRetryKey } from "./lineRetryKey";
+import { LINE_PUBLIC_CONTACT_NAME, LINE_PUBLIC_CONTACT_SIGNATURE } from "../shared/linePublicIdentity";
 
 // Default follow-up message template
 const DEFAULT_FOLLOW_UP_MESSAGE = `お世話になっております。
-LCJエージェントでございます。
+LCJの${LINE_PUBLIC_CONTACT_NAME}です。
 
 本グループの内容につきまして、
 お時間のある際にご確認いただけましたら幸いです。
 
-どうぞよろしくお願いいたします。`;
+どうぞよろしくお願いいたします。
+
+${LINE_PUBLIC_CONTACT_SIGNATURE}`;
+const LINE_TEXT_MAX_CHARS = 5_000;
+
+export function signGroupFollowUpMessage(text: string): string {
+  const withoutLegacySignature = String(text || "")
+    .replace(/\n{0,2}—\s*(?:LCJ公式AIマネージャー|LCJ公式・専属AIマネージャー|LCJ公式LINE(?:（自動フォロー）)?|LCJ運営（手動）|高橋\s*悠真)\s*$/u, "")
+    .trim();
+  const fallback = withoutLegacySignature || DEFAULT_FOLLOW_UP_MESSAGE
+    .replace(/\n{0,2}—\s*高橋\s*悠真\s*$/u, "")
+    .trim();
+  const maxBodyLength = LINE_TEXT_MAX_CHARS - LINE_PUBLIC_CONTACT_SIGNATURE.length - 2;
+  return `${fallback.slice(0, maxBodyLength).trim()}\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`;
+}
 
 // Business hours configuration (JST)
 const BUSINESS_HOURS = {
@@ -136,12 +151,11 @@ export async function checkAndSendGroupFollowUps(): Promise<{
           expectedLastActivityAt: group.followUpActivityAt,
           expectedMode,
         }, async current => {
-          const message = current.mode === "ai"
+          const rawMessage = current.mode === "ai"
             ? aiSuggestion!
             : current.autoFollowUpMessage || DEFAULT_FOLLOW_UP_MESSAGE;
-          const senderName = current.mode === "ai"
-            ? "LCJ公式・専属AIマネージャー"
-            : "LCJ公式LINE（自動フォロー）";
+          const message = signGroupFollowUpMessage(rawMessage);
+          const senderName = LINE_PUBLIC_CONTACT_NAME;
           const retryKey = createLineRetryKey([
             "group-auto-followup",
             current.lineGroupId,

@@ -8,6 +8,7 @@ import {
   updateLineMessageSenderName,
   updateLineUserLastMessage,
 } from "./db";
+import { LINE_PUBLIC_CONTACT_NAME, LINE_PUBLIC_CONTACT_SIGNATURE } from "../shared/linePublicIdentity";
 
 // LINE API configuration
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || "";
@@ -166,7 +167,7 @@ async function saveLineCommandReplyAudit(
     sourceType: event.source.type,
     lineUserId,
     lineGroupId: event.source.groupId,
-    senderName: "LCJ公式LINE",
+    senderName: LINE_PUBLIC_CONTACT_NAME,
     messageType: "text",
     content,
     direction: "outgoing",
@@ -360,6 +361,12 @@ function containsPointsHistoryKeyword(text: string): boolean {
   return POINTS_HISTORY_KEYWORDS.some((keyword) => lowerText.includes(keyword.toLowerCase()));
 }
 
+export function signLineCommandReply(text: string): string {
+  const body = String(text || "").trim();
+  if (!body || body.endsWith(LINE_PUBLIC_CONTACT_SIGNATURE)) return body;
+  return `${body}\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`;
+}
+
 // Beauty Wallet is the only live balance. Never derive a current balance from
 // the legacy receipt subset because that can be incomplete or identity-split.
 async function getPointsHistoryMessage(_lineUserId: string): Promise<string> {
@@ -473,7 +480,7 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       }
       if (isDirectCommand) {
         await recordLineAiManagerInboundActivity(event, profile?.displayName);
-        const privateCommandMessage = "ポイント履歴の確認やリマインダーの確認・設定は、個人情報保護のためLCJ公式LINEとの1対1トークで送ってください。グループ内では照会・登録を行いません。\n\n— LCJ公式AIマネージャー";
+        const privateCommandMessage = `ポイント履歴の確認やリマインダーの確認・設定は、個人情報保護のためLCJ公式LINEとの1対1トークで送ってください。グループ内では照会・登録を行いません。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`;
         if (event.replyToken) {
           try {
             await replyMessage(event.replyToken, [
@@ -506,7 +513,7 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
 
     // Check for points history request
     if (containsPointsHistoryKeyword(messageText)) {
-      const historyMessage = await getPointsHistoryMessage(userId);
+      const historyMessage = signLineCommandReply(await getPointsHistoryMessage(userId));
       
       if (event.replyToken) {
         await replyMessage(event.replyToken, [
@@ -522,7 +529,7 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       // Check if it's a reminder list request
       const lowerText = messageText.toLowerCase();
       if (lowerText.includes("一覧") || lowerText.includes("確認") || lowerText.includes("リスト")) {
-        const listMessage = await getReminderListMessage(userId);
+        const listMessage = signLineCommandReply(await getReminderListMessage(userId));
         if (event.replyToken) {
           await replyMessage(event.replyToken, [
             { type: "text", text: listMessage },
@@ -534,11 +541,12 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
 
       // Try to create a reminder
       const result = await createReminderFromMessage(userId, messageText);
+      const reminderMessage = signLineCommandReply(result.message);
       if (event.replyToken) {
         await replyMessage(event.replyToken, [
-          { type: "text", text: result.message },
+          { type: "text", text: reminderMessage },
         ]);
-        await saveLineCommandReplyAudit(event, userId, result.message);
+        await saveLineCommandReplyAudit(event, userId, reminderMessage);
       }
       return;
     }

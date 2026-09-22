@@ -31,6 +31,7 @@ const dailyRankingScheduler = read("server/dailyRankingScheduler.ts");
 const weeklyReportScheduler = read("server/weeklyReportScheduler.ts");
 const monthlyReportScheduler = read("server/monthlyReportScheduler.ts");
 const scheduleReminderScheduler = read("server/scheduleReminderScheduler.ts");
+const linePublicIdentity = read("shared/linePublicIdentity.ts");
 
 describe("LCJ official LINE AI manager regression contracts", () => {
   it("keeps general customer AI disabled and delegates only the dedicated liver path", () => {
@@ -101,7 +102,10 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(groupOnboarding).toContain("const expiredByWallClock = Date.now() > expiresAtMs");
     expect(groupOnboarding).toContain("params.eventTimestamp < startedAtMs");
     expect(groupOnboarding).toContain("normalizeLineGroupBrandName");
-    expect(groupOnboarding).toContain("LCJ公式AIマネージャー");
+    expect(groupOnboarding).toContain("LINE_PUBLIC_CONTACT_NAME");
+    expect(groupOnboarding).toContain("LINE_INITIAL_AUTOMATION_NOTICE");
+    expect(linePublicIdentity).toContain('LINE_PUBLIC_CONTACT_NAME = "高橋 悠真"');
+    expect(linePublicIdentity).toContain("初回のご案内と確認には自動サポートを利用しています");
     expect(groupOnboarding).not.toContain("invokeLLM");
 
     const delivery = groupOnboarding.slice(
@@ -168,7 +172,7 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(groupOnboardingMigration).not.toContain("ALTER TABLE");
     expect(manager).toContain("FROM line_group_onboarding_states");
     expect(migrationRunner).toContain("0157_line_group_onboarding.sql");
-    expect(ui).toContain("@LCJなしの自動応答は最初の確認2回までです");
+    expect(ui).toContain("@LCJなしの応答は最初の確認2回までです");
     expect(ui).toContain("入力欄へ反映するだけで、自動送信されません");
   });
 
@@ -230,8 +234,9 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(groupFollowUp).toContain("requiresAiSuggestion && !aiSuggestion");
     expect(groupFollowUp).toContain("skippedAwaitingAi");
     expect(groupFollowUp).toContain("withLineGroupFollowUpClaim");
+    expect(groupFollowUp).toContain("const message = signGroupFollowUpMessage(rawMessage)");
     expect(groupFollowUp).toContain('expectedMode = requiresAiSuggestion ? "ai" as const : "fixed" as const');
-    expect(groupFollowUp).toContain('"LCJ公式・専属AIマネージャー"');
+    expect(groupFollowUp).toContain("const senderName = LINE_PUBLIC_CONTACT_NAME");
     expect(manager).toContain("insight.latestMessageAt !== currentConversation.latestMessageAt");
     expect(manager).toContain("!settings.analysisEnabled || !settings.proactiveAiEnabled");
     expect(manager).toContain("LINE_GROUP_AI_SETTINGS_UNAVAILABLE");
@@ -368,10 +373,19 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(manager).toContain("LINE_GROUP_DRAFT_COOLDOWN_MS = 30 * 1000");
   });
 
-  it("enforces AI disclosure and prohibits deceptive or dependent relationship language", () => {
-    expect(manager).toContain("人間、恋人、担当者を装わず");
+  it("uses the exact public name while preserving honest automation and safe relationship language", () => {
+    expect(manager).toContain("人間としての経験・感情・行動を捏造しない");
+    expect(manager).toContain("AIまたは自動応答か尋ねられた場合");
     expect(manager).toContain("恋愛関係や依存を誘う表現");
-    expect(manager).toContain("LCJ公式AIマネージャー");
+    expect(manager).toContain("LINE_PUBLIC_CONTACT_SIGNATURE");
+    expect(manager).not.toContain("— LCJ公式AIマネージャー");
+    expect(ui).toContain("LINE_PUBLIC_CONTACT_SIGNATURE");
+    const manualTemplates = ui.slice(
+      ui.indexOf("const GROUP_MANUAL_MESSAGE_TEMPLATES"),
+      ui.indexOf("type GroupManualMessageTemplateKey"),
+    );
+    expect(manualTemplates.match(/LINE_PUBLIC_CONTACT_SIGNATURE/g)).toHaveLength(6);
+    expect(manualTemplates).not.toContain("LCJ公式AIマネージャー");
     expect(manager).toContain("根拠のない称賛");
     expect(manager).toContain("maxTokens: 1_200");
     expect(llm).toContain("maxTokens ?? max_tokens ?? 16384");
@@ -470,7 +484,7 @@ describe("LCJ official LINE AI manager regression contracts", () => {
 
   it("shows controls, state, next action and TikTok analysis on the same LINE page", () => {
     expect(ui).toContain('value="ai-managers"');
-    expect(ui).toContain("LCJ公式・専属AIマネージャー");
+    expect(ui).toContain("LINE_PUBLIC_CONTACT_NAME");
     expect(ui).toContain("本人DM・グループ@LCJへ返信");
     expect(ui).toContain("継続フォロー");
     expect(ui).toContain("次アクション");
@@ -522,7 +536,12 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(router).toContain("LINE_GROUP_SETTINGS_DB_UNAVAILABLE");
     expect(router).toContain("await sdb.transaction(async tx =>");
     expect(router).toContain('["line-management-manual", input.to, requestId]');
-    expect(router).toContain('senderName: "LCJ運営（手動）"');
+    expect(router).toContain("senderName: LINE_PUBLIC_CONTACT_NAME");
+    expect(agent).toContain("senderName: LINE_PUBLIC_CONTACT_NAME");
+    expect(agent).toContain("signLineCommandReply(await getPointsHistoryMessage(userId))");
+    expect(agent).toContain("signLineCommandReply(await getReminderListMessage(userId))");
+    expect(agent).toContain("const reminderMessage = signLineCommandReply(result.message)");
+    expect(groupFollowUp).toContain("const senderName = LINE_PUBLIC_CONTACT_NAME");
     expect(db).toContain("COALESCE(${lineMessages.lineTimestamp}, UNIX_TIMESTAMP(${lineMessages.createdAt}) * 1000)");
   });
 });

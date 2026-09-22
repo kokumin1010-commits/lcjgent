@@ -159,7 +159,7 @@ describe("LINE AI manager durable handoff and lease fencing", () => {
       eventTimestamp: Date.now(),
       enqueueReply: false,
       preferenceCommand: "ai停止",
-      preferenceResponse: "AI自動返信と継続フォローを停止しました。\n\n— LCJ公式AIマネージャー",
+      preferenceResponse: "自動返信と継続フォローを停止しました。\n\n— 高橋 悠真",
     });
     expect(result).toEqual({ stored: true, eventId: 1 });
     expect(state.messageIds.has("msg-stop")).toBe(true);
@@ -217,7 +217,7 @@ describe("LINE AI manager durable handoff and lease fencing", () => {
       lastAttemptAt: new Date(),
       intent: "配信相談",
       nextAction: "希望商品を確認する",
-      responseText: "一緒に整理しましょう。\n\n— LCJ公式AIマネージャー",
+      responseText: "一緒に整理しましょう。\n\n— 高橋 悠真",
       errorCode: "outbound_audit_intent_pending",
       promptTokens: 10,
       completionTokens: 20,
@@ -229,6 +229,7 @@ describe("LINE AI manager durable handoff and lease fencing", () => {
     expect(state.saveLineMessage).toHaveBeenLastCalledWith(expect.objectContaining({
       messageId: "ai-manager:76",
       lineUserId: target.lineUserId,
+      senderName: "高橋 悠真",
       direction: "outgoing",
       responseStatus: "pending",
     }));
@@ -250,7 +251,7 @@ describe("LINE AI manager durable handoff and lease fencing", () => {
       lastAttemptAt: new Date(),
       intent: "配信相談",
       nextAction: "希望商品を確認する",
-      responseText: "一緒に整理しましょう。\n\n— LCJ公式AIマネージャー",
+      responseText: "一緒に整理しましょう。\n\n— 高橋 悠真",
       errorCode: "outbound_audit_pending",
       promptTokens: 10,
       completionTokens: 20,

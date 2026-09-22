@@ -93,6 +93,7 @@ describe("LINE management manual send reliability", () => {
       messageId: `manual:${requestId}`,
       sourceType: "group",
       lineGroupId: groupId,
+      senderName: "高橋 悠真",
       content: "配信準備で困っている点はありますか？",
     }));
     expect(state.reserveLineOutgoingAudit.mock.invocationCallOrder[0]).toBeLessThan(

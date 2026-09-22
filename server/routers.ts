@@ -858,6 +858,7 @@ import {
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage } from "./line";
 import { createLineRetryKey } from "./lineRetryKey";
+import { LINE_PUBLIC_CONTACT_NAME } from "../shared/linePublicIdentity";
 import {
   getActiveLineGroupMemberCounts,
   leaveLineGroupAndDeactivate,
@@ -13587,7 +13588,7 @@ ${conversationText}
             sourceType: isGroup ? "group" : "user",
             lineUserId: input.to.startsWith("U") ? input.to : undefined,
             lineGroupId: isGroup ? input.to : undefined,
-            senderName: "LCJ運営（手動）",
+            senderName: LINE_PUBLIC_CONTACT_NAME,
             content: input.message,
             lineTimestamp: Date.now(),
             pendingSummary: "LINE管理画面からの手動送信準備中",

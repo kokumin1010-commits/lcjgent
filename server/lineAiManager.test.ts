@@ -21,6 +21,9 @@ const {
   isLineGroupInsightCurrent,
   reserveLineGroupDraftAuditWithDb,
   parseAiManagerReply,
+  signLinePublicContactReply,
+  parseAiManagerPreferenceCommand,
+  getAiManagerPreferenceResponse,
   isWithinAiManagerHours,
 } = __lineAiManagerTestUtils;
 
@@ -36,23 +39,34 @@ describe("LCJ LINE AI manager", () => {
     expect(normalizeTikTokUsername(null)).toBeNull();
   });
 
-  it("always identifies the sender as the LCJ official AI manager", () => {
+  it("always signs the public reply as 高橋 悠真", () => {
     const parsed = parseAiManagerReply(JSON.stringify({
       reply: "今日も配信準備を進められていて素敵です。次は配信予定日を教えてください。",
       intent: "配信予定確認",
       nextAction: "配信予定日を確認する",
     }));
-    expect(parsed.reply).toContain("LCJ公式AIマネージャー");
+    expect(parsed.reply).toContain("— 高橋 悠真");
+    expect(parsed.reply).not.toContain("LCJ公式AIマネージャー");
     expect(parsed.intent).toBe("配信予定確認");
   });
 
-  it("does not duplicate an existing AI disclosure", () => {
+  it("replaces a queued legacy AI signature without duplicating the public name", () => {
     const parsed = parseAiManagerReply(JSON.stringify({
       reply: "ありがとうございます。\n— LCJ公式AIマネージャー",
       intent: "感謝",
       nextAction: "会話を継続する",
     }));
-    expect(parsed.reply.match(/LCJ公式AIマネージャー/g)).toHaveLength(1);
+    expect(parsed.reply.match(/高橋 悠真/g)).toHaveLength(1);
+    expect(parsed.reply).not.toContain("LCJ公式AIマネージャー");
+  });
+
+  it("keeps the public name exact and supports natural auto-reply controls", () => {
+    expect(signLinePublicContactReply("ありがとうございます。\n\n— 高橋 悠真"))
+      .toBe("ありがとうございます。\n\n— 高橋 悠真");
+    expect(parseAiManagerPreferenceCommand("自動返信停止")).toBe("ai停止");
+    expect(parseAiManagerPreferenceCommand("自動返信再開")).toBe("ai再開");
+    expect(getAiManagerPreferenceResponse("ai停止")).toContain("自動返信再開");
+    expect(getAiManagerPreferenceResponse("ai停止")).toContain("— 高橋 悠真");
   });
 
   it("limits proactive delivery to weekday daytime in Japan", () => {
@@ -286,7 +300,7 @@ describe("LCJ LINE AI manager", () => {
     });
     expect(message).not.toContain("非公開商品B");
     expect(message).toContain("公開商品A");
-    expect(message).toContain("LCJ公式AIマネージャー");
+    expect(message).toContain("— 高橋 悠真");
   });
 
   it("changes immutable draft revisions when settings, insights, or published products change", () => {
