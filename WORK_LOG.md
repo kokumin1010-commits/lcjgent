@@ -3793,3 +3793,15 @@ server側はLINE管理admin限定の`line.getPersonTalkHistory`を追加し、cu
 共管修复部署后的生产健康码进一步明确为`DRKOZU_LCM_EXISTING_BRAND_REQUIRES_ADMIN_RECONCILIATION`：既有Dr.Kozu品牌记录有历史成员记录但没有active owner。最终策略只在`sourceCatalogPage=31`或`sourceBrandId`与唯一Dr.Kozu源品牌一致的强证据下，且没有pending成员、来源不冲突、状态不是rejected/suspended/archived时，将随机初始化账号设为普通active owner；缺乏该来源证据的同名人工记录继续失败关闭。已有active owner的情况下仍只增加editor。全部历史成员、非空品牌资料、审核理由和review字段保持不变；只有空字段被补齐，draft/submitted可公开，claimStatus只在经来源验证的无主路径切换为claimed。
 
 新增双成功路径与完整失败分支测试后，Dr.Kozu安全行为2文件25项、全部LCM/Festival/Dr.Kozu专项16文件125项通过，production build成功；独立复审结论GO，P0/P1为0。
+
+## 2026-09-23｜招待済みLINEグループ専用・AI返信確認queue
+
+`/master/line`のグループtab直後に、招待済みLINEグループだけを扱う**グループAI返信確認**tabを追加した。個別DMを含む従来の「個別LINE履歴」「個別未応答」と明確に分離し、active lifecycleのグループ受信だけを一覧化する。未返信区間全体をローカルdeterministic classifierで確認し、サンプル、取引条件、配信日程、明示質問、依頼・確認を**AI返信推奨**として上位表示し、お礼・了解等は**返信不要候補**へ分ける。未連携参加者は表示対象に残し、既知staff／blocked sender、responded／cancelled受信は除外する。group本文を新しいLLM経路へ送らず、安全な日本語／中国語のおすすめ返信を提示し、必要なら既存のreview-only AI文案機能で再生成できる。
+
+queueから「文案を確認して返信」を押すと既存グループ会話dialogを開き、提案文は**未送信**として入力欄へ入る。送信buttonだけでなくEnter経路もhandler内部で人間の「内容を確認しました」を必須化した。queue snapshotの`conversationRevision`をmanual send APIへ渡し、outgoing audit予約transactionがgroup parent row lock下で現行revisionと照合する。確認後に新着会話または別管理者の返信不要処理が入った場合は、LINE送信前に`LINE_GROUP_CONVERSATION_CHANGED`でfail closedし、最新queueからの再確認を要求する。同一request IDのresponse-loss retryは既存immutable auditを先に照合し、revision更新後も二重送信せず復旧できる。
+
+返信済み判定は`responded`確定済みのconversation reply audit（manual、AI manager、public question、限定onboarding reply）だけに限定した。`pending` outboundは「送信処理中」としてqueueに残し、定期follow-up／一斉通知を会話返信として誤認しない。返信不要操作はgroup lock下で、選択したsnapshotまでの未返信区間だけを`cancelled`へ整理し、処理admin／時刻を監査記録してconversation revisionを更新するため、後着受信や別管理者の開いた古い文案を巻き込まない。
+
+性能対策としてmigration `0160_line_group_reply_review`で`line_messages(lineGroupId, sourceType, direction, lineTimestamp, id)`の非破壊indexを追加し、Railway fallbackは同名indexのduplicateだけを許容して他のDDL失敗をfail closedにする。
+
+検証はfocused **67 tests**、広範LINE回帰 **13 files・169 tests**、production build、migration runner構文、diff／secret監査に成功。full TypeScript baselineには既存**1,163 diagnostics**が残るが、新規queue filesと変更したLINE UI review pathの新規診断は0件。独立最終reviewは**GO（P0/P1 0件）**。feature SHA `bc23a4872c1d7c03d82dd030bcc4d46fc2886c0a`はGitHub CI／Railwayともsuccess。本番`/api/health/line-ai-manager`はHTTP 200・storage／automation readyで、`/master/line`配信chunkに「グループAI返信確認」「AI返信推奨」「返信不要候補」「AIおすすめ返信（未送信）」「文案を確認して返信」「送信処理中」をGET/read-onlyで確認した。実LINE送信、group設定変更、group leave、本番DB直接操作は行っていない。

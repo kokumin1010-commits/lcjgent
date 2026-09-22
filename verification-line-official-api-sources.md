@@ -184,3 +184,17 @@ LINE管理adminは、連携済みライブコマーサーだけでなく未連�
 APIは`assertLineManagementAdmin()`を必須とし、未連携で`line_users` profileが未作成の場合は保存済み`senderName`だけへfallbackする。送信されていない`cancelled` outbound auditは一覧・集計から除外し、`pending`は送信未確認として区別する。read-only機能であり、通常非mention返信禁止、明示`@LCJ`、限定onboarding、group lifecycle／autoReply gate、outgoing audit、送信rate limitは変更しない。query性能のため`line_messages(lineUserId, id)`複合indexをmigration `0159_line_person_talk_history`で追加し、fallbackは対象indexのduplicate-nameだけを許容して他のDDL失敗をfail closedにする。
 
 検証はfocused 18 tests、LINE広範回帰36 files・378 tests、production build、migration構文、差分・secret監査に成功。full TypeScriptには既存1,163 diagnosticsが残るが今回変更fileの新規診断は0件。独立reviewはhardening前後とも**GO（P0/P1 0件）**。feature SHA `4a6dfc65b81a8e31d983b8121fbc316fc9a5c74c`のGitHub CI／Railwayはsuccess。本番healthはHTTP 200でAI manager storage／group automation defaults／runtimeがready、`/master/line`配信chunkに人物履歴・100件追加読込・未連携参加者の表示をGET/read-only確認した。実LINE送信、設定mutation、group leave、本番DB直接操作は行っていない。
+
+## 招待済みグループ専用・AI返信確認queue（2026-09-23追加）
+
+LINE管理admin専用の**グループAI返信確認**tabを追加し、招待済み・active lifecycleのLINEグループ受信だけを表示する。既存の個別LINE履歴／個別未応答は`sourceType=user`へ限定し、グループqueueと混在させない。queueは最後の確定conversation返信以降の連続受信区間をLINE event timestamp＋DB ID順で集約し、サンプル、取引条件、配信日程、明示質問、依頼・確認を**AI返信推奨**、お礼・了解等を**返信不要候補**へ分類する。未連携参加者は対象に残すが、既知staff／blocked senderとterminal受信はcandidate／context／件数のすべてから除外する。
+
+おすすめ返信は日本語／中国語の安全な定型文で、queue classifier自体はgroup本文をLLMへ送らない。queueからgroup dialogへ反映するだけでは送信されず、既存の人間review gateで内容確認を必須化する。buttonとEnterの両方が同じsend handlerを通り、未確認なら拒否する。管理者が既存AI文案を再生成した場合も、review-only、匿名化済み有限signal入力、公開商品ID限定、送信前の人間確認という既存境界を維持する。
+
+queue取得時の`conversationRevision`をmanual sendへ渡し、immutable outgoing audit予約transactionがgroup parent row lock下で現行revisionと照合する。確認後の新着会話または返信不要処理があればLINE APIを呼ぶ前に`LINE_GROUP_CONVERSATION_CHANGED`で拒否する。同一request IDのresponse-loss retryは既存auditを先に検査し、immutable target／本文が一致する場合だけrevision更新後も復旧する。`pending` outboundはqueueへ「送信処理中」として残し、`responded`確定済みのmanual／AI manager／public question／限定onboarding replyだけが未返信を消し込む。定期follow-up・一斉通知はconversation返信として扱わない。
+
+返信不要操作はadmin認可を必須とし、group lock下で選択snapshotまでの未返信区間だけを`cancelled`へ更新する。処理admin IDと時刻を記録し、更新があった場合だけconversation revisionを進めるため、新着受信や別管理者の古いreview snapshotを巻き込まない。通常非mention返信禁止、明示`@LCJ`、限定onboarding最大2回、group autoReply OFF、leave lifecycle、outgoing audit／retry keyの既存境界は変更していない。
+
+query性能のためmigration `0160_line_group_reply_review`で`line_messages(lineGroupId, sourceType, direction, lineTimestamp, id)`indexを追加した。fallbackは同名indexのduplicateだけを許容し、他のDDL失敗はfail closedとする。
+
+検証はfocused 67 tests、関連LINE 13 files・169 tests、production build、migration構文、diff／secret監査に成功。full TypeScript baselineには既存1,163 diagnosticsが残るが、新規queue filesと変更LINE UI review pathの新規診断は0件。独立最終reviewは**GO（P0/P1 0件）**。feature SHA `bc23a4872c1d7c03d82dd030bcc4d46fc2886c0a`のGitHub CI／Railwayはsuccess。本番healthはHTTP 200・AI manager storage／group automation defaults／runtime readyで、配信`LineManagement`／`LineGroupReplyReviewQueue` chunkに新tab、AI返信推奨、返信不要候補、未送信文案、人間確認、送信処理中の表示をGET/read-onlyで確認した。実LINE送信、設定mutation、group leave、本番DB直接操作は実施していない。
