@@ -27,6 +27,13 @@ import {
 import { useLocation, useParams } from "wouter";
 import { toast } from "sonner";
 import { DAILY_REPORT_PLACEHOLDERS } from "./reportTemplate";
+import {
+  buildReportStaffOptions,
+  isHistoricalReportStaffIdentity,
+  resolveReportSubmissionStaffId,
+  shouldSendReportStaffIdOnUpdate,
+  type ReportStaffOption,
+} from "@/lib/reportFormIdentity";
 
 // Image label options
 const IMAGE_LABELS = ["LINE截图", "Lark截图"] as const;
@@ -87,6 +94,61 @@ export default function ReportForm() {
       { enabled: isEditMode }
     );
 
+  const existingReportStaffId = existingReport?.report.reportStaffId ?? null;
+  const existingReportStaff = useMemo<ReportStaffOption | null>(() => {
+    if (!existingReportStaffId) return null;
+    if (existingReport?.staff) {
+      return {
+        id: existingReportStaffId,
+        name:
+          existingReport.staff.name ||
+          `既存の日報スタッフ #${existingReportStaffId}`,
+        country: existingReport.staff.country,
+        isActive: existingReport.staff.isActive,
+        archivedAt: existingReport.staff.archivedAt,
+      };
+    }
+    return {
+      id: existingReportStaffId,
+      name: `既存の日報スタッフ #${existingReportStaffId}`,
+      country: null,
+      isActive: "inactive",
+      archivedAt: null,
+    };
+  }, [existingReport, existingReportStaffId]);
+  const reportStaffOptions = useMemo(
+    () =>
+      buildReportStaffOptions({
+        writableStaff: writableReportStaff as ReportStaffOption[],
+        isEditMode,
+        canEditExisting: existingReport?.canEdit === true,
+        existingReportStaffId,
+        existingReportStaff,
+      }),
+    [
+      existingReport?.canEdit,
+      existingReportStaff,
+      existingReportStaffId,
+      isEditMode,
+      writableReportStaff,
+    ]
+  );
+  const effectiveReportStaffId =
+    reportStaffId ||
+    (isEditMode && existingReportStaffId
+      ? existingReportStaffId.toString()
+      : "");
+  const historicalReportStaffSelected = isHistoricalReportStaffIdentity({
+    isEditMode,
+    selectedReportStaffId: effectiveReportStaffId,
+    writableStaffIds: writableReportStaff.map(staff => staff.id),
+  });
+  const submissionReportStaffId = resolveReportSubmissionStaffId({
+    selectedReportStaffId: effectiveReportStaffId,
+    isEditMode,
+    existingReportStaffId,
+  });
+
   // Fetch existing attachments in edit mode
   const { data: existingAttachments, refetch: refetchAttachments } =
     trpc.report.getAttachments.useQuery(
@@ -97,7 +159,12 @@ export default function ReportForm() {
   // Populate form with existing data in edit mode
   useEffect(() => {
     if (existingReport?.report) {
-      setReportStaffId(existingReport.report.reportStaffId.toString());
+      const storedStaffId = Number(existingReport.report.reportStaffId);
+      setReportStaffId(
+        Number.isInteger(storedStaffId) && storedStaffId > 0
+          ? storedStaffId.toString()
+          : ""
+      );
       setReportDate(
         new Date(existingReport.report.reportDate).toISOString().split("T")[0]
       );
@@ -257,7 +324,7 @@ export default function ReportForm() {
       return;
     }
 
-    if (!reportStaffId) {
+    if (!submissionReportStaffId) {
       if (
         !reportVisibility?.canViewAllReports &&
         !reportVisibility?.ownStaffId
@@ -289,7 +356,6 @@ export default function ReportForm() {
     }
 
     const data = {
-      reportStaffId: parseInt(reportStaffId),
       reportDate: `${reportDate}T00:00:00`,
       workContent: workContent.trim(),
       issues: issues.trim() || undefined,
@@ -297,9 +363,22 @@ export default function ReportForm() {
     };
 
     if (isEditMode) {
-      updateReport.mutate({ id: parseInt(params.id!), ...data });
+      const sendReportStaffId =
+        existingReportStaffId !== null &&
+        shouldSendReportStaffIdOnUpdate({
+          canViewAllReports: reportVisibility?.canViewAllReports === true,
+          selectedReportStaffId: submissionReportStaffId,
+          existingReportStaffId,
+        });
+      updateReport.mutate({
+        id: parseInt(params.id!),
+        ...data,
+        ...(sendReportStaffId
+          ? { reportStaffId: submissionReportStaffId }
+          : {}),
+      });
     } else {
-      createReport.mutate(data);
+      createReport.mutate({ reportStaffId: submissionReportStaffId, ...data });
     }
   };
 
@@ -365,22 +444,30 @@ export default function ReportForm() {
                   スタッフ <span className="text-destructive">*</span>
                 </Label>
                 <Select
-                  value={reportStaffId}
+                  value={effectiveReportStaffId}
                   onValueChange={setReportStaffId}
                   disabled={
-                    !reportVisibility?.canViewAllReports &&
-                    writableReportStaff.length <= 1
+                    (!reportVisibility?.canViewAllReports &&
+                      (isEditMode || writableReportStaff.length <= 1)) ||
+                    reportStaffOptions.length === 0
                   }
                 >
-                  <SelectTrigger id="staff">
+                  <SelectTrigger id="staff" className="w-full min-w-0">
                     <SelectValue placeholder="スタッフを選択" />
                   </SelectTrigger>
                   <SelectContent>
-                    {writableReportStaff.map((staff: any) => (
+                    {reportStaffOptions.map((staff: any) => (
                       <SelectItem key={staff.id} value={staff.id.toString()}>
                         {staff.nameCn
                           ? `${staff.name}（${staff.nameCn}）`
                           : staff.name}
+                        {isEditMode &&
+                          staff.id === existingReportStaffId &&
+                          !writableReportStaff.some(item => item.id === staff.id) && (
+                            <span className="text-amber-700 ml-2">
+                              （既存日報の履歴スタッフ）
+                            </span>
+                          )}
                         {staff.country && (
                           <span className="text-muted-foreground ml-2">
                             ({staff.country})
@@ -396,8 +483,14 @@ export default function ReportForm() {
                     本人のスタッフ情報を取得できませんでした。ページを再読み込みしてください。
                   </div>
                 )}
+                {historicalReportStaffSelected && existingReport?.canEdit && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                    この日報は過去に登録されたスタッフ情報を保持しています。内容は更新できます。履歴保全のため、スタッフ情報は変更されません。
+                  </div>
+                )}
                 {!isVisibilityLoading &&
                   !reportVisibility?.canViewAllReports &&
+                  !historicalReportStaffSelected &&
                   !reportVisibility?.ownStaffId && (
                     <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                       このアカウントのメールアドレスに一致する在職中のHRスタッフが見つかりません。人事部へ確認してください。
@@ -405,6 +498,7 @@ export default function ReportForm() {
                   )}
                 {!isVisibilityLoading &&
                   reportVisibility?.ownStaffId &&
+                  !historicalReportStaffSelected &&
                   !reportVisibility.hasOwnReportIdentity && (
                     <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                       本人の日報資格を準備できませんでした。ページを再読み込みしてください。
@@ -414,6 +508,8 @@ export default function ReportForm() {
                   <span>
                     {isVisibilityLoading || isStaffLoading
                       ? "本人のスタッフ情報を確認しています…"
+                      : historicalReportStaffSelected
+                        ? "既存日報のスタッフ情報を履歴のまま保持して更新します。"
                       : "在職中のHRスタッフが自動表示されます。新しいスタッフは人事管理で登録してください。"}
                   </span>
                   {reportVisibility?.canViewAllReports && (
@@ -674,7 +770,7 @@ export default function ReportForm() {
                   isPending ||
                   isVisibilityLoading ||
                   isStaffLoading ||
-                  (!reportVisibility?.canViewAllReports && !reportStaffId)
+                  submissionReportStaffId === null
                 }
               >
                 <Save className="h-4 w-4 mr-2" />

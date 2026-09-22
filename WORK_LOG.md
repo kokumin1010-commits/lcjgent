@@ -3640,3 +3640,11 @@ join／leave orderingは未知groupのleave tombstoneを保存し、新規metada
 最終回帰は23 test files・244 tests全件成功、migration runner構文、`git diff --check`、secret addition監査、production buildが成功した。build末尾はsandbox DB未接続のため既存どおりruntime fail-closed initializerへ委譲し、既存`receiptMaskingService.ts`のsharp namespace warningだけを保持した。8GB full TypeScript checkは既存1,164 diagnostics／85 filesでexit 2だが、新規`lineGroupOnboarding.ts`と`lineGroupDeliveryGuard.ts`の診断は0件であり、表示された`dailyRankingScheduler.ts:38`等は変更前から存在するbaselineである。複数回の独立reviewで検出したlifecycle race、opt-out上書き、wall-clock expiry、pending recovery、既存scheduler bypassを修正し、最終reviewは**GO（P0/P1 blocker 0件）**。
 
 機能commit `805aeb8a251fd7cce2f5306eb8e7417d0e6dd708`はGitHub CI success、Railway `Success - www.livecommercefestival.com`の同一SHAで本番反映した。本番GET-only確認で`https://lcjmall.com/api/health/line-ai-manager`はHTTP 200、`aiManagerStorage: ready`、`groupAutomationDefaults: ready`、runtime `state: ready`、`failureCode: null`。`https://lcjmall.com/master/line`もHTTP 200で、配信chunk `LineManagement-CjhsjTyX.js`にブランド名、最初2回、`@LCJ`、入力欄のみの説明を確認した。検証中の実LINE送信、本番group設定変更、本番DB直接操作は0件である。
+
+## 2026-09-22｜既存日報のスタッフ欄空白・更新不能を修復（本番反映前）
+
+`/master/reports/edit/:id`で、現在のログインメールに一致する在職中HRスタッフがない一方、当該ユーザー自身が過去に作成した日報はサーバー上で編集可能なケースにおいて、フォームがactiveな社員一覧だけをSelectへ渡していたため、保存済み`reportStaffId`が選択肢から消え、必須スタッフ欄が空白表示になる根本不整合を修正した。
+
+編集権限が確認された既存日報に限り、保存済みのreport staffを「既存日報の履歴スタッフ」として表示し、該当profile行が見つからない異常な旧データでも保存済みIDから安全な占位表示を生成する。普通ユーザーのスタッフ欄は編集時に固定し、更新payloadから`reportStaffId`を省略して内容・日付だけを更新するため、過去のスタッフ帰属を変更しない。新規日報は従来どおり在職中の本人HR/report identityが必須で、別社員の選択やなりすましは許可しない。全社権限を持つ管理者だけは既存どおりactive社員へ付け替え可能である。長い履歴表示ではSelectをコンテナ幅へ収め、モバイル横スクロールも防止した。
+
+専用純関数テスト6件を追加し、日报・员工身份・自动提取関連19ファイル112件が全件成功した。production buildは成功し、既存`receiptMaskingService.ts`のsharp namespace warningのみを保持。8GB full TypeScript checkは既存1,164 diagnosticsでexit 2だが、`ReportForm.tsx`、新規identity helper/testの対象診断は0件。1280×900と390×844のMockブラウザで、current HR identityなし・active staff一覧空・本人作成の旧日报という再現条件を検証し、履歴スタッフ表示、更新ボタン有効、`report.update`成功、`reportStaffId`非送信、横overflowなし、console/page/request errorなしを確認した。独立只読reviewは **GO、P0/P1 blocker 0件**。本番DB、日报、附件、通知への書き込みは行っていない。
