@@ -19,6 +19,14 @@ const uiSource = readFileSync(
   resolve(root, "client/src/pages/LineManagement.tsx"),
   "utf8"
 );
+const personHistorySource = readFileSync(
+  resolve(root, "server/linePersonTalkHistory.ts"),
+  "utf8"
+);
+const personHistoryMigrationSource = readFileSync(
+  resolve(root, "drizzle/0159_line_person_talk_history.sql"),
+  "utf8"
+);
 
 describe("LINE group management regression contracts", () => {
   it("keeps normal list reads local and exposes explicit admin reconciliation", () => {
@@ -120,5 +128,23 @@ describe("LINE group management regression contracts", () => {
   it("keeps the group hidden when LINE leave succeeded but local sync is pending", () => {
     expect(uiSource).toContain("result.localSyncPending");
     expect(uiSource).toContain("LINE退会は完了しました。管理画面の同期を再試行します");
+  });
+
+  it("shows every stored conversation for linked and unlinked participants across DM and groups", () => {
+    expect(routerSource).toContain("getPersonTalkHistory: protectedProcedure");
+    expect(routerSource).toContain("assertLineManagementAdmin(ctx.user)");
+    expect(personHistorySource).toContain("WHERE lineUserId = ${lineUserId}");
+    expect(personHistorySource).toContain("ORDER BY id DESC");
+    expect(personHistorySource).toContain("nextCursor:");
+    expect(personHistorySource).toContain("COUNT(DISTINCT CASE WHEN lineGroupId IS NOT NULL");
+    expect(personHistorySource).toContain("direction = 'outgoing' AND responseStatus = 'cancelled'");
+    expect(uiSource).toContain("人物別・全トーク履歴");
+    expect(uiSource).toContain("さらに古い100件を読み込む");
+    expect(uiSource).toContain("この人の全トーク履歴を表示");
+    expect(uiSource).toContain("未連携参加者");
+    expect(personHistoryMigrationSource).toContain("idx_line_messages_user_history");
+    expect(schemaSource).toContain('index("idx_line_messages_user_history").on(table.lineUserId, table.id)');
+    expect(migrationRunnerSource).toContain("0159_line_person_talk_history.sql");
+    expect(migrationRunnerSource).toContain("isDuplicateMysqlIndex(error, 'idx_line_messages_user_history')");
   });
 });

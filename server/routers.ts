@@ -874,6 +874,7 @@ import {
   updateLineAiManagerSettings,
   type LineGroupAiInsight,
 } from "./lineAiManager";
+import { getLinePersonTalkHistory } from "./linePersonTalkHistory";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
 import { users, lineUsers, brands, lineGroups, lineGroupLifecycleStates, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies, tiktokCapCreatorReports, liverGoals, aiCoachMessages, aiCoachRooms, brandContracts, masterSetSuggestions, masterSetSuggestionItems, masterSetAdoptions, masterSetFeedback, masterSetReviews, megaChannelSettings, megaChannelQualifications, megaChannelHistory, brandShortVideos, brandMonthlyGmvTargets, livestreamProducts, livestreamRealtimeRecords, livestreamRealtimeSnapshots, livestreamLuckyBagImages, livestreamCsvSnapshots, livestreamCsvProducts, brandProducts, brandActivities, brandMemos, brandFiles } from "../drizzle/schema";
@@ -13308,6 +13309,17 @@ ${conversationText}
       .query(async ({ input, ctx }) => {
         assertLineManagementAdmin(ctx.user);
         return await getLineAiManagerHistory(input.lineUserId, input.limit);
+      }),
+
+    getPersonTalkHistory: protectedProcedure
+      .input(z.object({
+        lineUserId: z.string().trim().min(1).max(64),
+        cursor: z.number().int().positive().optional(),
+        limit: z.number().int().min(1).max(100).optional().default(100),
+      }))
+      .query(async ({ input, ctx }) => {
+        assertLineManagementAdmin(ctx.user);
+        return await getLinePersonTalkHistory(input);
       }),
 
     updateAiManagerSettings: protectedProcedure

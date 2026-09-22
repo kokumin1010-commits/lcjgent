@@ -22,6 +22,22 @@ function isDuplicateMysqlColumn(error) {
   return false;
 }
 
+function isDuplicateMysqlIndex(error, indexName) {
+  let current = error;
+  for (let depth = 0; depth < 4 && current && typeof current === 'object'; depth += 1) {
+    const code = String(current.code || '');
+    const message = String(current.message || '');
+    if (
+      (code === 'ER_DUP_KEYNAME' || message.includes('Duplicate key name')) &&
+      message.includes(indexName)
+    ) {
+      return true;
+    }
+    current = current.cause;
+  }
+  return false;
+}
+
 function isBuildDatabaseUnavailable(error) {
   const retryableCodes = new Set([
     'ECONNREFUSED',
@@ -331,6 +347,16 @@ async function main() {
       await connection.execute(statement);
     }
     console.log(`[Migration] LINE group onboarding storage ensured (${lineGroupOnboardingStatements.length} statements).`);
+
+    console.log('[Migration] Ensuring LINE person talk-history index...');
+    const linePersonHistoryMigrationPath = path.join(__dirname, 'drizzle', '0159_line_person_talk_history.sql');
+    const linePersonHistorySql = await fs.readFile(linePersonHistoryMigrationPath, 'utf8');
+    try {
+      await connection.execute(linePersonHistorySql);
+    } catch (error) {
+      if (!isDuplicateMysqlIndex(error, 'idx_line_messages_user_history')) throw error;
+    }
+    console.log('[Migration] LINE person talk-history index ensured.');
   } catch (criticalErr) {
     console.error('[Migration] Required post-Drizzle schema migration failed:', criticalErr.message);
     throw criticalErr;

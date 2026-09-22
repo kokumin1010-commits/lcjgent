@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense, useEffect, useRef } from "react";
+import { useState, lazy, Suspense, useEffect, useMemo, useRef } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useSearch } from "wouter";
 import { useLocation } from "wouter";
@@ -93,6 +93,12 @@ export default function LineManagement() {
   const [selectedLiverId, setSelectedLiverId] = useState<number | null>(null);
   const [showAiManagerHistoryDialog, setShowAiManagerHistoryDialog] = useState(false);
   const [selectedAiManagerHistoryUserId, setSelectedAiManagerHistoryUserId] = useState<string | null>(null);
+  const [showPersonTalkHistoryDialog, setShowPersonTalkHistoryDialog] = useState(false);
+  const [selectedPersonTalkHistory, setSelectedPersonTalkHistory] = useState<{
+    lineUserId: string;
+    displayName?: string | null;
+    pictureUrl?: string | null;
+  } | null>(null);
   const directMessageRequestIdRef = useRef<string | null>(null);
   const groupMessageRequestIdRef = useRef<string | null>(null);
   const groupMessagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -130,6 +136,43 @@ export default function LineManagement() {
     { lineUserId: selectedAiManagerHistoryUserId || "", limit: 100 },
     { enabled: showAiManagerHistoryDialog && !!selectedAiManagerHistoryUserId }
   );
+
+  const personTalkHistoryQuery = trpc.line.getPersonTalkHistory.useInfiniteQuery(
+    {
+      lineUserId: selectedPersonTalkHistory?.lineUserId || "",
+      limit: 100,
+    },
+    {
+      enabled: showPersonTalkHistoryDialog && !!selectedPersonTalkHistory?.lineUserId,
+      getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    },
+  );
+  const personTalkHistoryFirstPage = personTalkHistoryQuery.data?.pages[0];
+  const personTalkHistoryMessages = useMemo(() => {
+    const uniqueMessages = new Map<number, any>();
+    for (const page of personTalkHistoryQuery.data?.pages || []) {
+      for (const message of page.items) uniqueMessages.set(message.id, message);
+    }
+    return Array.from(uniqueMessages.values()).sort((left, right) => right.id - left.id);
+  }, [personTalkHistoryQuery.data]);
+  const personTalkHistoryGroupNames = useMemo<Record<string, string | null>>(
+    () => Object.assign({}, ...(personTalkHistoryQuery.data?.pages || []).map((page) => page.groupNames)),
+    [personTalkHistoryQuery.data],
+  );
+
+  const openPersonTalkHistory = (person: {
+    lineUserId?: string | null;
+    displayName?: string | null;
+    pictureUrl?: string | null;
+  }) => {
+    if (!person.lineUserId) return;
+    setSelectedPersonTalkHistory({
+      lineUserId: person.lineUserId,
+      displayName: person.displayName,
+      pictureUrl: person.pictureUrl,
+    });
+    setShowPersonTalkHistoryDialog(true);
+  };
 
   const updateAiManagerMutation = trpc.line.updateAiManagerSettings.useMutation({
     onSuccess: () => {
@@ -745,12 +788,11 @@ export default function LineManagement() {
                         size="sm" 
                         variant="outline"
                         onClick={() => {
-                          setSelectedUser(user.lineUserId);
-                          setActiveTab("messages");
+                          openPersonTalkHistory(user);
                         }}
                       >
                         <History className="h-3 w-3 mr-1" />
-                        {language === "ja" ? "履歴" : "记录"}
+                        {language === "ja" ? "全トーク履歴" : "全部聊天记录"}
                       </Button>
                       <Button 
                         size="sm"
@@ -858,12 +900,15 @@ export default function LineManagement() {
                         variant="outline"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedUser(user.lineUserId);
-                          setActiveTab("messages");
+                          openPersonTalkHistory({
+                            lineUserId: user.lineUserId,
+                            displayName: user.liverName,
+                            pictureUrl: user.liverAvatarUrl || user.pictureUrl,
+                          });
                         }}
                       >
                         <History className="h-3 w-3 mr-1" />
-                        {language === "ja" ? "履歴" : "记录"}
+                        {language === "ja" ? "全トーク履歴" : "全部聊天记录"}
                       </Button>
                       <Button 
                         size="sm"
@@ -1089,7 +1134,19 @@ export default function LineManagement() {
                           </div>
                         </div>
 
-                        <div className="flex justify-end">
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="border-slate-200 bg-white hover:bg-slate-50"
+                            onClick={() => openPersonTalkHistory({
+                              lineUserId: manager.lineUserId,
+                              displayName: manager.lineDisplayName || manager.liverName,
+                            })}
+                          >
+                            <MessageSquare className="mr-2 h-4 w-4" />
+                            {language === "ja" ? "全トーク履歴" : "全部聊天记录"}
+                          </Button>
                           <Button
                             type="button"
                             variant="outline"
@@ -2119,8 +2176,8 @@ export default function LineManagement() {
           </div>
           <p className="-mt-1 text-xs text-muted-foreground">
             {language === "ja"
-              ? "公式LINEが参加した後に受信した会話を自動保存します。参加前の過去メッセージはLINE APIから取得できません。"
-              : "自动保存官方LINE加入群聊后收到的消息；加入前的历史消息无法通过LINE API取得。"}
+              ? "公式LINEが参加した後に受信した会話を自動保存します。参加者名を押すと、その人のDM・全グループ横断の全トーク履歴を表示します。参加前の過去メッセージはLINE APIから取得できません。"
+              : "自动保存官方LINE加入群聊后收到的消息；点击参与者姓名可查看其私聊及所有群聊的完整记录。官方LINE加入前的历史消息无法通过LINE API取得。"}
           </p>
           <div className="flex-1 overflow-y-auto border rounded-lg p-4 bg-muted/30 min-h-[280px] max-h-[420px]">
             {loadingGroupMessages ? (
@@ -2163,11 +2220,25 @@ export default function LineManagement() {
                         <div className={`mb-1 flex flex-wrap items-center gap-1.5 text-xs font-medium ${
                           outgoing ? "text-white/85" : "text-muted-foreground"
                         }`}>
-                          <span>
-                            {outgoing
-                              ? (senderName || (language === "ja" ? "LCJ公式LINE" : "LCJ官方LINE"))
-                              : (senderName || msg.lineUserId?.slice(0, 8) || (language === "ja" ? "参加者" : "群成员"))}
-                          </span>
+                          {!outgoing && msg.lineUserId ? (
+                            <button
+                              type="button"
+                              className="rounded-sm text-left font-semibold underline decoration-dotted underline-offset-2 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              onClick={() => openPersonTalkHistory({
+                                lineUserId: msg.lineUserId,
+                                displayName: senderName,
+                              })}
+                              title={language === "ja" ? "この人の全トーク履歴を表示" : "查看此人的全部聊天记录"}
+                            >
+                              {senderName || msg.lineUserId.slice(0, 8)}
+                            </button>
+                          ) : (
+                            <span>
+                              {outgoing
+                                ? (senderName || (language === "ja" ? "LCJ公式LINE" : "LCJ官方LINE"))
+                                : (senderName || (language === "ja" ? "参加者" : "群成员"))}
+                            </span>
+                          )}
                           {isAiMessage && <span className="rounded-full bg-white/20 px-1.5 py-0.5">AI</span>}
                           {outgoing && !isAutomaticMessage && <span className="rounded-full bg-white/20 px-1.5 py-0.5">{language === "ja" ? "手動" : "手动"}</span>}
                           {isAutomaticMessage && <span className="rounded-full bg-white/20 px-1.5 py-0.5">{language === "ja" ? "自動" : "自动"}</span>}
@@ -2616,6 +2687,181 @@ export default function LineManagement() {
                 {language === "ja" ? "メッセージを送信" : "发送消息"}
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Person-wide LINE talk history dialog */}
+      <Dialog open={showPersonTalkHistoryDialog} onOpenChange={(open) => {
+        setShowPersonTalkHistoryDialog(open);
+        if (!open) setSelectedPersonTalkHistory(null);
+      }}>
+        <DialogContent className="flex max-h-[92vh] max-w-5xl flex-col overflow-hidden">
+          <DialogHeader>
+            <div className="flex flex-wrap items-start justify-between gap-3 pr-8">
+              <div className="flex min-w-0 items-center gap-3">
+                {(personTalkHistoryFirstPage?.person.pictureUrl || selectedPersonTalkHistory?.pictureUrl) ? (
+                  <img
+                    src={personTalkHistoryFirstPage?.person.pictureUrl || selectedPersonTalkHistory?.pictureUrl || ""}
+                    alt={personTalkHistoryFirstPage?.person.displayName || selectedPersonTalkHistory?.displayName || "LINE user"}
+                    className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-primary/15"
+                  />
+                ) : (
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 ring-2 ring-primary/15">
+                    <User className="h-6 w-6 text-primary" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <DialogTitle className="truncate text-left">
+                    {personTalkHistoryFirstPage?.person.displayName || selectedPersonTalkHistory?.displayName || (language === "ja" ? "LINE参加者" : "LINE参与者")}
+                  </DialogTitle>
+                  <DialogDescription className="mt-1 text-left">
+                    {language === "ja" ? "人物別・全トーク履歴" : "按参与者查看全部聊天记录"}
+                  </DialogDescription>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant={personTalkHistoryFirstPage?.person.liverId ? "default" : "outline"}>
+                  {personTalkHistoryFirstPage?.person.liverId
+                    ? (language === "ja" ? "ライブコマーサー連携済み" : "已关联主播")
+                    : (language === "ja" ? "未連携参加者" : "未关联参与者")}
+                </Badge>
+                {personTalkHistoryFirstPage?.person.isBlocked && (
+                  <Badge variant="destructive">{language === "ja" ? "ブロック中" : "已屏蔽"}</Badge>
+                )}
+              </div>
+            </div>
+          </DialogHeader>
+
+          {personTalkHistoryFirstPage && (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">{language === "ja" ? "全履歴" : "全部记录"}</p>
+                <p className="mt-1 text-xl font-semibold">{personTalkHistoryFirstPage.stats.total.toLocaleString()}</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">{language === "ja" ? "本人の発言" : "本人消息"}</p>
+                <p className="mt-1 text-xl font-semibold">{personTalkHistoryFirstPage.stats.incomingCount.toLocaleString()}</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">{language === "ja" ? "LCJからの返信" : "LCJ回复"}</p>
+                <p className="mt-1 text-xl font-semibold">{personTalkHistoryFirstPage.stats.outgoingCount.toLocaleString()}</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">{language === "ja" ? "参加グループ" : "参与群组"}</p>
+                <p className="mt-1 text-xl font-semibold">{personTalkHistoryFirstPage.stats.groupCount.toLocaleString()}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+            <p>
+              {language === "ja"
+                ? "この参加者のDM・全グループでの発言と、本人に紐づくLCJ返信を新しい順に表示します。公式LINE参加前の履歴はLINE APIから取得できません。"
+                : "按最新优先显示该参与者在私聊和所有群聊中的发言，以及已关联到本人的LCJ回复；官方LINE加入前的记录无法通过LINE API取得。"}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={personTalkHistoryQuery.isFetching}
+              onClick={() => void personTalkHistoryQuery.refetch()}
+            >
+              <RefreshCw className={`mr-1 h-3.5 w-3.5 ${personTalkHistoryQuery.isFetching && !personTalkHistoryQuery.isFetchingNextPage ? "animate-spin" : ""}`} />
+              {language === "ja" ? "更新" : "更新"}
+            </Button>
+          </div>
+
+          <div className="min-h-[320px] flex-1 overflow-y-auto rounded-lg border bg-muted/20 p-3 sm:p-4">
+            {personTalkHistoryQuery.isLoading ? (
+              <div className="flex h-full min-h-[300px] items-center justify-center">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : personTalkHistoryQuery.isError ? (
+              <div className="flex min-h-[300px] flex-col items-center justify-center gap-3 px-4 text-center text-sm text-red-700 dark:text-red-300">
+                <p>{personTalkHistoryQuery.error?.message || (language === "ja" ? "トーク履歴を読み込めませんでした" : "无法加载聊天记录")}</p>
+                <Button size="sm" variant="outline" onClick={() => void personTalkHistoryQuery.refetch()}>
+                  <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                  {language === "ja" ? "再試行" : "重试"}
+                </Button>
+              </div>
+            ) : personTalkHistoryMessages.length === 0 ? (
+              <div className="flex min-h-[300px] items-center justify-center text-sm text-muted-foreground">
+                <MessageSquare className="mr-2 h-6 w-6" />
+                {language === "ja" ? "保存済みトーク履歴がありません" : "暂无已保存的聊天记录"}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {personTalkHistoryMessages.map((message: any) => {
+                  const outgoing = message.direction === "outgoing";
+                  const displayedAt = message.lineTimestamp
+                    ? new Date(Number(message.lineTimestamp))
+                    : new Date(message.createdAt);
+                  const sourceLabel = message.sourceType === "user"
+                    ? "DM"
+                    : message.sourceType === "group"
+                      ? (personTalkHistoryGroupNames[message.lineGroupId || ""] || (language === "ja" ? "グループ" : "群组"))
+                      : (language === "ja" ? "トークルーム" : "聊天室");
+                  const messageTypeLabel = message.messageType === "text"
+                    ? null
+                    : ({ image: language === "ja" ? "画像" : "图片", video: language === "ja" ? "動画" : "视频", audio: language === "ja" ? "音声" : "语音", sticker: language === "ja" ? "スタンプ" : "贴图", file: language === "ja" ? "ファイル" : "文件" } as Record<string, string>)[message.messageType]
+                      || message.messageType;
+                  return (
+                    <div key={message.id} className={`flex ${outgoing ? "justify-end" : "justify-start"}`}>
+                      <div className={`max-w-[88%] rounded-xl px-3 py-2 shadow-sm ${
+                        outgoing ? "bg-primary text-primary-foreground" : "border bg-background"
+                      }`}>
+                        <div className={`mb-1 flex flex-wrap items-center gap-1.5 text-xs ${
+                          outgoing ? "text-primary-foreground/80" : "text-muted-foreground"
+                        }`}>
+                          <Badge variant="outline" className={outgoing ? "border-white/30 bg-white/10 text-white" : "bg-muted/50"}>
+                            {sourceLabel}
+                          </Badge>
+                          <span>{outgoing ? (language === "ja" ? "LCJから返信" : "LCJ回复") : (message.senderName || personTalkHistoryFirstPage?.person.displayName || (language === "ja" ? "本人" : "本人"))}</span>
+                          {messageTypeLabel && <span>· {messageTypeLabel}</span>}
+                          {outgoing && message.responseStatus === "pending" && (
+                            <Badge variant="outline" className="border-white/30 bg-white/10 text-white">
+                              {language === "ja" ? "送信未確認" : "发送未确认"}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="whitespace-pre-wrap break-words text-sm">
+                          {message.content || (messageTypeLabel ? `（${messageTypeLabel}）` : (language === "ja" ? "（本文なし）" : "（无正文）"))}
+                        </p>
+                        <p className={`mt-1 text-xs ${outgoing ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                          {format(displayedAt, "yyyy/MM/dd HH:mm")}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+                {personTalkHistoryQuery.hasNextPage && (
+                  <div className="flex justify-center pt-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={personTalkHistoryQuery.isFetchingNextPage}
+                      onClick={() => void personTalkHistoryQuery.fetchNextPage()}
+                    >
+                      {personTalkHistoryQuery.isFetchingNextPage && <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                      {language === "ja" ? "さらに古い100件を読み込む" : "加载更早的100条"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex-row items-center justify-between gap-3 sm:justify-between">
+            <p className="text-xs text-muted-foreground">
+              {language === "ja"
+                ? `${personTalkHistoryMessages.length.toLocaleString()} / ${(personTalkHistoryFirstPage?.stats.total || 0).toLocaleString()}件を表示`
+                : `已显示 ${personTalkHistoryMessages.length.toLocaleString()} / ${(personTalkHistoryFirstPage?.stats.total || 0).toLocaleString()} 条`}
+            </p>
+            <Button type="button" variant="outline" onClick={() => setShowPersonTalkHistoryDialog(false)}>
+              {language === "ja" ? "閉じる" : "关闭"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

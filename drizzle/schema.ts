@@ -1088,7 +1088,9 @@ export const lineMessages = mysqlTable("line_messages", {
   // Timestamps
   lineTimestamp: bigint("lineTimestamp", { mode: "number" }), // LINE's timestamp
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, table => ({
+  userHistoryIdx: index("idx_line_messages_user_history").on(table.lineUserId, table.id),
+}));
 
 export type LineMessage = typeof lineMessages.$inferSelect;
 export type InsertLineMessage = typeof lineMessages.$inferInsert;

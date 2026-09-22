@@ -1079,6 +1079,13 @@
       "when": 1790063723682,
       "tag": "0158_finance_fixed_assets",
       "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "5",
+      "when": 1790095127051,
+      "tag": "0159_line_person_talk_history",
+      "breakpoints": true
     }
   ]
 }
