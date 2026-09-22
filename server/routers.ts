@@ -855,6 +855,10 @@ import {
   getReportAttachmentById,
   deleteReportAttachment,
 } from "./db";
+import {
+  dismissLineGroupReplyReviewItem,
+  getLineGroupReplyReviewQueue,
+} from "./lineGroupReplyReview";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage } from "./line";
 import { createLineRetryKey } from "./lineRetryKey";
@@ -13420,6 +13424,48 @@ ${conversationText}
       }));
     }),
 
+    getGroupReplyReviewQueue: protectedProcedure.query(async ({ ctx }) => {
+      assertLineManagementAdmin(ctx.user);
+      try {
+        return await getLineGroupReplyReviewQueue();
+      } catch (error) {
+        console.error("[LINE Group Reply Review] Queue read failed", {
+          code: "LINE_GROUP_REPLY_REVIEW_READ_FAILED",
+          error,
+        });
+        throw new TRPCError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "グループ返信確認を読み込めません。[LINE_GROUP_REPLY_REVIEW_READ_FAILED]",
+        });
+      }
+    }),
+
+    dismissGroupReplyReviewItem: protectedProcedure
+      .input(z.object({
+        lineGroupId: z.string().trim().regex(/^C[A-Za-z0-9_-]{8,63}$/),
+        incomingMessageId: z.string().trim().min(1).max(64),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        assertLineManagementAdmin(ctx.user);
+        try {
+          return await dismissLineGroupReplyReviewItem({
+            ...input,
+            dismissedBy: `admin:${ctx.user.id}`,
+          });
+        } catch (error) {
+          console.error("[LINE Group Reply Review] Dismiss failed", {
+            code: "LINE_GROUP_REPLY_REVIEW_DISMISS_FAILED",
+            lineGroupId: input.lineGroupId,
+            incomingMessageId: input.incomingMessageId,
+            error,
+          });
+          throw new TRPCError({
+            code: "SERVICE_UNAVAILABLE",
+            message: "返信不要の更新に失敗しました。[LINE_GROUP_REPLY_REVIEW_DISMISS_FAILED]",
+          });
+        }
+      }),
+
     // Reconcile persisted active groups against LINE on an explicit admin action.
     syncGroups: protectedProcedure.mutation(async ({ ctx }) => {
       assertLineManagementAdmin(ctx.user);
@@ -13556,6 +13602,7 @@ ${conversationText}
         z.object({
           lineUserId: z.string().optional(),
           lineGroupId: z.string().optional(),
+          sourceType: z.enum(["user", "group", "room"]).optional(),
           limit: z.number().int().min(1).max(200).optional().default(50),
         })
       )
@@ -13564,6 +13611,7 @@ ${conversationText}
         return await getLineMessages({
           lineUserId: input.lineUserId,
           lineGroupId: input.lineGroupId,
+          sourceType: input.sourceType,
           limit: input.limit,
         });
       }),
@@ -13574,6 +13622,7 @@ ${conversationText}
           to: z.string().trim().regex(/^[UC][A-Za-z0-9_-]{8,63}$/, "LINE送信先IDが不正です"),
           message: z.string().trim().min(1).max(5_000),
           requestId: z.string().uuid(),
+          expectedGroupConversationRevision: z.number().int().nonnegative().optional(),
         })
       )
       .mutation(async ({ input, ctx }) => {
@@ -13611,8 +13660,22 @@ ${conversationText}
             content: message,
             lineTimestamp: Date.now(),
             pendingSummary: "LINE管理画面からの手動送信準備中",
+            expectedGroupConversationRevision: isGroup
+              ? input.expectedGroupConversationRevision
+              : undefined,
           });
         } catch (error) {
+          if ((error as { code?: string })?.code === "LINE_GROUP_CONVERSATION_CHANGED") {
+            console.info("[LINE Management] Review snapshot became stale", {
+              code: "LINE_GROUP_CONVERSATION_CHANGED",
+              requestId,
+              lineGroupId: input.to,
+            });
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "確認後に新しいメッセージが届きました。会話を再確認して文案を更新してください。[LINE_GROUP_CONVERSATION_CHANGED]",
+            });
+          }
           if ((error as { code?: string })?.code === "LINE_OUTBOUND_IDEMPOTENCY_CONFLICT") {
             console.error("[LINE Management] Manual delivery idempotency conflict", {
               code: "LINE_OUTBOUND_IDEMPOTENCY_CONFLICT",

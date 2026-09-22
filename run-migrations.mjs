@@ -357,6 +357,16 @@ async function main() {
       if (!isDuplicateMysqlIndex(error, 'idx_line_messages_user_history')) throw error;
     }
     console.log('[Migration] LINE person talk-history index ensured.');
+
+    console.log('[Migration] Ensuring LINE group reply-review index...');
+    const lineGroupReplyReviewMigrationPath = path.join(__dirname, 'drizzle', '0160_line_group_reply_review.sql');
+    const lineGroupReplyReviewSql = await fs.readFile(lineGroupReplyReviewMigrationPath, 'utf8');
+    try {
+      await connection.execute(lineGroupReplyReviewSql);
+    } catch (error) {
+      if (!isDuplicateMysqlIndex(error, 'idx_line_messages_group_direction_history')) throw error;
+    }
+    console.log('[Migration] LINE group reply-review index ensured.');
   } catch (criticalErr) {
     console.error('[Migration] Required post-Drizzle schema migration failed:', criticalErr.message);
     throw criticalErr;

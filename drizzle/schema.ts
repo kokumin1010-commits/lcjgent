@@ -1090,6 +1090,13 @@ export const lineMessages = mysqlTable("line_messages", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, table => ({
   userHistoryIdx: index("idx_line_messages_user_history").on(table.lineUserId, table.id),
+  groupDirectionHistoryIdx: index("idx_line_messages_group_direction_history").on(
+    table.lineGroupId,
+    table.sourceType,
+    table.direction,
+    table.lineTimestamp,
+    table.id,
+  ),
 }));
 
 export type LineMessage = typeof lineMessages.$inferSelect;

@@ -66,6 +66,7 @@ describe("LINE group AI draft API", () => {
       model: "gpt-5-mini",
       sourceMessageCount: 4,
       latestMessageAt: "2026-09-21T00:00:00.000Z",
+      conversationRevision: 12,
     });
   });
 

@@ -27,6 +27,18 @@ const personHistoryMigrationSource = readFileSync(
   resolve(root, "drizzle/0159_line_person_talk_history.sql"),
   "utf8"
 );
+const groupReplyReviewSource = readFileSync(
+  resolve(root, "server/lineGroupReplyReview.ts"),
+  "utf8"
+);
+const groupReplyReviewUiSource = readFileSync(
+  resolve(root, "client/src/pages/LineGroupReplyReviewQueue.tsx"),
+  "utf8"
+);
+const groupReplyReviewMigrationSource = readFileSync(
+  resolve(root, "drizzle/0160_line_group_reply_review.sql"),
+  "utf8"
+);
 
 describe("LINE group management regression contracts", () => {
   it("keeps normal list reads local and exposes explicit admin reconciliation", () => {
@@ -146,5 +158,56 @@ describe("LINE group management regression contracts", () => {
     expect(schemaSource).toContain('index("idx_line_messages_user_history").on(table.lineUserId, table.id)');
     expect(migrationRunnerSource).toContain("0159_line_person_talk_history.sql");
     expect(migrationRunnerSource).toContain("isDuplicateMysqlIndex(error, 'idx_line_messages_user_history')");
+  });
+
+  it("separates invited-group AI reply review from direct LINE history and pending items", () => {
+    expect(routerSource).toContain("getGroupReplyReviewQueue: protectedProcedure.query");
+    expect(routerSource).toContain("dismissGroupReplyReviewItem: protectedProcedure");
+    expect(routerSource).toContain("LINE_GROUP_REPLY_REVIEW_READ_FAILED");
+    expect(routerSource).toContain("LINE_GROUP_REPLY_REVIEW_DISMISS_FAILED");
+    expect(groupReplyReviewSource).toContain("candidate.sourceType = 'group'");
+    expect(groupReplyReviewSource).toContain("lifecycle.isActive = TRUE");
+    expect(groupReplyReviewSource).toContain("outgoing.direction = 'outgoing'");
+    expect(groupReplyReviewSource).toContain("incoming.responseStatus NOT IN ('responded', 'cancelled')");
+    expect(groupReplyReviewSource).toContain("candidate.responseStatus NOT IN ('responded', 'cancelled')");
+    expect(groupReplyReviewSource).toContain("candidateSender.userType");
+    expect(groupReplyReviewSource).toContain("pendingOutgoing.responseStatus = 'pending'");
+    expect(dbSource).toContain("isNull(lineMessages.lineGroupId)");
+    expect(uiSource).toContain('sourceType: "user"');
+    expect(uiSource).toContain("グループAI返信確認");
+    expect(uiSource).toContain("個別LINE履歴");
+    expect(uiSource).toContain("個別未応答");
+  });
+
+  it("prioritizes AI-recommended group replies but always requires human review before send", () => {
+    expect(groupReplyReviewUiSource).toContain("AI返信推奨");
+    expect(groupReplyReviewUiSource).toContain("返信不要候補");
+    expect(groupReplyReviewUiSource).toContain("AIおすすめ返信（未送信）");
+    expect(groupReplyReviewUiSource).toContain("文案を確認して返信");
+    expect(groupReplyReviewUiSource).toContain("個別LINEの履歴・未応答はここには入りません");
+    expect(uiSource).toContain("setGroupAiDraftPendingReview(Boolean(prefill))");
+    expect(uiSource).toContain("groupAiDraftPendingReview && !groupAiDraftReviewed");
+    const sendHandler = uiSource.slice(
+      uiSource.indexOf("const handleSendGroupMessage"),
+      uiSource.indexOf("const applyGroupManualMessageTemplate"),
+    );
+    expect(sendHandler).toContain("groupAiDraftPendingReview && !groupAiDraftReviewed");
+    expect(sendHandler.indexOf("groupAiDraftPendingReview && !groupAiDraftReviewed"))
+      .toBeLessThan(sendHandler.indexOf("sendMessageMutation.mutate"));
+    expect(uiSource).toContain("内容を確認しました");
+    expect(uiSource).toContain("expectedGroupConversationRevision: groupReplyExpectedRevision ?? undefined");
+    expect(routerSource).toContain("LINE_GROUP_CONVERSATION_CHANGED");
+    expect(dbSource).toContain("expectedGroupConversationRevision");
+    expect(groupReplyReviewUiSource).toContain("送信処理中");
+    expect(groupReplyReviewUiSource).not.toContain("sendMessage.mutate");
+  });
+
+  it("adds a non-destructive group history index and Railway fallback", () => {
+    expect(groupReplyReviewMigrationSource).toContain("CREATE INDEX `idx_line_messages_group_direction_history`");
+    expect(groupReplyReviewMigrationSource).toContain("`lineGroupId`, `sourceType`, `direction`, `lineTimestamp`, `id`");
+    expect(groupReplyReviewMigrationSource).not.toContain("DROP");
+    expect(schemaSource).toContain('index("idx_line_messages_group_direction_history")');
+    expect(migrationRunnerSource).toContain("0160_line_group_reply_review.sql");
+    expect(migrationRunnerSource).toContain("isDuplicateMysqlIndex(error, 'idx_line_messages_group_direction_history')");
   });
 });

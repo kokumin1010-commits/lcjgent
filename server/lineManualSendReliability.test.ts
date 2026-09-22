@@ -105,6 +105,38 @@ describe("LINE management manual send reliability", () => {
     );
   });
 
+  it("passes the reviewed group conversation revision into the durable reservation", async () => {
+    const caller = appRouter.createCaller(createAdminContext());
+    await caller.line.sendMessage({
+      to: groupId,
+      message: "確認済み文案です",
+      requestId,
+      expectedGroupConversationRevision: 42,
+    });
+
+    expect(state.reserveLineOutgoingAudit).toHaveBeenCalledWith(expect.objectContaining({
+      expectedGroupConversationRevision: 42,
+    }));
+  });
+
+  it("rejects a stale reviewed group draft before LINE delivery", async () => {
+    const stale = new Error("LINE_GROUP_CONVERSATION_CHANGED") as Error & { code?: string };
+    stale.code = "LINE_GROUP_CONVERSATION_CHANGED";
+    state.reserveLineOutgoingAudit.mockRejectedValue(stale);
+    const caller = appRouter.createCaller(createAdminContext());
+
+    await expect(caller.line.sendMessage({
+      to: groupId,
+      message: "古い文案です",
+      requestId,
+      expectedGroupConversationRevision: 42,
+    })).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: expect.stringContaining("LINE_GROUP_CONVERSATION_CHANGED"),
+    });
+    expect(state.pushMessage).not.toHaveBeenCalled();
+  });
+
   it("removes a trailing public signature before both audit and LINE delivery", async () => {
     const caller = appRouter.createCaller(createAdminContext());
     await caller.line.sendMessage({

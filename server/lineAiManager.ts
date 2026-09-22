@@ -151,6 +151,7 @@ export type LineGroupMessageDraft = {
   model: string;
   sourceMessageCount: number;
   latestMessageAt: string | null;
+  conversationRevision: number;
 };
 
 type GeneratedLineGroupDraftParts = {
@@ -1288,6 +1289,7 @@ export async function generateLineGroupMessageDraft(
       model: generated.model,
       sourceMessageCount: groupContext.messageCount,
       latestMessageAt: groupContext.latestMessageAt,
+      conversationRevision: initialConversationRevision,
     };
   } catch (error) {
     const rawErrorCode = error instanceof Error ? error.message : "LINE_GROUP_AI_DRAFT_FAILED";

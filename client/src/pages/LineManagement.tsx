@@ -5,6 +5,7 @@ import { useLocation } from "wouter";
 
 const LineFollowUpsContent = lazy(() => import("./LineFollowUps"));
 const PendingResponsesContent = lazy(() => import("./PendingResponses"));
+const LineGroupReplyReviewQueueContent = lazy(() => import("./LineGroupReplyReviewQueue"));
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,7 @@ export default function LineManagement() {
   const [groupMessageText, setGroupMessageText] = useState("");
   const [groupAiDraftPendingReview, setGroupAiDraftPendingReview] = useState(false);
   const [groupAiDraftReviewed, setGroupAiDraftReviewed] = useState(false);
+  const [groupReplyExpectedRevision, setGroupReplyExpectedRevision] = useState<number | null>(null);
   const [groupMemberCounts, setGroupMemberCounts] = useState<Record<string, number | null>>({});
   const [groupMemberCountsLoaded, setGroupMemberCountsLoaded] = useState(false);
   const [showLiverInteractionDialog, setShowLiverInteractionDialog] = useState(false);
@@ -102,16 +104,25 @@ export default function LineManagement() {
   const directMessageRequestIdRef = useRef<string | null>(null);
   const groupMessageRequestIdRef = useRef<string | null>(null);
   const groupMessagesEndRef = useRef<HTMLDivElement | null>(null);
+  const groupReplyPrefillRef = useRef<{
+    lineGroupId: string;
+    text: string;
+    conversationRevision: number;
+  } | null>(null);
 
   // Fetch LINE users
   const { data: lineUsers, isLoading: loadingUsers, refetch: refetchUsers } = trpc.line.listUsers.useQuery();
   
   // Fetch LINE groups
   const { data: lineGroups, isLoading: loadingGroups, refetch: refetchGroups } = trpc.line.listGroups.useQuery();
+  const groupReplyReviewQueue = trpc.line.getGroupReplyReviewQueue.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
   
   // Fetch LINE messages
   const { data: lineMessages, isLoading: loadingMessages, refetch: refetchMessages } = trpc.line.listMessages.useQuery({
     lineUserId: selectedUser || undefined,
+    sourceType: "user",
     limit: 50,
   });
 
@@ -262,9 +273,16 @@ export default function LineManagement() {
   }, [showGroupDetailDialog, loadingGroupMessages, groupMessages?.length]);
 
   useEffect(() => {
-    setGroupMessageText("");
-    setGroupAiDraftPendingReview(false);
+    const pendingPrefill = groupReplyPrefillRef.current;
+    const matchedPrefill = pendingPrefill && pendingPrefill.lineGroupId === selectedGroup?.lineGroupId
+      ? pendingPrefill
+      : null;
+    const prefill = matchedPrefill?.text || "";
+    groupReplyPrefillRef.current = null;
+    setGroupMessageText(prefill);
+    setGroupAiDraftPendingReview(Boolean(prefill));
     setGroupAiDraftReviewed(false);
+    setGroupReplyExpectedRevision(matchedPrefill?.conversationRevision ?? null);
     groupMessageRequestIdRef.current = null;
   }, [selectedGroup?.lineGroupId]);
 
@@ -282,7 +300,9 @@ export default function LineManagement() {
         setGroupMessageText("");
         setGroupAiDraftPendingReview(false);
         setGroupAiDraftReviewed(false);
+        setGroupReplyExpectedRevision(null);
         void refetchGroupMessages();
+        void utils.line.getGroupReplyReviewQueue.invalidate();
       } else {
         directMessageRequestIdRef.current = null;
         setShowMessageDialog(false);
@@ -294,6 +314,16 @@ export default function LineManagement() {
       const errorCode = error.data?.code;
       const fallback = language === "ja" ? "送信に失敗しました" : "发送失败";
       toast.error(`${error.message || fallback}${errorCode ? ` (${errorCode})` : ""}`);
+      if (error.message?.includes("LINE_GROUP_CONVERSATION_CHANGED")) {
+        setShowGroupDetailDialog(false);
+        setSelectedGroup(null);
+        setGroupMessageText("");
+        setGroupReplyExpectedRevision(null);
+        groupMessageRequestIdRef.current = null;
+        setGroupAiDraftPendingReview(false);
+        setGroupAiDraftReviewed(false);
+        void utils.line.getGroupReplyReviewQueue.invalidate();
+      }
     },
   });
 
@@ -385,6 +415,7 @@ export default function LineManagement() {
       setGroupMessageText(result.message);
       setGroupAiDraftPendingReview(true);
       setGroupAiDraftReviewed(false);
+      setGroupReplyExpectedRevision(result.conversationRevision);
       groupMessageRequestIdRef.current = null;
       toast.success(
         language === "ja"
@@ -443,6 +474,7 @@ export default function LineManagement() {
       to: selectedGroup.lineGroupId,
       message: groupMessageText.trim(),
       requestId: groupMessageRequestIdRef.current,
+      expectedGroupConversationRevision: groupReplyExpectedRevision ?? undefined,
     });
   };
 
@@ -453,6 +485,7 @@ export default function LineManagement() {
     setGroupMessageText(template.slice(0, 5_000));
     setGroupAiDraftPendingReview(false);
     setGroupAiDraftReviewed(false);
+    setGroupReplyExpectedRevision(null);
     groupMessageRequestIdRef.current = null;
     toast.info(
       language === "ja"
@@ -497,6 +530,28 @@ export default function LineManagement() {
       group.lineGroupId.toLowerCase().includes(query)
     );
   });
+
+  const openGroupReplyReview = (
+    lineGroupId: string,
+    suggestedReply: string | null | undefined,
+    conversationRevision: number,
+  ) => {
+    const group = lineGroups?.find(item => item.lineGroupId === lineGroupId);
+    if (!group) {
+      toast.error(language === "ja" ? "対象グループを読み込めませんでした" : "无法加载目标群组");
+      void refetchGroups();
+      return;
+    }
+    const prefill = suggestedReply?.trim() || "";
+    groupReplyPrefillRef.current = { lineGroupId, text: prefill, conversationRevision };
+    setSelectedGroup(group);
+    setGroupMessageText(prefill);
+    setGroupAiDraftPendingReview(Boolean(prefill));
+    setGroupAiDraftReviewed(false);
+    setGroupReplyExpectedRevision(conversationRevision);
+    groupMessageRequestIdRef.current = null;
+    setShowGroupDetailDialog(true);
+  };
 
   // Get brand name by ID
   const getBrandName = (brandId: number | null) => {
@@ -583,6 +638,7 @@ export default function LineManagement() {
                 refetchGroups();
               }
               if (activeTab === "ai-managers") void refetchAiManagers();
+              if (activeTab === "group-reply-review") void groupReplyReviewQueue.refetch();
               refetchMessages();
             }}
             disabled={activeTab === "groups" && syncGroupsMutation.isPending}
@@ -685,9 +741,18 @@ export default function LineManagement() {
             <Building2 className="h-4 w-4" />
             {language === "ja" ? "グループ" : "群组"}
           </TabsTrigger>
+          <TabsTrigger value="group-reply-review" className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-violet-600" />
+            {language === "ja" ? "グループAI返信確認" : "群组AI回复确认"}
+            {(groupReplyReviewQueue.data?.filter(item => item.shouldReply).length || 0) > 0 && (
+              <Badge variant="destructive" className="ml-1 text-xs">
+                {groupReplyReviewQueue.data?.filter(item => item.shouldReply).length || 0}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="messages" className="flex items-center gap-2">
             <History className="h-4 w-4" />
-            {language === "ja" ? "メッセージ履歴" : "消息记录"}
+            {language === "ja" ? "個別LINE履歴" : "个人LINE记录"}
           </TabsTrigger>
           <TabsTrigger value="follow-ups" className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
@@ -695,7 +760,7 @@ export default function LineManagement() {
           </TabsTrigger>
           <TabsTrigger value="pending" className="flex items-center gap-2">
             <Clock className="h-4 w-4" />
-            {language === "ja" ? "未応答" : "待回复"}
+            {language === "ja" ? "個別未応答" : "个人待回复"}
           </TabsTrigger>
         </TabsList>
 
@@ -1367,8 +1432,23 @@ export default function LineManagement() {
           )}
         </TabsContent>
 
+        {/* Invited-group-only AI reply review queue */}
+        <TabsContent value="group-reply-review" className="space-y-4">
+          <Suspense fallback={<div className="flex items-center justify-center py-8"><RefreshCw className="h-6 w-6 animate-spin" /></div>}>
+            <LineGroupReplyReviewQueueContent
+              language={language}
+              onOpenGroup={openGroupReplyReview}
+            />
+          </Suspense>
+        </TabsContent>
+
         {/* Messages Tab */}
         <TabsContent value="messages" className="space-y-4">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-950/30 dark:text-slate-200">
+            {language === "ja"
+              ? "ここは公式LINEとの1対1トーク履歴です。招待済みグループの返信確認は「グループAI返信確認」で行います。"
+              : "这里仅显示与官方LINE的一对一聊天记录。已邀请群组的回复请在“群组AI回复确认”中处理。"}
+          </div>
           <div className="flex items-center gap-4 mb-4">
             <Select 
               value={selectedUser || "all"} 

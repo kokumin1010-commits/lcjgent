@@ -4234,6 +4234,7 @@ export type LineOutgoingAuditReservation = {
   content: string;
   lineTimestamp: number;
   pendingSummary: string;
+  expectedGroupConversationRevision?: number;
   rateLimit?: {
     messageIdPrefix: string;
     windowMs: number;
@@ -4251,6 +4252,34 @@ async function reserveLineOutgoingAuditWithDb(
   return db.transaction(async tx => {
     if (reservation.lineGroupId) {
       await lockLineGroupConversationUsingExecutor(tx, reservation.lineGroupId);
+      if (reservation.expectedGroupConversationRevision !== undefined) {
+        if (
+          !Number.isSafeInteger(reservation.expectedGroupConversationRevision) ||
+          reservation.expectedGroupConversationRevision < 0
+        ) {
+          throw new Error("LINE_GROUP_CONVERSATION_REVISION_INVALID");
+        }
+        const existingAudit = await tx.select({
+          messageId: lineMessages.messageId,
+        }).from(lineMessages).where(eq(lineMessages.messageId, reservation.messageId)).limit(1);
+        if (existingAudit.length === 0) {
+          const revisionResult = await tx.execute(sql`
+            SELECT conversationRevision
+            FROM line_groups
+            WHERE lineGroupId = ${reservation.lineGroupId}
+            LIMIT 1
+          `);
+          const revisionRow = firstLineGroupClaimRow(revisionResult) as { conversationRevision?: number | string } | null;
+          if (
+            !revisionRow ||
+            Number(revisionRow.conversationRevision || 0) !== reservation.expectedGroupConversationRevision
+          ) {
+            const error = new Error("LINE_GROUP_CONVERSATION_CHANGED");
+            (error as Error & { code?: string }).code = "LINE_GROUP_CONVERSATION_CHANGED";
+            throw error;
+          }
+        }
+      }
     }
     if (reservation.rateLimit) {
       if (!reservation.lineGroupId || !reservation.lineUserId) {
@@ -4473,6 +4502,7 @@ export async function redactLineMessageByMessageId(messageId: string): Promise<v
 export async function getLineMessages(options: {
   lineUserId?: string;
   lineGroupId?: string;
+  sourceType?: "user" | "group" | "room";
   limit?: number;
 }) {
   const db = await getDb();
@@ -4480,10 +4510,12 @@ export async function getLineMessages(options: {
   
   let query = db.select().from(lineMessages);
   
-  if (options.lineUserId) {
-    query = query.where(eq(lineMessages.lineUserId, options.lineUserId)) as typeof query;
-  } else if (options.lineGroupId) {
-    query = query.where(eq(lineMessages.lineGroupId, options.lineGroupId)) as typeof query;
+  const filters = [];
+  if (options.lineUserId) filters.push(eq(lineMessages.lineUserId, options.lineUserId));
+  if (options.lineGroupId) filters.push(eq(lineMessages.lineGroupId, options.lineGroupId));
+  if (options.sourceType) filters.push(eq(lineMessages.sourceType, options.sourceType));
+  if (filters.length > 0) {
+    query = query.where(and(...filters)) as typeof query;
   }
   
   return await query
@@ -4810,7 +4842,9 @@ export async function getPendingResponsesForUI() {
     .where(
       and(
         eq(lineMessages.needsResponse, true),
-        eq(lineMessages.responseStatus, "pending")
+        eq(lineMessages.responseStatus, "pending"),
+        isNull(lineMessages.lineGroupId),
+        eq(lineMessages.sourceType, "user")
       )
     )
     .orderBy(desc(lineMessages.createdAt));

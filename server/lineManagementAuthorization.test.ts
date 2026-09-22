@@ -51,6 +51,11 @@ describe("LINE management authorization", () => {
     await expect(caller.line.getGroupAiInsight({
       lineGroupId: "C00000000000000000000000000000000",
     })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.line.getGroupReplyReviewQueue()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.line.dismissGroupReplyReviewItem({
+      lineGroupId: "C00000000000000000000000000000000",
+      incomingMessageId: "message-authorization-test",
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.line.analyzeGroupConversation({
       lineGroupId: "C00000000000000000000000000000000",
     })).rejects.toMatchObject({ code: "FORBIDDEN" });

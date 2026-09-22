@@ -14,10 +14,21 @@ const reservation: LineOutgoingAuditReservation = {
   pendingSummary: "LINE管理画面からの手動送信準備中",
 };
 
+function queryText(value: any): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(queryText).join(" ");
+  if (!value || typeof value !== "object") return "";
+  if (typeof value.value === "string") return value.value;
+  if (Array.isArray(value.value)) return value.value.map(queryText).join(" ");
+  if (Array.isArray(value.queryChunks)) return value.queryChunks.map(queryText).join(" ");
+  return "";
+}
+
 function createAuditDb(options?: {
   duplicate?: boolean;
   existing?: Record<string, unknown> | null;
   rateLimitCount?: number;
+  conversationRevision?: number;
 }) {
   const values = vi.fn(async () => {
     if (options?.duplicate) {
@@ -32,8 +43,11 @@ function createAuditDb(options?: {
   const from = vi.fn(() => ({ where }));
   const select = vi.fn(() => ({ from }));
   let executeCount = 0;
-  const execute = vi.fn(async () => {
+  const execute = vi.fn(async (query: any) => {
     executeCount += 1;
+    if (queryText(query).includes("SELECT conversationRevision")) {
+      return [[{ conversationRevision: options?.conversationRevision ?? 0 }]];
+    }
     if (executeCount === 2) return [[{ lineGroupId: reservation.lineGroupId }]];
     if (executeCount === 5 && options?.rateLimitCount != null) {
       return [[{ total: options.rateLimitCount }]];
@@ -161,6 +175,26 @@ describe("LINE outbound audit reliability", () => {
     expect(fake.transaction).toHaveBeenCalledTimes(1);
   });
 
+  it("reserves a group reply only when the reviewed conversation revision is current", async () => {
+    const fake = createAuditDb({ conversationRevision: 42 });
+
+    await expect(__lineDbTestUtils.reserveLineOutgoingAuditWithDb(fake.db, {
+      ...reservation,
+      expectedGroupConversationRevision: 42,
+    })).resolves.toEqual({ created: true, status: "pending" });
+    expect(fake.values).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a stale reviewed group reply before creating an outbound audit", async () => {
+    const fake = createAuditDb({ conversationRevision: 43 });
+
+    await expect(__lineDbTestUtils.reserveLineOutgoingAuditWithDb(fake.db, {
+      ...reservation,
+      expectedGroupConversationRevision: 42,
+    })).rejects.toMatchObject({ code: "LINE_GROUP_CONVERSATION_CHANGED" });
+    expect(fake.values).not.toHaveBeenCalled();
+  });
+
   it("atomically reserves below the configured group-user rate limit", async () => {
     const fake = createAuditDb({ rateLimitCount: 2 });
     const limitedReservation: LineOutgoingAuditReservation = {
@@ -236,6 +270,27 @@ describe("LINE outbound audit reliability", () => {
       status: "responded",
     });
     expect(fake.execute).toHaveBeenCalledTimes(4);
+  });
+
+  it("accepts an identical reviewed-group retry after its own audit changed the revision", async () => {
+    const fake = createAuditDb({
+      duplicate: true,
+      conversationRevision: 43,
+      existing: {
+        sourceType: reservation.sourceType,
+        lineUserId: null,
+        lineGroupId: reservation.lineGroupId,
+        content: reservation.content,
+        direction: "outgoing",
+        responseStatus: "responded",
+      },
+    });
+
+    await expect(__lineDbTestUtils.reserveLineOutgoingAuditWithDb(fake.db, {
+      ...reservation,
+      expectedGroupConversationRevision: 42,
+    })).resolves.toEqual({ created: false, status: "responded" });
+    expect(fake.values).toHaveBeenCalledTimes(1);
   });
 
   it("rejects the same request UUID with different content or target", async () => {

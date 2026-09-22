@@ -104,8 +104,8 @@ export default function PendingResponses() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">要対応メッセージ</h1>
-          <p className="text-muted-foreground">返事が必要なメッセージの一覧</p>
+          <h1 className="text-2xl font-bold">個別LINE・要対応メッセージ</h1>
+          <p className="text-muted-foreground">公式LINEとの1対1トークで返事が必要なメッセージ</p>
         </div>
         <div className="grid gap-4">
           {[1, 2, 3].map((i) => (
@@ -130,8 +130,8 @@ export default function PendingResponses() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">要対応メッセージ</h1>
-          <p className="text-muted-foreground">返事が必要なメッセージの一覧</p>
+          <h1 className="text-2xl font-bold">個別LINE・要対応メッセージ</h1>
+          <p className="text-muted-foreground">グループは含みません。グループ対応は「グループAI返信確認」で行います。</p>
         </div>
         {hasPending && (
           <Badge variant="destructive" className="text-lg px-3 py-1">
