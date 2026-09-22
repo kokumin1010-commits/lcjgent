@@ -5,6 +5,8 @@ const source = readFileSync(
   new URL("../client/src/pages/ProductManagement.tsx", import.meta.url),
   "utf8",
 );
+const routerSource = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
+const dbSource = readFileSync(new URL("./db.ts", import.meta.url), "utf8");
 
 describe("mall product list position preservation", () => {
   it("anchors the edited product row and prevents dialog focus from jumping to the top", () => {
@@ -32,5 +34,17 @@ describe("mall product list position preservation", () => {
       'window.scrollTo({ top: position.scrollY, behavior: "auto" })',
     );
     expect(source).not.toContain("window.scrollTo({ top: 0");
+  });
+
+  it("keeps management ordering stable when editable stock or status changes", () => {
+    expect(source).toContain("prioritizeInStock: false");
+    expect(routerSource).toContain("prioritizeInStock: z.boolean().optional()");
+    expect(dbSource).toContain("options?.prioritizeInStock === false");
+    expect(dbSource).toContain("asc(mallProducts.sortOrder)");
+    expect(dbSource).toContain("desc(mallProducts.createdAt)");
+    expect(dbSource).toContain("desc(mallProducts.id)");
+    expect(dbSource).toContain(
+      'desc(sql`CASE WHEN ${mallProducts.stock} > 0 THEN 1 ELSE 0 END`)',
+    );
   });
 });

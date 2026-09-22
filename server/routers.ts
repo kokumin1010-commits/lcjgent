@@ -22588,9 +22588,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         category: z.string().optional(),
         limit: z.number().optional(),
         offset: z.number().optional(),
+        prioritizeInStock: z.boolean().optional(),
       }).nullish())
       .query(async ({ input }) => {
-        return await getMallProducts(input);
+        return await getMallProducts(input ?? undefined);
       }),
 
     // 商品詳細取得（公開）

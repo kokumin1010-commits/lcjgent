@@ -3687,3 +3687,8 @@ join／leave orderingは未知groupのleave tombstoneを保存し、新規metada
 既存・新規の両経路を共通アップローダーに統一し、画像MIME、5MB上限、REST応答の`url/key`を検証。クリップボード由来のPNG/JPEG/WebPはMIMEと一致する安全な拡張子付きファイル名へ正規化してから`/api/upload-product-image`へ送信し、同時操作による重複アップロードも抑止する。既存バリアントは返却された`imageUrl/imageKey`を対象IDだけに保存し、新規バリアントは作成前stateへ保持する。商品・権限・DBスキーマ・環境変数・package依存関係は変更していない。
 本地验证：剪贴板helper、MALL粘贴UI、商品弹窗响应式、列表位置保持、REST图片上传与商品图片流程共6个测试文件32项全部通过；`ProductManagement.tsx`浏览器bundle与完整production build成功（仅保留既有`receiptMaskingService.ts` sharp namespace warning）；8GB全量TypeScript检查仍为latest main既有1,165条诊断，本次`ProductManagement.tsx`及`mallProductClipboardPasteUI.test.ts`诊断0条；`git diff --check`通过。
 首次独立只读审查发现两项竞态：既有バリアント图片上传后未等待数据库更新便解除锁，快速连续操作可能被较早请求反向覆盖；新建バリアント图片上传中仍可先点击追加，导致图片留在下一份草稿。发布前已将既有图片更新改为`await updateVariant.mutateAsync`并保持锁至持久化结束，新建流程增加同步创建锁、上传/创建互斥、等待创建成功后才清空草稿，上传期间禁用追加按钮。修复后重新完成上述全部测试、构建及类型差分检查；第二轮独立复审结论为 **PASS（P0/P1 blocker 0件）**。
+
+## 2026-09-22｜MALL商品详情保存后不再因库存变化自动移到前方（本番反映前）
+用户录屏显示，在`/master/mall?tab=products`编辑列表中段商品并把库存从0改为1后，弹窗关闭时虽然旧滚动锚点仍把该商品留在视口内，但其前后商品全部改变，看起来像商品被自动置顶。根因不是单纯的浏览器滚动，而是共用商品查询把`stock > 0`作为第一排序键；库存跨过0后，刷新结果会把该商品移动到有库存分组前方。
+本次为`mall.getProducts`增加向后兼容的可选`prioritizeInStock`排序参数。商品管理页固定传`false`，采用`sortOrder ASC → createdAt DESC → id DESC`的稳定顺序，因此修改库存、状态、名称、价格等详情不会改变列表位置；主动修改`sortOrder`仍会按预期调整顺序。商城首页、公开商品页、主播商品目录及其他未传该参数的调用仍保持原来的“有库存优先 → sortOrder → createdAt → id”规则，不改变顾客侧展示逻辑。现有保存后的商品行锚点与视口恢复继续保留；若当前状态筛选导致商品离开结果集，则回退到原滚动高度。
+本地验证：商品位置、粘贴上传、响应式弹窗、选品导入UI、REST图片上传与商品图片流程共6个测试文件32项全部通过；`ProductManagement.tsx`、`server/db.ts`、`server/routers.ts`定向bundle和完整production build成功，仅保留既有`receiptMaskingService.ts` sharp namespace warning。8GB全量TypeScript检查仍为仓库既有1,164条诊断，本次修改行范围诊断0条；`git diff --check`通过。独立只读复审结论为 **PASS（P0/P1 blocker 0件）**。未修改商品数据、数据库schema、权限、环境变量或package依赖。

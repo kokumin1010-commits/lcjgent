@@ -8569,6 +8569,7 @@ export async function getMallProducts(options?: {
   category?: string;
   limit?: number;
   offset?: number;
+  prioritizeInStock?: boolean;
 }) {
   const db = await getDb();
   if (!db) return [];
@@ -8614,11 +8615,20 @@ export async function getMallProducts(options?: {
     query = query.where(and(...conditions)) as typeof query;
   }
 
-  // 在庫あり商品を優先表示（stock > 0 が先）、次にsortOrder、最後にcreatedAt降順
-  query = query.orderBy(
-    desc(sql`CASE WHEN ${mallProducts.stock} > 0 THEN 1 ELSE 0 END`),
-    asc(mallProducts.sortOrder),
-    desc(mallProducts.createdAt)
+  // 公開商城は在庫あり商品を優先。管理画面は編集で並びが変わらない安定順を使う。
+  query = (
+    options?.prioritizeInStock === false
+      ? query.orderBy(
+          asc(mallProducts.sortOrder),
+          desc(mallProducts.createdAt),
+          desc(mallProducts.id)
+        )
+      : query.orderBy(
+          desc(sql`CASE WHEN ${mallProducts.stock} > 0 THEN 1 ELSE 0 END`),
+          asc(mallProducts.sortOrder),
+          desc(mallProducts.createdAt),
+          desc(mallProducts.id)
+        )
   ) as typeof query;
 
   if (options?.limit) {

@@ -797,9 +797,10 @@ export default function ProductManagement() {
 
   const utils = trpc.useUtils();
 
-  const { data: products, isLoading } = trpc.mall.getProducts.useQuery(
-    filterStatus === "all" ? undefined : { status: filterStatus }
-  );
+  const { data: products, isLoading } = trpc.mall.getProducts.useQuery({
+    ...(filterStatus === "all" ? {} : { status: filterStatus }),
+    prioritizeInStock: false,
+  });
 
   // ブランド・カテゴリ一覧を取得
   const { data: brands } = trpc.brand.list.useQuery({});
