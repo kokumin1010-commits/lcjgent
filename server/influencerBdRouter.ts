@@ -1785,3 +1785,12 @@ export const influencerBdRouter = router({
       return rows.map(row => ({ ...row, beforeJson: safeJson(row.beforeJson), afterJson: safeJson(row.afterJson) }));
     }),
 });
+
+export async function getInfluencerCreatorDedupeHealth() {
+  const preview = creatorDedupePreview(await loadCreatorDedupeRows(dbPool()));
+  return {
+    duplicateGroupCount: preview.duplicateGroupCount,
+    duplicateRecordCount: preview.duplicateRecordCount,
+    normalizationPendingCount: preview.normalizationPendingCount,
+  };
+}

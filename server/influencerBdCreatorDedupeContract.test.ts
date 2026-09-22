@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 const routerSource = readFileSync(new URL("./influencerBdRouter.ts", import.meta.url), "utf8");
 const pageSource = readFileSync(new URL("../client/src/pages/InfluencerBd.tsx", import.meta.url), "utf8");
+const lightPageSource = readFileSync(new URL("../client/src/pages/InfluencerBdDedupe.tsx", import.meta.url), "utf8");
+const startupSource = readFileSync(new URL("./_core/index.ts", import.meta.url), "utf8");
 
 describe("influencer creator dedupe and delete contracts", () => {
   it("limits dedupe execution to admins and serializes the transaction", () => {
@@ -60,5 +62,25 @@ describe("influencer creator dedupe and delete contracts", () => {
     expect(pageSource).toContain("creatorDedupeConfirmCount");
     expect(pageSource).toContain("expectedFingerprint: preview.fingerprint");
     expect(pageSource).toContain("请输入待移除数量");
+  });
+
+  it("exposes only aggregate counts for production before-and-after verification", () => {
+    const start = routerSource.indexOf("export async function getInfluencerCreatorDedupeHealth");
+    const block = routerSource.slice(start);
+    expect(start).toBeGreaterThan(0);
+    expect(block).toContain("duplicateGroupCount");
+    expect(block).toContain("duplicateRecordCount");
+    expect(block).toContain("normalizationPendingCount");
+    expect(block).not.toContain("displayName:");
+    expect(startupSource).toContain('/api/health/influencer-creator-dedupe');
+  });
+
+  it("requires explicit count confirmation on the lightweight admin page", () => {
+    expect(lightPageSource).toContain("confirmed = confirmCount === String(expectedCount)");
+    expect(lightPageSource).toContain("expectedFingerprint: data.fingerprint");
+    expect(lightPageSource).toContain("expectedDuplicateRecordCount: data.duplicateRecordCount");
+    expect(lightPageSource).not.toContain("URLSearchParams");
+    expect(lightPageSource).not.toContain("useEffect");
+    expect(routerSource).toContain("dedupeCreators: adminProcedure");
   });
 });

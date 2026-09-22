@@ -69,6 +69,7 @@ import { runTikTokPublicMonitorUpgradeSetup } from "../tiktokPublicMonitorUpgrad
 import { syncDueTikTokPublicAccounts } from "../tiktokPublicMonitorService";
 import { runTikTokCompetitorDailyUpgradeSetup } from "../tiktokCompetitorDailyUpgrade";
 import { runInfluencerBdUpgradeSetup } from "../influencerBdUpgrade";
+import { getInfluencerCreatorDedupeHealth } from "../influencerBdRouter";
 import { startStoreBusinessUpgradeSetup } from "../storeBusinessUpgrade";
 import { startLcjBrainProjectUpgrade } from "../lcjBrainProjectUpgrade";
 import {
@@ -331,6 +332,16 @@ async function startServer() {
         migrationStatus: "unavailable",
         hasError: true,
       });
+    }
+  });
+
+  app.get("/api/health/influencer-creator-dedupe", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    try {
+      const health = await getInfluencerCreatorDedupeHealth();
+      return res.status(200).json({ ok: true, ...health });
+    } catch {
+      return res.status(503).json({ ok: false });
     }
   });
 
