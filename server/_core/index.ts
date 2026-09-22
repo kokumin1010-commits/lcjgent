@@ -150,6 +150,68 @@ async function startServer() {
     }
   });
 
+  // SalesDash signs each immutable daily-report event with an Ed25519 key whose
+  // public half is fetched from the pinned SalesDash domain. No shared secret or
+  // LINE credential crosses service boundaries.
+  app.post(
+    "/api/internal/salesdash/tw-daily-line",
+    express.text({ type: "application/json", limit: "64kb" }),
+    async (req, res) => {
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      const body = typeof req.body === "string" ? req.body : "";
+      const keyId = String(req.headers["x-salesdash-key-id"] || "");
+      const timestamp = String(req.headers["x-salesdash-timestamp"] || "");
+      const eventId = String(req.headers["x-salesdash-event-id"] || "");
+      const signature = String(req.headers["x-salesdash-signature"] || "");
+      if (!body || !keyId || !timestamp || !eventId || !signature) {
+        return res.status(401).json({ delivered: false, reason: "signed_headers_required" });
+      }
+      try {
+        const {
+          deliverTwDailyLineEvent,
+          verifySalesDashTwDailyRequest,
+        } = await import("../twDailyLineBridge");
+        const event = await verifySalesDashTwDailyRequest({
+          body,
+          keyId,
+          timestamp,
+          eventId,
+          signature,
+        });
+        const result = await deliverTwDailyLineEvent(event);
+        return res.status(result.delivered ? 200 : result.accepted ? 202 : 409).json(result);
+      } catch (error) {
+        const rawCode = error instanceof Error ? error.message : "TW_DAILY_LINE_FAILED";
+        const code = /^(SALESDASH|LINE_DAILY|TW_DAILY)_[A-Z0-9_]{1,180}$/.test(rawCode)
+          ? rawCode
+          : "TW_DAILY_LINE_FAILED";
+        const isAuthFailure = code.startsWith("SALESDASH_SIGNATURE")
+          || code.startsWith("SALESDASH_KEY_ID")
+          || code.startsWith("SALESDASH_EVENT_ID");
+        const isPayloadFailure = code === "SALESDASH_PAYLOAD_INVALID";
+        console.error("[TwDailyLine] Delivery failed", { code, eventId: eventId.slice(0, 160) });
+        return res.status(isAuthFailure ? 401 : isPayloadFailure ? 400 : 502).json({
+          delivered: false,
+          reason: isAuthFailure ? "signature_rejected" : isPayloadFailure ? "invalid_payload" : "delivery_failed",
+        });
+      }
+    },
+  );
+
+  app.get("/api/internal/salesdash/tw-daily-line/status", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    try {
+      const { getTwDailyLineBridgeStatus } = await import("../twDailyLineBridge");
+      const status = await getTwDailyLineBridgeStatus();
+      return res.status(status.ok ? 200 : 503).json(status);
+    } catch (error) {
+      console.error("[TwDailyLine] Status unavailable", {
+        code: error instanceof Error ? error.message.slice(0, 120) : "unknown",
+      });
+      return res.status(503).json({ ok: false, reason: "status_unavailable" });
+    }
+  });
+
   // Enable gzip/brotli compression for all responses
   app.use(compression({
     level: 6,
@@ -4385,6 +4447,18 @@ async function startServer() {
     const { ensureLineAiManagerStorage } = await import("../lineAiManager");
     await ensureLineAiManagerStorage();
     console.log("[LINE AI Manager] Storage ready");
+    const {
+      applyTwDailyLineTargetGroupRollout,
+      startTwDailyLineOutboxWorker,
+    } = await import("../twDailyLineBridge");
+    const dailyLineRollout = await applyTwDailyLineTargetGroupRollout();
+    console.log("[TwDailyLine] Target group rollout checked", {
+      applied: dailyLineRollout.applied,
+      alreadyApplied: dailyLineRollout.alreadyApplied,
+      matchCount: dailyLineRollout.matchCount,
+    });
+    startTwDailyLineOutboxWorker();
+    console.log("[TwDailyLine] Outbox worker started");
   } catch (error) {
     console.error("[LINE AI Manager] Storage setup failed", error);
     throw error;
