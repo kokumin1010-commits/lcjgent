@@ -14,6 +14,14 @@ import {
   type InfluencerCreatorImportPreview,
   type InfluencerCreatorImportRow,
 } from "./influencerBdCreatorImport";
+import {
+  buildInfluencerCreatorDedupeGroups,
+  hasMeaningfulCreatorName,
+  mergeInfluencerCreatorGroup,
+  normalizeInfluencerCreatorAccountId,
+  normalizedInfluencerCreatorRowAccountId,
+  type InfluencerCreatorDedupeRow,
+} from "./influencerBdCreatorDedupe";
 import { getInfluencerBdUpgradeHealth } from "./influencerBdUpgrade";
 import {
   attachStoreBrandLinks,
@@ -84,6 +92,22 @@ function auditSnapshot(value: any) {
     if (result[field] != null) result[field] = "[stored-object]";
   }
   return result;
+}
+
+function creatorMergeAuditSnapshot(row: InfluencerCreatorDedupeRow | RowDataPacket | undefined) {
+  if (!row) return null;
+  const platform = String(row.platform || "");
+  const normalizedHandle = normalizedInfluencerCreatorRowAccountId(row as InfluencerCreatorDedupeRow);
+  return {
+    id: Number(row.id),
+    platform,
+    accountKeyHash: normalizedHandle ? sha256Text(`${platform}\u0000${normalizedHandle}`) : null,
+    hadMeaningfulName: hasMeaningfulCreatorName(row as InfluencerCreatorDedupeRow),
+    status: String(row.status || ""),
+    outreachCount: Number(row.outreachCount || 0),
+    attachmentCount: Number(row.attachmentCount || 0),
+    wasDeleted: Boolean(row.deletedAt),
+  };
 }
 
 async function writeAudit(connection: PoolConnection, input: {
@@ -225,9 +249,64 @@ async function assertCampaign(connection: Pool | PoolConnection, id: number) {
   return row;
 }
 
-function normalizeHandle(value: string | null | undefined) {
-  const text = String(value || "").trim().replace(/^@+/, "").toLowerCase();
-  return text || null;
+function normalizeHandle(value: string | null | undefined, platform?: string | null) {
+  return normalizeInfluencerCreatorAccountId(value, platform);
+}
+
+const CREATOR_DEDUPE_LOCK = "influencer_bd_creator_account_dedupe_v1";
+
+async function loadCreatorDedupeRows(connection: Pool | PoolConnection, lock = false) {
+  const [rows] = await connection.query<RowDataPacket[]>(
+    `SELECT c.*,
+      (SELECT COUNT(*) FROM influencer_bd_outreach_logs o WHERE o.creatorId=c.id) AS outreachCount,
+      (SELECT COUNT(*) FROM influencer_bd_attachments a WHERE a.creatorId=c.id) AS attachmentCount
+     FROM influencer_bd_creators c
+     WHERE c.handle IS NOT NULL AND TRIM(c.handle)<>''
+     ORDER BY c.id${lock ? " FOR UPDATE" : ""}`,
+  );
+  return rows as InfluencerCreatorDedupeRow[];
+}
+
+export function creatorDedupePreview(rows: InfluencerCreatorDedupeRow[]) {
+  const groups = buildInfluencerCreatorDedupeGroups(rows).filter(group => group.duplicates.length > 0);
+  const normalizationRows = rows.flatMap(row => {
+    const expected = normalizedInfluencerCreatorRowAccountId(row);
+    return expected && expected !== String(row.normalizedHandle || "")
+      ? [{ id: Number(row.id), platform: String(row.platform), expected }]
+      : [];
+  });
+  const fingerprint = sha256Text(JSON.stringify({
+    groups: groups.map(group => ({
+      key: group.key,
+      keeperId: Number(group.keeper.id),
+      rows: group.rows.map(row => ({
+        id: Number(row.id),
+        updatedAt: row.updatedAt || null,
+        deletedAt: row.deletedAt || null,
+        outreachCount: Number(row.outreachCount || 0),
+        attachmentCount: Number(row.attachmentCount || 0),
+      })),
+    })),
+    normalizationRows,
+  }));
+  const shownGroups = groups.slice(0, 100);
+  return {
+    fingerprint,
+    duplicateGroupCount: groups.length,
+    duplicateRecordCount: groups.reduce((sum, group) => sum + group.duplicates.length, 0),
+    normalizationPendingCount: normalizationRows.length,
+    shownGroupCount: shownGroups.length,
+    omittedGroupCount: Math.max(0, groups.length - shownGroups.length),
+    groups: shownGroups.map(group => ({
+      platform: group.platform,
+      handle: group.normalizedHandle,
+      keeperId: Number(group.keeper.id),
+      keeperName: String(group.keeper.displayName || group.normalizedHandle),
+      duplicateCount: group.duplicates.length,
+      outreachCount: group.rows.reduce((sum, row) => sum + Number(row.outreachCount || 0), 0),
+      attachmentCount: group.rows.reduce((sum, row) => sum + Number(row.attachmentCount || 0), 0),
+    })),
+  };
 }
 
 function percentage(numerator: number, denominator: number) {
@@ -773,10 +852,213 @@ export const influencerBdRouter = router({
       return rows;
     }),
 
+  previewCreatorDedupe: adminProcedure.query(async () => {
+    const rows = await loadCreatorDedupeRows(dbPool());
+    return creatorDedupePreview(rows);
+  }),
+
+  dedupeCreators: adminProcedure
+    .input(z.object({
+      reason: z.string().trim().min(3).max(1000),
+      expectedFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+      expectedDuplicateGroupCount: z.number().int().min(0),
+      expectedDuplicateRecordCount: z.number().int().min(0),
+      expectedNormalizationPendingCount: z.number().int().min(0),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const connection = await dbPool().getConnection();
+      const actingUser = actor(ctx);
+      let lockAcquired = false;
+      let transactionStarted = false;
+      try {
+        const [lockRows] = await connection.query<RowDataPacket[]>("SELECT GET_LOCK(?,10) AS acquired", [CREATOR_DEDUPE_LOCK]);
+        lockAcquired = Number(lockRows[0]?.acquired || 0) === 1;
+        if (!lockAcquired) {
+          throw new TRPCError({ code: "CONFLICT", message: "[BD-CREATOR-DEDUPE-BUSY] 账号去重正在执行，请稍后重试" });
+        }
+
+        await connection.beginTransaction();
+        transactionStarted = true;
+        const rows = await loadCreatorDedupeRows(connection, true);
+        const lockedPreview = creatorDedupePreview(rows);
+        if (
+          lockedPreview.fingerprint !== input.expectedFingerprint
+          || lockedPreview.duplicateGroupCount !== input.expectedDuplicateGroupCount
+          || lockedPreview.duplicateRecordCount !== input.expectedDuplicateRecordCount
+          || lockedPreview.normalizationPendingCount !== input.expectedNormalizationPendingCount
+        ) {
+          throw new TRPCError({ code: "CONFLICT", message: "[BD-CREATOR-DEDUPE-PREVIEW-STALE] 达人资料已变化，请重新预览后再执行" });
+        }
+        const groups = buildInfluencerCreatorDedupeGroups(rows).filter(group => group.duplicates.length > 0);
+        let mergedRecordCount = 0;
+        let movedOutreachCount = 0;
+        let movedAttachmentCount = 0;
+
+        for (const group of groups) {
+          const keeperId = Number(group.keeper.id);
+          const duplicateIds = group.duplicates.map(row => Number(row.id));
+          const placeholders = duplicateIds.map(() => "?").join(",");
+          const merged = mergeInfluencerCreatorGroup(group);
+          const mergedDeletedAt = group.rows.some(row => !row.deletedAt)
+            ? null
+            : (group.keeper.deletedAt || new Date());
+
+          await connection.query(
+            `UPDATE influencer_bd_creators SET normalizedHandle=NULL WHERE id IN (${placeholders})`,
+            duplicateIds,
+          );
+          const [outreachRows] = await connection.query<RowDataPacket[]>(
+            `SELECT id,creatorId FROM influencer_bd_outreach_logs WHERE creatorId IN (${placeholders}) ORDER BY id FOR UPDATE`,
+            duplicateIds,
+          );
+          const [attachmentRows] = await connection.query<RowDataPacket[]>(
+            `SELECT id,creatorId FROM influencer_bd_attachments WHERE creatorId IN (${placeholders}) ORDER BY id FOR UPDATE`,
+            duplicateIds,
+          );
+          const [outreachResult] = await connection.query<any>(
+            `UPDATE influencer_bd_outreach_logs SET creatorId=? WHERE creatorId IN (${placeholders})`,
+            [keeperId, ...duplicateIds],
+          );
+          const [attachmentResult] = await connection.query<any>(
+            `UPDATE influencer_bd_attachments SET creatorId=? WHERE creatorId IN (${placeholders})`,
+            [keeperId, ...duplicateIds],
+          );
+          if (
+            Number(outreachResult?.affectedRows || 0) !== outreachRows.length
+            || Number(attachmentResult?.affectedRows || 0) !== attachmentRows.length
+          ) {
+            throw new Error("[BD-CREATOR-DEDUPE-MANIFEST-MISMATCH] dependent record count changed during merge");
+          }
+          await connection.query(
+            `UPDATE influencer_bd_creators SET
+              displayName=?,handle=?,normalizedHandle=?,profileUrl=?,followerCount=?,category=?,country=?,language=?,contactInfo=?,
+              ownerStaffId=?,ownerStaffName=?,status=?,notes=?,lastContactAt=?,lastReplyAt=?,updatedById=?,updatedByName=?,deletedAt=?
+             WHERE id=?`,
+            [
+              merged.displayName,
+              merged.handle,
+              merged.normalizedHandle,
+              merged.profileUrl,
+              merged.followerCount,
+              merged.category,
+              merged.country,
+              merged.language,
+              String(merged.contactInfo || "").slice(0, 65_000) || null,
+              merged.ownerStaffId,
+              merged.ownerStaffName,
+              merged.status,
+              String(merged.notes || "").slice(0, 65_000) || null,
+              merged.lastContactAt,
+              merged.lastReplyAt,
+              actingUser.id,
+              actingUser.name,
+              mergedDeletedAt,
+              keeperId,
+            ],
+          );
+          await connection.query(
+            `UPDATE influencer_bd_creators SET status='archived',normalizedHandle=NULL,deletedAt=COALESCE(deletedAt,CURRENT_TIMESTAMP),updatedById=?,updatedByName=? WHERE id IN (${placeholders})`,
+            [actingUser.id, actingUser.name, ...duplicateIds],
+          );
+
+          const [afterRows] = await connection.query<RowDataPacket[]>("SELECT * FROM influencer_bd_creators WHERE id=? LIMIT 1", [keeperId]);
+          for (const [action, childItems] of [
+            ["creator_outreach_merge_manifest", outreachRows.map(row => ({ id: Number(row.id), sourceCreatorId: Number(row.creatorId) }))],
+            ["creator_attachment_merge_manifest", attachmentRows.map(row => ({ id: Number(row.id), sourceCreatorId: Number(row.creatorId) }))],
+          ] as const) {
+            for (let index = 0; index < childItems.length; index += 500) {
+              await writeAudit(connection, {
+                entityType: "creator",
+                entityId: keeperId,
+                action,
+                before: { items: childItems.slice(index, index + 500) },
+                after: { targetCreatorId: keeperId },
+                reason: `${input.reason}; manifestChunk=${Math.floor(index / 500) + 1}`,
+                ctx,
+              });
+            }
+          }
+          await writeAudit(connection, {
+            entityType: "creator",
+            entityId: keeperId,
+            action: "creator_duplicates_merged",
+            before: creatorMergeAuditSnapshot(group.keeper),
+            after: creatorMergeAuditSnapshot(afterRows[0]),
+            reason: `${input.reason}; mergedRecords=${duplicateIds.length}`,
+            ctx,
+          });
+          for (const duplicate of group.duplicates) {
+            await writeAudit(connection, {
+              entityType: "creator",
+              entityId: Number(duplicate.id),
+              action: "creator_merged_into_canonical",
+              before: creatorMergeAuditSnapshot(duplicate),
+              after: { mergedIntoCreatorId: keeperId, status: "archived" },
+              reason: input.reason,
+              ctx,
+            });
+          }
+
+          mergedRecordCount += duplicateIds.length;
+          movedOutreachCount += Number(outreachResult?.affectedRows || 0);
+          movedAttachmentCount += Number(attachmentResult?.affectedRows || 0);
+        }
+
+        const groupedIds = new Set(groups.flatMap(group => group.rows.map(row => Number(row.id))));
+        let normalizedRecordCount = 0;
+        for (const row of rows) {
+          if (groupedIds.has(Number(row.id))) continue;
+          const expected = normalizedInfluencerCreatorRowAccountId(row);
+          if (!expected || expected === String(row.normalizedHandle || "")) continue;
+          const [result] = await connection.query<any>(
+            "UPDATE influencer_bd_creators SET normalizedHandle=?,updatedById=?,updatedByName=? WHERE id=?",
+            [expected, actingUser.id, actingUser.name, Number(row.id)],
+          );
+          normalizedRecordCount += Number(result?.affectedRows || 0);
+        }
+
+        await writeAudit(connection, {
+          entityType: "creator",
+          action: "creator_account_dedupe_completed",
+          after: {
+            duplicateGroupCount: groups.length,
+            mergedRecordCount,
+            normalizedRecordCount,
+            movedOutreachCount,
+            movedAttachmentCount,
+          },
+          reason: input.reason,
+          ctx,
+        });
+        await connection.commit();
+        transactionStarted = false;
+        return {
+          duplicateGroupCount: groups.length,
+          mergedRecordCount,
+          normalizedRecordCount,
+          movedOutreachCount,
+          movedAttachmentCount,
+        };
+      } catch (error: any) {
+        if (transactionStarted) await connection.rollback();
+        if (Number(error?.errno) === 1062) {
+          throw new TRPCError({ code: "CONFLICT", message: "[BD-CREATOR-DEDUPE-RACE] 达人账号正在变更，请刷新后重试" });
+        }
+        throw error;
+      } finally {
+        if (lockAcquired) await connection.query("SELECT RELEASE_LOCK(?)", [CREATOR_DEDUPE_LOCK]).catch(() => undefined);
+        connection.release();
+      }
+    }),
+
   saveCreator: protectedProcedure.input(creatorInput).mutation(async ({ input, ctx }) => {
     const connection = await dbPool().getConnection();
     const scope = await resolveScope(ctx, connection);
-    const normalizedHandle = normalizeHandle(input.handle);
+    const normalizedHandle = normalizeHandle(input.handle, input.platform);
+    if (input.handle?.trim() && !normalizedHandle) {
+      connection.release();
+      throw new TRPCError({ code: "BAD_REQUEST", message: "[BD-CREATOR-HANDLE] 账号ID或主页URL与所选平台不匹配" });
+    }
     try {
       await connection.beginTransaction();
       let id = input.id;
@@ -787,12 +1069,12 @@ export const influencerBdRouter = router({
         before = await getCreatorForAccess(connection, id, scope, true);
         await connection.query(
           `UPDATE influencer_bd_creators SET displayName=?,platform=?,handle=?,normalizedHandle=?,profileUrl=?,followerCount=?,category=?,country=?,language=?,contactInfo=?,ownerStaffId=?,ownerStaffName=?,status=?,notes=?,updatedById=?,updatedByName=? WHERE id=?`,
-          [input.displayName,input.platform,input.handle || null,normalizedHandle,input.profileUrl || null,input.followerCount ?? null,input.category || null,input.country || null,input.language || null,input.contactInfo || null,ownerStaffId,ownerStaffName,input.status,input.notes || null,scope.id,scope.name,id],
+          [input.displayName,input.platform,normalizedHandle,normalizedHandle,input.profileUrl || null,input.followerCount ?? null,input.category || null,input.country || null,input.language || null,input.contactInfo || null,ownerStaffId,ownerStaffName,input.status,input.notes || null,scope.id,scope.name,id],
         );
       } else {
         const [result] = await connection.query<any>(
           `INSERT INTO influencer_bd_creators (displayName,platform,handle,normalizedHandle,profileUrl,followerCount,category,country,language,contactInfo,ownerStaffId,ownerStaffName,status,notes,createdById,createdByName,updatedById,updatedByName) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          [input.displayName,input.platform,input.handle || null,normalizedHandle,input.profileUrl || null,input.followerCount ?? null,input.category || null,input.country || null,input.language || null,input.contactInfo || null,ownerStaffId,ownerStaffName,input.status,input.notes || null,scope.id,scope.name,scope.id,scope.name],
+          [input.displayName,input.platform,normalizedHandle,normalizedHandle,input.profileUrl || null,input.followerCount ?? null,input.category || null,input.country || null,input.language || null,input.contactInfo || null,ownerStaffId,ownerStaffName,input.status,input.notes || null,scope.id,scope.name,scope.id,scope.name],
         );
         id = Number(result.insertId);
       }

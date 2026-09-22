@@ -39,6 +39,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  ScanSearch,
   Search,
   Send,
   Settings2,
@@ -47,6 +48,7 @@ import {
   ThumbsDown,
   ThumbsUp,
   TrendingUp,
+  Trash2,
   UserRoundSearch,
   Users,
   X,
@@ -208,6 +210,9 @@ export default function InfluencerBd() {
   const [creatorDialogOpen, setCreatorDialogOpen] = useState(false);
   const [creatorEditingId, setCreatorEditingId] = useState<number | undefined>();
   const [creatorForm, setCreatorForm] = useState(emptyCreator);
+  const [creatorDeleteTarget, setCreatorDeleteTarget] = useState<any | null>(null);
+  const [creatorDedupeDialogOpen, setCreatorDedupeDialogOpen] = useState(false);
+  const [creatorDedupeConfirmCount, setCreatorDedupeConfirmCount] = useState("");
   const [creatorImportPreview, setCreatorImportPreview] = useState<CreatorImportPreview | null>(null);
   const [creatorImportDialogOpen, setCreatorImportDialogOpen] = useState(false);
   const [creatorImportSelectedKeys, setCreatorImportSelectedKeys] = useState<Set<string>>(new Set());
@@ -254,6 +259,9 @@ export default function InfluencerBd() {
   const outreachDetail = trpc.influencerBd.getOutreach.useQuery({ id: selectedOutreachId || 0 }, { enabled: Boolean(selectedOutreachId) });
   const analysisDetail = trpc.influencerBd.getAnalysis.useQuery({ id: selectedAnalysisId || 0 }, { enabled: Boolean(selectedAnalysisId) });
   const audit = trpc.influencerBd.audit.useQuery({ limit: 100 }, { enabled: isAdmin });
+  const creatorDedupePreview = trpc.influencerBd.previewCreatorDedupe.useQuery(undefined, {
+    enabled: isAdmin && creatorDedupeDialogOpen,
+  });
   const selectedCampaignStore = bootstrap.data?.stores?.find(
     (item: any) => String(item.id) === campaignForm.storeId,
   );
@@ -279,6 +287,7 @@ export default function InfluencerBd() {
     await Promise.all([
       utils.influencerBd.bootstrap.invalidate(),
       utils.influencerBd.listCreators.invalidate(),
+      utils.influencerBd.previewCreatorDedupe.invalidate(),
       utils.influencerBd.listOutreach.invalidate(),
       utils.influencerBd.listCampaigns.invalidate(),
       utils.influencerBd.dashboard.invalidate(),
@@ -289,6 +298,8 @@ export default function InfluencerBd() {
 
   const saveCreator = trpc.influencerBd.saveCreator.useMutation();
   const importCreators = trpc.influencerBd.importCreators.useMutation();
+  const archiveCreator = trpc.influencerBd.archiveCreator.useMutation();
+  const dedupeCreators = trpc.influencerBd.dedupeCreators.useMutation();
   const saveOutreach = trpc.influencerBd.saveOutreach.useMutation();
   const saveCampaign = trpc.influencerBd.saveCampaign.useMutation();
   const archiveAttachment = trpc.influencerBd.archiveAttachment.useMutation();
@@ -460,6 +471,53 @@ export default function InfluencerBd() {
       await invalidateAll();
     } catch (error: any) {
       toast.error(error.message || L("保存失败", "保存に失敗しました"));
+    }
+  };
+
+  const confirmCreatorDelete = async () => {
+    if (!creatorDeleteTarget) return;
+    try {
+      await archiveCreator.mutateAsync({
+        id: Number(creatorDeleteTarget.id),
+        reason: L("用户从达人资料库删除", "ユーザーがクリエイターデータベースから削除"),
+      });
+      toast.success(L("达人已删除，历史进度和审计记录仍保留", "クリエイターを削除しました。進捗と監査履歴は保持されます"));
+      setCreatorDeleteTarget(null);
+      await invalidateAll();
+      if (creatorDedupeDialogOpen) await creatorDedupePreview.refetch();
+    } catch (error: any) {
+      toast.error(error.message || L("删除失败", "削除に失敗しました"));
+    }
+  };
+
+  const runCreatorDedupe = async () => {
+    const preview = creatorDedupePreview.data;
+    if (!preview) return;
+    if (creatorDedupeConfirmCount !== String(preview.duplicateRecordCount)) {
+      toast.error(L(`请输入待移除数量 ${preview.duplicateRecordCount} 进行确认`, `整理対象件数 ${preview.duplicateRecordCount} を入力してください`));
+      return;
+    }
+    try {
+      const result = await dedupeCreators.mutateAsync({
+        reason: L("按平台与账号ID去重，优先保留有TikTok名称的数据", "プラットフォームとアカウントIDで重複整理し、TikTok名があるデータを優先"),
+        expectedFingerprint: preview.fingerprint,
+        expectedDuplicateGroupCount: preview.duplicateGroupCount,
+        expectedDuplicateRecordCount: preview.duplicateRecordCount,
+        expectedNormalizationPendingCount: preview.normalizationPendingCount,
+      });
+      toast.success(L(
+        `已合并${result.duplicateGroupCount}组、移除${result.mergedRecordCount}条重复资料`,
+        `${result.duplicateGroupCount}組を統合し、重複${result.mergedRecordCount}件を整理しました`,
+      ));
+      setCreatorDedupeDialogOpen(false);
+      setCreatorDedupeConfirmCount("");
+      await invalidateAll();
+    } catch (error: any) {
+      toast.error(error.message || L("去重失败", "重複整理に失敗しました"));
+      if (String(error.message || "").includes("BD-CREATOR-DEDUPE-PREVIEW-STALE")) {
+        setCreatorDedupeConfirmCount("");
+        await creatorDedupePreview.refetch();
+      }
     }
   };
 
@@ -680,7 +738,7 @@ export default function InfluencerBd() {
           </TabsContent>
 
           <TabsContent value="creators" className="space-y-4">
-            <Card className="border-slate-200 shadow-sm"><CardHeader className="gap-4 lg:flex-row lg:items-center lg:justify-between"><div><CardTitle>{L("达人资料库", "クリエイターデータベース")}</CardTitle><CardDescription>{L("负责人、平台、粉丝量、类目和最近联络统一管理。", "担当者、プラットフォーム、フォロワー、カテゴリ、最終連絡を一元管理します。")}</CardDescription></div><div className="flex flex-wrap gap-2"><label className={`inline-flex h-10 cursor-pointer items-center justify-center rounded-md border border-indigo-200 bg-indigo-50 px-4 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100 ${recognizingCreatorFile ? "pointer-events-none opacity-60" : ""}`}>{recognizingCreatorFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}{recognizingCreatorFile ? L("正在识别…", "認識中…") : L("AI识别 / 表格导入", "AI認識 / 表取込")}<input className="hidden" type="file" accept="image/jpeg,image/png,image/webp,.xlsx,.xls,.csv,text/csv" onChange={e => { const file = e.currentTarget.files?.[0]; e.currentTarget.value = ""; if (file) void recognizeCreatorFile(file); }} /></label><Button onClick={() => openCreator()}><Plus className="mr-2 h-4 w-4" />{L("新增达人", "クリエイター追加")}</Button></div></CardHeader><CardContent>{!creators.data?.length ? <EmptyState icon={UserRoundSearch} title={L("尚未登记达人", "クリエイター未登録")} description={L("请从实际BD名单开始登记，不会填充虚假达人。", "実際のBDリストから登録してください。架空データは追加しません。")}/> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{creators.data.map((creator: any) => <div key={creator.id} className="rounded-2xl border border-slate-200 bg-white p-4 transition-shadow hover:shadow-md"><div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-slate-950">{creator.displayName}</div><div className="text-xs text-slate-500">{PLATFORM_LABELS[creator.platform]}{creator.handle ? ` · @${creator.handle}` : ""}</div></div><Badge variant="outline">{isZh ? CREATOR_STATUS_LABELS[creator.status]?.zh : CREATOR_STATUS_LABELS[creator.status]?.ja}</Badge></div><div className="mt-4 grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg bg-slate-50 p-2"><span className="text-slate-500">{L("粉丝", "フォロワー")}</span><div className="mt-1 font-semibold">{creator.followerCount == null ? "—" : numberText(creator.followerCount)}</div></div><div className="rounded-lg bg-slate-50 p-2"><span className="text-slate-500">{L("进度记录", "進捗記録")}</span><div className="mt-1 font-semibold">{numberText(creator.outreachCount)}</div></div></div><div className="mt-3 text-sm text-slate-600">{creator.category || L("类目未登记", "カテゴリ未登録")}</div><div className="mt-1 text-xs text-slate-500">{L("负责人", "担当")}: {creator.ownerStaffName || "—"} · {L("最近联络", "最終連絡")}: {displayDate(creator.lastContactAt)}</div><div className="mt-4 flex gap-2"><Button size="sm" variant="outline" onClick={() => openCreator(creator)}><Pencil className="mr-1 h-3.5 w-3.5" />{L("编辑", "編集")}</Button>{creator.profileUrl && <Button size="sm" variant="ghost" asChild><a href={creator.profileUrl} target="_blank" rel="noreferrer"><ExternalLink className="mr-1 h-3.5 w-3.5" />Profile</a></Button>}</div></div>)}</div>}</CardContent></Card>
+            <Card className="border-slate-200 shadow-sm"><CardHeader className="gap-4 lg:flex-row lg:items-center lg:justify-between"><div><CardTitle>{L("达人资料库", "クリエイターデータベース")}</CardTitle><CardDescription>{L("负责人、平台、粉丝量、类目和最近联络统一管理。", "担当者、プラットフォーム、フォロワー、カテゴリ、最終連絡を一元管理します。")}</CardDescription></div><div className="flex flex-wrap gap-2">{isAdmin && <Button variant="outline" onClick={() => setCreatorDedupeDialogOpen(true)}><ScanSearch className="mr-2 h-4 w-4" />{L("账号ID查重", "アカウントID重複確認")}</Button>}<label className={`inline-flex h-10 cursor-pointer items-center justify-center rounded-md border border-indigo-200 bg-indigo-50 px-4 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100 ${recognizingCreatorFile ? "pointer-events-none opacity-60" : ""}`}>{recognizingCreatorFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}{recognizingCreatorFile ? L("正在识别…", "認識中…") : L("AI识别 / 表格导入", "AI認識 / 表取込")}<input className="hidden" type="file" accept="image/jpeg,image/png,image/webp,.xlsx,.xls,.csv,text/csv" onChange={e => { const file = e.currentTarget.files?.[0]; e.currentTarget.value = ""; if (file) void recognizeCreatorFile(file); }} /></label><Button onClick={() => openCreator()}><Plus className="mr-2 h-4 w-4" />{L("新增达人", "クリエイター追加")}</Button></div></CardHeader><CardContent>{!creators.data?.length ? <EmptyState icon={UserRoundSearch} title={L("尚未登记达人", "クリエイター未登録")} description={L("请从实际BD名单开始登记，不会填充虚假达人。", "実際のBDリストから登録してください。架空データは追加しません。")}/> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{creators.data.map((creator: any) => <div key={creator.id} className="rounded-2xl border border-slate-200 bg-white p-4 transition-shadow hover:shadow-md"><div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-slate-950">{creator.displayName}</div><div className="text-xs text-slate-500">{PLATFORM_LABELS[creator.platform]}{creator.handle ? ` · @${creator.handle}` : ""}</div></div><Badge variant="outline">{isZh ? CREATOR_STATUS_LABELS[creator.status]?.zh : CREATOR_STATUS_LABELS[creator.status]?.ja}</Badge></div><div className="mt-4 grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg bg-slate-50 p-2"><span className="text-slate-500">{L("粉丝", "フォロワー")}</span><div className="mt-1 font-semibold">{creator.followerCount == null ? "—" : numberText(creator.followerCount)}</div></div><div className="rounded-lg bg-slate-50 p-2"><span className="text-slate-500">{L("进度记录", "進捗記録")}</span><div className="mt-1 font-semibold">{numberText(creator.outreachCount)}</div></div></div><div className="mt-3 text-sm text-slate-600">{creator.category || L("类目未登记", "カテゴリ未登録")}</div><div className="mt-1 text-xs text-slate-500">{L("负责人", "担当")}: {creator.ownerStaffName || "—"} · {L("最近联络", "最終連絡")}: {displayDate(creator.lastContactAt)}</div><div className="mt-4 flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => openCreator(creator)}><Pencil className="mr-1 h-3.5 w-3.5" />{L("编辑", "編集")}</Button>{creator.profileUrl && <Button size="sm" variant="ghost" asChild><a href={creator.profileUrl} target="_blank" rel="noreferrer"><ExternalLink className="mr-1 h-3.5 w-3.5" />Profile</a></Button>}{isAdmin && <Button size="sm" variant="ghost" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => setCreatorDeleteTarget(creator)}><Trash2 className="mr-1 h-3.5 w-3.5" />{L("删除", "削除")}</Button>}</div></div>)}</div>}</CardContent></Card>
           </TabsContent>
 
           <TabsContent value="campaigns" className="space-y-4">
@@ -697,6 +755,50 @@ export default function InfluencerBd() {
           {isAdmin && <TabsContent value="management" className="space-y-5"><div className="grid gap-5 xl:grid-cols-2"><BreakdownCard title={L("员工表现", "担当者別実績")} rows={dashboard.data?.byStaff || []} labelKey="staffName" L={L} /><BreakdownCard title={L("渠道表现", "チャネル別実績")} rows={dashboard.data?.byChannel || []} labelKey="channel" L={L} /></div><Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><Settings2 className="h-5 w-5" />{L("分析提醒设置", "分析アラート設定")}</CardTitle></CardHeader><CardContent className="grid gap-4 md:grid-cols-4"><div><Label>{L("低回复率阈值(%)", "低返信率しきい値(%)")}</Label><Input type="number" value={settingsForm.lowReplyRatePercent} onChange={e => setSettingsForm(value => ({ ...value, lowReplyRatePercent: e.target.value }))}/></div><div><Label>{L("无进展天数", "停滞日数")}</Label><Input type="number" value={settingsForm.stagnationDays} onChange={e => setSettingsForm(value => ({ ...value, stagnationDays: e.target.value }))}/></div><div><Label>{L("最小联络达人数", "最小連絡人数")}</Label><Input type="number" value={settingsForm.minimumContactedCreators} onChange={e => setSettingsForm(value => ({ ...value, minimumContactedCreators: e.target.value }))}/></div><div className="flex items-end"><Button className="w-full" onClick={async () => { try { await updateSettings.mutateAsync({ lowReplyRatePercent: Number(settingsForm.lowReplyRatePercent), stagnationDays: Number(settingsForm.stagnationDays), minimumContactedCreators: Number(settingsForm.minimumContactedCreators), autoAnalysisEnabled: settingsForm.autoAnalysisEnabled }); toast.success(L("设置已保存", "設定を保存しました")); await invalidateAll(); } catch (error: any) { toast.error(error.message); } }}>{L("保存设置", "設定保存")}</Button></div><div className="md:col-span-4 flex items-center gap-3 rounded-xl bg-slate-50 p-4"><Checkbox checked={settingsForm.autoAnalysisEnabled} onCheckedChange={value => setSettingsForm(current => ({ ...current, autoAnalysisEnabled: Boolean(value) }))}/><div><div className="text-sm font-medium">{L("允许自动AI分析", "自動AI分析を許可")}</div><div className="text-xs text-slate-500">{L("首版默认关闭。开启后仍需后台规则触发；当前不会自动消耗积分。", "初期値はOFFです。有効化しても現在は自動実行せず、ルール実装時の許可設定として保存します。")}</div></div></div></CardContent></Card><Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle>{L("操作审计", "操作監査")}</CardTitle><CardDescription>{L("保存新增、修改、截图、AI分析和设置变更；聊天正文不会在审计列表展开。", "作成・更新・画像・AI分析・設定変更を保存し、チャット本文は監査一覧に展開しません。")}</CardDescription></CardHeader><CardContent><div className="max-h-[420px] overflow-auto"><table className="w-full min-w-[700px] text-sm"><thead><tr className="border-b text-left text-xs text-slate-500"><th className="p-2">{L("时间", "日時")}</th><th className="p-2">{L("实体", "対象")}</th><th className="p-2">{L("操作", "操作")}</th><th className="p-2">{L("操作者", "実行者")}</th><th className="p-2">{L("原因", "理由")}</th></tr></thead><tbody>{audit.data?.map((row: any) => <tr key={row.id} className="border-b border-slate-100"><td className="p-2 text-slate-500">{new Date(row.createdAt).toLocaleString()}</td><td className="p-2">{row.entityType} #{row.entityId || "—"}</td><td className="p-2 font-medium">{row.action}</td><td className="p-2">{row.actorName}</td><td className="p-2 text-slate-500">{row.reason || "—"}</td></tr>)}</tbody></table></div></CardContent></Card></TabsContent>}
         </Tabs>
       </div>
+
+      <Dialog open={Boolean(creatorDeleteTarget)} onOpenChange={open => !open && setCreatorDeleteTarget(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{L("删除达人资料", "クリエイター情報を削除")}</DialogTitle>
+            <DialogDescription>
+              {L("该达人会从资料库和选择列表中隐藏，但既有BD进度、聊天截图和操作审计会保留。", "このクリエイターは一覧と選択肢から非表示になりますが、既存のBD進捗・チャット画像・監査履歴は保持されます。")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-950">
+            <div className="font-semibold">{creatorDeleteTarget?.displayName || "—"}</div>
+            <div className="mt-1 text-rose-700">{creatorDeleteTarget?.platform}{creatorDeleteTarget?.handle ? ` · @${creatorDeleteTarget.handle}` : ""}</div>
+            {Number(creatorDeleteTarget?.outreachCount || 0) > 0 && <div className="mt-3">{L(`关联${numberText(creatorDeleteTarget?.outreachCount)}条进度记录；删除后这些历史仍可审计。`, `${numberText(creatorDeleteTarget?.outreachCount)}件の進捗履歴は削除後も監査用に保持されます。`)}</div>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreatorDeleteTarget(null)}>{L("取消", "キャンセル")}</Button>
+            <Button variant="destructive" onClick={confirmCreatorDelete} disabled={archiveCreator.isPending}><Trash2 className="mr-2 h-4 w-4" />{archiveCreator.isPending ? L("正在删除…", "削除中…") : L("确认删除", "削除を確定")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={creatorDedupeDialogOpen} onOpenChange={open => { setCreatorDedupeDialogOpen(open); if (!open) setCreatorDedupeConfirmCount(""); }}>
+        <DialogContent className="max-h-[88vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{L("按账号ID检测重复达人", "アカウントIDによる重複確認")}</DialogTitle>
+            <DialogDescription>{L("同一平台、同一账号ID只保留一条。优先保留有TikTok名称的资料，并合并资料字段、BD进度和聊天截图。执行前仅预览，不会修改数据。", "同一プラットフォーム・同一アカウントIDは1件だけ保持します。TikTok名がある情報を優先し、プロフィール項目・BD進捗・チャット画像を統合します。実行前の表示は確認のみでデータを変更しません。")}</DialogDescription>
+          </DialogHeader>
+          {creatorDedupePreview.isLoading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-indigo-600" /></div> : creatorDedupePreview.error ? <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>{L("检测失败", "確認に失敗しました")}</AlertTitle><AlertDescription>{creatorDedupePreview.error.message}</AlertDescription></Alert> : <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl bg-indigo-50 p-4"><div className="text-xs text-indigo-600">{L("重复账号组", "重複アカウント組")}</div><div className="mt-1 text-2xl font-bold text-indigo-950">{numberText(creatorDedupePreview.data?.duplicateGroupCount)}</div></div>
+              <div className="rounded-xl bg-rose-50 p-4"><div className="text-xs text-rose-600">{L("待移除重复资料", "整理対象の重複情報")}</div><div className="mt-1 text-2xl font-bold text-rose-950">{numberText(creatorDedupePreview.data?.duplicateRecordCount)}</div></div>
+              <div className="rounded-xl bg-cyan-50 p-4"><div className="text-xs text-cyan-700">{L("待规范账号ID", "ID正規化対象")}</div><div className="mt-1 text-2xl font-bold text-cyan-950">{numberText(creatorDedupePreview.data?.normalizationPendingCount)}</div></div>
+            </div>
+            {!creatorDedupePreview.data?.duplicateGroupCount ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-900"><CheckCircle2 className="mr-2 inline h-5 w-5" />{L("当前没有重复账号。若有旧格式账号ID，可执行一次规范化。", "現在、重複アカウントはありません。旧形式のIDがある場合は正規化のみ実行できます。")}</div> : <div className="max-h-80 space-y-2 overflow-y-auto pr-1">{creatorDedupePreview.data?.groups.map((group: any) => <div key={`${group.platform}:${group.handle}`} className="rounded-xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-slate-950">{group.keeperName}</div><div className="text-xs text-slate-500">{group.platform} · @{group.handle}</div></div><Badge variant="destructive">{L(`${group.duplicateCount}条重复`, `重複${group.duplicateCount}件`)}</Badge></div><div className="mt-2 text-xs text-slate-500">{L(`合并后保留${numberText(group.outreachCount)}条进度、${numberText(group.attachmentCount)}张截图`, `統合後も進捗${numberText(group.outreachCount)}件・画像${numberText(group.attachmentCount)}枚を保持`)}</div></div>)}</div>}
+            {Number(creatorDedupePreview.data?.omittedGroupCount || 0) > 0 && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>{L("预览未全部展开", "プレビューは一部のみ表示")}</AlertTitle><AlertDescription>{L(`共${creatorDedupePreview.data?.duplicateGroupCount}组，当前显示${creatorDedupePreview.data?.shownGroupCount}组，另有${creatorDedupePreview.data?.omittedGroupCount}组未展开；执行仍会处理全部组。`, `全${creatorDedupePreview.data?.duplicateGroupCount}組のうち${creatorDedupePreview.data?.shownGroupCount}組を表示し、残り${creatorDedupePreview.data?.omittedGroupCount}組は省略されています。実行時は全組が対象です。`)}</AlertDescription></Alert>}
+            <Alert><ScanSearch className="h-4 w-4" /><AlertTitle>{L("去重规则", "整理ルール")}</AlertTitle><AlertDescription>{L("优先保留未删除且有真实达人名称的记录；再比较进度、截图和资料完整度。重复项采用可审计软删除，不会丢失业务历史。", "未削除かつ実際の表示名がある情報を最優先し、その後に進捗・画像・項目の充実度を比較します。重複情報は監査可能な論理削除で、業務履歴は失われません。")}</AlertDescription></Alert>
+            <Field label={L(`请输入待移除数量 ${creatorDedupePreview.data?.duplicateRecordCount || 0} 进行确认`, `整理対象件数 ${creatorDedupePreview.data?.duplicateRecordCount || 0} を入力して確認`)}><Input type="number" min={0} value={creatorDedupeConfirmCount} onChange={event => setCreatorDedupeConfirmCount(event.target.value)} /></Field>
+          </div>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreatorDedupeDialogOpen(false)}>{L("取消", "キャンセル")}</Button>
+            <Button onClick={runCreatorDedupe} disabled={dedupeCreators.isPending || creatorDedupePreview.isLoading || creatorDedupeConfirmCount !== String(creatorDedupePreview.data?.duplicateRecordCount ?? "") || (!creatorDedupePreview.data?.duplicateGroupCount && !creatorDedupePreview.data?.normalizationPendingCount)}><ScanSearch className="mr-2 h-4 w-4" />{dedupeCreators.isPending ? L("正在处理…", "処理中…") : L("执行去重", "重複整理を実行")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={creatorDialogOpen} onOpenChange={setCreatorDialogOpen}><DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>{creatorEditingId ? L("编辑达人", "クリエイター編集") : L("新增达人", "クリエイター追加")}</DialogTitle><DialogDescription>{L("只登记实际名单中可确认的信息，未知字段可留空。", "実際のリストで確認できる情報のみ登録し、不明項目は空欄にしてください。")}</DialogDescription></DialogHeader>{!creatorEditingId && <div className="rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-cyan-50 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2 font-semibold text-indigo-950"><Sparkles className="h-4 w-4 text-indigo-600" />{L("AI自动识别达人信息", "AIでクリエイター情報を自動認識")}</div><p className="mt-1 text-xs leading-5 text-slate-600">{L("上传TikTok等主页截图会自动填入本表；上传XLSX/XLS/CSV会先显示逐行预览，再由你确认导入。", "TikTok等のプロフィール画像はフォームへ自動入力し、XLSX/XLS/CSVは行ごとのプレビュー確認後に登録します。")}</p></div><label className={`inline-flex h-10 shrink-0 cursor-pointer items-center justify-center rounded-md bg-indigo-600 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 ${recognizingCreatorFile ? "pointer-events-none opacity-60" : ""}`}>{recognizingCreatorFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-2 h-4 w-4" />}{recognizingCreatorFile ? L("正在识别…", "認識中…") : L("选择截图或表格", "画像・表を選択")}<input className="hidden" type="file" accept="image/jpeg,image/png,image/webp,.xlsx,.xls,.csv,text/csv" onChange={e => { const file = e.currentTarget.files?.[0]; e.currentTarget.value = ""; if (file) void recognizeCreatorFile(file); }} /></label></div><div className="mt-3 text-xs text-slate-500">{L("主页截图由AI识别；表格只在服务器本地解析，不发送给AI。仅提取达人名称、账号、主页、粉丝、类目、地区、语言和联系方式；GMV、SKU/商品、寄样、佣金、物流、履约和运营备注不会写入。识别只生成草稿，不会自动保存。", "プロフィール画像はAIで認識し、表はサーバー内だけで解析してAIへ送信しません。氏名・ID・プロフィール・フォロワー・カテゴリ・地域・言語・連絡先のみ抽出し、GMV、商品、サンプル、報酬、物流、履行、運用メモは登録しません。結果は下書きで自動保存されません。")}</div></div>}<div className="grid gap-4 md:grid-cols-2"><Field label={L("达人名称*", "表示名*")}><Input value={creatorForm.displayName} onChange={e => setCreatorForm(v => ({ ...v, displayName: e.target.value }))}/></Field><Field label={L("平台", "プラットフォーム")}><Select value={creatorForm.platform} onValueChange={(value: any) => setCreatorForm(v => ({ ...v, platform: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(PLATFORM_LABELS).map(([key,label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent></Select></Field><Field label={L("账号ID", "アカウントID")}><Input value={creatorForm.handle} onChange={e => setCreatorForm(v => ({ ...v, handle: e.target.value }))} placeholder="@creator"/></Field><Field label={L("主页URL", "プロフィールURL")}><Input value={creatorForm.profileUrl} onChange={e => setCreatorForm(v => ({ ...v, profileUrl: e.target.value }))}/></Field><Field label={L("粉丝数", "フォロワー数")}><Input type="number" value={creatorForm.followerCount} onChange={e => setCreatorForm(v => ({ ...v, followerCount: e.target.value }))}/></Field><Field label={L("内容类目", "コンテンツカテゴリ")}><Input value={creatorForm.category} onChange={e => setCreatorForm(v => ({ ...v, category: e.target.value }))}/></Field><Field label={L("国家/地区", "国・地域")}><Input value={creatorForm.country} onChange={e => setCreatorForm(v => ({ ...v, country: e.target.value }))}/></Field><Field label={L("语言", "言語")}><Input value={creatorForm.language} onChange={e => setCreatorForm(v => ({ ...v, language: e.target.value }))}/></Field>{isAdmin && <Field label={L("负责人", "担当者")}><Select value={creatorForm.ownerStaffId || "none"} onValueChange={value => setCreatorForm(v => ({ ...v, ownerStaffId: value === "none" ? "" : value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{L("未分配", "未割当")}</SelectItem>{bootstrap.data?.staff?.map((item: any) => <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>)}</SelectContent></Select></Field>}<Field label={L("状态", "ステータス")}><Select value={creatorForm.status} onValueChange={(value: any) => setCreatorForm(v => ({ ...v, status: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(CREATOR_STATUS_LABELS).filter(([key]) => key !== "archived").map(([key,label]) => <SelectItem key={key} value={key}>{isZh ? label.zh : label.ja}</SelectItem>)}</SelectContent></Select></Field><div className="md:col-span-2"><Field label={L("联系方式", "連絡先")}><Textarea value={creatorForm.contactInfo} onChange={e => setCreatorForm(v => ({ ...v, contactInfo: e.target.value }))}/></Field></div><div className="md:col-span-2"><Field label={L("备注", "メモ")}><Textarea value={creatorForm.notes} onChange={e => setCreatorForm(v => ({ ...v, notes: e.target.value }))}/></Field></div></div><DialogFooter><Button variant="outline" onClick={() => setCreatorDialogOpen(false)}>{L("取消", "キャンセル")}</Button><Button onClick={submitCreator} disabled={saveCreator.isPending || !creatorForm.displayName.trim()}>{saveCreator.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}{L("保存达人", "保存")}</Button></DialogFooter></DialogContent></Dialog>
 
