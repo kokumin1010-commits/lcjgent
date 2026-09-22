@@ -82,6 +82,7 @@ export default function LineManagement() {
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(true);
   const [analysisEnabled, setAnalysisEnabled] = useState(true);
   const [proactiveAiEnabled, setProactiveAiEnabled] = useState(true);
+  const [dailyReportEnabled, setDailyReportEnabled] = useState(false);
   const [relationshipObjective, setRelationshipObjective] = useState("");
   const [showGroupDetailDialog, setShowGroupDetailDialog] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
@@ -1325,6 +1326,14 @@ export default function LineManagement() {
                         <span>{language === "ja" ? "履歴保存: 有効" : "聊天记录: 开启"}</span>
                       </div>
                       <div className="flex items-center gap-2">
+                        <Bot className={`h-3 w-3 ${group.dailyReportEnabled ? "text-fuchsia-500" : "text-muted-foreground"}`} />
+                        <span className={group.dailyReportEnabled ? "text-fuchsia-600" : ""}>
+                          {group.dailyReportEnabled
+                            ? (language === "ja" ? "SalesDash日報: 受信中" : "SalesDash日报: 接收中")
+                            : (language === "ja" ? "SalesDash日報: 停止" : "SalesDash日报: 关闭")}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
                         {group.autoFollowUpEnabled ? (
                           <>
                             <Bell className="h-3 w-3 text-green-500" />
@@ -1404,6 +1413,7 @@ export default function LineManagement() {
                           setAutoFollowUpMessage(group.autoFollowUpMessage || "");
                           setAnalysisEnabled(group.analysisEnabled !== false);
                           setProactiveAiEnabled(group.proactiveAiEnabled !== false);
+                          setDailyReportEnabled(group.dailyReportEnabled === true);
                           setRelationshipObjective(group.relationshipObjective || "");
                           setShowAutoFollowUpDialog(true);
                         }}
@@ -1920,6 +1930,23 @@ export default function LineManagement() {
                 </Button>
               </div>
             </div>
+            <div className="rounded-xl border border-fuchsia-200 bg-fuchsia-50 p-4 dark:border-fuchsia-900 dark:bg-fuchsia-950/20">
+              <div className="flex items-center justify-between gap-4">
+                <Label htmlFor="daily-report-enabled" className="flex flex-col gap-1 pr-4">
+                  <span>{language === "ja" ? "SalesDashの社員日報をこのグループへ送る" : "把SalesDash员工日报发到这个群"}</span>
+                  <span className="text-xs text-muted-foreground font-normal">
+                    {language === "ja"
+                      ? "毎朝9:07に、前日分のAI要約と全員の最新日報を1回の配信にまとめます。元の日報は変更しません。"
+                      : "每天上午9:07，把前一天的AI总结和大家最新日报合并为一次发送，不修改原日报。"}
+                  </span>
+                </Label>
+                <Switch
+                  id="daily-report-enabled"
+                  checked={dailyReportEnabled}
+                  onCheckedChange={setDailyReportEnabled}
+                />
+              </div>
+            </div>
             <div className="flex items-center justify-between">
               <Label htmlFor="auto-reply-enabled" className="flex flex-col gap-1">
                 <span>{language === "ja" ? "@LCJ返信を有効にする" : "启用@LCJ回复"}</span>
@@ -2073,6 +2100,7 @@ export default function LineManagement() {
                     autoReplyEnabled,
                     analysisEnabled,
                     proactiveAiEnabled: analysisEnabled && autoFollowUpEnabled && proactiveAiEnabled,
+                    dailyReportEnabled,
                     relationshipObjective,
                   });
                 }
@@ -2539,6 +2567,7 @@ export default function LineManagement() {
                 setAutoReplyEnabled(selectedGroup?.autoReplyEnabled !== false);
                 setAnalysisEnabled(selectedGroup?.analysisEnabled !== false);
                 setProactiveAiEnabled(selectedGroup?.proactiveAiEnabled !== false);
+                setDailyReportEnabled(selectedGroup?.dailyReportEnabled === true);
                 setRelationshipObjective(selectedGroup?.relationshipObjective || "");
                 setShowGroupDetailDialog(false);
                 setShowAutoFollowUpDialog(true);

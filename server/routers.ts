@@ -13372,7 +13372,8 @@ ${conversationText}
       try {
         settingsRows = await sdb.execute(sql`
           SELECT lineGroupId, autoReplyEnabled, autoReplyMessage, analysisEnabled,
-            proactiveAiEnabled, relationshipObjective, groupInsightJson, groupInsightUpdatedAt
+            proactiveAiEnabled, dailyReportEnabled, relationshipObjective,
+            groupInsightJson, groupInsightUpdatedAt
           FROM line_group_settings
         `);
       } catch (error) {
@@ -13387,6 +13388,7 @@ ${conversationText}
         autoReplyMessage: string;
         analysisEnabled: boolean;
         proactiveAiEnabled: boolean;
+        dailyReportEnabled: boolean;
         relationshipObjective: string;
         groupInsight: LineGroupAiInsight | null;
         groupInsightUpdatedAt: Date | null;
@@ -13406,6 +13408,7 @@ ${conversationText}
             autoReplyMessage: row.autoReplyMessage || "",
             analysisEnabled: row.analysisEnabled === undefined ? true : Boolean(row.analysisEnabled),
             proactiveAiEnabled: Boolean(row.proactiveAiEnabled),
+            dailyReportEnabled: Boolean(row.dailyReportEnabled),
             relationshipObjective: row.relationshipObjective || "",
             groupInsight,
             groupInsightUpdatedAt: row.groupInsightUpdatedAt || null,
@@ -13418,6 +13421,7 @@ ${conversationText}
         autoReplyMessage: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.autoReplyMessage : "",
         analysisEnabled: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.analysisEnabled : true,
         proactiveAiEnabled: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.proactiveAiEnabled : true,
+        dailyReportEnabled: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.dailyReportEnabled : false,
         relationshipObjective: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.relationshipObjective : "",
         groupInsight: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.groupInsight : null,
         groupInsightUpdatedAt: settingsMap.has(g.lineGroupId) ? settingsMap.get(g.lineGroupId)!.groupInsightUpdatedAt : null,
@@ -13900,6 +13904,7 @@ ${conversationText}
           autoReplyMessage: z.string().max(5_000).optional(),
           analysisEnabled: z.boolean().optional(),
           proactiveAiEnabled: z.boolean().optional(),
+          dailyReportEnabled: z.boolean().optional(),
           relationshipObjective: z.string().max(1_000).optional(),
         })
       )
@@ -13973,6 +13978,20 @@ ${conversationText}
           if (input.analysisEnabled !== undefined) {
             await tx.execute(sql`UPDATE line_group_settings SET analysisEnabled = ${input.analysisEnabled} WHERE lineGroupId = ${input.lineGroupId}`);
           }
+          if (input.dailyReportEnabled !== undefined) {
+            if (input.dailyReportEnabled) {
+              await tx.execute(sql`
+                UPDATE line_group_settings
+                SET dailyReportEnabled = false
+                WHERE lineGroupId <> ${input.lineGroupId}
+              `);
+            }
+            await tx.execute(sql`
+              UPDATE line_group_settings
+              SET dailyReportEnabled = ${input.dailyReportEnabled}
+              WHERE lineGroupId = ${input.lineGroupId}
+            `);
+          }
           if (
             input.proactiveAiEnabled !== undefined ||
             input.analysisEnabled !== undefined ||
@@ -14033,7 +14052,7 @@ ${conversationText}
         let rows: any;
         try {
           rows = await sdb.execute(sql`
-            SELECT autoReplyEnabled, analysisEnabled, proactiveAiEnabled, relationshipObjective
+            SELECT autoReplyEnabled, analysisEnabled, proactiveAiEnabled, dailyReportEnabled, relationshipObjective
             FROM line_group_settings WHERE lineGroupId = ${input.lineGroupId} LIMIT 1
           `);
         } catch (error) {
@@ -14048,6 +14067,7 @@ ${conversationText}
           autoReplyEnabled: row ? Boolean(row.autoReplyEnabled) : true,
           analysisEnabled: row ? Boolean(row.analysisEnabled) : true,
           proactiveAiEnabled: row ? Boolean(row.proactiveAiEnabled) : true,
+          dailyReportEnabled: row ? Boolean(row.dailyReportEnabled) : false,
           relationshipObjective: row?.relationshipObjective || "",
         };
       }),

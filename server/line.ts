@@ -313,6 +313,50 @@ export async function getLineGroupMemberCount(
   }
 }
 
+export type LineMessageQuotaStatus =
+  | { type: "unlimited"; value: null; totalUsage: number }
+  | { type: "limited"; value: number; totalUsage: number };
+
+export async function getLineMessageQuotaStatus(): Promise<LineMessageQuotaStatus> {
+  const headers = { Authorization: `Bearer ${ENV.lineChannelAccessToken}` };
+  const [quotaResponse, usageResponse] = await Promise.all([
+    fetch("https://api.line.me/v2/bot/message/quota", {
+      method: "GET",
+      headers,
+      signal: AbortSignal.timeout(LINE_GROUP_LOOKUP_TIMEOUT_MS),
+    }),
+    fetch("https://api.line.me/v2/bot/message/quota/consumption", {
+      method: "GET",
+      headers,
+      signal: AbortSignal.timeout(LINE_GROUP_LOOKUP_TIMEOUT_MS),
+    }),
+  ]);
+  if (!quotaResponse.ok || !usageResponse.ok) {
+    throw new Error("LINE_MESSAGE_QUOTA_LOOKUP_FAILED");
+  }
+  const quota = await quotaResponse.json() as { type?: unknown; value?: unknown };
+  const usage = await usageResponse.json() as { totalUsage?: unknown };
+  if (typeof usage.totalUsage !== "number" || !Number.isInteger(usage.totalUsage) || usage.totalUsage < 0) {
+    throw new Error("LINE_MESSAGE_QUOTA_RESPONSE_INVALID");
+  }
+  if (quota.type === "unlimited") {
+    return { type: "unlimited", value: null, totalUsage: Number(usage.totalUsage) };
+  }
+  if (
+    quota.type !== "limited" ||
+    typeof quota.value !== "number" ||
+    !Number.isInteger(quota.value) ||
+    quota.value < 0
+  ) {
+    throw new Error("LINE_MESSAGE_QUOTA_RESPONSE_INVALID");
+  }
+  return {
+    type: "limited",
+    value: Number(quota.value),
+    totalUsage: Number(usage.totalUsage),
+  };
+}
+
 // Leave group
 export async function leaveGroup(groupId: string): Promise<LeaveGroupResult> {
   try {

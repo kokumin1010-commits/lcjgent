@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, bigint, json, boolean, decimal, tinyint, date, uniqueIndex, index } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, bigint, json, boolean, decimal, tinyint, date, datetime, uniqueIndex, index } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -1101,6 +1101,56 @@ export const lineMessages = mysqlTable("line_messages", {
 
 export type LineMessage = typeof lineMessages.$inferSelect;
 export type InsertLineMessage = typeof lineMessages.$inferInsert;
+
+export const twDailyLineReportInbox = mysqlTable("tw_daily_line_report_inbox", {
+  reportId: bigint("report_id", { mode: "number" }).primaryKey(),
+  latestEventId: varchar("latest_event_id", { length: 160 }).notNull(),
+  reportDate: varchar("report_date", { length: 10 }).notNull(),
+  staffName: varchar("staff_name", { length: 64 }).notNull(),
+  action: varchar("action", { length: 20 }).notNull(),
+  content: text("content").notNull(),
+  findings: text("findings"),
+  notes: text("notes"),
+  editCount: int("edit_count", { unsigned: true }).default(0).notNull(),
+  occurredAt: datetime("occurred_at").notNull(),
+  payloadHash: varchar("payload_hash", { length: 64 }).notNull(),
+  receivedAt: timestamp("received_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  eventUq: uniqueIndex("tw_daily_line_inbox_event_uq").on(table.latestEventId),
+  staffDateUq: uniqueIndex("tw_daily_line_inbox_staff_date_uq").on(table.reportDate, table.staffName),
+  dateIdx: index("tw_daily_line_inbox_date_idx").on(table.reportDate, table.staffName, table.reportId),
+}));
+
+export const twDailyLineRollouts = mysqlTable("tw_daily_line_rollouts", {
+  rolloutKey: varchar("rollout_key", { length: 80 }).primaryKey(),
+  targetGroupId: varchar("target_group_id", { length: 64 }).notNull(),
+  appliedAt: timestamp("applied_at").defaultNow().notNull(),
+});
+
+export const twDailyLineOutbox = mysqlTable("tw_daily_line_outbox", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  eventId: varchar("event_id", { length: 160 }).notNull(),
+  targetGroupId: varchar("target_group_id", { length: 64 }).notNull(),
+  eventJson: json("event_json").notNull(),
+  messagesJson: json("messages_json").notNull(),
+  payloadHash: varchar("payload_hash", { length: 64 }).notNull(),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  attemptCount: int("attempt_count", { unsigned: true }).default(0).notNull(),
+  nextAttemptAt: datetime("next_attempt_at").notNull(),
+  leaseToken: varchar("lease_token", { length: 64 }),
+  leaseExpiresAt: datetime("lease_expires_at"),
+  lineRetryKey: varchar("line_retry_key", { length: 64 }).notNull(),
+  firstExternalAttemptAt: datetime("first_external_attempt_at"),
+  memberCount: int("member_count", { unsigned: true }),
+  sentAt: datetime("sent_at"),
+  lastError: varchar("last_error", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  eventUq: uniqueIndex("tw_daily_line_outbox_event_uq").on(table.eventId),
+  dueIdx: index("tw_daily_line_outbox_due_idx").on(table.status, table.nextAttemptAt, table.id),
+}));
 
 /**
  * LINE Follow-ups table for automated follow-up messages

@@ -367,6 +367,32 @@ async function main() {
       if (!isDuplicateMysqlIndex(error, 'idx_line_messages_group_direction_history')) throw error;
     }
     console.log('[Migration] LINE group reply-review index ensured.');
+
+    console.log('[Migration] Ensuring SalesDash Taiwan daily-report LINE bridge...');
+    const twDailyLineMigrationPath = path.join(__dirname, 'drizzle', '0161_tw_daily_line_bridge.sql');
+    const twDailyLineSql = await fs.readFile(twDailyLineMigrationPath, 'utf8');
+    const twDailyLineStatements = twDailyLineSql
+      .split('--> statement-breakpoint')
+      .map(statement => statement.trim())
+      .filter(Boolean);
+    const [twDailyLineLockRows] = await connection.execute(
+      "SELECT GET_LOCK('lcjgent-required-0161-tw-daily-line', 120) AS acquired",
+    );
+    if (Number(twDailyLineLockRows?.[0]?.acquired || 0) !== 1) {
+      throw new Error('Timed out acquiring required 0161 migration lock');
+    }
+    try {
+      for (const statement of twDailyLineStatements) {
+        try {
+          await connection.execute(statement);
+        } catch (error) {
+          if (!isDuplicateMysqlColumn(error)) throw error;
+        }
+      }
+    } finally {
+      await connection.execute("SELECT RELEASE_LOCK('lcjgent-required-0161-tw-daily-line')");
+    }
+    console.log(`[Migration] SalesDash Taiwan daily-report LINE bridge ensured (${twDailyLineStatements.length} statements).`);
   } catch (criticalErr) {
     console.error('[Migration] Required post-Drizzle schema migration failed:', criticalErr.message);
     throw criticalErr;
@@ -377,7 +403,7 @@ async function main() {
 
 main().catch(err => {
   console.error('[Migration] Fatal error:', err);
-  if (isBuildDatabaseUnavailable(err)) {
+  if (process.env.NODE_ENV !== 'production' && isBuildDatabaseUnavailable(err)) {
     console.error('[Migration] Build database is unavailable; required schemas will be verified by fail-closed runtime initializers.');
     process.exit(0);
   }
