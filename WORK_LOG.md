@@ -3731,3 +3731,13 @@ LINE会员会话统一为30天HS256签名Cookie，前端不再保存或传播Bea
 为昨天和今天已保存但卡在`transcribing/summarizing`的记录增加自动收敛：超过10分钟且无心跳的活跃记录软转为可重试`failed`，不删除音频、参会快照或历史行；随后按原有14日窗口从对象存储做完整媒体补验和Whisper语音验证，成功后才进入参会绩效，失败则保留原录音并显示使用原录音重试。新录音和手动重试从事务认领成功开始，在对象下载、完整媒体验证、ffmpeg、单段Whisper、分段循环及AI总结全阶段每60秒刷新处理租约，完成或异常均清理定时器，避免长录音被误收敛。参会成立条件没有放宽：仍必须有未删除未替代记录、持久化音频、完整媒体证明、非空冻结名单，以及`whisper_segments_v1`服务端真实语音证据；纯音或噪声可以为了数据保全而保存，但绝不计参会或绩效。
 
 验证结果：最终核心安全/耐久性测试10文件53项全部通过；相关早会、绩效、日报、身份回归16文件125项全部通过；完整Vitest候选与同提交latest-main基线的失败文件集合完全一致（均为50个既存环境依赖文件，候选无新增失败文件）；生产构建通过。TypeScript全库仍有既存诊断，但候选1163条少于latest-main基线1164条，本次所有文件零诊断。1280px桌面与390px移动端视觉回归均通过：已保存后台处理中提示清晰、无横向溢出、无控制台错误且不显示重复录制按钮。独立安全/数据完整性审查结论为GO、HIGH/CRITICAL blocker 0件；审查提出的新录音与手动重试全阶段心跳边缘均在发布前关闭。整个验证未读取或修改生产业务数据，未新建环境变量或依赖，未物理删除任何历史早会、音频、参会快照或绩效事实。
+
+## 2026-09-22｜LINE公開担当名を「高橋 悠真」へ統一
+
+LINEの対外文面で「AIマネージャー」を前面に出さず、公開担当名を**高橋 悠真**、署名を**— 高橋 悠真**へ統一した。共通定義`shared/linePublicIdentity.ts`を追加し、招待時onboarding、最大2回の限定返信、通常の明示`@LCJ`返信、AI文案、fallback、停止・再開確認、ポイント履歴、リマインダー、グループ内個人情報案内、管理画面の手動送信、固定／AI自動フォローの本文とoutgoing audit senderNameに適用した。日本語3件・中国語3件の手動templateもすべて同一署名とし、template選択は従来どおり入力欄への反映だけで自動送信しない。
+
+利用者への透明性は、招待時の最初の案内にのみ「初回のご案内と確認には自動サポートを利用しています」と1行表示する形へ抑えた。通常文面ではAI・system・自動生成を繰り返さない。一方、AI／自動応答か直接尋ねられた場合は自動サポート利用を正直に答え、人間としての経験・感情・行動を捏造しないprompt制約を維持した。既存のnormal group reply境界（連携済み本人の明示`@LCJ`、group／本人設定、active lifecycle、配送直前revalidation）は変更していない。
+
+独立reviewで検出した再発要因をrelease前にすべて解消した。command replyと管理画面manual sendのaudit senderName残存、ポイント／リマインダー本文の署名漏れ、保存済みcustom fixed follow-upの署名素通しを修正した。custom follow-upは送信直前にunsigned／legacy署名／current署名を正規化し、5000文字上限内で署名を必ず1回だけ付け、同一本文をaudit予約とLINE pushの両方へ渡す。ready状態の旧AI署名responseも送信前に新署名へ正規化する。audit-before-push、deterministic retry key、terminal audit no-replay、lifecycle guardは維持した。
+
+検証はfocused 8 files・138 tests、広範LINE 23 files・246 testsが全成功し、最新`origin/main`取込後のproduction buildも成功した。全量TypeScriptは既存baseline 1,163 diagnostics／85 filesでexit 2だが、今回変更したLINE persona filesには新規診断なし。独立最終reviewは**GO（P0/P1 blocker 0件）**。feature commit `9422fe55850ae71fc27385576c7e94b423acc280`はGitHub CIおよびRailway同一SHAでsuccess。本番`https://lcjmall.com/api/health/line-ai-manager`と`/master/line`はHTTP 200、配信chunk`LineManagement-BUv5GXR8.js`から「高橋 悠真」「自動サポート」「自動返信停止」「初回あいさつ＋TikTok確認」をGET/read-onlyで確認した。実LINE送信、group設定変更、group leave、本番DB直接操作は行っていない。

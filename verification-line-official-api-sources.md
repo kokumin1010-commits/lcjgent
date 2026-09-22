@@ -156,3 +156,13 @@ lifecycle guardはonboardingだけでなく、通常@LCJ AI manager delivery、g
 管理画面の3つの日本語／中国語templateは入力欄へbrand名入り本文を反映するだけで、送信mutationは呼ばない。Dialog上で、自動歓迎は新規・再参加時、`@LCJ`なしは最初2回まで、通常会話は`@LCJ`必須と表示する。
 
 最終検証はLINE関連23 files・244 tests成功、production build、migration runner syntax、差分・secret監査成功。全量TypeScriptは既存baseline 1,164 diagnostics／85 filesでexit 2だが、新規onboarding／delivery guard moduleは0 diagnostics。独立最終reviewは**GO（P0/P1 blocker 0件）**。commit `805aeb8a251fd7cce2f5306eb8e7417d0e6dd708`のGitHub CIとRailwayはsuccess。本番healthはHTTP 200かつAI manager storage／group automation defaults／runtimeがready、`/master/line`の配信chunkにも限定範囲の説明を確認した。実LINE送信、group leave、管理設定mutation、本番DB直接操作は行っていない。
+
+## LINE公開担当名「高橋 悠真」への統一（2026-09-22追加）
+
+対外表示は`高橋 悠真`、末尾署名は`— 高橋 悠真`へ一本化した。招待時onboarding、限定onboarding返信、通常の明示`@LCJ`返信、AI文案・fallback・設定確認、ポイント履歴・リマインダー、グループ内個人情報案内、管理画面manual send、固定／AI自動フォロー、および各outgoing auditのsenderNameに同一の共通定義を使用する。日本語3件・中国語3件のmanual templateにも同一署名を付け、選択操作は入力欄へ反映するだけで送信しない。
+
+自動化を隠す設計にはしていない。招待時の初回案内に限り「初回のご案内と確認には自動サポートを利用しています」と1行表示し、AI／自動応答か直接尋ねられた場合は自動サポート利用を正直に答える。promptは人間としての経験・感情・行動の捏造を禁止する。一方、通常文面ではAI用語を反復せず、自然で簡潔な担当者文体を使う。normal group replyは従来どおり、連携済み本人の明示`@LCJ`、group／本人設定、active lifecycle、配送直前revalidationをすべて必要とし、onboardingの非mention例外はreal-time 7日・最大2回のままである。
+
+送信・監査の一致も検証した。旧AI署名またはunsignedのqueued reply、command reply、custom fixed follow-upは送信直前にcanonical署名へ正規化し、同一本文をimmutable audit予約とLINE deliveryへ使用する。custom follow-upは5000文字上限を署名込みで守り、署名を1回だけ付ける。manual sendとautomatic sendはいずれもaudit-before-push、deterministic retry key、terminal audit no-replayを維持する。
+
+focused 8 files・138 tests、広範LINE 23 files・246 tests、production build、差分・secret監査に成功。全量TypeScriptの既存baseline diagnosticsは残るが、今回変更fileに新規診断はない。独立最終reviewは**GO（P0/P1 blocker 0件）**。feature commit `9422fe55850ae71fc27385576c7e94b423acc280`のGitHub CI／Railwayはsuccess。本番healthと`/master/line`はHTTP 200で、配信chunk内の新名義・自動サポート表示・新しい停止command・手動template buttonをGET/read-only確認した。検証中に実LINE送信、本番DB更新、group leave、設定mutationは行っていない。
