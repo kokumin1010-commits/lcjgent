@@ -166,3 +166,13 @@ lifecycle guardはonboardingだけでなく、通常@LCJ AI manager delivery、g
 送信・監査の一致も検証した。旧AI署名またはunsignedのqueued reply、command reply、custom fixed follow-upは送信直前にcanonical署名へ正規化し、同一本文をimmutable audit予約とLINE deliveryへ使用する。custom follow-upは5000文字上限を署名込みで守り、署名を1回だけ付ける。manual sendとautomatic sendはいずれもaudit-before-push、deterministic retry key、terminal audit no-replayを維持する。
 
 focused 8 files・138 tests、広範LINE 23 files・246 tests、production build、差分・secret監査に成功。全量TypeScriptの既存baseline diagnosticsは残るが、今回変更fileに新規診断はない。独立最終reviewは**GO（P0/P1 blocker 0件）**。feature commit `9422fe55850ae71fc27385576c7e94b423acc280`のGitHub CI／Railwayはsuccess。本番healthと`/master/line`はHTTP 200で、配信chunk内の新名義・自動サポート表示・新しい停止command・手動template buttonをGET/read-only確認した。検証中に実LINE送信、本番DB更新、group leave、設定mutationは行っていない。
+
+## LINE本文署名なし・未連携参加者の明示質問回答（2026-09-23追加）
+
+対外表示とoutgoing auditの`senderName`は`高橋 悠真`を維持するが、送信本文末尾の`— 高橋 悠真`、旧`LCJ公式AIマネージャー`、`LCJ公式LINE`、`LCJ運営（手動）`署名は付けない。日本語／中国語template、AI文案、command、fixed／AI follow-up、manual sendを同じ方針へ統一し、manual sendはserver側でも旧末尾署名を除去する。招待時の初回案内のみ自然な自己紹介と自動サポート利用の注記を表示する。なお、すでにimmutable auditへ予約済みのlegacy pending onboardingは、LINE側accept済み・local finalize失敗の可能性を区別できないため書き換えない。保存済みaudit ID・本文・retry keyをexact retry／finalizeし、replacement auditをdelivery済みと誤記録しない。
+
+未連携参加者への新しい例外は、**明示`@LCJ`付き**のサンプル提供、取引条件、自動応答identityの質問だけである。deterministic classifierと日本語／中国語fixed copyを使い、LLMへgroup本文を送らない。サンプル回答は提供可否を確約せず、希望商品名・画像・URLを依頼し、在庫・提供条件・発送可否を確認後に案内すると明示し、住所・電話番号をgroupへ投稿しないよう案内する。linked liverは既存managerへ、blocked／staffは無応答とする。active onboarding中でも明示商用質問はgeneric onboardingを変更せず専用routingへ返し、通常非mention返信禁止、最大2回onboarding、group autoReply OFF、inactive／leave lifecycle、delivery直前gateを維持する。
+
+送信はimmutable outgoing audit予約後のみ行い、source message由来のdeterministic retry keyを使う。responded auditは再送せず、cancelled／noneもterminal扱いとする。新規限定回答はgroup parent row lockと同一transaction内で同一group・参加者あたり10分3件までを数え、現在のretry対象message IDは除外する。制限判定はDB`CURRENT_TIMESTAMP`を使い、invalid rate-limit parameterはaudit insert前にfail closedとする。全実行結果は既存LINE outgoing historyへ残る。
+
+検証結果はfocused 88 tests、LINE deterministic 35 files・372 tests、production build成功、独立最終review **GO（P0/P1 0件）**。feature SHA `7e8f257edb476e61c788eeabf8830ca5cb49ea77`はGitHub CI／Railwayともsuccess。本番healthと`/master/line`はHTTP 200で、配信UIに限定質問説明があり本文署名文字列がないことをGET/read-onlyで確認した。実LINE送信、group設定変更、group leave、本番DB直接操作は実施していない。

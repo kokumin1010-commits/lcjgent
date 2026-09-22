@@ -3756,3 +3756,13 @@ LINEの対外文面で「AIマネージャー」を前面に出さず、公開�
 店铺详情新增“服务品牌资料”区，可直接看到Dr.Kozu品牌手册名称、品牌和大小。文件列表不返回对象键或对象存储URL；下载先校验登录和品牌权限，再由应用服务器以`private, no-store`和attachment响应代理返回，浏览器不会接触S3/R2键或签名URL。公开导入健康检查为只读，不创建表或写数据。
 
 验证：原始PDF签名、EOF、47页、大小与SHA一致；专项契约6项、数据库状态收敛行为1项、店铺关联回归7项，共14项通过；生产构建通过；TypeScript候选与latest-main均为1163条既存诊断且本次文件零新增；完整Vitest候选为49个失败文件/453通过文件，latest-main为相同49个失败文件/451通过文件（候选新增两份测试通过，失败集合无新增）；1280px与390px视觉验收均无横向溢出、无页面异常，移动端可见Dr.Kozu PDF卡片与下载按钮。独立只读安全/数据完整性复审阻断项全部关闭后发布。
+
+## 2026-09-23｜LINE本文署名削除・明示質問への安全な回答
+
+LINEの表示・監査上の担当名は**高橋 悠真**のまま維持しつつ、各メッセージ末尾へ繰り返し表示されていた`— 高橋 悠真`等の本文署名を廃止した。日本語／中国語の手動定型文、AI文案、通常の明示`@LCJ`返信、設定・ポイント・リマインダー返信、固定／AIフォロー、管理画面manual sendから署名を除去し、保存済みの旧定型文をmanual sendする場合もserver側で旧署名を除去してからimmutable auditとLINE送信へ同じ本文を渡す。招待時の初回案内だけは「LCJの高橋 悠真です」という自然な自己紹介と自動サポート利用の注記を1回表示し、以後は名前を本文末尾へ反復しない。
+
+未連携参加者からの明示`@LCJ`質問について、サンプル提供、報酬率・在庫等の取引条件、自動応答かどうかの3種類だけを日本語／中国語の安全な定型文で回答する経路を追加した。スクリーンショット例の「こちらは私のアカウントです。サンプルを送っていただくことは可能でしょうか？」には、アカウント共有へのお礼、希望商品名・画像・URLの依頼、在庫・提供条件・発送可否は確認後に案内する旨、住所・電話番号をgroupへ投稿しない注意を返す。linked liverは既存manager、blocked／staffは無応答、group inactive／autoReply OFF／leave lifecycleはfail closed。通常の非mention会話は引き続き自動返信せず、active onboardingの明示商用質問もgeneric onboardingへ吸収せず専用経路を優先する。
+
+新しい限定回答はLLMへ生文を渡さないdeterministic fixed copyで、送信前immutable audit、source message由来のdeterministic retry key、terminal audit no-replay、送信直前lifecycle revalidationを維持する。同一group・参加者ごとに10分3件のatomic rate limitをgroup row lock下で適用する。legacyの署名付きpending onboardingは、accepted-but-unfinalizedの可能性があるため本文やaudit IDを変更せず、保存済みの同一audit ID・同一本文・同一retry keyでexact recoveryし、監査不整合や二重返信を防ぐ。
+
+検証はfocused 5 files・88 tests、LINE deterministic 35 files・372 tests、production build、migration runner syntax、差分・secret監査に成功。全量TypeScriptは既存baseline 1,163 diagnostics／85 filesでexit 2で、`lineAgent.ts`の既存未import参照2件もfeature parentに存在し、今回の新規module／変更行には新規診断なし。独立最終reviewはP1修正後**GO（P0/P1 0件）**。feature commit `7e8f257edb476e61c788eeabf8830ca5cb49ea77`はGitHub CI／Railwayでsuccess。本番`/api/health/line-ai-manager`と`/master/line`はHTTP 200、配信chunk`LineManagement-DeB6-s5j.js`で限定質問説明を確認し、`— 高橋 悠真`が含まれないこともGET/read-onlyで確認した。実LINE送信、本番DB直接操作、group leave、設定mutationは行っていない。
