@@ -3766,3 +3766,11 @@ LINEの表示・監査上の担当名は**高橋 悠真**のまま維持しつ�
 新しい限定回答はLLMへ生文を渡さないdeterministic fixed copyで、送信前immutable audit、source message由来のdeterministic retry key、terminal audit no-replay、送信直前lifecycle revalidationを維持する。同一group・参加者ごとに10分3件のatomic rate limitをgroup row lock下で適用する。legacyの署名付きpending onboardingは、accepted-but-unfinalizedの可能性があるため本文やaudit IDを変更せず、保存済みの同一audit ID・同一本文・同一retry keyでexact recoveryし、監査不整合や二重返信を防ぐ。
 
 検証はfocused 5 files・88 tests、LINE deterministic 35 files・372 tests、production build、migration runner syntax、差分・secret監査に成功。全量TypeScriptは既存baseline 1,163 diagnostics／85 filesでexit 2で、`lineAgent.ts`の既存未import参照2件もfeature parentに存在し、今回の新規module／変更行には新規診断なし。独立最終reviewはP1修正後**GO（P0/P1 0件）**。feature commit `7e8f257edb476e61c788eeabf8830ca5cb49ea77`はGitHub CI／Railwayでsuccess。本番`/api/health/line-ai-manager`と`/master/line`はHTTP 200、配信chunk`LineManagement-DeB6-s5j.js`で限定質問説明を確認し、`— 高橋 悠真`が含まれないこともGET/read-onlyで確認した。実LINE送信、本番DB直接操作、group leave、設定mutationは行っていない。
+
+## 2026-09-23｜LINE人物別・全トーク履歴
+
+`/master/line`へ、LINE参加者ごとに保存済み会話を横断確認できる**人物別・全トーク履歴**を追加した。LINE連携済みライブコマーサーだけでなく未連携のグループ参加者も対象とし、本人のDM・参加した全グループでの発言と、`lineUserId`で本人へ紐づくLCJ返信を新しい順の1本の時系列で表示する。グループ会話内の参加者名、ユーザー／ライバー／高橋 悠真カードの「全トーク履歴」から開ける。全履歴・本人発言・LCJ返信・参加グループ数を集計表示し、100件単位のkeyset paginationで古い履歴を追加読込できる。送信されていない`cancelled` outbound auditは一覧・集計から除外し、`pending`は送信未確認として明示する。公式LINE参加前の会話はLINE APIから取得できない制約も画面へ表示した。
+
+server側はLINE管理admin限定の`line.getPersonTalkHistory`を追加し、cursorは`id < cursor`＋`ORDER BY id DESC`で安定化した。未連携で`line_users`行が未作成の場合も保存済み`senderName`へfallbackする。`line_messages(lineUserId, id)`の複合index migration `0159_line_person_talk_history`を追加し、deploy fallbackは対象index名の`ER_DUP_KEYNAME`だけを許容してそれ以外をfail closedにした。この変更はread-onlyであり、LINE返信条件・onboarding・通常非mention禁止・送信処理には変更を加えていない。
+
+検証はfocused 3 files・18 tests、既知の環境依存5本を除くLINE広範回帰36 files・378 tests、production build、migration runner構文、差分・secret監査に成功。full TypeScriptは既存baseline 1,163 diagnosticsでexit 2だが、今回変更fileに新規診断はない。独立read-only reviewは初回・hardening後とも**GO（P0/P1 0件）**。feature SHA `4a6dfc65b81a8e31d983b8121fbc316fc9a5c74c`はGitHub CI／Railwayともsuccess。本番`/api/health/line-ai-manager`と`/master/line`はHTTP 200で、配信chunk`LineManagement-CpahCEHB.js`内に「人物別・全トーク履歴」「さらに古い100件を読み込む」「未連携参加者」をGET/read-only確認した。実LINE送信、group設定変更、group leave、本番DB直接操作は実施していない。

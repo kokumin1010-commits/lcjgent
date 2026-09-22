@@ -176,3 +176,11 @@ focused 8 files・138 tests、広範LINE 23 files・246 tests、production build
 送信はimmutable outgoing audit予約後のみ行い、source message由来のdeterministic retry keyを使う。responded auditは再送せず、cancelled／noneもterminal扱いとする。新規限定回答はgroup parent row lockと同一transaction内で同一group・参加者あたり10分3件までを数え、現在のretry対象message IDは除外する。制限判定はDB`CURRENT_TIMESTAMP`を使い、invalid rate-limit parameterはaudit insert前にfail closedとする。全実行結果は既存LINE outgoing historyへ残る。
 
 検証結果はfocused 88 tests、LINE deterministic 35 files・372 tests、production build成功、独立最終review **GO（P0/P1 0件）**。feature SHA `7e8f257edb476e61c788eeabf8830ca5cb49ea77`はGitHub CI／Railwayともsuccess。本番healthと`/master/line`はHTTP 200で、配信UIに限定質問説明があり本文署名文字列がないことをGET/read-onlyで確認した。実LINE送信、group設定変更、group leave、本番DB直接操作は実施していない。
+
+## 人物別・全トーク履歴（2026-09-23追加）
+
+LINE管理adminは、連携済みライブコマーサーだけでなく未連携のグループ参加者についても、保存済み`line_messages`から本人のDM・全グループ発言と、その`lineUserId`へ明示的に紐づくLCJ返信を1本の時系列で確認できる。グループ履歴内の参加者名、ユーザー／ライバー／高橋 悠真カードから開き、新しい順に100件ずつ、`id < cursor`のkeyset paginationで過去へ遡る。全件数・本人発言・LCJ返信・参加グループ数を表示する。LINE APIは公式アカウント参加前の履歴を提供しないため、その制約を画面上にも明記する。
+
+APIは`assertLineManagementAdmin()`を必須とし、未連携で`line_users` profileが未作成の場合は保存済み`senderName`だけへfallbackする。送信されていない`cancelled` outbound auditは一覧・集計から除外し、`pending`は送信未確認として区別する。read-only機能であり、通常非mention返信禁止、明示`@LCJ`、限定onboarding、group lifecycle／autoReply gate、outgoing audit、送信rate limitは変更しない。query性能のため`line_messages(lineUserId, id)`複合indexをmigration `0159_line_person_talk_history`で追加し、fallbackは対象indexのduplicate-nameだけを許容して他のDDL失敗をfail closedにする。
+
+検証はfocused 18 tests、LINE広範回帰36 files・378 tests、production build、migration構文、差分・secret監査に成功。full TypeScriptには既存1,163 diagnosticsが残るが今回変更fileの新規診断は0件。独立reviewはhardening前後とも**GO（P0/P1 0件）**。feature SHA `4a6dfc65b81a8e31d983b8121fbc316fc9a5c74c`のGitHub CI／Railwayはsuccess。本番healthはHTTP 200でAI manager storage／group automation defaults／runtimeがready、`/master/line`配信chunkに人物履歴・100件追加読込・未連携参加者の表示をGET/read-only確認した。実LINE送信、設定mutation、group leave、本番DB直接操作は行っていない。
