@@ -3781,3 +3781,10 @@ server側はLINE管理admin限定の`line.getPersonTalkHistory`を追加し、cu
 一次性引导仅在LCM schema就绪后启动，固定校验47页原始品牌手册（8,293,906 bytes，SHA-256 `d390b78a9afa81c7e53452abfa4d771ddbca1a5f3ebfa048db1280a6dd9de509`）和13张经审视的WebP品牌/商品视觉。它要求唯一Dr.Kozu旧品牌、唯一活动BUZZDROP店铺及既有店铺品牌关系；使用MySQL命名锁、事务、完成marker和审计，在同一事务内创建普通账号、会员、品牌、owner、第1回LCF出展历史与11个公开商品。任何既存LCM品牌候选（包括无owner的草稿或已公开人工资料）都不自动接管、不更新，直接失败并要求管理员对账；完成态必须同时验证普通有效公司账号、approved会员、published/claimed品牌、唯一active owner、无其它pending/active成员、精确出展来源和11个精确商品来源。商品仅写入手册明确的名称、规格、建议零售价、克制说明和NG表述；样品、库存、批发、佣金、销售链接全部保持关闭或空值，税模式为unknown。
 
 验证结果：最终Dr.Kozu引导安全行为2文件16项通过；全部LCM、Festival登录与Dr.Kozu专项16文件116项通过；production build成功（仅既存`receiptMaskingService.ts`的sharp命名空间warning）；全量TypeScript仍为latest-main既有1,163条/85文件诊断，本次bootstrap、router和LcmAdmin无新增诊断，`server/_core/index.ts`仅保留与本次无关的既有行1589/3398/3699/3727诊断。全量Vitest曾执行为49失败文件、455通过文件、6跳过文件，失败均为既有非LCM/无数据库环境测试，本次LCM/Dr.Kozu集合无失败。1440px与390px的市场、普通动态品牌页、品牌管理工作区、商品卡及会员详情弹窗完成实际构建视觉验收。初次独立安全审查发现既存品牌覆盖路径和完成态owner校验不足，均在发布前修复；复审结论GO，P0/P1为0。
+
+### 2026-09-23｜Dr.Kozu LCM生产初始化冲突修复
+首次部署后公开市场仍只有CHEYENNE。GitHub CI与Railway部署均成功，新增只读健康端点`/api/health/drkozu-lcm-bootstrap`返回`stage=brand`、`DRKOZU_LCM_EXISTING_BRAND_ALREADY_OWNED`，确认根因不是构建或静态资源，而是生产中已存在一个有成员绑定的Dr.Kozu普通品牌记录，旧引导按安全策略回滚，未创建半成品账号或商品。
+
+修复采用共管而非接管：保留既有active owner和全部成员，不删除、不降权；要求品牌来源/目录页一致、无pending claim、至少一个active owner、claimStatus已为claimed，rejected/suspended/archived或任何歧义均失败关闭。随机初始化账号只作为普通active editor加入，因此可使用既有普通品牌管理CRUD。既有品牌只为原本空白的公司名、分类、介绍、故事、logo/cover补值，仅将draft/submitted公开；不覆盖非空人工内容，不改claimStatus，不清空rejectionReason/reviewedBy/reviewedAt。既有第1回LCF记录逐字段验证并复用，11个商品仍以精确来源页创建。健康端点改为重新验证账号、会员、品牌、editor/owner关系、出展来源和11个精确商品，不再只信任完成marker。
+
+最终安全行为测试2文件24项通过；全部LCM、Festival登录与Dr.Kozu专项16文件124项通过；production build成功，仅保留既有`receiptMaskingService.ts`的sharp warning。两轮独立审查最终结论GO，P0/P1为0。所有生产检查均为公开GET；未直接连接或修改生产DB，未使用账号登录进行写入式QA，未输出随机密码。

@@ -295,13 +295,10 @@ async function completedStateIsPresent(connection: PoolConnection): Promise<{ co
                       AND membership.status='approved') AS membershipPresent,
             EXISTS(SELECT 1 FROM lcm_brand_profiles brand
                     WHERE brand.id=run.brandProfileId AND brand.sourceCatalogPage=? AND brand.status='published'
-                      AND brand.claimStatus='claimed' AND brand.createdByAccountId=run.accountId) AS brandPresent,
+                      AND brand.claimStatus='claimed') AS brandPresent,
             (SELECT COUNT(*) FROM lcm_brand_members member
               WHERE member.brandProfileId=run.brandProfileId AND member.festivalAccountId=run.accountId
-                AND member.role='owner' AND member.status='active') AS activeOwnerCount,
-            (SELECT COUNT(*) FROM lcm_brand_members member
-              WHERE member.brandProfileId=run.brandProfileId AND member.status IN ('pending','active')
-                AND member.festivalAccountId<>run.accountId) AS conflictingMemberCount,
+                AND member.role IN ('owner','editor') AND member.status='active') AS activeManagerCount,
             (SELECT COUNT(*) FROM lcm_brand_event_participations participation
               WHERE participation.brandProfileId=run.brandProfileId AND participation.eventKey='2026-01'
                 AND participation.eventLabel='第1回LCF 出展実績'
@@ -325,8 +322,7 @@ async function completedStateIsPresent(connection: PoolConnection): Promise<{ co
   const healthy = Number(row.accountPresent) === 1
     && Number(row.membershipPresent) === 1
     && Number(row.brandPresent) === 1
-    && Number(row.activeOwnerCount) === 1
-    && Number(row.conflictingMemberCount) === 0
+    && Number(row.activeManagerCount) === 1
     && Number(row.eventParticipationCount) === 1
     && Number(row.productsPresent) === DRKOZU_LCM_PRODUCTS.length
     && Number(row.productCount) === DRKOZU_LCM_PRODUCTS.length;
@@ -391,7 +387,7 @@ async function createMembership(connection: PoolConnection, accountId: number): 
   return membershipId;
 }
 
-async function createBrand(connection: PoolConnection, accountId: number, sourceBrandId: number): Promise<number> {
+async function createBrand(connection: PoolConnection, accountId: number, sourceBrandId: number): Promise<{ brandProfileId: number; memberRole: "owner" | "editor" }> {
   const [candidates] = await connection.query<RowDataPacket[]>(
     `SELECT id,slug,sourceBrandId,sourceCatalogPage,displayName,companyName,status,claimStatus,createdByAccountId
        FROM lcm_brand_profiles
@@ -404,17 +400,51 @@ async function createBrand(connection: PoolConnection, accountId: number, source
   if (candidates.length === 1) {
     const existing = candidates[0];
     const [members] = await connection.query<RowDataPacket[]>(
-      `SELECT festivalAccountId,status FROM lcm_brand_members WHERE brandProfileId=? FOR UPDATE`,
+      `SELECT festivalAccountId,role,status FROM lcm_brand_members WHERE brandProfileId=? FOR UPDATE`,
       [Number(existing.id)],
     );
-    if (members.length > 0) throw new Error("DRKOZU_LCM_EXISTING_BRAND_ALREADY_OWNED");
     if (existing.sourceCatalogPage != null && Number(existing.sourceCatalogPage) !== SOURCE_CATALOG_PAGE) {
       throw new Error("DRKOZU_LCM_EXISTING_BRAND_CATALOG_MISMATCH");
     }
     if (existing.sourceBrandId != null && Number(existing.sourceBrandId) !== sourceBrandId) {
       throw new Error("DRKOZU_LCM_EXISTING_BRAND_SOURCE_MISMATCH");
     }
-    throw new Error("DRKOZU_LCM_EXISTING_BRAND_REQUIRES_ADMIN_RECONCILIATION");
+    if (["rejected", "suspended", "archived"].includes(String(existing.status))) {
+      throw new Error("DRKOZU_LCM_EXISTING_BRAND_STATE_UNSAFE");
+    }
+    if (members.some(member => String(member.status) === "pending")) {
+      throw new Error("DRKOZU_LCM_EXISTING_BRAND_PENDING_CLAIM");
+    }
+    const activeMembers = members.filter(member => String(member.status) === "active");
+    if (!activeMembers.some(member => String(member.role) === "owner")) {
+      throw new Error("DRKOZU_LCM_EXISTING_BRAND_REQUIRES_ADMIN_RECONCILIATION");
+    }
+    if (String(existing.claimStatus) !== "claimed") {
+      throw new Error("DRKOZU_LCM_EXISTING_BRAND_CLAIM_STATE_MISMATCH");
+    }
+    await connection.query(
+      `UPDATE lcm_brand_profiles SET
+         sourceBrandId=COALESCE(sourceBrandId,?),sourceCatalogPage=COALESCE(sourceCatalogPage,?),
+         companyName=COALESCE(NULLIF(TRIM(companyName),''),'株式会社Dr.Kozu'),
+         category=COALESCE(NULLIF(TRIM(category),''),'スキンケア・美容'),
+         tagline=COALESCE(NULLIF(TRIM(tagline),''),'プロのサロンケア発想を、毎日のホームケアへ。'),
+         description=COALESCE(NULLIF(TRIM(description),''),'美容サロンの現場経験をもとに、洗浄、整肌、角質ケア、集中ケア、インナーケアを日常へ取り入れやすく再構築するブランドです。'),
+         story=COALESCE(NULLIF(TRIM(story),''),'Dr.Kozuは、創業者が18年間にわたり美容サロンの現場で積み重ねた知識と経験から生まれました。滋賀・京都の直営サロンで得た使用感や使いやすさの声を製品開発と改善へ活かし、分かりやすく続けられるケアを目指しています。'),
+         logoUrl=COALESCE(NULLIF(TRIM(logoUrl),''),?),coverUrl=COALESCE(NULLIF(TRIM(coverUrl),''),?),
+         status=CASE WHEN status IN ('draft','submitted') THEN 'published' ELSE status END,
+         submittedAt=COALESCE(submittedAt,CURRENT_TIMESTAMP),publishedAt=COALESCE(publishedAt,CURRENT_TIMESTAMP)
+       WHERE id=? AND (sourceBrandId IS NULL OR sourceBrandId=?) AND (sourceCatalogPage IS NULL OR sourceCatalogPage=?)`,
+      [sourceBrandId, SOURCE_CATALOG_PAGE, `${PUBLIC_ASSET_ROOT}/brand-logo.webp`, `${PUBLIC_ASSET_ROOT}/brand-cover.webp`, Number(existing.id), sourceBrandId, SOURCE_CATALOG_PAGE],
+    );
+    await insertAudit(connection, "brand", Number(existing.id), "system_bootstrap_existing_brand_enriched", {
+      bootstrapKey: DRKOZU_LCM_BOOTSTRAP_KEY,
+      sourceBrandId,
+      sourceCatalogPage: SOURCE_CATALOG_PAGE,
+      preservedExistingMemberCount: members.length,
+      newAccountRole: "editor",
+      existingNonEmptyFieldsPreserved: true,
+    });
+    return { brandProfileId: Number(existing.id), memberRole: "editor" };
   }
   const [result] = await connection.query<ResultSetHeader>(
     `INSERT INTO lcm_brand_profiles
@@ -437,15 +467,15 @@ async function createBrand(connection: PoolConnection, accountId: number, source
     status: "published",
     claimStatus: "claimed",
   });
-  return brandProfileId;
+  return { brandProfileId, memberRole: "owner" };
 }
 
-async function createBrandMembership(connection: PoolConnection, accountId: number, brandProfileId: number): Promise<void> {
+async function createBrandMembership(connection: PoolConnection, accountId: number, brandProfileId: number, role: "owner" | "editor"): Promise<void> {
   const [result] = await connection.query<ResultSetHeader>(
     `INSERT INTO lcm_brand_members
       (brandProfileId,festivalAccountId,role,status,approvedBy,approvedAt)
-     VALUES (?,?,'owner','active',NULL,CURRENT_TIMESTAMP)`,
-    [brandProfileId, accountId],
+     VALUES (?,?,?,'active',NULL,CURRENT_TIMESTAMP)`,
+    [brandProfileId, accountId, role],
   );
   const brandMemberId = Number(result.insertId);
   if (!brandMemberId) throw new Error("DRKOZU_LCM_BRAND_MEMBER_INSERT_FAILED");
@@ -453,12 +483,34 @@ async function createBrandMembership(connection: PoolConnection, accountId: numb
     bootstrapKey: DRKOZU_LCM_BOOTSTRAP_KEY,
     brandProfileId,
     festivalAccountId: accountId,
-    role: "owner",
+    role,
     status: "active",
   });
 }
 
 async function createFirstEditionParticipation(connection: PoolConnection, brandProfileId: number): Promise<void> {
+  const [existingRows] = await connection.query<RowDataPacket[]>(
+    `SELECT id,eventLabel,archivePath,verificationSource,sourceReference
+       FROM lcm_brand_event_participations
+      WHERE brandProfileId=? AND eventKey='2026-01' FOR UPDATE`,
+    [brandProfileId],
+  );
+  if (existingRows.length > 1) throw new Error("DRKOZU_LCM_EVENT_PARTICIPATION_NOT_UNIQUE");
+  if (existingRows.length === 1) {
+    const existing = existingRows[0];
+    const healthy = String(existing.eventLabel) === "第1回LCF 出展実績"
+      && String(existing.archivePath) === "/livecommercefestival/2026/exhibitors"
+      && String(existing.verificationSource) === "lcf_catalog"
+      && String(existing.sourceReference) === `catalog-page-${SOURCE_CATALOG_PAGE}`;
+    if (!healthy) throw new Error("DRKOZU_LCM_EVENT_PARTICIPATION_MISMATCH");
+    await insertAudit(connection, "brand_event_participation", Number(existing.id), "system_bootstrap_verified_existing", {
+      bootstrapKey: DRKOZU_LCM_BOOTSTRAP_KEY,
+      brandProfileId,
+      eventKey: "2026-01",
+      sourceReference: `catalog-page-${SOURCE_CATALOG_PAGE}`,
+    });
+    return;
+  }
   const [result] = await connection.query<ResultSetHeader>(
     `INSERT INTO lcm_brand_event_participations
       (brandProfileId,eventKey,eventLabel,archivePath,verificationSource,sourceReference,verifiedByAccountId,verifiedAt)
@@ -578,9 +630,9 @@ async function runDrKozuLcmBootstrap(): Promise<DrKozuLcmBootstrapResult> {
       bootstrapStage = "membership";
       await createMembership(lockConnection, accountId);
       bootstrapStage = "brand";
-      const brandProfileId = await createBrand(lockConnection, accountId, sourceBrandId);
-      bootstrapStage = "brand_owner";
-      await createBrandMembership(lockConnection, accountId, brandProfileId);
+      const { brandProfileId, memberRole } = await createBrand(lockConnection, accountId, sourceBrandId);
+      bootstrapStage = "brand_member";
+      await createBrandMembership(lockConnection, accountId, brandProfileId, memberRole);
       bootstrapStage = "event_participation";
       await createFirstEditionParticipation(lockConnection, brandProfileId);
       bootstrapStage = "products";
@@ -643,6 +695,7 @@ export async function getDrKozuLcmBootstrapHealth(): Promise<{
   let markerStatus: "running" | "completed" | "failed" | "missing" | "unavailable" = "unavailable";
   let productCount = 0;
   let markerFailureCode: string | null = null;
+  let relationalStateHealthy = false;
   if (process.env.DATABASE_URL) {
     const pool = mysql.createPool({ uri: process.env.DATABASE_URL, waitForConnections: true, connectionLimit: 1 });
     try {
@@ -660,13 +713,27 @@ export async function getDrKozuLcmBootstrapHealth(): Promise<{
       if (markerStatus === "completed" && (!row?.accountId || !row?.brandProfileId || productCount !== DRKOZU_LCM_PRODUCTS.length)) {
         markerFailureCode = "DRKOZU_LCM_COMPLETED_MARKER_INVALID";
       }
+      if (markerStatus === "completed" && !markerFailureCode) {
+        const connection = await pool.getConnection();
+        try {
+          relationalStateHealthy = (await completedStateIsPresent(connection)).completed;
+          if (!relationalStateHealthy) markerFailureCode = "DRKOZU_LCM_COMPLETED_MARKER_INVALID";
+        } catch (error) {
+          markerFailureCode = safeBootstrapFailureCode(error, "health_relations");
+        } finally {
+          connection.release();
+        }
+      }
     } catch {
       markerStatus = "unavailable";
     } finally {
       await pool.end();
     }
   }
-  const ok = markerStatus === "completed" && productCount === DRKOZU_LCM_PRODUCTS.length && !markerFailureCode;
+  const ok = markerStatus === "completed"
+    && productCount === DRKOZU_LCM_PRODUCTS.length
+    && relationalStateHealthy
+    && !markerFailureCode;
   return {
     ok,
     runtimeState: bootstrapRuntime.state,
