@@ -50,7 +50,10 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { selectionProductToMallPrefill } from "@shared/mallSelectionProductImport";
-import { extractClipboardImageFiles } from "@shared/clipboardImages";
+import {
+  createClipboardImageFile,
+  extractClipboardImageFiles,
+} from "@shared/clipboardImages";
 
 type ProductStatus = "draft" | "active" | "sold_out" | "archived";
 
@@ -395,49 +398,133 @@ function VariantSection({ productId }: { productId: number }) {
     stock: "0",
   });
   const [uploadingVariantId, setUploadingVariantId] = useState<number | null>(null);
+  const variantImageUploadInFlightRef = useRef(false);
+  const newVariantCreateInFlightRef = useRef(false);
+
+  const uploadVariantImageFile = async (file: File) => {
+    if (!file.type.toLowerCase().startsWith("image/")) {
+      throw new Error("画像ファイルを選択してください");
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      throw new Error("画像は5MB以下にしてください");
+    }
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch("/api/upload-product-image", {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      throw new Error(errorData.error || `アップロード失敗 (${res.status})`);
+    }
+    const data = await res.json();
+    if (!data.url || !data.key) {
+      throw new Error("アップロード結果が不正です");
+    }
+    return { url: String(data.url), key: String(data.key) };
+  };
 
   const handleVariantImageUpload = async (variantId: number, file: File) => {
+    if (variantImageUploadInFlightRef.current) {
+      toast.info("画像アップロード完了後にもう一度お試しください");
+      return;
+    }
+    variantImageUploadInFlightRef.current = true;
     setUploadingVariantId(variantId);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/upload-product-image", {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("アップロード失敗");
-      const data = await res.json();
-      updateVariant.mutate({
-        id: variantId,
-        imageUrl: data.url,
-        imageKey: data.key,
-      });
-      toast.success("バリアント画像を更新しました");
+      const data = await uploadVariantImageFile(file);
+      try {
+        await updateVariant.mutateAsync({
+          id: variantId,
+          imageUrl: data.url,
+          imageKey: data.key,
+        });
+      } catch {
+        // updateVariant.onError already shows the mutation error.
+      }
     } catch (err: any) {
       toast.error(err.message || "画像アップロードに失敗しました");
     } finally {
+      variantImageUploadInFlightRef.current = false;
       setUploadingVariantId(null);
     }
   };
 
-  const handleAddVariant = () => {
+  const handleNewVariantImageUpload = async (file: File) => {
+    if (variantImageUploadInFlightRef.current || newVariantCreateInFlightRef.current) {
+      toast.info("画像アップロード完了後にもう一度お試しください");
+      return;
+    }
+    variantImageUploadInFlightRef.current = true;
+    setNewVariantUploading(true);
+    try {
+      const data = await uploadVariantImageFile(file);
+      setNewVariant((prev) => ({ ...prev, imageUrl: data.url, imageKey: data.key }));
+      toast.success("画像をアップロードしました");
+    } catch (err: any) {
+      toast.error(err.message || "画像アップロードに失敗しました");
+    } finally {
+      variantImageUploadInFlightRef.current = false;
+      setNewVariantUploading(false);
+    }
+  };
+
+  const handleVariantImagePaste = (
+    event: React.ClipboardEvent<HTMLElement>,
+    variantId?: number,
+  ) => {
+    const imageFiles = extractClipboardImageFiles(event.clipboardData);
+    if (imageFiles.length === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const clipboardFile = createClipboardImageFile(
+      imageFiles[0],
+      variantId == null ? "new-variant" : `variant-${variantId}`,
+    );
+    if (!clipboardFile) {
+      toast.error("貼り付けはPNG・JPG・WebP画像に対応しています");
+      return;
+    }
+    if (imageFiles.length > 1) {
+      toast.info("バリアント画像は先頭の1件を使用します");
+    }
+    if (variantId == null) {
+      void handleNewVariantImageUpload(clipboardFile);
+      return;
+    }
+    void handleVariantImageUpload(variantId, clipboardFile);
+  };
+
+  const handleAddVariant = async () => {
+    if (variantImageUploadInFlightRef.current || newVariantCreateInFlightRef.current) {
+      toast.info("画像アップロード完了後にバリアントを追加してください");
+      return;
+    }
     if (!newVariant.name.trim()) {
       toast.error("バリアント名を入力してください");
       return;
     }
-    createVariant.mutate({
-      productId,
-      name: newVariant.name.trim(),
-      variantType: newVariant.variantType || undefined,
-      sku: newVariant.sku || undefined,
-      price: newVariant.price ? Number(newVariant.price) : null,
-      stock: Number(newVariant.stock) || 0,
-      imageUrl: newVariant.imageUrl || undefined,
-      imageKey: newVariant.imageKey || undefined,
-      sortOrder: (variants?.length || 0),
-    });
-    setNewVariant({ name: "", variantType: "", sku: "", price: "", stock: "0", imageUrl: "", imageKey: "" });
+    newVariantCreateInFlightRef.current = true;
+    try {
+      await createVariant.mutateAsync({
+        productId,
+        name: newVariant.name.trim(),
+        variantType: newVariant.variantType || undefined,
+        sku: newVariant.sku || undefined,
+        price: newVariant.price ? Number(newVariant.price) : null,
+        stock: Number(newVariant.stock) || 0,
+        imageUrl: newVariant.imageUrl || undefined,
+        imageKey: newVariant.imageKey || undefined,
+        sortOrder: (variants?.length || 0),
+      });
+      setNewVariant({ name: "", variantType: "", sku: "", price: "", stock: "0", imageUrl: "", imageKey: "" });
+    } catch {
+      // createVariant.onError already shows the mutation error and the draft stays intact.
+    } finally {
+      newVariantCreateInFlightRef.current = false;
+    }
   };
 
   const handleStartEdit = (v: any) => {
@@ -520,7 +607,15 @@ function VariantSection({ productId }: { productId: number }) {
               ) : (
                 <>
                   {/* バリアント画像 */}
-                  <div className="relative w-10 h-10 flex-shrink-0 rounded border overflow-hidden bg-muted">
+                  <div
+                    tabIndex={0}
+                    role="group"
+                    aria-label={`${v.name}の画像を選択または貼り付け`}
+                    title="クリックして選択、または Ctrl+V / ⌘+V で貼り付け"
+                    data-testid={`variant-image-paste-zone-${v.id}`}
+                    onPaste={(event) => handleVariantImagePaste(event, v.id)}
+                    className="relative w-10 h-10 flex-shrink-0 rounded border overflow-hidden bg-muted outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
                     {v.imageUrl ? (
                       <img src={v.imageUrl} alt={v.name} className="w-full h-full object-cover" />
                     ) : (
@@ -611,7 +706,15 @@ function VariantSection({ productId }: { productId: number }) {
           className="w-16 text-xs"
         />
         {/* 画像アップロードボタン */}
-        <div className="flex items-center gap-1">
+        <div
+          tabIndex={0}
+          role="group"
+          aria-label="新しいバリアントの画像を選択または貼り付け"
+          title="クリックして選択、または Ctrl+V / ⌘+V で貼り付け"
+          data-testid="new-variant-image-paste-zone"
+          onPaste={(event) => handleVariantImagePaste(event)}
+          className="flex items-center gap-1 rounded outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
           {newVariant.imageUrl ? (
             <div className="relative w-10 h-10 rounded border overflow-hidden">
               <img src={newVariant.imageUrl} alt="" className="w-full h-full object-cover" />
@@ -635,40 +738,34 @@ function VariantSection({ productId }: { productId: number }) {
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
-                  setNewVariantUploading(true);
-                  try {
-                    const formData = new FormData();
-                    formData.append("file", file);
-                    const res = await fetch("/api/upload-product-image", {
-                      method: "POST",
-                      body: formData,
-                      credentials: "include",
-                    });
-                    if (!res.ok) throw new Error("アップロード失敗");
-                    const data = await res.json();
-                    setNewVariant((prev) => ({ ...prev, imageUrl: data.url, imageKey: data.key }));
-                    toast.success("画像をアップロードしました");
-                  } catch (err: any) {
-                    toast.error(err.message || "画像アップロードに失敗しました");
-                  } finally {
-                    setNewVariantUploading(false);
-                    e.target.value = "";
-                  }
+                  await handleNewVariantImageUpload(file);
+                  e.target.value = "";
                 }}
               />
             </label>
           )}
+          <button
+            type="button"
+            onClick={(event) => event.currentTarget.parentElement?.focus()}
+            className="rounded border border-dashed px-2 py-1.5 text-xs text-muted-foreground hover:border-primary hover:text-primary"
+          >
+            Ctrl/⌘+V 貼付
+          </button>
           {newVariantUploading && <span className="text-xs text-muted-foreground animate-pulse">...</span>}
         </div>
         <Button
           type="button"
           size="sm"
           onClick={handleAddVariant}
-          disabled={createVariant.isPending}
+          disabled={createVariant.isPending || newVariantUploading || uploadingVariantId !== null}
         >
-          <Plus className="h-3 w-3 mr-1" />追加
+          <Plus className="h-3 w-3 mr-1" />
+          {newVariantUploading ? "画像処理中..." : "追加"}
         </Button>
       </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        画像欄を選択し、Ctrl+V / ⌘+V でコピーした画像を貼り付けできます（5MB以下・1件）。
+      </p>
     </div>
   );
 }

@@ -3681,3 +3681,9 @@ join／leave orderingは未知groupのleave tombstoneを保存し、新規metada
 本地验证：商城商品位置、粘贴上传、响应式弹窗、选品导入与批量同步相关5个测试文件20项通过；`ProductManagement`前端bundle通过；完整production build通过（仅保留既有`receiptMaskingService.ts` sharp namespace warning）；全量TypeScript检查仍为latest main既有1,165条诊断，本次修改文件诊断0条。扩大执行全部历史mall/product测试时，仍会遇到无本地`DATABASE_URL`导致的既有数据库依赖失败及旧静态权限断言，未作为本次前端滚动修复回归。
 
 独立只读复审发现初版使用单一共享滚动锚点，在保存请求未完成时关闭A商品并打开B商品，可能由A的成功回调误读B的锚点。已改为在mutation的`onMutate`阶段按商品ID把位置快照绑定到具体请求，成功回调只读取该请求context；并发或重试不会互相覆盖。恢复位置后将键盘焦点放回对应商品行的编辑按钮，并使用`preventScroll`避免可访问性焦点再次改变视口。修复后复跑5文件20项回归、前端bundle、完整production build与TypeScript差分检查，结果保持通过；最终独立复审为 **PASS（P0/P1 blocker 0件）**。
+
+## 2026-09-22｜MALL商品バリアント画像のクリップボード貼付（本番反映前）
+`/master/mall?tab=products` の商品バリアント画像欄に、従来のファイル選択に加えて Ctrl/⌘+V によるコピー画像の貼り付けを追加。既存バリアントは各画像サムネイルをフォーカスして貼り付け、新規作成中バリアントは画像欄または表示された「Ctrl/⌘+V 貼付」ボタンを選択して貼り付けできる。テキスト/HTMLのクリップボード項目はアップロード対象にせず、複数画像時は先頭1件のみを使用する。
+既存・新規の両経路を共通アップローダーに統一し、画像MIME、5MB上限、REST応答の`url/key`を検証。クリップボード由来のPNG/JPEG/WebPはMIMEと一致する安全な拡張子付きファイル名へ正規化してから`/api/upload-product-image`へ送信し、同時操作による重複アップロードも抑止する。既存バリアントは返却された`imageUrl/imageKey`を対象IDだけに保存し、新規バリアントは作成前stateへ保持する。商品・権限・DBスキーマ・環境変数・package依存関係は変更していない。
+本地验证：剪贴板helper、MALL粘贴UI、商品弹窗响应式、列表位置保持、REST图片上传与商品图片流程共6个测试文件32项全部通过；`ProductManagement.tsx`浏览器bundle与完整production build成功（仅保留既有`receiptMaskingService.ts` sharp namespace warning）；8GB全量TypeScript检查仍为latest main既有1,165条诊断，本次`ProductManagement.tsx`及`mallProductClipboardPasteUI.test.ts`诊断0条；`git diff --check`通过。
+首次独立只读审查发现两项竞态：既有バリアント图片上传后未等待数据库更新便解除锁，快速连续操作可能被较早请求反向覆盖；新建バリアント图片上传中仍可先点击追加，导致图片留在下一份草稿。发布前已将既有图片更新改为`await updateVariant.mutateAsync`并保持锁至持久化结束，新建流程增加同步创建锁、上传/创建互斥、等待创建成功后才清空草稿，上传期间禁用追加按钮。修复后重新完成上述全部测试、构建及类型差分检查；第二轮独立复审结论为 **PASS（P0/P1 blocker 0件）**。
