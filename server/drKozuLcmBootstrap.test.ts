@@ -48,7 +48,9 @@ describe("Dr.Kozu normal LCM brand bootstrap", () => {
     expect(source).toContain("DRKOZU_LCM_EXISTING_BRAND_REQUIRES_ADMIN_RECONCILIATION");
     expect(source).toContain("DRKOZU_LCM_ACCOUNT_COLLISION");
     expect(source).toContain("companyName=COALESCE");
-    expect(source).toContain('newAccountRole: "editor"');
+    expect(source).toContain('const memberRole: "owner" | "editor" = hasActiveOwner ? "editor" : "owner"');
+    expect(source).toContain("hasVerifiedSourceIdentity");
+    expect(source).toContain("newAccountRole: memberRole");
     expect(source).toContain('member.role IN (\'owner\',\'editor\')');
     expect(source).toContain("GET_LOCK");
     expect(source).toContain("RELEASE_LOCK");

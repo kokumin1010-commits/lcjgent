@@ -3788,3 +3788,8 @@ server側はLINE管理admin限定の`line.getPersonTalkHistory`を追加し、cu
 修复采用共管而非接管：保留既有active owner和全部成员，不删除、不降权；要求品牌来源/目录页一致、无pending claim、至少一个active owner、claimStatus已为claimed，rejected/suspended/archived或任何歧义均失败关闭。随机初始化账号只作为普通active editor加入，因此可使用既有普通品牌管理CRUD。既有品牌只为原本空白的公司名、分类、介绍、故事、logo/cover补值，仅将draft/submitted公开；不覆盖非空人工内容，不改claimStatus，不清空rejectionReason/reviewedBy/reviewedAt。既有第1回LCF记录逐字段验证并复用，11个商品仍以精确来源页创建。健康端点改为重新验证账号、会员、品牌、editor/owner关系、出展来源和11个精确商品，不再只信任完成marker。
 
 最终安全行为测试2文件24项通过；全部LCM、Festival登录与Dr.Kozu专项16文件124项通过；production build成功，仅保留既有`receiptMaskingService.ts`的sharp warning。两轮独立审查最终结论GO，P0/P1为0。所有生产检查均为公开GET；未直接连接或修改生产DB，未使用账号登录进行写入式QA，未输出随机密码。
+
+### 2026-09-23｜Dr.Kozu既有目录记录的无主状态收敛
+共管修复部署后的生产健康码进一步明确为`DRKOZU_LCM_EXISTING_BRAND_REQUIRES_ADMIN_RECONCILIATION`：既有Dr.Kozu品牌记录有历史成员记录但没有active owner。最终策略只在`sourceCatalogPage=31`或`sourceBrandId`与唯一Dr.Kozu源品牌一致的强证据下，且没有pending成员、来源不冲突、状态不是rejected/suspended/archived时，将随机初始化账号设为普通active owner；缺乏该来源证据的同名人工记录继续失败关闭。已有active owner的情况下仍只增加editor。全部历史成员、非空品牌资料、审核理由和review字段保持不变；只有空字段被补齐，draft/submitted可公开，claimStatus只在经来源验证的无主路径切换为claimed。
+
+新增双成功路径与完整失败分支测试后，Dr.Kozu安全行为2文件25项、全部LCM/Festival/Dr.Kozu专项16文件125项通过，production build成功；独立复审结论GO，P0/P1为0。

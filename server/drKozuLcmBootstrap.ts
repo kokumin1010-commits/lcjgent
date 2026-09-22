@@ -416,12 +416,16 @@ async function createBrand(connection: PoolConnection, accountId: number, source
       throw new Error("DRKOZU_LCM_EXISTING_BRAND_PENDING_CLAIM");
     }
     const activeMembers = members.filter(member => String(member.status) === "active");
-    if (!activeMembers.some(member => String(member.role) === "owner")) {
+    const hasActiveOwner = activeMembers.some(member => String(member.role) === "owner");
+    const hasVerifiedSourceIdentity = Number(existing.sourceCatalogPage) === SOURCE_CATALOG_PAGE
+      || Number(existing.sourceBrandId) === sourceBrandId;
+    if (!hasActiveOwner && !hasVerifiedSourceIdentity) {
       throw new Error("DRKOZU_LCM_EXISTING_BRAND_REQUIRES_ADMIN_RECONCILIATION");
     }
-    if (String(existing.claimStatus) !== "claimed") {
+    if (hasActiveOwner && String(existing.claimStatus) !== "claimed") {
       throw new Error("DRKOZU_LCM_EXISTING_BRAND_CLAIM_STATE_MISMATCH");
     }
+    const memberRole: "owner" | "editor" = hasActiveOwner ? "editor" : "owner";
     await connection.query(
       `UPDATE lcm_brand_profiles SET
          sourceBrandId=COALESCE(sourceBrandId,?),sourceCatalogPage=COALESCE(sourceCatalogPage,?),
@@ -432,19 +436,20 @@ async function createBrand(connection: PoolConnection, accountId: number, source
          story=COALESCE(NULLIF(TRIM(story),''),'Dr.Kozuは、創業者が18年間にわたり美容サロンの現場で積み重ねた知識と経験から生まれました。滋賀・京都の直営サロンで得た使用感や使いやすさの声を製品開発と改善へ活かし、分かりやすく続けられるケアを目指しています。'),
          logoUrl=COALESCE(NULLIF(TRIM(logoUrl),''),?),coverUrl=COALESCE(NULLIF(TRIM(coverUrl),''),?),
          status=CASE WHEN status IN ('draft','submitted') THEN 'published' ELSE status END,
+         claimStatus=CASE WHEN ?='owner' THEN 'claimed' ELSE claimStatus END,
          submittedAt=COALESCE(submittedAt,CURRENT_TIMESTAMP),publishedAt=COALESCE(publishedAt,CURRENT_TIMESTAMP)
        WHERE id=? AND (sourceBrandId IS NULL OR sourceBrandId=?) AND (sourceCatalogPage IS NULL OR sourceCatalogPage=?)`,
-      [sourceBrandId, SOURCE_CATALOG_PAGE, `${PUBLIC_ASSET_ROOT}/brand-logo.webp`, `${PUBLIC_ASSET_ROOT}/brand-cover.webp`, Number(existing.id), sourceBrandId, SOURCE_CATALOG_PAGE],
+      [sourceBrandId, SOURCE_CATALOG_PAGE, `${PUBLIC_ASSET_ROOT}/brand-logo.webp`, `${PUBLIC_ASSET_ROOT}/brand-cover.webp`, memberRole, Number(existing.id), sourceBrandId, SOURCE_CATALOG_PAGE],
     );
     await insertAudit(connection, "brand", Number(existing.id), "system_bootstrap_existing_brand_enriched", {
       bootstrapKey: DRKOZU_LCM_BOOTSTRAP_KEY,
       sourceBrandId,
       sourceCatalogPage: SOURCE_CATALOG_PAGE,
       preservedExistingMemberCount: members.length,
-      newAccountRole: "editor",
+      newAccountRole: memberRole,
       existingNonEmptyFieldsPreserved: true,
     });
-    return { brandProfileId: Number(existing.id), memberRole: "editor" };
+    return { brandProfileId: Number(existing.id), memberRole };
   }
   const [result] = await connection.query<ResultSetHeader>(
     `INSERT INTO lcm_brand_profiles

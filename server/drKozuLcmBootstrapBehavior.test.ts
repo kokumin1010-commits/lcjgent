@@ -69,7 +69,10 @@ describe("Dr.Kozu LCM bootstrap convergence", () => {
     expect(pool.end).toHaveBeenCalledOnce();
   });
 
-  it("preserves an existing active owner, adds the generated account as editor, and publishes the eleven sourced products", async () => {
+  it.each([
+    { caseName: "existing active owner", memberRows: [{ festivalAccountId: 777, role: "owner", status: "active" }], claimStatus: "claimed", expectedRole: "editor" },
+    { caseName: "verified catalogue profile without an active owner", memberRows: [], claimStatus: "unclaimed", expectedRole: "owner" },
+  ])("safely converges the $caseName and publishes the eleven sourced products", async ({ memberRows, claimStatus, expectedRole }) => {
     process.env.DATABASE_URL = "mysql://unit-test.invalid/db";
     let productId = 100;
     const connectionQuery = vi.fn(async (rawSql: unknown, params?: unknown[]) => {
@@ -93,15 +96,18 @@ describe("Dr.Kozu LCM bootstrap convergence", () => {
         displayName: "Dr.Kozu",
         companyName: "既存会社名",
         status: "draft",
-        claimStatus: "claimed",
+        claimStatus,
         createdByAccountId: 777,
       }], []];
       if (sql.startsWith("SELECT festivalAccountId,role,status FROM lcm_brand_members")) {
-        return [[{ festivalAccountId: 777, role: "owner", status: "active" }], []];
+        return [memberRows, []];
       }
-      if (sql.startsWith("UPDATE lcm_brand_profiles SET")) return [{ affectedRows: 1 }, []];
+      if (sql.startsWith("UPDATE lcm_brand_profiles SET")) {
+        expect(params?.[4]).toBe(expectedRole);
+        return [{ affectedRows: 1 }, []];
+      }
       if (sql.startsWith("INSERT INTO lcm_brand_members")) {
-        expect(params?.[2]).toBe("editor");
+        expect(params?.[2]).toBe(expectedRole);
         return [{ insertId: 44, affectedRows: 1 }, []];
       }
       if (sql.startsWith("SELECT id,eventLabel,archivePath,verificationSource,sourceReference")) return [[{
@@ -147,15 +153,15 @@ describe("Dr.Kozu LCM bootstrap convergence", () => {
     expect(connectionQuery.mock.calls.filter(([sql]) => normalized(sql).startsWith("INSERT INTO lcm_products"))).toHaveLength(11);
     const profileUpdate = connectionQuery.mock.calls.map(([sql]) => normalized(sql)).find(sql => sql.startsWith("UPDATE lcm_brand_profiles SET"));
     expect(profileUpdate).toContain("companyName=COALESCE");
-    expect(profileUpdate).not.toContain("claimStatus=");
+    expect(profileUpdate).toContain("claimStatus=CASE WHEN ?='owner' THEN 'claimed' ELSE claimStatus END");
     expect(profileUpdate).not.toContain("rejectionReason=");
     expect(connectionQuery.mock.calls.some(([sql]) => /DELETE FROM lcm_brand_members/i.test(normalized(sql)))).toBe(false);
   });
 
   it.each([
     { caseName: "has a pending claimant", memberRows: [{ festivalAccountId: 999, role: "owner", status: "pending" }], brandStatus: "draft", claimStatus: "pending", sourceBrandId: null, sourceCatalogPage: 31, expectedError: "DRKOZU_LCM_EXISTING_BRAND_PENDING_CLAIM" },
-    { caseName: "is an unowned human-created draft", memberRows: [], brandStatus: "draft", claimStatus: "pending", sourceBrandId: null, sourceCatalogPage: 31, expectedError: "DRKOZU_LCM_EXISTING_BRAND_REQUIRES_ADMIN_RECONCILIATION" },
-    { caseName: "is an unowned published human profile", memberRows: [], brandStatus: "published", claimStatus: "unclaimed", sourceBrandId: null, sourceCatalogPage: 31, expectedError: "DRKOZU_LCM_EXISTING_BRAND_REQUIRES_ADMIN_RECONCILIATION" },
+    { caseName: "is an unverified unowned human-created draft", memberRows: [], brandStatus: "draft", claimStatus: "pending", sourceBrandId: null, sourceCatalogPage: null, expectedError: "DRKOZU_LCM_EXISTING_BRAND_REQUIRES_ADMIN_RECONCILIATION" },
+    { caseName: "is an unverified unowned published human profile", memberRows: [], brandStatus: "published", claimStatus: "unclaimed", sourceBrandId: null, sourceCatalogPage: null, expectedError: "DRKOZU_LCM_EXISTING_BRAND_REQUIRES_ADMIN_RECONCILIATION" },
     { caseName: "has an active owner but is not claimed", memberRows: [{ festivalAccountId: 999, role: "owner", status: "active" }], brandStatus: "draft", claimStatus: "pending", sourceBrandId: null, sourceCatalogPage: 31, expectedError: "DRKOZU_LCM_EXISTING_BRAND_CLAIM_STATE_MISMATCH" },
     { caseName: "has a mismatched source brand", memberRows: [{ festivalAccountId: 999, role: "owner", status: "active" }], brandStatus: "draft", claimStatus: "claimed", sourceBrandId: 11, sourceCatalogPage: 31, expectedError: "DRKOZU_LCM_EXISTING_BRAND_SOURCE_MISMATCH" },
     { caseName: "has a mismatched catalogue page", memberRows: [{ festivalAccountId: 999, role: "owner", status: "active" }], brandStatus: "draft", claimStatus: "claimed", sourceBrandId: null, sourceCatalogPage: 30, expectedError: "DRKOZU_LCM_EXISTING_BRAND_CATALOG_MISMATCH" },
