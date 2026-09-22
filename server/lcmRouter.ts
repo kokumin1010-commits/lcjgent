@@ -19,7 +19,7 @@ import {
   lcmSampleRequests,
   lcmWholesaleInquiries,
 } from "../drizzle/lcmSchema";
-import { festivalAccounts, festivalCompanyApplications, festivalLiverApplications } from "../drizzle/festivalSchema";
+import { festivalAccounts, festivalActivityLogs, festivalCompanyApplications, festivalLiverApplications } from "../drizzle/festivalSchema";
 import { lcf2026ExhibitorCatalogPages } from "../client/src/data/lcf2026ExhibitorCatalog";
 import {
   getLcmCatalogBrandPages,
@@ -1973,6 +1973,82 @@ export const lcmRouter = router({
       .from(lcmProductReviews).innerJoin(lcmMemberships, eq(lcmProductReviews.reviewerAccountId, lcmMemberships.festivalAccountId)).orderBy(desc(lcmProductReviews.updatedAt));
     const reviewReports = await db.select().from(lcmReviewReports).orderBy(desc(lcmReviewReports.updatedAt));
     return { memberships, brands, brandMembers, products, campaigns, creators, samples, wholesale, interests, eventParticipations, reviews, reviewReports };
+  }),
+
+  adminMemberDetail: lcmAdminProcedure.input(z.object({ membershipId: z.number().int().positive() }).strict()).query(async ({ input }) => {
+    const db = await requireDb();
+    const [member] = await db.select({
+      membership: lcmMemberships,
+      account: {
+        id: festivalAccounts.id,
+        email: festivalAccounts.email,
+        accountType: festivalAccounts.accountType,
+        role: festivalAccounts.role,
+        displayName: festivalAccounts.displayName,
+        isActive: festivalAccounts.isActive,
+        lastLoginAt: festivalAccounts.lastLoginAt,
+        createdAt: festivalAccounts.createdAt,
+        updatedAt: festivalAccounts.updatedAt,
+      },
+    }).from(lcmMemberships)
+      .innerJoin(festivalAccounts, eq(lcmMemberships.festivalAccountId, festivalAccounts.id))
+      .where(eq(lcmMemberships.id, input.membershipId))
+      .limit(1);
+    if (!member) throw new TRPCError({ code: "NOT_FOUND", message: "LCM会員が見つかりません" });
+
+    const [brands, creator, activity, audit] = await Promise.all([
+      db.select({
+        id: lcmBrandProfiles.id,
+        slug: lcmBrandProfiles.slug,
+        displayName: lcmBrandProfiles.displayName,
+        companyName: lcmBrandProfiles.companyName,
+        category: lcmBrandProfiles.category,
+        status: lcmBrandProfiles.status,
+        claimStatus: lcmBrandProfiles.claimStatus,
+        memberRole: lcmBrandMembers.role,
+        memberStatus: lcmBrandMembers.status,
+        productCount: sql<number>`(SELECT COUNT(*) FROM lcm_products p WHERE p.brandProfileId = ${lcmBrandProfiles.id} AND p.status <> 'archived')`,
+      }).from(lcmBrandMembers)
+        .innerJoin(lcmBrandProfiles, eq(lcmBrandMembers.brandProfileId, lcmBrandProfiles.id))
+        .where(eq(lcmBrandMembers.festivalAccountId, member.account.id))
+        .orderBy(desc(lcmBrandMembers.updatedAt)),
+      db.select({
+        id: lcmCreatorProfiles.id,
+        slug: lcmCreatorProfiles.slug,
+        displayName: lcmCreatorProfiles.displayName,
+        status: lcmCreatorProfiles.status,
+        acceptingOffers: lcmCreatorProfiles.acceptingOffers,
+        updatedAt: lcmCreatorProfiles.updatedAt,
+      }).from(lcmCreatorProfiles)
+        .where(eq(lcmCreatorProfiles.festivalAccountId, member.account.id))
+        .limit(1),
+      db.select({
+        id: festivalActivityLogs.id,
+        action: festivalActivityLogs.action,
+        details: festivalActivityLogs.details,
+        createdAt: festivalActivityLogs.createdAt,
+      }).from(festivalActivityLogs)
+        .where(eq(festivalActivityLogs.accountId, member.account.id))
+        .orderBy(desc(festivalActivityLogs.createdAt))
+        .limit(30),
+      db.select({
+        id: lcmAuditLogs.id,
+        entityType: lcmAuditLogs.entityType,
+        entityId: lcmAuditLogs.entityId,
+        action: lcmAuditLogs.action,
+        createdAt: lcmAuditLogs.createdAt,
+      }).from(lcmAuditLogs)
+        .where(eq(lcmAuditLogs.actorAccountId, member.account.id))
+        .orderBy(desc(lcmAuditLogs.createdAt))
+        .limit(30),
+    ]);
+    return {
+      ...member,
+      brands,
+      creator: creator[0] || null,
+      recentActivity: activity,
+      recentLcmAudit: audit,
+    };
   }),
 
   createBrandForMember: lcmAdminProcedure.input(z.object({

@@ -4455,6 +4455,38 @@ async function startServer() {
     };
     initializeDrKozuBrandBook();
 
+    const initializeDrKozuLcmBrand = (attempt = 1) => {
+      const maxAttempts = 6;
+      void import("../drKozuLcmBootstrap")
+        .then(module => module.bootstrapDrKozuLcmBrand())
+        .then(result => {
+          if (result.status === "busy" && attempt < maxAttempts) {
+            const retryTimer = setTimeout(() => initializeDrKozuLcmBrand(attempt + 1), 45_000);
+            retryTimer.unref?.();
+            return;
+          }
+          console.info("[DrKozuLCM] normal brand account ready", {
+            code: "DRKOZU_LCM_READY",
+            status: result.status,
+            accountId: result.accountId || null,
+            brandProfileId: result.brandProfileId || null,
+            productCount: result.productCount || 0,
+          });
+        })
+        .catch(error => {
+          const errorCode = error instanceof Error ? error.message.slice(0, 120) : "DRKOZU_LCM_BOOTSTRAP_FAILED";
+          if (attempt >= maxAttempts) {
+            console.error("[DrKozuLCM] bootstrap stopped after bounded retries", { code: errorCode, attempt });
+            return;
+          }
+          const delayMs = Math.min(5 * 60_000, 15_000 * 2 ** (attempt - 1));
+          console.warn("[DrKozuLCM] bootstrap retry scheduled", { code: errorCode, attempt, delayMs });
+          const retryTimer = setTimeout(() => initializeDrKozuLcmBrand(attempt + 1), delayMs);
+          retryTimer.unref?.();
+        });
+    };
+    initializeDrKozuLcmBrand();
+
     const initializeBrandBusinessStorage = (attempt = 1) => {
       void startBrandBusinessUpgradeSetup()
         .then(() => {
