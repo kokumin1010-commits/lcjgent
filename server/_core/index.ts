@@ -880,6 +880,7 @@ async function startServer() {
   const multer = await import("multer");
   const upload = multer.default({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
   const influencerBdUpload = multer.default({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
+  const influencerBdCreatorImportUpload = multer.default({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 1, fieldSize: 1024 } });
   const brandBdUpload = multer.default({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 1 } });
   const { storagePut } = await import("../storage");
   const { nanoid } = await import("nanoid");
@@ -929,6 +930,76 @@ async function startServer() {
     }),
     limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 2, fieldSize: 1024 },
   });
+
+  app.post(
+    "/api/influencer-bd/creator-import-preview",
+    async (req: any, res, next) => {
+      let user: any;
+      try {
+        user = await sdk.authenticateRequest(req);
+      } catch {
+        return res.status(401).json({ errorCode: "BD-CREATOR-IMPORT-AUTH", error: "请先登录后再识别达人资料" });
+      }
+      if (!user || !Number.isInteger(Number(user.id))) {
+        return res.status(401).json({ errorCode: "BD-CREATOR-IMPORT-AUTH", error: "请先登录后再识别达人资料" });
+      }
+      try {
+        const ipAddress = String(req.ip || req.socket?.remoteAddress || "unknown");
+        const { consumeInfluencerCreatorImportQuota } = await import("../influencerBdRouter");
+        if (!await consumeInfluencerCreatorImportQuota({ userId: Number(user.id), ipAddress })) {
+          return res.status(429).json({ errorCode: "BD-CREATOR-IMPORT-RATE", error: "识别请求过于频繁，请10分钟后重试" });
+        }
+        req.influencerBdCreatorImportUser = user;
+        next();
+      } catch {
+        console.error("[InfluencerCreatorImportRateLimit]", { actorId: Number(user.id) });
+        return res.status(503).json({ errorCode: "BD-CREATOR-IMPORT-RATE-UNAVAILABLE", error: "识别服务暂时不可用，请稍后重试" });
+      }
+    },
+    (req: any, res, next) => influencerBdCreatorImportUpload.single("file")(req, res, (error: any) => {
+      if (error?.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({ errorCode: "BD-CREATOR-IMPORT-SIZE", error: "图片或表格必须小于5MB" });
+      }
+      if (error) {
+        return res.status(400).json({ errorCode: "BD-CREATOR-IMPORT-PARSE", error: "无法读取上传文件" });
+      }
+      next();
+    }),
+    async (req: any, res) => {
+      try {
+        if (!req.file) {
+          return res.status(400).json({ errorCode: "BD-CREATOR-IMPORT-MISSING", error: "请选择达人截图或表格" });
+        }
+        const file = req.file as Express.Multer.File;
+        const fileName = Buffer.from(file.originalname, "latin1")
+          .toString("utf-8")
+          .replace(/[\r\n]/g, " ")
+          .slice(0, 512) || "creator-import";
+        const { previewInfluencerCreatorImport } = await import("../influencerBdCreatorImport");
+        const { issueInfluencerCreatorImportPreviewForUser } = await import("../influencerBdRouter");
+        const preview = await previewInfluencerCreatorImport({
+          fileName,
+          mimeType: String(file.mimetype || "application/octet-stream"),
+          buffer: file.buffer,
+        });
+        const enriched = await issueInfluencerCreatorImportPreviewForUser(req.influencerBdCreatorImportUser, preview);
+        return res.json(enriched);
+      } catch (error: any) {
+        const message = String(error?.message || "达人资料识别失败");
+        const errorCode = message.match(/\[(BD-[A-Z0-9-]+)\]/)?.[1] || "BD-CREATOR-IMPORT-FAILED";
+        const status = error?.code === "UNAUTHORIZED" ? 401
+          : error?.code === "FORBIDDEN" ? 403
+            : error?.code === "CONFLICT" ? 409
+              : errorCode.includes("AI-") || errorCode === "BD-CREATOR-IMPORT-FAILED" ? 502
+                : 400;
+        console.error("[InfluencerCreatorImport]", { errorCode, actorId: Number(req.influencerBdCreatorImportUser?.id || 0) || null });
+        const publicMessage = status === 502
+          ? "AI识别暂时失败，请稍后重试"
+          : message.replace(/^\[[^\]]+\]\s*/, "").slice(0, 500);
+        return res.status(status).json({ errorCode, error: publicMessage });
+      }
+    },
+  );
 
   app.post(
     "/api/influencer-bd/chat-screenshot",

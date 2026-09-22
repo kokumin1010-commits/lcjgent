@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { createHash, randomBytes } from "node:crypto";
 import mysql, { type Pool, type PoolConnection, type RowDataPacket } from "mysql2/promise";
 import { z } from "zod";
 import { adminProcedure, protectedProcedure, router } from "./_core/trpc";
@@ -8,6 +9,11 @@ import {
   INFLUENCER_BD_AI_MODEL,
   INFLUENCER_BD_PROMPT_VERSION,
 } from "./influencerBdAi";
+import {
+  normalizeCreatorHandle,
+  type InfluencerCreatorImportPreview,
+  type InfluencerCreatorImportRow,
+} from "./influencerBdCreatorImport";
 import { getInfluencerBdUpgradeHealth } from "./influencerBdUpgrade";
 import {
   attachStoreBrandLinks,
@@ -288,6 +294,113 @@ const creatorInput = z.object({
   notes: optionalText(),
 });
 
+const creatorImportRowInput = z.object({
+  sourceKey: z.string().trim().min(1).max(500),
+  displayName: z.string().trim().min(1).max(255),
+  platform: z.enum(["TikTok", "Instagram", "YouTube", "X", "LINE", "WeChat", "other"]),
+  handle: z.string().trim().min(2).max(100),
+  profileUrl: z.string().url().max(2000).optional().nullable(),
+  followerCount: z.number().int().min(0).max(10_000_000_000).nullable().optional(),
+  category: optionalText(255),
+  country: optionalText(100),
+  language: optionalText(100),
+  contactInfo: optionalText(5000),
+});
+
+type CreatorImportInputRow = z.infer<typeof creatorImportRowInput>;
+
+function sha256Text(value: string) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function canonicalCreatorImportProfile(row: Omit<CreatorImportInputRow, "sourceKey"> | InfluencerCreatorImportRow) {
+  const handle = normalizeCreatorHandle(row.handle)?.toLocaleLowerCase() || null;
+  const profileUrl = row.profileUrl ? new URL(String(row.profileUrl)).toString() : null;
+  return {
+    displayName: String(row.displayName || "").trim(),
+    platform: row.platform,
+    handle,
+    profileUrl,
+    followerCount: row.followerCount == null ? null : Math.round(Number(row.followerCount)),
+    category: String(row.category || "").trim() || null,
+    country: String(row.country || "").trim() || null,
+    language: String(row.language || "").trim() || null,
+    contactInfo: String(row.contactInfo || "").trim() || null,
+  };
+}
+
+function creatorImportRowHash(row: CreatorImportInputRow | InfluencerCreatorImportRow) {
+  return sha256Text(JSON.stringify(canonicalCreatorImportProfile(row)));
+}
+
+function creatorImportSourceKeyHash(sourceKey: string) {
+  return sha256Text(sourceKey.trim());
+}
+
+export function assertCreatorProfileUrlMatches(platform: string, handle: string, profileUrl: string | null | undefined) {
+  if (!profileUrl) {
+    if (["TikTok", "Instagram", "X", "YouTube", "LINE"].includes(platform)) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "[BD-CREATOR-IMPORT-PROFILE-REQUIRED] 已知平台必须提供可验证的达人主页URL" });
+    }
+    return;
+  }
+  const url = new URL(profileUrl);
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "[BD-CREATOR-IMPORT-PROFILE-PROTOCOL] 达人主页只支持HTTP或HTTPS链接" });
+  }
+  if (url.username || url.password) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "[BD-CREATOR-IMPORT-PROFILE-CREDENTIALS] 达人主页URL不能包含凭据" });
+  }
+  const host = url.hostname.toLocaleLowerCase().replace(/^www\./, "");
+  const normalizedHandle = handle.toLocaleLowerCase();
+  let urlHandle: string | null = null;
+  const decodeSegment = (value: string | undefined) => {
+    if (!value) return null;
+    try { return decodeURIComponent(value).replace(/^@+/, ""); } catch { return null; }
+  };
+  if (platform === "TikTok") {
+    if (!(host === "tiktok.com" || host.endsWith(".tiktok.com"))) throw new TRPCError({ code: "BAD_REQUEST", message: "[BD-CREATOR-IMPORT-PROFILE-HOST] TikTok达人主页域名不正确" });
+    urlHandle = decodeSegment(url.pathname.match(/^\/@([^/]+)\/?$/)?.[1]);
+  }
+  if (platform === "Instagram") {
+    if (!(host === "instagram.com" || host.endsWith(".instagram.com"))) throw new TRPCError({ code: "BAD_REQUEST", message: "[BD-CREATOR-IMPORT-PROFILE-HOST] Instagram达人主页域名不正确" });
+    const segments = url.pathname.split("/").filter(Boolean);
+    urlHandle = segments.length === 1 ? decodeSegment(segments[0]) : null;
+    if (urlHandle && ["accounts", "direct", "explore", "p", "reels", "stories"].includes(urlHandle.toLocaleLowerCase())) urlHandle = null;
+  }
+  if (platform === "X") {
+    if (!(host === "x.com" || host === "twitter.com" || host.endsWith(".twitter.com"))) throw new TRPCError({ code: "BAD_REQUEST", message: "[BD-CREATOR-IMPORT-PROFILE-HOST] X达人主页域名不正确" });
+    const segments = url.pathname.split("/").filter(Boolean);
+    urlHandle = segments.length === 1 ? decodeSegment(segments[0]) : null;
+    if (urlHandle && ["home", "explore", "i", "messages", "notifications", "search", "settings"].includes(urlHandle.toLocaleLowerCase())) urlHandle = null;
+  }
+  if (platform === "YouTube") {
+    if (!(host === "youtube.com" || host.endsWith(".youtube.com"))) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "[BD-CREATOR-IMPORT-PROFILE-HOST] YouTube达人主页域名不正确" });
+    }
+    const segments = url.pathname.split("/").filter(Boolean);
+    if (segments[0]?.startsWith("@") && segments.length === 1) urlHandle = decodeSegment(segments[0]);
+    else if (["channel", "c", "user"].includes(segments[0] || "") && segments.length === 2) urlHandle = decodeSegment(segments[1]);
+  }
+  if (platform === "LINE") {
+    if (!(host === "line.me" || host === "page.line.me")) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "[BD-CREATOR-IMPORT-PROFILE-HOST] LINE主页域名不正确" });
+    }
+    const segments = url.pathname.split("/").filter(Boolean);
+    urlHandle = decodeSegment(segments.at(-1));
+    if (urlHandle && ["login", "r", "ti", "p"].includes(urlHandle.toLocaleLowerCase())) urlHandle = null;
+  }
+  if (platform === "WeChat") {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "[BD-CREATOR-IMPORT-PROFILE-UNSUPPORTED] WeChat无法从公开URL可靠绑定账号，请留空主页URL" });
+  }
+  if (["TikTok", "Instagram", "X", "YouTube", "LINE"].includes(platform) && !urlHandle) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "[BD-CREATOR-IMPORT-PROFILE-PATH] 达人主页URL不是可识别的个人主页路径" });
+  }
+  if (urlHandle && urlHandle.toLocaleLowerCase() !== normalizedHandle) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "[BD-CREATOR-IMPORT-PROFILE-MISMATCH] 主页URL与达人账号ID不一致，请重新预览" });
+  }
+}
+
 const outreachInput = z.object({
   id: z.number().int().positive().optional(),
   creatorId: z.number().int().positive(),
@@ -348,6 +461,143 @@ export async function saveInfluencerBdAttachmentForUser(user: any, input: {
     await writeAudit(connection, { entityType: "attachment", entityId: id, action: "attachment_uploaded", after: { ...after, storageKey: input.storageKey }, ctx });
     await connection.commit();
     return after;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+export async function enrichInfluencerCreatorImportPreviewForUser(
+  user: any,
+  preview: InfluencerCreatorImportPreview,
+): Promise<InfluencerCreatorImportPreview> {
+  const p = dbPool();
+  const scope = await resolveScope({ user }, p);
+  const keys = Array.from(new Set(preview.rows
+    .filter(row => row.handle)
+    .map(row => `${row.platform}\u0000${normalizeHandle(row.handle)}`)));
+  const existing = new Map<string, { id: number; displayName: string; archived: boolean; visible: boolean }>();
+  if (keys.length) {
+    const clauses = keys.map(() => "(platform=? AND normalizedHandle=?)").join(" OR ");
+    const params = keys.flatMap(key => key.split("\u0000"));
+    const [rows] = await p.query<RowDataPacket[]>(
+      `SELECT id,displayName,platform,normalizedHandle,ownerStaffId,createdById,deletedAt FROM influencer_bd_creators WHERE ${clauses}`,
+      params,
+    );
+    for (const row of rows) {
+      existing.set(`${String(row.platform)}\u0000${String(row.normalizedHandle)}`, {
+        id: Number(row.id),
+        displayName: String(row.displayName),
+        archived: Boolean(row.deletedAt),
+        visible: scope.isAdmin || (scope.staffId
+          ? (Number(row.ownerStaffId) === scope.staffId || (row.ownerStaffId == null && Number(row.createdById) === scope.id))
+          : Number(row.createdById) === scope.id),
+      });
+    }
+  }
+
+  const staffByName = new Map<string, { id: number; name: string }>();
+  if (scope.isAdmin) {
+    const [staffRows] = await p.query<RowDataPacket[]>(
+      "SELECT id,name FROM staff WHERE isActive='active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL",
+    );
+    for (const row of staffRows) {
+      const key = String(row.name || "").trim().toLocaleLowerCase();
+      if (key && !staffByName.has(key)) staffByName.set(key, { id: Number(row.id), name: String(row.name) });
+    }
+  }
+
+  return {
+    ...preview,
+    rows: preview.rows.map(row => {
+      const warnings = [...row.warnings];
+      const key = row.handle ? `${row.platform}\u0000${normalizeHandle(row.handle)}` : null;
+      const match = key ? existing.get(key) : null;
+      const owner = scope.isAdmin && row.ownerStaffName
+        ? staffByName.get(row.ownerStaffName.trim().toLocaleLowerCase())
+        : null;
+      if (match?.archived && match.visible) warnings.push("该账号对应的达人已归档，不能重复导入");
+      if (match && !match.visible) warnings.push("系统已有该账号，无法重复导入");
+      if (scope.isAdmin && row.ownerStaffName && !owner) warnings.push(`未找到在职负责人“${row.ownerStaffName}”，将保持未分配`);
+      return {
+        ...row,
+        ownerStaffId: scope.isAdmin ? (owner?.id || null) : scope.staffId,
+        ownerStaffName: scope.isAdmin ? (owner?.name || null) : (scope.staffName || scope.name),
+        existingCreatorId: match?.visible ? match.id : null,
+        existingCreatorName: match?.visible ? match.displayName : null,
+        eligible: row.eligible && !match,
+        warnings: Array.from(new Set(warnings)),
+      } satisfies InfluencerCreatorImportRow;
+    }),
+  };
+}
+
+export async function issueInfluencerCreatorImportPreviewForUser(
+  user: any,
+  preview: InfluencerCreatorImportPreview,
+) {
+  const enriched = await enrichInfluencerCreatorImportPreviewForUser(user, preview);
+  const actorId = Number(user?.id || 0);
+  if (!actorId) throw new TRPCError({ code: "UNAUTHORIZED", message: "[BD-CREATOR-IMPORT-AUTH] 登录状态无效" });
+  const eligibleRows = enriched.rows.filter(row => row.eligible && row.handle);
+  const rowHashes = Object.fromEntries(eligibleRows.map(row => [
+    creatorImportSourceKeyHash(row.sourceKey),
+    creatorImportRowHash(row),
+  ]));
+  const previewToken = randomBytes(32).toString("base64url");
+  const tokenHash = sha256Text(previewToken);
+  const previewExpiresAt = new Date(Date.now() + 30 * 60_000);
+  const p = dbPool();
+  await p.query(
+    `INSERT INTO influencer_bd_creator_import_previews
+      (tokenHash,actorId,rowHashesJson,eligibleCount,expiresAt)
+     VALUES (?,?,?,?,DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 30 MINUTE))`,
+    [tokenHash, actorId, JSON.stringify(rowHashes), eligibleRows.length],
+  );
+  void p.query(
+    "DELETE FROM influencer_bd_creator_import_previews WHERE expiresAt < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY) LIMIT 500",
+  ).catch(() => undefined);
+  return { ...enriched, previewToken, previewExpiresAt: previewExpiresAt.toISOString() };
+}
+
+export async function consumeInfluencerCreatorImportQuota(input: { userId: number; ipAddress: string }) {
+  const connection = await dbPool().getConnection();
+  const buckets = [
+    { hash: sha256Text(`user:${input.userId}`), limit: 10 },
+    { hash: sha256Text(`ip:${input.ipAddress}`), limit: 30 },
+  ];
+  try {
+    await connection.beginTransaction();
+    let allowed = true;
+    for (const bucket of buckets) {
+      await connection.query(
+        `INSERT INTO influencer_bd_import_rate_limits (bucketHash,windowStartedAt,attempts)
+         VALUES (?,CURRENT_TIMESTAMP,0)
+         ON DUPLICATE KEY UPDATE bucketHash=VALUES(bucketHash)`,
+        [bucket.hash],
+      );
+      const [rows] = await connection.query<RowDataPacket[]>(
+        "SELECT attempts,windowStartedAt FROM influencer_bd_import_rate_limits WHERE bucketHash=? FOR UPDATE",
+        [bucket.hash],
+      );
+      const row = rows[0];
+      const expired = Date.now() - new Date(row?.windowStartedAt).getTime() >= 10 * 60_000;
+      const attempts = expired ? 1 : Math.min(Number(row.attempts || 0) + 1, bucket.limit + 1);
+      await connection.query(
+        `UPDATE influencer_bd_import_rate_limits
+            SET windowStartedAt=IF(?,CURRENT_TIMESTAMP,windowStartedAt),attempts=?
+          WHERE bucketHash=?`,
+        [expired ? 1 : 0, attempts, bucket.hash],
+      );
+      if (attempts > bucket.limit) allowed = false;
+    }
+    await connection.commit();
+    void dbPool().query(
+      "DELETE FROM influencer_bd_import_rate_limits WHERE updatedAt < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY) LIMIT 500",
+    ).catch(() => undefined);
+    return allowed;
   } catch (error) {
     await connection.rollback();
     throw error;
@@ -559,6 +809,131 @@ export const influencerBdRouter = router({
       connection.release();
     }
   }),
+
+  importCreators: protectedProcedure
+    .input(z.object({
+      importVersion: z.literal("influencer-creator-import-v1"),
+      previewToken: z.string().min(40).max(100),
+      rows: z.array(creatorImportRowInput).min(1).max(500),
+      defaultOwnerStaffId: z.number().int().positive().optional().nullable(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const connection = await dbPool().getConnection();
+      let transactionStarted = false;
+      try {
+        const scope = await resolveScope(ctx, connection);
+        if (!scope.id) throw new TRPCError({ code: "UNAUTHORIZED", message: "[BD-CREATOR-IMPORT-AUTH] 登录状态无效" });
+        const normalizedRows = input.rows.map(row => {
+        const normalizedHandle = normalizeCreatorHandle(row.handle)?.toLocaleLowerCase() || null;
+        if (!normalizedHandle) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `[BD-CREATOR-IMPORT-HANDLE] ${row.sourceKey} 缺少有效账号ID` });
+        }
+        assertCreatorProfileUrlMatches(row.platform, normalizedHandle, row.profileUrl);
+        return { ...row, handle: normalizedHandle, normalizedHandle };
+        });
+        const keys = new Set<string>();
+        const sourceKeys = new Set<string>();
+        for (const row of normalizedRows) {
+        const key = `${row.platform}\u0000${row.normalizedHandle}`;
+        if (keys.has(key) || sourceKeys.has(row.sourceKey)) {
+          throw new TRPCError({ code: "CONFLICT", message: `[BD-CREATOR-IMPORT-DUPLICATE] ${row.sourceKey} 在本批次重复` });
+        }
+        keys.add(key);
+        sourceKeys.add(row.sourceKey);
+        }
+        await connection.beginTransaction();
+        transactionStarted = true;
+        const tokenHash = sha256Text(input.previewToken);
+        const [previewRows] = await connection.query<RowDataPacket[]>(
+          `SELECT rowHashesJson,eligibleCount
+             FROM influencer_bd_creator_import_previews
+            WHERE tokenHash=? AND actorId=? AND consumedAt IS NULL AND expiresAt>CURRENT_TIMESTAMP
+            LIMIT 1 FOR UPDATE`,
+          [tokenHash, scope.id],
+        );
+        const previewRow = previewRows[0];
+        if (!previewRow) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "[BD-CREATOR-IMPORT-PREVIEW] 识别预览已过期、已使用或不属于当前账号，请重新上传预览" });
+        }
+        const expectedHashes = safeJson(previewRow.rowHashesJson, {}) as Record<string, string>;
+        if (normalizedRows.length > Number(previewRow.eligibleCount || 0)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "[BD-CREATOR-IMPORT-PREVIEW] 导入行数超过已确认预览" });
+        }
+        for (const row of normalizedRows) {
+          const sourceHash = creatorImportSourceKeyHash(row.sourceKey);
+          if (!expectedHashes[sourceHash] || expectedHashes[sourceHash] !== creatorImportRowHash(row)) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "[BD-CREATOR-IMPORT-PREVIEW] 导入内容与服务端预览不一致，请重新上传预览" });
+          }
+        }
+
+        const adminOwnerIds = scope.isAdmin && input.defaultOwnerStaffId ? [input.defaultOwnerStaffId] : [];
+        const verifiedOwners = new Map<number, string>();
+        if (adminOwnerIds.length) {
+          const [ownerRows] = await connection.query<RowDataPacket[]>(
+            `SELECT id,name FROM staff WHERE id IN (${adminOwnerIds.map(() => "?").join(",")}) AND isActive='active' AND archivedAt IS NULL AND mergedIntoStaffId IS NULL FOR UPDATE`,
+            adminOwnerIds,
+          );
+          for (const row of ownerRows) verifiedOwners.set(Number(row.id), String(row.name));
+          if (verifiedOwners.size !== adminOwnerIds.length) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "[BD-CREATOR-IMPORT-OWNER] 批量导入包含无效或已离职负责人" });
+          }
+        }
+
+        const clauses = normalizedRows.map(() => "(platform=? AND normalizedHandle=?)").join(" OR ");
+        const duplicateParams = normalizedRows.flatMap(row => [row.platform, row.normalizedHandle]);
+        const [existingRows] = await connection.query<RowDataPacket[]>(
+          `SELECT id,displayName,platform,normalizedHandle,deletedAt FROM influencer_bd_creators WHERE (${clauses}) FOR UPDATE`,
+          duplicateParams,
+        );
+        if (existingRows.length) {
+          const existing = existingRows[0];
+          const detail = scope.isAdmin
+            ? `${existing.deletedAt ? "已归档" : ""}达人${existing.displayName} (#${existing.id})`
+            : "该账号";
+          throw new TRPCError({ code: "CONFLICT", message: `[BD-CREATOR-IMPORT-EXISTS] 系统已存在${detail}` });
+        }
+
+        const created: Array<{ id: number; sourceKey: string; displayName: string }> = [];
+        for (const row of normalizedRows) {
+          const ownerStaffId = scope.isAdmin ? (input.defaultOwnerStaffId || null) : scope.staffId;
+          const ownerStaffName = scope.isAdmin
+            ? (ownerStaffId ? verifiedOwners.get(ownerStaffId) || null : null)
+            : (scope.staffName || scope.name);
+          const [result] = await connection.query<any>(
+            `INSERT INTO influencer_bd_creators (displayName,platform,handle,normalizedHandle,profileUrl,followerCount,category,country,language,contactInfo,ownerStaffId,ownerStaffName,status,notes,createdById,createdByName,updatedById,updatedByName) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [row.displayName,row.platform,row.handle,row.normalizedHandle,row.profileUrl || null,row.followerCount ?? null,row.category || null,row.country || null,row.language || null,row.contactInfo || null,ownerStaffId,ownerStaffName,"potential",null,scope.id,scope.name,scope.id,scope.name],
+          );
+          const id = Number(result.insertId);
+          const after = { ...row, id, normalizedHandle: row.normalizedHandle, ownerStaffId, ownerStaffName, status: "potential", notes: null };
+          await writeAudit(connection, {
+            entityType: "creator",
+            entityId: id,
+            action: "creator_imported",
+            after,
+            reason: `source=${row.sourceKey};version=${input.importVersion}`.slice(0, 1000),
+            ctx,
+          });
+          created.push({ id, sourceKey: row.sourceKey, displayName: row.displayName });
+        }
+        const [consumed] = await connection.query<any>(
+          "UPDATE influencer_bd_creator_import_previews SET consumedAt=CURRENT_TIMESTAMP WHERE tokenHash=? AND actorId=? AND consumedAt IS NULL",
+          [tokenHash, scope.id],
+        );
+        if (Number(consumed?.affectedRows || 0) !== 1) {
+          throw new TRPCError({ code: "CONFLICT", message: "[BD-CREATOR-IMPORT-PREVIEW] 识别预览已被使用，请重新上传预览" });
+        }
+        await connection.commit();
+        return { importedCount: created.length, created };
+      } catch (error: any) {
+        if (transactionStarted) await connection.rollback();
+        if (Number(error?.errno) === 1062) {
+          throw new TRPCError({ code: "CONFLICT", message: "[BD-CREATOR-IMPORT-EXISTS] 导入过程中账号已被其他操作创建，请重新预览" });
+        }
+        throw error;
+      } finally {
+        connection.release();
+      }
+    }),
 
   archiveCreator: adminProcedure
     .input(z.object({ id: z.number().int().positive(), reason: z.string().trim().min(3).max(1000) }))

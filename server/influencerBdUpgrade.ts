@@ -1,13 +1,15 @@
 import mysql, { type Pool, type RowDataPacket } from "mysql2/promise";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
 
-const UPGRADE_KEY = "influencer-bd-v1";
-const PRE_REASON = "pre-influencer-bd-v1";
-const POST_REASON = "post-influencer-bd-v1";
+const UPGRADE_KEY = "influencer-bd-v2";
+const PRE_REASON = "pre-influencer-bd-v2";
+const POST_REASON = "post-influencer-bd-v2";
 
 const REQUIRED_TABLES = [
   "influencer_bd_campaigns",
   "influencer_bd_creators",
+  "influencer_bd_creator_import_previews",
+  "influencer_bd_import_rate_limits",
   "influencer_bd_outreach_logs",
   "influencer_bd_attachments",
   "influencer_bd_ai_analyses",
@@ -15,6 +17,26 @@ const REQUIRED_TABLES = [
   "influencer_bd_settings",
   "influencer_bd_audit_logs",
 ] as const;
+
+const REQUIRED_COLUMNS = {
+  influencer_bd_campaigns: ["storeId"],
+  influencer_bd_creator_import_previews: ["tokenHash", "actorId", "rowHashesJson", "eligibleCount", "expiresAt", "consumedAt", "createdAt"],
+  influencer_bd_import_rate_limits: ["bucketHash", "windowStartedAt", "attempts", "updatedAt"],
+} as const;
+
+const REQUIRED_INDEXES = {
+  influencer_bd_creators: ["uq_influencer_bd_creator_handle"],
+  influencer_bd_creator_import_previews: ["PRIMARY", "idx_influencer_bd_import_preview_expiry"],
+  influencer_bd_import_rate_limits: ["PRIMARY", "idx_influencer_bd_import_rate_updated"],
+} as const;
+
+const REQUIRED_INDEX_SIGNATURES = {
+  "influencer_bd_creators.uq_influencer_bd_creator_handle": { unique: true, columns: ["platform", "normalizedHandle"] },
+  "influencer_bd_creator_import_previews.PRIMARY": { unique: true, columns: ["tokenHash"] },
+  "influencer_bd_creator_import_previews.idx_influencer_bd_import_preview_expiry": { unique: false, columns: ["expiresAt", "consumedAt"] },
+  "influencer_bd_import_rate_limits.PRIMARY": { unique: true, columns: ["bucketHash"] },
+  "influencer_bd_import_rate_limits.idx_influencer_bd_import_rate_updated": { unique: false, columns: ["updatedAt"] },
+} as const;
 
 async function ensureRunTable(pool: Pool) {
   await pool.query(`CREATE TABLE IF NOT EXISTS influencer_bd_upgrade_runs (
@@ -40,6 +62,65 @@ async function tableState(pool: Pool) {
     existing,
     missing: REQUIRED_TABLES.filter(name => !existing.includes(name)),
   };
+}
+
+export async function getInfluencerBdSchemaState(pool: Pool) {
+  const tables = await tableState(pool);
+  const tableNames = Object.keys(REQUIRED_COLUMNS);
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT TABLE_NAME AS tableName,COLUMN_NAME AS columnName
+       FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA=DATABASE()
+        AND TABLE_NAME IN (${tableNames.map(() => "?").join(",")})`,
+    tableNames,
+  );
+  const existing = new Set(rows.map(row => `${String(row.tableName)}.${String(row.columnName)}`));
+  const missingColumns = Object.entries(REQUIRED_COLUMNS).flatMap(([tableName, columns]) =>
+    columns.filter(column => !existing.has(`${tableName}.${column}`)).map(column => `${tableName}.${column}`),
+  );
+  const indexTableNames = Object.keys(REQUIRED_INDEXES);
+  const [indexRows] = await pool.query<RowDataPacket[]>(
+    `SELECT TABLE_NAME AS tableName,INDEX_NAME AS indexName,COLUMN_NAME AS columnName,SEQ_IN_INDEX AS sequenceNumber,NON_UNIQUE AS nonUnique
+       FROM INFORMATION_SCHEMA.STATISTICS
+      WHERE TABLE_SCHEMA=DATABASE()
+        AND TABLE_NAME IN (${indexTableNames.map(() => "?").join(",")})`,
+    indexTableNames,
+  );
+  const indexParts = new Map<string, Array<{ column: string; sequence: number; nonUnique: number }>>();
+  for (const row of indexRows) {
+    const key = `${String(row.tableName)}.${String(row.indexName)}`;
+    const parts = indexParts.get(key) || [];
+    parts.push({ column: String(row.columnName), sequence: Number(row.sequenceNumber), nonUnique: Number(row.nonUnique) });
+    indexParts.set(key, parts);
+  }
+  const missingIndexes = Object.entries(REQUIRED_INDEX_SIGNATURES).flatMap(([key, expected]) => {
+    const parts = (indexParts.get(key) || []).sort((a, b) => a.sequence - b.sequence);
+    const actualColumns = parts.map(part => part.column);
+    const uniqueMatches = parts.length > 0 && (parts[0].nonUnique === 0) === expected.unique;
+    return uniqueMatches && JSON.stringify(actualColumns) === JSON.stringify(expected.columns) ? [] : [key];
+  });
+  return { ...tables, missingColumns, missingIndexes };
+}
+
+async function columnExists(pool: Pool, tableName: string, columnName: string) {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?",
+    [tableName, columnName],
+  );
+  return Number(rows[0]?.count || 0) > 0;
+}
+
+async function ensureColumn(pool: Pool, tableName: string, columnName: string, definition: string) {
+  if (await columnExists(pool, tableName, columnName)) return;
+  await pool.query(`ALTER TABLE \`${tableName}\` ADD COLUMN \`${columnName}\` ${definition}`);
+}
+
+async function indexExists(pool: Pool, tableName: string, indexName: string) {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND INDEX_NAME=?",
+    [tableName, indexName],
+  );
+  return Number(rows[0]?.count || 0) > 0;
 }
 
 async function countIfExists(pool: Pool, table: string) {
@@ -92,6 +173,7 @@ async function createTables(pool: Pool) {
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(500) NOT NULL,
     brandId INT NULL,
+    storeId INT NULL,
     productId INT NULL,
     productNameSnapshot VARCHAR(500) NULL,
     coreSellingPoints TEXT NULL,
@@ -113,6 +195,9 @@ async function createTables(pool: Pool) {
     INDEX idx_influencer_bd_campaign_status (status,deletedAt,updatedAt),
     INDEX idx_influencer_bd_campaign_product (brandId,productId,deletedAt)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  if (!(await columnExists(pool, "influencer_bd_campaigns", "storeId"))) {
+    await pool.query("ALTER TABLE influencer_bd_campaigns ADD COLUMN storeId INT NULL AFTER brandId");
+  }
 
   await pool.query(`CREATE TABLE IF NOT EXISTS influencer_bd_creators (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -143,6 +228,52 @@ async function createTables(pool: Pool) {
     INDEX idx_influencer_bd_creator_owner (ownerStaffId,status,deletedAt),
     INDEX idx_influencer_bd_creator_recent (lastContactAt,lastReplyAt)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS influencer_bd_creator_import_previews (
+    tokenHash CHAR(64) PRIMARY KEY,
+    actorId INT NOT NULL,
+    rowHashesJson JSON NOT NULL,
+    eligibleCount INT NOT NULL,
+    expiresAt TIMESTAMP NOT NULL,
+    consumedAt TIMESTAMP NULL,
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_influencer_bd_import_preview_actor (actorId,expiresAt,consumedAt),
+    INDEX idx_influencer_bd_import_preview_expiry (expiresAt,consumedAt)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  await ensureColumn(pool, "influencer_bd_creator_import_previews", "tokenHash", "CHAR(64) NOT NULL");
+  await ensureColumn(pool, "influencer_bd_creator_import_previews", "actorId", "INT NOT NULL");
+  await ensureColumn(pool, "influencer_bd_creator_import_previews", "rowHashesJson", "JSON NOT NULL");
+  await ensureColumn(pool, "influencer_bd_creator_import_previews", "eligibleCount", "INT NOT NULL");
+  await ensureColumn(pool, "influencer_bd_creator_import_previews", "expiresAt", "TIMESTAMP NOT NULL");
+  await ensureColumn(pool, "influencer_bd_creator_import_previews", "consumedAt", "TIMESTAMP NULL");
+  await ensureColumn(pool, "influencer_bd_creator_import_previews", "createdAt", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS influencer_bd_import_rate_limits (
+    bucketHash CHAR(64) PRIMARY KEY,
+    windowStartedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    attempts INT NOT NULL DEFAULT 1,
+    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_influencer_bd_import_rate_updated (updatedAt)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  await ensureColumn(pool, "influencer_bd_import_rate_limits", "bucketHash", "CHAR(64) NOT NULL");
+  await ensureColumn(pool, "influencer_bd_import_rate_limits", "windowStartedAt", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP");
+  await ensureColumn(pool, "influencer_bd_import_rate_limits", "attempts", "INT NOT NULL DEFAULT 1");
+  await ensureColumn(pool, "influencer_bd_import_rate_limits", "updatedAt", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+  if (!(await indexExists(pool, "influencer_bd_creators", "uq_influencer_bd_creator_handle"))) {
+    await pool.query("ALTER TABLE influencer_bd_creators ADD UNIQUE INDEX uq_influencer_bd_creator_handle (platform,normalizedHandle)");
+  }
+  if (!(await indexExists(pool, "influencer_bd_creator_import_previews", "PRIMARY"))) {
+    await pool.query("ALTER TABLE influencer_bd_creator_import_previews ADD PRIMARY KEY (tokenHash)");
+  }
+  if (!(await indexExists(pool, "influencer_bd_creator_import_previews", "idx_influencer_bd_import_preview_expiry"))) {
+    await pool.query("ALTER TABLE influencer_bd_creator_import_previews ADD INDEX idx_influencer_bd_import_preview_expiry (expiresAt,consumedAt)");
+  }
+  if (!(await indexExists(pool, "influencer_bd_import_rate_limits", "PRIMARY"))) {
+    await pool.query("ALTER TABLE influencer_bd_import_rate_limits ADD PRIMARY KEY (bucketHash)");
+  }
+  if (!(await indexExists(pool, "influencer_bd_import_rate_limits", "idx_influencer_bd_import_rate_updated"))) {
+    await pool.query("ALTER TABLE influencer_bd_import_rate_limits ADD INDEX idx_influencer_bd_import_rate_updated (updatedAt)");
+  }
 
   await pool.query(`CREATE TABLE IF NOT EXISTS influencer_bd_outreach_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -277,7 +408,7 @@ export async function getInfluencerBdUpgradeHealth() {
   const pool = mysql.createPool({ uri: databaseUrl, waitForConnections: true, connectionLimit: 3 });
   try {
     await ensureRunTable(pool);
-    const tables = await tableState(pool);
+    const tables = await getInfluencerBdSchemaState(pool);
     const snapshot = await sourceSnapshot(pool);
     const [runs] = await pool.query<RowDataPacket[]>(
       "SELECT status,startedAt,completedAt,details,errorMessage FROM influencer_bd_upgrade_runs WHERE recoveryKey=? LIMIT 1",
@@ -288,9 +419,11 @@ export async function getInfluencerBdUpgradeHealth() {
       [PRE_REASON, POST_REASON],
     );
     return {
-      healthy: tables.missing.length === 0,
+      healthy: tables.missing.length === 0 && tables.missingColumns.length === 0 && tables.missingIndexes.length === 0,
       recoveryKey: UPGRADE_KEY,
       missingTables: tables.missing,
+      missingColumns: tables.missingColumns,
+      missingIndexes: tables.missingIndexes,
       snapshot,
       recoveryRun: runs[0] || null,
       backups,
@@ -306,8 +439,8 @@ export async function runInfluencerBdUpgradeSetup() {
   const pool = mysql.createPool({ uri: databaseUrl, waitForConnections: true, connectionLimit: 3 });
   try {
     await ensureRunTable(pool);
-    const beforeTables = await tableState(pool);
-    if (beforeTables.missing.length === 0) {
+    const beforeTables = await getInfluencerBdSchemaState(pool);
+    if (beforeTables.missing.length === 0 && beforeTables.missingColumns.length === 0 && beforeTables.missingIndexes.length === 0) {
       await ensureDefaultSettings(pool);
       console.log("[InfluencerBdUpgrade] schema healthy");
       return;
@@ -325,9 +458,9 @@ export async function runInfluencerBdUpgradeSetup() {
     await createTables(pool);
     await ensureDefaultSettings(pool);
 
-    const afterTables = await tableState(pool);
-    if (afterTables.missing.length) {
-      throw new Error(`missing tables: ${afterTables.missing.join(",")}`);
+    const afterTables = await getInfluencerBdSchemaState(pool);
+    if (afterTables.missing.length || afterTables.missingColumns.length || afterTables.missingIndexes.length) {
+      throw new Error(`incomplete schema: tables=${afterTables.missing.join(",")}; columns=${afterTables.missingColumns.join(",")}; indexes=${afterTables.missingIndexes.join(",")}`);
     }
 
     const after = await sourceSnapshot(pool);

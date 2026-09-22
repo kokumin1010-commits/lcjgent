@@ -15,6 +15,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
+  CreatorImportPreviewDialog,
+  type CreatorImportPreview,
+} from "@/components/influencer/CreatorImportPreviewDialog";
+import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
@@ -204,6 +208,11 @@ export default function InfluencerBd() {
   const [creatorDialogOpen, setCreatorDialogOpen] = useState(false);
   const [creatorEditingId, setCreatorEditingId] = useState<number | undefined>();
   const [creatorForm, setCreatorForm] = useState(emptyCreator);
+  const [creatorImportPreview, setCreatorImportPreview] = useState<CreatorImportPreview | null>(null);
+  const [creatorImportDialogOpen, setCreatorImportDialogOpen] = useState(false);
+  const [creatorImportSelectedKeys, setCreatorImportSelectedKeys] = useState<Set<string>>(new Set());
+  const [creatorImportDefaultOwnerId, setCreatorImportDefaultOwnerId] = useState("");
+  const [recognizingCreatorFile, setRecognizingCreatorFile] = useState(false);
   const [outreachDialogOpen, setOutreachDialogOpen] = useState(false);
   const [outreachEditingId, setOutreachEditingId] = useState<number | undefined>();
   const [outreachForm, setOutreachForm] = useState(emptyOutreach);
@@ -279,6 +288,7 @@ export default function InfluencerBd() {
   };
 
   const saveCreator = trpc.influencerBd.saveCreator.useMutation();
+  const importCreators = trpc.influencerBd.importCreators.useMutation();
   const saveOutreach = trpc.influencerBd.saveOutreach.useMutation();
   const saveCampaign = trpc.influencerBd.saveCampaign.useMutation();
   const archiveAttachment = trpc.influencerBd.archiveAttachment.useMutation();
@@ -304,6 +314,78 @@ export default function InfluencerBd() {
       notes: row.notes || "",
     } : emptyCreator);
     setCreatorDialogOpen(true);
+  };
+
+  const recognizeCreatorFile = async (file: File) => {
+    setRecognizingCreatorFile(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const response = await fetch("/api/influencer-bd/creator-import-preview", {
+        method: "POST",
+        credentials: "include",
+        body: form,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(`[${payload.errorCode || "BD-CREATOR-IMPORT-FAILED"}] ${payload.error || L("识别失败", "認識に失敗しました")}`);
+      }
+      const preview = payload as CreatorImportPreview;
+      if (!preview.rows.length) throw new Error(L("没有识别到达人信息", "クリエイター情報を認識できませんでした"));
+      setCreatorImportPreview(preview);
+      setCreatorImportSelectedKeys(new Set());
+      setCreatorImportDefaultOwnerId("");
+      setCreatorDialogOpen(false);
+      setCreatorImportDialogOpen(true);
+      if (preview.sourceType === "image") {
+        toast.success(L("AI识别完成，请逐项确认并勾选后导入", "AI認識が完了しました。内容を確認して選択後に登録してください"));
+      }
+    } catch (error: any) {
+      toast.error(error.message || L("达人资料识别失败", "クリエイター情報の認識に失敗しました"));
+    } finally {
+      setRecognizingCreatorFile(false);
+    }
+  };
+
+  const submitCreatorImport = async () => {
+    if (!creatorImportPreview) return;
+    if (!creatorImportPreview.previewToken) {
+      toast.error(L("识别预览已失效，请重新上传", "認識プレビューが無効です。再アップロードしてください"));
+      return;
+    }
+    const rows = creatorImportPreview.rows
+      .filter(row => row.eligible && creatorImportSelectedKeys.has(row.sourceKey))
+      .map(row => ({
+        sourceKey: row.sourceKey,
+        displayName: row.displayName,
+        platform: row.platform as any,
+        handle: row.handle as string,
+        profileUrl: row.profileUrl,
+        followerCount: row.followerCount,
+        category: row.category,
+        country: row.country,
+        language: row.language,
+        contactInfo: row.contactInfo,
+      }));
+    if (!rows.length) {
+      toast.error(L("请至少选择一位可导入达人", "登録可能なクリエイターを1名以上選択してください"));
+      return;
+    }
+    try {
+      const result = await importCreators.mutateAsync({
+        importVersion: creatorImportPreview.version,
+        previewToken: creatorImportPreview.previewToken,
+        defaultOwnerStaffId: creatorImportDefaultOwnerId ? Number(creatorImportDefaultOwnerId) : null,
+        rows,
+      });
+      toast.success(L(`已导入${result.importedCount}位达人`, `${result.importedCount}名を登録しました`));
+      setCreatorImportDialogOpen(false);
+      setCreatorImportPreview(null);
+      setCreatorImportSelectedKeys(new Set());
+      await invalidateAll();
+    } catch (error: any) {
+      toast.error(error.message || L("批量导入失败", "一括登録に失敗しました"));
+    }
   };
 
   const openOutreach = (row?: any) => {
@@ -598,7 +680,7 @@ export default function InfluencerBd() {
           </TabsContent>
 
           <TabsContent value="creators" className="space-y-4">
-            <Card className="border-slate-200 shadow-sm"><CardHeader className="gap-4 lg:flex-row lg:items-center lg:justify-between"><div><CardTitle>{L("达人资料库", "クリエイターデータベース")}</CardTitle><CardDescription>{L("负责人、平台、粉丝量、类目和最近联络统一管理。", "担当者、プラットフォーム、フォロワー、カテゴリ、最終連絡を一元管理します。")}</CardDescription></div><Button onClick={() => openCreator()}><Plus className="mr-2 h-4 w-4" />{L("新增达人", "クリエイター追加")}</Button></CardHeader><CardContent>{!creators.data?.length ? <EmptyState icon={UserRoundSearch} title={L("尚未登记达人", "クリエイター未登録")} description={L("请从实际BD名单开始登记，不会填充虚假达人。", "実際のBDリストから登録してください。架空データは追加しません。")}/> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{creators.data.map((creator: any) => <div key={creator.id} className="rounded-2xl border border-slate-200 bg-white p-4 transition-shadow hover:shadow-md"><div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-slate-950">{creator.displayName}</div><div className="text-xs text-slate-500">{PLATFORM_LABELS[creator.platform]}{creator.handle ? ` · @${creator.handle}` : ""}</div></div><Badge variant="outline">{isZh ? CREATOR_STATUS_LABELS[creator.status]?.zh : CREATOR_STATUS_LABELS[creator.status]?.ja}</Badge></div><div className="mt-4 grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg bg-slate-50 p-2"><span className="text-slate-500">{L("粉丝", "フォロワー")}</span><div className="mt-1 font-semibold">{creator.followerCount == null ? "—" : numberText(creator.followerCount)}</div></div><div className="rounded-lg bg-slate-50 p-2"><span className="text-slate-500">{L("进度记录", "進捗記録")}</span><div className="mt-1 font-semibold">{numberText(creator.outreachCount)}</div></div></div><div className="mt-3 text-sm text-slate-600">{creator.category || L("类目未登记", "カテゴリ未登録")}</div><div className="mt-1 text-xs text-slate-500">{L("负责人", "担当")}: {creator.ownerStaffName || "—"} · {L("最近联络", "最終連絡")}: {displayDate(creator.lastContactAt)}</div><div className="mt-4 flex gap-2"><Button size="sm" variant="outline" onClick={() => openCreator(creator)}><Pencil className="mr-1 h-3.5 w-3.5" />{L("编辑", "編集")}</Button>{creator.profileUrl && <Button size="sm" variant="ghost" asChild><a href={creator.profileUrl} target="_blank" rel="noreferrer"><ExternalLink className="mr-1 h-3.5 w-3.5" />Profile</a></Button>}</div></div>)}</div>}</CardContent></Card>
+            <Card className="border-slate-200 shadow-sm"><CardHeader className="gap-4 lg:flex-row lg:items-center lg:justify-between"><div><CardTitle>{L("达人资料库", "クリエイターデータベース")}</CardTitle><CardDescription>{L("负责人、平台、粉丝量、类目和最近联络统一管理。", "担当者、プラットフォーム、フォロワー、カテゴリ、最終連絡を一元管理します。")}</CardDescription></div><div className="flex flex-wrap gap-2"><label className={`inline-flex h-10 cursor-pointer items-center justify-center rounded-md border border-indigo-200 bg-indigo-50 px-4 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100 ${recognizingCreatorFile ? "pointer-events-none opacity-60" : ""}`}>{recognizingCreatorFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}{recognizingCreatorFile ? L("正在识别…", "認識中…") : L("AI识别 / 表格导入", "AI認識 / 表取込")}<input className="hidden" type="file" accept="image/jpeg,image/png,image/webp,.xlsx,.xls,.csv,text/csv" onChange={e => { const file = e.currentTarget.files?.[0]; e.currentTarget.value = ""; if (file) void recognizeCreatorFile(file); }} /></label><Button onClick={() => openCreator()}><Plus className="mr-2 h-4 w-4" />{L("新增达人", "クリエイター追加")}</Button></div></CardHeader><CardContent>{!creators.data?.length ? <EmptyState icon={UserRoundSearch} title={L("尚未登记达人", "クリエイター未登録")} description={L("请从实际BD名单开始登记，不会填充虚假达人。", "実際のBDリストから登録してください。架空データは追加しません。")}/> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{creators.data.map((creator: any) => <div key={creator.id} className="rounded-2xl border border-slate-200 bg-white p-4 transition-shadow hover:shadow-md"><div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-slate-950">{creator.displayName}</div><div className="text-xs text-slate-500">{PLATFORM_LABELS[creator.platform]}{creator.handle ? ` · @${creator.handle}` : ""}</div></div><Badge variant="outline">{isZh ? CREATOR_STATUS_LABELS[creator.status]?.zh : CREATOR_STATUS_LABELS[creator.status]?.ja}</Badge></div><div className="mt-4 grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg bg-slate-50 p-2"><span className="text-slate-500">{L("粉丝", "フォロワー")}</span><div className="mt-1 font-semibold">{creator.followerCount == null ? "—" : numberText(creator.followerCount)}</div></div><div className="rounded-lg bg-slate-50 p-2"><span className="text-slate-500">{L("进度记录", "進捗記録")}</span><div className="mt-1 font-semibold">{numberText(creator.outreachCount)}</div></div></div><div className="mt-3 text-sm text-slate-600">{creator.category || L("类目未登记", "カテゴリ未登録")}</div><div className="mt-1 text-xs text-slate-500">{L("负责人", "担当")}: {creator.ownerStaffName || "—"} · {L("最近联络", "最終連絡")}: {displayDate(creator.lastContactAt)}</div><div className="mt-4 flex gap-2"><Button size="sm" variant="outline" onClick={() => openCreator(creator)}><Pencil className="mr-1 h-3.5 w-3.5" />{L("编辑", "編集")}</Button>{creator.profileUrl && <Button size="sm" variant="ghost" asChild><a href={creator.profileUrl} target="_blank" rel="noreferrer"><ExternalLink className="mr-1 h-3.5 w-3.5" />Profile</a></Button>}</div></div>)}</div>}</CardContent></Card>
           </TabsContent>
 
           <TabsContent value="campaigns" className="space-y-4">
@@ -616,7 +698,30 @@ export default function InfluencerBd() {
         </Tabs>
       </div>
 
-      <Dialog open={creatorDialogOpen} onOpenChange={setCreatorDialogOpen}><DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>{creatorEditingId ? L("编辑达人", "クリエイター編集") : L("新增达人", "クリエイター追加")}</DialogTitle><DialogDescription>{L("只登记实际名单中可确认的信息，未知字段可留空。", "実際のリストで確認できる情報のみ登録し、不明項目は空欄にしてください。")}</DialogDescription></DialogHeader><div className="grid gap-4 md:grid-cols-2"><Field label={L("达人名称*", "表示名*")}><Input value={creatorForm.displayName} onChange={e => setCreatorForm(v => ({ ...v, displayName: e.target.value }))}/></Field><Field label={L("平台", "プラットフォーム")}><Select value={creatorForm.platform} onValueChange={(value: any) => setCreatorForm(v => ({ ...v, platform: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(PLATFORM_LABELS).map(([key,label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent></Select></Field><Field label={L("账号ID", "アカウントID")}><Input value={creatorForm.handle} onChange={e => setCreatorForm(v => ({ ...v, handle: e.target.value }))} placeholder="@creator"/></Field><Field label={L("主页URL", "プロフィールURL")}><Input value={creatorForm.profileUrl} onChange={e => setCreatorForm(v => ({ ...v, profileUrl: e.target.value }))}/></Field><Field label={L("粉丝数", "フォロワー数")}><Input type="number" value={creatorForm.followerCount} onChange={e => setCreatorForm(v => ({ ...v, followerCount: e.target.value }))}/></Field><Field label={L("内容类目", "コンテンツカテゴリ")}><Input value={creatorForm.category} onChange={e => setCreatorForm(v => ({ ...v, category: e.target.value }))}/></Field><Field label={L("国家/地区", "国・地域")}><Input value={creatorForm.country} onChange={e => setCreatorForm(v => ({ ...v, country: e.target.value }))}/></Field><Field label={L("语言", "言語")}><Input value={creatorForm.language} onChange={e => setCreatorForm(v => ({ ...v, language: e.target.value }))}/></Field>{isAdmin && <Field label={L("负责人", "担当者")}><Select value={creatorForm.ownerStaffId || "none"} onValueChange={value => setCreatorForm(v => ({ ...v, ownerStaffId: value === "none" ? "" : value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{L("未分配", "未割当")}</SelectItem>{bootstrap.data?.staff?.map((item: any) => <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>)}</SelectContent></Select></Field>}<Field label={L("状态", "ステータス")}><Select value={creatorForm.status} onValueChange={(value: any) => setCreatorForm(v => ({ ...v, status: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(CREATOR_STATUS_LABELS).filter(([key]) => key !== "archived").map(([key,label]) => <SelectItem key={key} value={key}>{isZh ? label.zh : label.ja}</SelectItem>)}</SelectContent></Select></Field><div className="md:col-span-2"><Field label={L("联系方式", "連絡先")}><Textarea value={creatorForm.contactInfo} onChange={e => setCreatorForm(v => ({ ...v, contactInfo: e.target.value }))}/></Field></div><div className="md:col-span-2"><Field label={L("备注", "メモ")}><Textarea value={creatorForm.notes} onChange={e => setCreatorForm(v => ({ ...v, notes: e.target.value }))}/></Field></div></div><DialogFooter><Button variant="outline" onClick={() => setCreatorDialogOpen(false)}>{L("取消", "キャンセル")}</Button><Button onClick={submitCreator} disabled={saveCreator.isPending || !creatorForm.displayName.trim()}>{saveCreator.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}{L("保存达人", "保存")}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={creatorDialogOpen} onOpenChange={setCreatorDialogOpen}><DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>{creatorEditingId ? L("编辑达人", "クリエイター編集") : L("新增达人", "クリエイター追加")}</DialogTitle><DialogDescription>{L("只登记实际名单中可确认的信息，未知字段可留空。", "実際のリストで確認できる情報のみ登録し、不明項目は空欄にしてください。")}</DialogDescription></DialogHeader>{!creatorEditingId && <div className="rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-cyan-50 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2 font-semibold text-indigo-950"><Sparkles className="h-4 w-4 text-indigo-600" />{L("AI自动识别达人信息", "AIでクリエイター情報を自動認識")}</div><p className="mt-1 text-xs leading-5 text-slate-600">{L("上传TikTok等主页截图会自动填入本表；上传XLSX/XLS/CSV会先显示逐行预览，再由你确认导入。", "TikTok等のプロフィール画像はフォームへ自動入力し、XLSX/XLS/CSVは行ごとのプレビュー確認後に登録します。")}</p></div><label className={`inline-flex h-10 shrink-0 cursor-pointer items-center justify-center rounded-md bg-indigo-600 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 ${recognizingCreatorFile ? "pointer-events-none opacity-60" : ""}`}>{recognizingCreatorFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-2 h-4 w-4" />}{recognizingCreatorFile ? L("正在识别…", "認識中…") : L("选择截图或表格", "画像・表を選択")}<input className="hidden" type="file" accept="image/jpeg,image/png,image/webp,.xlsx,.xls,.csv,text/csv" onChange={e => { const file = e.currentTarget.files?.[0]; e.currentTarget.value = ""; if (file) void recognizeCreatorFile(file); }} /></label></div><div className="mt-3 text-xs text-slate-500">{L("主页截图由AI识别；表格只在服务器本地解析，不发送给AI。仅提取达人名称、账号、主页、粉丝、类目、地区、语言和联系方式；GMV、SKU/商品、寄样、佣金、物流、履约和运营备注不会写入。识别只生成草稿，不会自动保存。", "プロフィール画像はAIで認識し、表はサーバー内だけで解析してAIへ送信しません。氏名・ID・プロフィール・フォロワー・カテゴリ・地域・言語・連絡先のみ抽出し、GMV、商品、サンプル、報酬、物流、履行、運用メモは登録しません。結果は下書きで自動保存されません。")}</div></div>}<div className="grid gap-4 md:grid-cols-2"><Field label={L("达人名称*", "表示名*")}><Input value={creatorForm.displayName} onChange={e => setCreatorForm(v => ({ ...v, displayName: e.target.value }))}/></Field><Field label={L("平台", "プラットフォーム")}><Select value={creatorForm.platform} onValueChange={(value: any) => setCreatorForm(v => ({ ...v, platform: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(PLATFORM_LABELS).map(([key,label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent></Select></Field><Field label={L("账号ID", "アカウントID")}><Input value={creatorForm.handle} onChange={e => setCreatorForm(v => ({ ...v, handle: e.target.value }))} placeholder="@creator"/></Field><Field label={L("主页URL", "プロフィールURL")}><Input value={creatorForm.profileUrl} onChange={e => setCreatorForm(v => ({ ...v, profileUrl: e.target.value }))}/></Field><Field label={L("粉丝数", "フォロワー数")}><Input type="number" value={creatorForm.followerCount} onChange={e => setCreatorForm(v => ({ ...v, followerCount: e.target.value }))}/></Field><Field label={L("内容类目", "コンテンツカテゴリ")}><Input value={creatorForm.category} onChange={e => setCreatorForm(v => ({ ...v, category: e.target.value }))}/></Field><Field label={L("国家/地区", "国・地域")}><Input value={creatorForm.country} onChange={e => setCreatorForm(v => ({ ...v, country: e.target.value }))}/></Field><Field label={L("语言", "言語")}><Input value={creatorForm.language} onChange={e => setCreatorForm(v => ({ ...v, language: e.target.value }))}/></Field>{isAdmin && <Field label={L("负责人", "担当者")}><Select value={creatorForm.ownerStaffId || "none"} onValueChange={value => setCreatorForm(v => ({ ...v, ownerStaffId: value === "none" ? "" : value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{L("未分配", "未割当")}</SelectItem>{bootstrap.data?.staff?.map((item: any) => <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>)}</SelectContent></Select></Field>}<Field label={L("状态", "ステータス")}><Select value={creatorForm.status} onValueChange={(value: any) => setCreatorForm(v => ({ ...v, status: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(CREATOR_STATUS_LABELS).filter(([key]) => key !== "archived").map(([key,label]) => <SelectItem key={key} value={key}>{isZh ? label.zh : label.ja}</SelectItem>)}</SelectContent></Select></Field><div className="md:col-span-2"><Field label={L("联系方式", "連絡先")}><Textarea value={creatorForm.contactInfo} onChange={e => setCreatorForm(v => ({ ...v, contactInfo: e.target.value }))}/></Field></div><div className="md:col-span-2"><Field label={L("备注", "メモ")}><Textarea value={creatorForm.notes} onChange={e => setCreatorForm(v => ({ ...v, notes: e.target.value }))}/></Field></div></div><DialogFooter><Button variant="outline" onClick={() => setCreatorDialogOpen(false)}>{L("取消", "キャンセル")}</Button><Button onClick={submitCreator} disabled={saveCreator.isPending || !creatorForm.displayName.trim()}>{saveCreator.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}{L("保存达人", "保存")}</Button></DialogFooter></DialogContent></Dialog>
+
+      <CreatorImportPreviewDialog
+        open={creatorImportDialogOpen}
+        onOpenChange={open => {
+          if (!open && importCreators.isPending) return;
+          setCreatorImportDialogOpen(open);
+          if (!open && !importCreators.isPending) {
+            setCreatorImportPreview(null);
+            setCreatorImportSelectedKeys(new Set());
+            setCreatorImportDefaultOwnerId("");
+          }
+        }}
+        preview={creatorImportPreview}
+        selectedKeys={creatorImportSelectedKeys}
+        onSelectedKeysChange={setCreatorImportSelectedKeys}
+        isAdmin={isAdmin}
+        staff={(bootstrap.data?.staff || []).map((item: any) => ({ id: Number(item.id), name: String(item.name) }))}
+        defaultOwnerStaffId={creatorImportDefaultOwnerId}
+        onDefaultOwnerStaffIdChange={setCreatorImportDefaultOwnerId}
+        importing={importCreators.isPending}
+        onImport={submitCreatorImport}
+        L={L}
+      />
 
       <Dialog open={outreachDialogOpen} onOpenChange={setOutreachDialogOpen}><DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle>{outreachEditingId ? L("编辑BD进度", "BD進捗編集") : L("登记BD进度", "BD進捗登録")}</DialogTitle><DialogDescription>{L("联络结果、问题、话术与聊天证据会一起保存，刷新或重启后不会消失。", "連絡結果、課題、トーク、チャット証拠を一緒に保存します。")}</DialogDescription></DialogHeader><div className="grid gap-4 md:grid-cols-2"><Field label={L("达人*", "クリエイター*")}><Select value={outreachForm.creatorId || "none"} onValueChange={value => setOutreachForm(v => ({ ...v, creatorId: value === "none" ? "" : value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{L("请选择", "選択してください")}</SelectItem>{creators.data?.map((item: any) => <SelectItem key={item.id} value={String(item.id)}>{item.displayName}{item.handle ? ` (@${item.handle})` : ""}</SelectItem>)}</SelectContent></Select></Field><Field label={L("推广方案", "プロモーション施策")}><Select value={outreachForm.campaignId || "none"} onValueChange={value => setOutreachForm(v => ({ ...v, campaignId: value === "none" ? "" : value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{L("未指定", "未指定")}</SelectItem>{campaigns.data?.map((item: any) => <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>)}</SelectContent></Select></Field>{isAdmin && <Field label={L("BD员工", "BD担当者")}><Select value={outreachForm.staffId || "none"} onValueChange={value => setOutreachForm(v => ({ ...v, staffId: value === "none" ? "" : value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{L("未分配", "未割当")}</SelectItem>{bootstrap.data?.staff?.map((item: any) => <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>)}</SelectContent></Select></Field>}<Field label={L("日期", "日付")}><Input type="date" value={outreachForm.activityDate} onChange={e => setOutreachForm(v => ({ ...v, activityDate: e.target.value }))}/></Field><Field label={L("联络渠道", "連絡チャネル")}><Select value={outreachForm.channel} onValueChange={(value: any) => setOutreachForm(v => ({ ...v, channel: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(CHANNEL_LABELS).map(([key,label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent></Select></Field><Field label={L("推进阶段", "進捗ステージ")}><Select value={outreachForm.stage} onValueChange={(value: any) => setOutreachForm(v => ({ ...v, stage: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(STAGE_LABELS).map(([key,label]) => <SelectItem key={key} value={key}>{isZh ? label.zh : label.ja}</SelectItem>)}</SelectContent></Select></Field><Field label={L("本次联络次数", "今回の連絡回数")}><Input type="number" min={1} value={outreachForm.contactCount} onChange={e => setOutreachForm(v => ({ ...v, contactCount: e.target.value }))}/></Field><Field label={L("回复类型", "返信タイプ")}><Select value={outreachForm.responseType} onValueChange={(value: any) => setOutreachForm(v => ({ ...v, responseType: value, replyReceived: value !== "none", positiveReply: value === "positive" }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(RESPONSE_LABELS).map(([key,label]) => <SelectItem key={key} value={key}>{isZh ? label.zh : label.ja}</SelectItem>)}</SelectContent></Select></Field><div className="md:col-span-2 grid gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-4">{[["replyReceived",L("已回复", "返信あり")],["positiveReply",L("积极回复", "前向き返信")],["sampleAdvanced",L("样品推进", "サンプル進行")],["cooperationConfirmed",L("合作确定", "提携確定")]].map(([key,label]) => <label key={key} className="flex items-center gap-2 text-sm"><Checkbox checked={Boolean((outreachForm as any)[key])} onCheckedChange={value => setOutreachForm(current => ({ ...current, [key]: Boolean(value), ...(key === "positiveReply" && value ? { replyReceived: true, responseType: "positive" } : {}) }))}/>{label}</label>)}</div><div className="md:col-span-2"><Field label={L("实际使用的话术", "実際に使用したトーク")}><Textarea className="min-h-24" value={outreachForm.pitchText} onChange={e => setOutreachForm(v => ({ ...v, pitchText: e.target.value }))} placeholder={L("粘贴实际发送给达人的内容", "実際に送った内容を貼り付け")}/></Field></div><div className="md:col-span-2"><Field label={L("聊天记录文字", "チャット履歴テキスト")}><Textarea className="min-h-32" value={outreachForm.chatText} onChange={e => setOutreachForm(v => ({ ...v, chatText: e.target.value }))} placeholder={L("可粘贴聊天记录，AI会与截图一起分析", "チャット履歴を貼り付けると画像と一緒にAIが分析します")}/></Field></div><Field label={L("遇到的问题", "発生した課題")}><Textarea value={outreachForm.issues} onChange={e => setOutreachForm(v => ({ ...v, issues: e.target.value }))}/></Field><Field label={L("下一步动作", "次アクション")}><Textarea value={outreachForm.nextAction} onChange={e => setOutreachForm(v => ({ ...v, nextAction: e.target.value }))}/></Field><Field label={L("下次跟进日期", "次回フォロー日")}><Input type="date" value={outreachForm.nextFollowUpDate} onChange={e => setOutreachForm(v => ({ ...v, nextFollowUpDate: e.target.value }))}/></Field><Field label={L("结果备注", "結果メモ")}><Input value={outreachForm.outcomeNotes} onChange={e => setOutreachForm(v => ({ ...v, outcomeNotes: e.target.value }))}/></Field><div className="md:col-span-2"><Field label={L("聊天截图（JPEG / PNG / WEBP，单张10MB以内，最多10张）", "チャット画像（JPEG / PNG / WEBP、1枚10MB以内、最大10枚）")}><label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-600 hover:border-indigo-400 hover:bg-indigo-50"><ImagePlus className="h-5 w-5" />{L("选择聊天截图", "チャット画像を選択")}<input className="hidden" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e => setPendingFiles(Array.from(e.target.files || []).slice(0, 10))}/></label>{pendingFiles.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{pendingFiles.map((file,index) => <Badge key={`${file.name}-${index}`} variant="secondary" className="gap-1">{file.name}<button onClick={() => setPendingFiles(files => files.filter((_,i) => i !== index))}><X className="h-3 w-3" /></button></Badge>)}</div>}</Field></div></div><DialogFooter><Button variant="outline" onClick={() => setOutreachDialogOpen(false)}>{L("取消", "キャンセル")}</Button><Button onClick={submitOutreach} disabled={saveOutreach.isPending || uploading}><Send className="mr-2 h-4 w-4" />{uploading ? L("保存并上传中…", "保存・アップロード中…") : L("保存进度", "進捗を保存")}</Button></DialogFooter></DialogContent></Dialog>
 
