@@ -1072,6 +1072,13 @@
       "when": 1789982400000,
       "tag": "0157_line_group_onboarding",
       "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "5",
+      "when": 1790063723682,
+      "tag": "0158_finance_fixed_assets",
+      "breakpoints": true
     }
   ]
 }

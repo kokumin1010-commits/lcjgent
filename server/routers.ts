@@ -926,6 +926,7 @@ import { enqueueManualTaskReminderNotifications, processTaskNotificationOutbox }
 import { completionRouter } from "./completion";
 import { buybackRouter } from "./buybackRouter";
 import { cashflowRouter } from "./cashflowRouter";
+import { fixedAssetRouter } from "./fixedAssetRouter";
 import { financeAccessRouter } from "./financeAccessRouter";
 import { requireFinanceAccess } from "./financeAccess";
 import { setImageRouter } from "./setImageRouter";
@@ -31373,6 +31374,7 @@ JSON形式で推薦順序を返してください。`;
   buyback: buybackRouter,
   financeAccess: financeAccessRouter,
   cashflow: cashflowRouter,
+  fixedAsset: fixedAssetRouter,
   invoice: invoiceRouter,
   rundown: rundownRouter,
   setImage: setImageRouter,

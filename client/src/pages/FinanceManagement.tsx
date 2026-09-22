@@ -4,6 +4,7 @@ import TspContractTab from "./TspContractTab";
 import BrandContractTab from "./BrandContractTab";
 import InvoiceTab from "./InvoiceTab";
 import CashflowTab from "./CashflowTab";
+import FixedAssetsTab from "@/components/FixedAssetsTab";
 import FinanceCommandCenter from "@/components/FinanceCommandCenter";
 import IpoReadinessCommandCenter from "@/components/IpoReadinessCommandCenter";
 import { trpc } from "@/lib/trpc";
@@ -60,7 +61,7 @@ function getPrevMonth(month: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments' | 'tap' | 'tap-creators' | 'tap-shops' | 'tap-products' | 'tap-live' | 'tap-videos' | 'tap-profitability' | 'tap-bestmatch' | 'tap-shop-analysis' | 'tap-live-efficiency' | 'tap-growth' | 'tap-creator-profit' | 'tsp' | 'brand-contract' | 'invoices' | 'finance-command' | 'ipo-readiness' | 'cashflow';
+type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments' | 'tap' | 'tap-creators' | 'tap-shops' | 'tap-products' | 'tap-live' | 'tap-videos' | 'tap-profitability' | 'tap-bestmatch' | 'tap-shop-analysis' | 'tap-live-efficiency' | 'tap-growth' | 'tap-creator-profit' | 'tsp' | 'brand-contract' | 'invoices' | 'finance-command' | 'ipo-readiness' | 'cashflow' | 'fixed-assets';
 
 // CAP契約比率設定行コンポーネント
 function CapRateRow({ liver, onSave }: { liver: any; onSave: (data: any) => void }) {
@@ -145,7 +146,7 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
-    const validTabs: TabType[] = ['dashboard', 'creators', 'shops', 'products', 'daily', 'monthly', 'orders', 'imports', 'payments', 'tap', 'tap-creators', 'tap-shops', 'tap-products', 'tap-live', 'tap-videos', 'tap-profitability', 'tap-bestmatch', 'tap-shop-analysis', 'tap-live-efficiency', 'tap-growth', 'tap-creator-profit', 'tsp', 'brand-contract', 'invoices', 'finance-command', 'ipo-readiness', 'cashflow'];
+    const validTabs: TabType[] = ['dashboard', 'creators', 'shops', 'products', 'daily', 'monthly', 'orders', 'imports', 'payments', 'tap', 'tap-creators', 'tap-shops', 'tap-products', 'tap-live', 'tap-videos', 'tap-profitability', 'tap-bestmatch', 'tap-shop-analysis', 'tap-live-efficiency', 'tap-growth', 'tap-creator-profit', 'tsp', 'brand-contract', 'invoices', 'finance-command', 'ipo-readiness', 'cashflow', 'fixed-assets'];
     return (tab && validTabs.includes(tab as TabType)) ? (tab as TabType) : 'tap';
   });
   const [cashflowDrilldown, setCashflowDrilldown] = useState<CashflowDrilldown | null>(null);
@@ -783,6 +784,7 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
     { key: 'finance-command', label: 'CEO／财务司令塔', icon: Activity },
     { key: 'ipo-readiness', label: '上場準備', icon: Target },
     { key: 'cashflow', label: '入出金管理', icon: Wallet },
+    { key: 'fixed-assets', label: '固定资产台账', icon: Package },
   ];
 
   return (
@@ -1890,6 +1892,7 @@ function FinanceManagementContent({ onFinanceLock, accessExpiresAt }: { onFinanc
           onInitialDrilldownConsumed={() => setCashflowDrilldown(null)}
         />
       )}
+      {activeTab === 'fixed-assets' && <FixedAssetsTab />}
 
       {/* TAP Analysis Tab */}
       {activeTab === 'tap' && (
@@ -4567,6 +4570,8 @@ export default function FinanceManagement() {
       trpcUtils.financeAccess.status.setData(undefined, { unlocked: false });
       await Promise.all([
         trpcUtils.cashflow.reset(),
+        trpcUtils.fixedAsset.overview.invalidate(),
+        trpcUtils.fixedAsset.history.invalidate(),
         trpcUtils.invoice.reset(),
         trpcUtils.tiktokFinance.reset(),
         trpcUtils.tsp.reset(),
