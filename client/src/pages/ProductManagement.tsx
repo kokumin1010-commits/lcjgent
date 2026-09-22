@@ -75,6 +75,12 @@ interface ProductFormData {
   commissionRate: string;
 }
 
+interface ProductListPosition {
+  productId: number;
+  viewportTop: number;
+  scrollY: number;
+}
+
 const initialFormData: ProductFormData = {
   name: "",
   description: "",
@@ -681,6 +687,7 @@ export default function ProductManagement() {
   const [selectedSelectionProduct, setSelectedSelectionProduct] = useState<any | null>(null);
   const [isBulkSyncDialogOpen, setIsBulkSyncDialogOpen] = useState(false);
   const [isBulkSyncRunning, setIsBulkSyncRunning] = useState(false);
+  const productListPositionRef = useRef<ProductListPosition | null>(null);
   const [bulkSyncProgress, setBulkSyncProgress] = useState<null | {
     created: number;
     createdVariants: number;
@@ -757,13 +764,49 @@ export default function ProductManagement() {
     },
   });
 
+  const restoreProductListPosition = useCallback((position: ProductListPosition) => {
+    const restore = (attemptsRemaining: number) => {
+      window.requestAnimationFrame(() => {
+        const row = document.querySelector<HTMLElement>(
+          `[data-mall-product-id="${position.productId}"]`,
+        );
+        if (row) {
+          const offset = row.getBoundingClientRect().top - position.viewportTop;
+          if (Math.abs(offset) > 1) {
+            window.scrollBy({ top: offset, behavior: "auto" });
+          }
+          row
+            .querySelector<HTMLButtonElement>("[data-mall-product-edit-trigger]")
+            ?.focus({ preventScroll: true });
+          return;
+        }
+        if (attemptsRemaining > 0) {
+          restore(attemptsRemaining - 1);
+          return;
+        }
+        window.scrollTo({ top: position.scrollY, behavior: "auto" });
+      });
+    };
+    restore(2);
+  }, []);
+
   const updateProduct = trpc.mall.updateProduct.useMutation({
-    onSuccess: () => {
+    onMutate: ({ id }) => ({
+      savedPosition:
+        productListPositionRef.current?.productId === id
+          ? productListPositionRef.current
+          : null,
+    }),
+    onSuccess: async (_data, _variables, context) => {
+      const savedPosition = context?.savedPosition;
       toast.success("商品を更新しました");
-      utils.mall.getProducts.invalidate();
+      await utils.mall.getProducts.invalidate();
       setIsDialogOpen(false);
       setEditingProduct(null);
       setFormData(initialFormData);
+      if (savedPosition) {
+        restoreProductListPosition(savedPosition);
+      }
     },
     onError: (error) => {
       toast.error(error.message || "商品の更新に失敗しました");
@@ -906,6 +949,14 @@ export default function ProductManagement() {
   };
 
   const handleEdit = (product: NonNullable<typeof products>[0]) => {
+    const row = document.querySelector<HTMLElement>(
+      `[data-mall-product-id="${product.id}"]`,
+    );
+    productListPositionRef.current = {
+      productId: product.id,
+      viewportTop: row?.getBoundingClientRect().top ?? 0,
+      scrollY: window.scrollY,
+    };
     setEditingProduct(product.id);
     // 複数画像を復元
     const images: ImageItem[] = [];
@@ -1173,7 +1224,10 @@ export default function ProductManagement() {
                 商品を追加
               </Button>
             </DialogTrigger>
-            <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] max-h-[94dvh] overflow-x-hidden overflow-y-auto p-4 sm:max-w-[92vw] sm:p-6 lg:max-w-5xl xl:max-w-6xl">
+            <DialogContent
+              onCloseAutoFocus={(event) => event.preventDefault()}
+              className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] max-h-[94dvh] overflow-x-hidden overflow-y-auto p-4 sm:max-w-[92vw] sm:p-6 lg:max-w-5xl xl:max-w-6xl"
+            >
               <DialogHeader>
                 <DialogTitle>
                   {editingProduct ? "商品を編集" : "新規商品登録"}
@@ -1662,7 +1716,11 @@ export default function ProductManagement() {
                 .map((product) => {
                   const imageCount = product.imageUrls?.length || (product.imageUrl ? 1 : 0);
                   return (
-                    <div key={product.id} className="border rounded-lg p-4 hover:bg-muted/30 transition-colors">
+                    <div
+                      key={product.id}
+                      data-mall-product-id={product.id}
+                      className="border rounded-lg p-4 hover:bg-muted/30 transition-colors"
+                    >
                       <div className="flex items-start gap-4">
                         {/* 画像 */}
                         <div className="relative flex-shrink-0">
@@ -1715,6 +1773,7 @@ export default function ProductManagement() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            data-mall-product-edit-trigger
                             onClick={() => handleEdit(product)}
                             title="編集"
                           >

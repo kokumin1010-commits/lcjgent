@@ -3671,3 +3671,13 @@ join／leave orderingは未知groupのleave tombstoneを保存し、新規metada
 
 专项与相关回归最终为31个文件224项全通过；production build成功，仅保留latest main既有`receiptMaskingService.ts` sharp namespace warning。8GB全量TypeScript check仍为latest main相同的1,164条既存诊断，本次早会、绩效、schema、迁移及前端目标文件诊断0条。全仓Vitest在无`DATABASE_URL`环境中仍有latest main同样的50个数据库依赖失败文件；候选唯一额外并发波动`linkCode.test.ts`单独复跑10项全通过，新增与修改的早会/绩效测试均通过。1280×900与390×844 Mock浏览器复验失败转写但已认证真实参会场景：参会保留提示和历史标记正常、无横向溢出、console/page/request error为0。未对生产数据库、早会、音频、参会、绩效或通知执行任何写入。
 独立最终只读安全/数据完整性审查结论为**GO（HIGH/CRITICAL blocker 0件）**。审查提出的新录音快照仍持久化未使用email这一中风险项也在发布前关闭：历史快照不改动，今后新快照只以`targetKey/staffId`作为身份，保留转写所需姓名/别名但不再写入邮箱；同时新增chirp与AM/FM调制音绕过回归，确认即便频谱媒体层可接受，也因缺少Whisper语音证据绝不形成参会事实。
+
+## 2026-09-22｜MALL商品状态保存后保持原列表位置（本番反映前）
+
+修复 `/master/mall?tab=products` 中编辑商品状态并保存后页面回到最上方的问题。根因是商品编辑弹窗关闭时，焦点自动回到页面顶部的“商品を追加”触发按钮，同时商品查询失效重载会重新渲染列表。
+
+现在打开商品编辑时会记录该商品行相对视口的位置与当前滚动位置；保存成功后先等待商品列表刷新，再按商品行锚点恢复到保存前的相同位置。若状态筛选导致该商品离开当前列表，则回退恢复原滚动位置。弹窗关闭时同时禁止默认焦点回跳，取消编辑也不会再把页面带回顶部。未修改商品状态、排序、筛选、权限或数据库逻辑。
+
+本地验证：商城商品位置、粘贴上传、响应式弹窗、选品导入与批量同步相关5个测试文件20项通过；`ProductManagement`前端bundle通过；完整production build通过（仅保留既有`receiptMaskingService.ts` sharp namespace warning）；全量TypeScript检查仍为latest main既有1,165条诊断，本次修改文件诊断0条。扩大执行全部历史mall/product测试时，仍会遇到无本地`DATABASE_URL`导致的既有数据库依赖失败及旧静态权限断言，未作为本次前端滚动修复回归。
+
+独立只读复审发现初版使用单一共享滚动锚点，在保存请求未完成时关闭A商品并打开B商品，可能由A的成功回调误读B的锚点。已改为在mutation的`onMutate`阶段按商品ID把位置快照绑定到具体请求，成功回调只读取该请求context；并发或重试不会互相覆盖。恢复位置后将键盘焦点放回对应商品行的编辑按钮，并使用`preventScroll`避免可访问性焦点再次改变视口。修复后复跑5文件20项回归、前端bundle、完整production build与TypeScript差分检查，结果保持通过；最终独立复审为 **PASS（P0/P1 blocker 0件）**。
