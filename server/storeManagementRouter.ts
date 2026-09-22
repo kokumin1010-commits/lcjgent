@@ -474,6 +474,72 @@ export const storeManagementRouter = router({
     return rows as any[];
   }),
 
+  brandMaterials: protectedProcedure
+    .input(z.object({ storeId: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      await ensureStoreTables();
+      const pool = await getPool();
+      const [storeRows] = await pool.query(
+        'SELECT id,operatorId,operator2Id FROM managed_stores WHERE id=? AND isActive=1 LIMIT 1',
+        [input.storeId],
+      );
+      const store = (storeRows as any[])[0];
+      if (!store) throw new TRPCError({ code: 'NOT_FOUND', message: '店铺不存在或已停用' });
+      const access = await resolveStoreWriteAccess(pool, ctx, store);
+      if (!access.canManageAll && !access.isStoreOperator) denyStoreWrite();
+      const [rows] = await pool.query(
+        `SELECT file.id,file.brandId,brand.name AS brandName,brand.nameJa AS brandNameJa,
+                file.fileName,file.fileSize,file.mimeType,file.createdAt
+           FROM managed_store_brands relation
+           INNER JOIN brands brand ON brand.id=relation.brandId AND brand.deletedAt IS NULL
+           INNER JOIN brand_files file ON file.brandId=relation.brandId AND file.deletedAt IS NULL
+          WHERE relation.storeId=?
+          ORDER BY relation.isPrimary DESC,COALESCE(NULLIF(brand.nameJa,''),brand.name),file.createdAt DESC,file.id DESC`,
+        [input.storeId],
+      );
+      return (rows as any[]).map(row => ({
+        id: Number(row.id),
+        brandId: Number(row.brandId),
+        brandName: row.brandName ? String(row.brandName) : null,
+        brandNameJa: row.brandNameJa ? String(row.brandNameJa) : null,
+        fileName: String(row.fileName),
+        fileSize: row.fileSize === null ? null : Number(row.fileSize),
+        mimeType: row.mimeType ? String(row.mimeType) : null,
+        createdAt: row.createdAt,
+      }));
+    }),
+
+  getBrandMaterialFile: protectedProcedure
+    .input(z.object({ storeId: z.number().int().positive(), fileId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      await ensureStoreTables();
+      const pool = await getPool();
+      const [storeRows] = await pool.query(
+        'SELECT id,operatorId,operator2Id FROM managed_stores WHERE id=? AND isActive=1 LIMIT 1',
+        [input.storeId],
+      );
+      const store = (storeRows as any[])[0];
+      if (!store) throw new TRPCError({ code: 'NOT_FOUND', message: '店铺不存在或已停用' });
+      const access = await resolveStoreWriteAccess(pool, ctx, store);
+      if (!access.canManageAll && !access.isStoreOperator) denyStoreWrite();
+      const [rows] = await pool.query(
+        `SELECT file.fileKey,file.fileName
+           FROM brand_files file
+           INNER JOIN managed_store_brands relation
+             ON relation.brandId=file.brandId AND relation.storeId=?
+          WHERE file.id=? AND file.deletedAt IS NULL LIMIT 1`,
+        [input.storeId, input.fileId],
+      );
+      const file = (rows as any[])[0];
+      if (!file?.fileKey) throw new TRPCError({ code: 'NOT_FOUND', message: '品牌资料不存在' });
+      return { url: `/api/brand-files/${input.fileId}`, fileName: String(file.fileName || 'brand-material.pdf') };
+    }),
+
+  brandBookImportHealth: publicProcedure.query(async () => {
+    const { getDrKozuBrandBookImportHealth } = await import('./drKozuBrandBookImport.js');
+    return getDrKozuBrandBookImportHealth();
+  }),
+
   // Public integrity probe: returns no store names or monetary values.
   recoveryHealth: publicProcedure.query(async () => {
     await ensureStoreTables();

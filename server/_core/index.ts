@@ -1931,6 +1931,51 @@ async function startServer() {
     }
   });
 
+  app.get("/api/brand-files/:fileId", async (req: any, res) => {
+    try {
+      const user = await sdk.authenticateRequest(req).catch(() => null);
+      if (!user || !Number.isInteger(Number(user.id))) {
+        return res.status(401).json({ error: "Please sign in" });
+      }
+      const fileId = Number(req.params.fileId);
+      if (!Number.isInteger(fileId) || fileId <= 0) {
+        return res.status(400).json({ error: "Invalid file ID" });
+      }
+      const [{ getBrandFileById }, { requireBrandBdCommandAccess }, { storageReadBuffer }] = await Promise.all([
+        import("../db"),
+        import("../brandBdCommandService"),
+        import("../storage"),
+      ]);
+      const file = await getBrandFileById(fileId);
+      if (!file?.fileKey) return res.status(404).json({ error: "File not found" });
+      await requireBrandBdCommandAccess(
+        {
+          id: Number(user.id),
+          email: user.email || null,
+          name: user.name || user.email || null,
+        },
+        Number(file.brandId),
+      );
+      const object = await storageReadBuffer(String(file.fileKey));
+      const safeAsciiName = String(file.fileName || "brand-material.pdf")
+        .replace(/[\r\n"\\/]/g, "_")
+        .replace(/[^\x20-\x7E]/g, "_")
+        .slice(0, 180) || "brand-material.pdf";
+      const storedContentType = String(file.mimeType || object.contentType || "application/octet-stream");
+      const safeContentType = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/i.test(storedContentType)
+        ? storedContentType
+        : "application/octet-stream";
+      res.setHeader("Cache-Control", "private, no-store");
+      res.setHeader("Content-Type", safeContentType);
+      res.setHeader("Content-Length", String(object.data.length));
+      res.setHeader("Content-Disposition", `attachment; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(String(file.fileName || "brand-material.pdf"))}`);
+      return res.status(200).send(object.data);
+    } catch (error: any) {
+      const status = error?.code === "FORBIDDEN" ? 403 : error?.code === "NOT_FOUND" ? 404 : 500;
+      return res.status(status).json({ error: status === 500 ? "Failed to read brand file" : String(error.message || "Forbidden") });
+    }
+  });
+
   // Recruitment image upload endpoint (for AI OCR recognition)
   app.post("/api/recruitment-image-upload", upload.array("files", 20), async (req: any, res) => {
     try {
@@ -4375,6 +4420,40 @@ async function startServer() {
 
   server.listen(port, async () => {
     console.log(`Server running on http://localhost:${port}/`);
+
+    const initializeDrKozuBrandBook = (attempt = 1) => {
+      void import("../drKozuBrandBookImport")
+        .then(module => module.importDrKozuBrandBook())
+        .then(result => {
+          if (result.status === "busy") {
+            const delayMs = 60_000;
+            console.info("[DrKozuBrandBook] active import lease observed; retry scheduled", {
+              code: "DRKOZU_BRAND_BOOK_IMPORT_BUSY",
+              attempt,
+              delayMs,
+            });
+            const retryTimer = setTimeout(() => initializeDrKozuBrandBook(attempt + 1), delayMs);
+            retryTimer.unref?.();
+            return;
+          }
+          console.info("[DrKozuBrandBook] import ready", {
+            code: "DRKOZU_BRAND_BOOK_READY",
+            status: result.status,
+            brandFileId: result.brandFileId || null,
+          });
+        })
+        .catch(() => {
+          const delayMs = Math.min(5 * 60_000, 15_000 * 2 ** (attempt - 1));
+          console.warn("[DrKozuBrandBook] import retry scheduled", {
+            code: "DRKOZU_BRAND_BOOK_IMPORT_RETRY",
+            attempt,
+            delayMs,
+          });
+          const retryTimer = setTimeout(() => initializeDrKozuBrandBook(attempt + 1), delayMs);
+          retryTimer.unref?.();
+        });
+    };
+    initializeDrKozuBrandBook();
 
     const initializeBrandBusinessStorage = (attempt = 1) => {
       void startBrandBusinessUpgradeSetup()

@@ -9,7 +9,7 @@ import { useAuth } from '@/_core/hooks/useAuth';
 import { 
   Store, Upload, Plus, Trash2, Edit2, Users, TrendingUp, 
   BarChart3, ShoppingBag, Megaphone, ArrowLeft, X, Check,
-  FileSpreadsheet, Calendar, RefreshCw, Camera, Loader2, Save, Mail, Phone, Download, RotateCcw, History, ChevronsUpDown
+  FileSpreadsheet, FileText, Calendar, RefreshCw, Camera, Loader2, Save, Mail, Phone, Download, RotateCcw, History, ChevronsUpDown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -662,6 +662,7 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
   const dataQuery = trpc.storeManagement.getData.useQuery({ storeId: store.id, year, month });
   const staffQuery = trpc.storeManagement.getStaffList.useQuery();
   const historyQuery = trpc.storeManagement.getUploadHistory.useQuery({ storeId: store.id, year, month, limit: 200 });
+  const brandMaterialsQuery = trpc.storeManagement.brandMaterials.useQuery({ storeId: store.id });
   const uploadMutation = trpc.storeManagement.uploadData.useMutation();
   const deleteMutation = trpc.storeManagement.deleteData.useMutation({
     onSuccess: () => {
@@ -681,6 +682,9 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
   });
   const originalFileMutation = trpc.storeManagement.getOriginalUploadFile.useMutation({
     onSuccess: (result) => { window.open(result.url, '_blank', 'noopener,noreferrer'); }
+  });
+  const brandMaterialFileMutation = trpc.storeManagement.getBrandMaterialFile.useMutation({
+    onSuccess: (result) => { window.location.assign(result.url); },
   });
 
   const shopStats = useMemo(() => dataQuery.data?.find(d => d.dataType === 'shop_stats')?.data || [], [dataQuery.data]);
@@ -898,6 +902,50 @@ function StoreDetailView({ store, year, month, viewMode, onBack, onYearChange, o
               <span className="mr-1.5">{item.icon}</span>{item.label}
             </button>
           ))}
+        </div>
+        <div className="mt-3 rounded-xl border border-red-100 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900">
+                <FileText className="h-4 w-4 text-red-600" /> 服务品牌资料
+              </h2>
+              <p className="mt-1 text-xs text-gray-500">
+                {(store.brands || []).map((brand: any) => brand.nameJa || brand.name).filter(Boolean).join(' · ') || '未关联服务品牌'}
+              </p>
+            </div>
+            <span className="rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700">
+              {brandMaterialsQuery.data?.length || 0} 件
+            </span>
+          </div>
+          {brandMaterialsQuery.isLoading ? (
+            <div className="mt-3 flex items-center gap-2 text-xs text-gray-500"><Loader2 className="h-4 w-4 animate-spin" /> 资料读取中...</div>
+          ) : brandMaterialsQuery.error ? (
+            <p className="mt-3 text-xs text-red-600">品牌资料读取失败，请刷新后重试。</p>
+          ) : !brandMaterialsQuery.data?.length ? (
+            <p className="mt-3 rounded-lg border border-dashed border-gray-200 px-3 py-4 text-center text-xs text-gray-500">该店铺关联品牌暂未保存资料。</p>
+          ) : (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {brandMaterialsQuery.data.map((file: any) => (
+                <button
+                  key={file.id}
+                  type="button"
+                  onClick={() => brandMaterialFileMutation.mutate({ storeId: store.id, fileId: file.id })}
+                  disabled={brandMaterialFileMutation.isPending}
+                  className="flex min-w-0 items-center gap-3 rounded-lg border border-red-100 bg-red-50/40 p-3 text-left transition hover:border-red-300 hover:bg-red-50 disabled:opacity-60"
+                >
+                  <FileText className="h-8 w-8 shrink-0 text-red-600" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-bold text-gray-900">{file.fileName}</span>
+                    <span className="mt-1 block truncate text-[11px] text-gray-500">
+                      {file.brandNameJa || file.brandName || '品牌资料'}
+                      {file.fileSize ? ` · ${(Number(file.fileSize) / 1024 / 1024).toFixed(1)} MB` : ''}
+                    </span>
+                  </span>
+                  <Download className="h-4 w-4 shrink-0 text-red-600" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         {detailSection === 'growth' && (
           <div className="mt-2 grid gap-2 rounded-xl border border-orange-100 bg-white p-2 sm:grid-cols-2 lg:grid-cols-3">

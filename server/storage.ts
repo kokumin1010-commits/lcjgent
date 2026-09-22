@@ -131,3 +131,21 @@ export async function storageGet(relKey: string): Promise<{ key: string; url: st
   const url = await getSignedUrl(client, command, { expiresIn: 3600 });
   return { key, url };
 }
+
+export async function storageReadBuffer(relKey: string): Promise<{
+  data: Buffer;
+  contentType: string | null;
+  contentLength: number | null;
+}> {
+  const client = getS3Client();
+  const bucket = getBucket();
+  const key = normalizeKey(relKey);
+  const object = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  if (!object.Body) throw new Error("Stored object body is missing");
+  const bytes = await object.Body.transformToByteArray();
+  return {
+    data: Buffer.from(bytes),
+    contentType: object.ContentType || null,
+    contentLength: typeof object.ContentLength === "number" ? object.ContentLength : null,
+  };
+}

@@ -5,6 +5,7 @@ dist
 *.xls
 *.csv
 *.pdf
+!server/recoveryData/Dr.Kozu_Brand_Book_JP_2026_v5.pdf
 attached_assets
 .manus-logs
 *.log
