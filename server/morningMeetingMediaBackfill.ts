@@ -47,7 +47,15 @@ export async function backfillMorningMeetingMediaValidation(): Promise<MorningMe
       AND supersededAt IS NULL
       AND deletedAt IS NULL
       AND status IN ('transcribing', 'summarizing', 'completed', 'failed')
-      AND (speechValidationAttemptedAt IS NULL OR speechValidationAttemptedAt < DATE_SUB(NOW(), INTERVAL 6 HOUR))
+      AND (
+        speechValidationAttemptedAt IS NULL
+        OR speechValidationAttemptedAt < DATE_SUB(NOW(), INTERVAL 6 HOUR)
+        OR (
+          status = 'failed'
+          AND errorMessage = 'MORNING_TRANSCRIPTION_PROCESS_INTERRUPTED'
+          AND speechValidationAttemptedAt < DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+        )
+      )
     ORDER BY date DESC, createdAt DESC
     LIMIT ${MAX_ROWS_PER_RUN}
   `);
@@ -69,7 +77,15 @@ export async function backfillMorningMeetingMediaValidation(): Promise<MorningMe
           AND speechValidatedAt IS NULL
           AND supersededAt IS NULL
           AND deletedAt IS NULL
-          AND (speechValidationAttemptedAt IS NULL OR speechValidationAttemptedAt < DATE_SUB(NOW(), INTERVAL 6 HOUR))
+          AND (
+            speechValidationAttemptedAt IS NULL
+            OR speechValidationAttemptedAt < DATE_SUB(NOW(), INTERVAL 6 HOUR)
+            OR (
+              status = 'failed'
+              AND errorMessage = 'MORNING_TRANSCRIPTION_PROCESS_INTERRUPTED'
+              AND speechValidationAttemptedAt < DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+            )
+          )
       `);
       if (Number((claim as any)?.[0]?.affectedRows || 0) !== 1) continue;
       inspected += 1;

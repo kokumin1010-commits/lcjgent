@@ -244,6 +244,24 @@ function safeActorDisplayName(user: { id: number; name?: string | null }): strin
   return String(user.name || `User ${user.id}`).slice(0, 100);
 }
 
+function startMorningMeetingProcessingHeartbeat(db: any, meetingId: number) {
+  const refresh = async () => {
+    await db.update(morningMeetings).set({ updatedAt: new Date() }).where(and(
+      eq(morningMeetings.id, meetingId),
+      or(eq(morningMeetings.status, "transcribing"), eq(morningMeetings.status, "summarizing")),
+      isNull(morningMeetings.supersededAt),
+      isNull(morningMeetings.deletedAt),
+    ));
+  };
+  const timer = setInterval(() => {
+    void refresh().catch(() => {
+      console.error("[MorningMeeting] processing heartbeat failed", { meetingId });
+    });
+  }, 60_000);
+  timer.unref?.();
+  return () => clearInterval(timer);
+}
+
 function publicStoredDisplayName(value: unknown, fallback: string): string {
   const text = String(value || "").trim();
   return text && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text) ? text : fallback;
@@ -775,7 +793,7 @@ export const morningMeetingRouter = router({
       let uploadedAudio: Awaited<ReturnType<typeof verifyMorningMeetingAudioUploadToken>> | null = null;
       if (input.audioUploadToken) {
         try {
-          uploadedAudio = await verifyMorningMeetingAudioUploadToken(input.audioUploadToken, ctx.user.id);
+          uploadedAudio = await verifyMorningMeetingAudioUploadToken(input.audioUploadToken, ctx.user.id, { allowConsumed: true });
         } catch {
           throw new TRPCError({ code: "BAD_REQUEST", message: "MORNING_AUDIO_UPLOAD_TOKEN_INVALID" });
         }
@@ -818,6 +836,53 @@ export const morningMeetingRouter = router({
         aliases: member.aliases,
         position: member.position,
       }));
+
+      if (uploadedAudio) {
+        const [persisted] = await db.select({
+          id: morningMeetings.id,
+          date: morningMeetings.date,
+          teamCode: morningMeetings.teamCode,
+          startedAt: morningMeetings.startedAt,
+          participantCount: morningMeetings.participantCount,
+          participantSnapshot: morningMeetings.participantSnapshot,
+          status: morningMeetings.status,
+          errorMessage: morningMeetings.errorMessage,
+          createdBy: morningMeetings.createdBy,
+        })
+          .from(morningMeetings)
+          .where(and(
+            eq(morningMeetings.audioUploadId, uploadedAudio.uploadId),
+            eq(morningMeetings.createdBy, ctx.user.id),
+            isNull(morningMeetings.supersededAt),
+            isNull(morningMeetings.deletedAt),
+          ))
+          .limit(1);
+        if (persisted) {
+          const persistedParticipantKeys = parseTeamMeetingParticipantSnapshot(persisted.participantSnapshot)
+            .map((participant: any) => String(participant?.targetKey || ""))
+            .filter(Boolean)
+            .sort();
+          const requestedParticipantKeys = participantSnapshot.map((participant) => participant.targetKey).sort();
+          if (persisted.date !== date || persisted.teamCode !== input.teamCode
+            || JSON.stringify(persistedParticipantKeys) !== JSON.stringify(requestedParticipantKeys)) {
+            throw new TRPCError({ code: "CONFLICT", message: "MORNING_AUDIO_UPLOAD_TOKEN_ALREADY_USED" });
+          }
+          return {
+            success: true,
+            id: persisted.id,
+            date: persisted.date,
+            teamCode: input.teamCode,
+            startedAt: persisted.startedAt,
+            participantCount: persisted.participantCount,
+            participants: publicParticipantSnapshot(persisted.participantSnapshot),
+            recordedBy: safeActorDisplayName(ctx.user),
+            processing: persisted.status === "transcribing" || persisted.status === "summarizing",
+            processingStatus: persisted.status,
+            processingError: persisted.status === "failed" ? publicMorningMeetingErrorMessage(persisted.errorMessage) : null,
+            recoveredExistingUpload: true,
+          };
+        }
+      }
 
       const mediaValidation = uploadedAudio
         ? {
@@ -955,6 +1020,7 @@ export const morningMeetingRouter = router({
             mediaAudioStreamCount: mediaValidation.audioStreamCount,
             mediaValidationAttemptedAt: mediaValidation.mediaValidatedAt,
             mediaValidationFailureCode: null,
+            speechValidationAttemptedAt: new Date(),
             status: "transcribing",
             errorMessage: null,
             createdBy: ctx.user.id,
@@ -989,131 +1055,140 @@ export const morningMeetingRouter = router({
         throw error;
       }
 
-      let speechEvidenceConfirmed = false;
-      try {
-        const browserTranscript = input.transcript?.trim() || "";
-        const { url: presignedUrl } = await storageGet(stored!.key);
-        const transcription = await transcribeSegmentedMorningMeetingWithQualityRetry({
-          audioUrl: presignedUrl,
-          language: input.language,
-          primaryPrompt: teamMeetingTranscriptionPrompt(input.teamCode, input.language, participantSnapshot),
-          browserTranscript,
-          expectedDurationSeconds: mediaValidation.mediaDurationSeconds,
-        });
-        if (!hasServerSpeechEvidence(transcription.attempts)) {
-          throw new Error("MORNING_AUDIO_SPEECH_NOT_DETECTED");
-        }
-        speechEvidenceConfirmed = true;
-        const speechValidatedAt = new Date();
-        const processingSource: MorningMeetingProcessingSource = transcription.processingSource;
-        let transcript = transcription.response
-          ? formatMorningMeetingSegments(
-              transcription.response.segments,
-              transcription.response.text,
-            )
-          : transcription.transcript.trim();
-        if (processingSource !== "server_audio" || transcription.audioChunkCount > 1) {
-          await createActivityLog({
-            userId: ctx.user.id,
-            actionType: "morning_meeting_transcription_recovered",
-            actionLabel: transcription.audioChunkCount > 1
-              ? "長時間朝会音声を安全分割して文字起こし"
-              : "低品質な朝会文字起こしを安全経路で再取得",
-            targetType: "morning_meeting",
-            targetId: meetingId,
-            targetName: `${date}:${input.teamCode}`,
-            metadata: {
-              processingSource,
-              audioChunkCount: transcription.audioChunkCount,
-              attemptCount: transcription.attempts.length,
-              reasons: transcription.attempts.flatMap(attempt => attempt.quality.reasons),
+      void (async () => {
+        let speechEvidenceConfirmed = false;
+        let processingStatus: "transcribing" | "summarizing" = "transcribing";
+        const stopProcessingHeartbeat = startMorningMeetingProcessingHeartbeat(db, meetingId);
+        try {
+          const browserTranscript = input.transcript?.trim() || "";
+          const { url: presignedUrl } = await storageGet(stored!.key);
+          const transcription = await transcribeSegmentedMorningMeetingWithQualityRetry({
+            audioUrl: presignedUrl,
+            language: input.language,
+            primaryPrompt: teamMeetingTranscriptionPrompt(input.teamCode, input.language, participantSnapshot),
+            browserTranscript,
+            expectedDurationSeconds: mediaValidation.mediaDurationSeconds,
+            onChunkCompleted: async () => {
+              await db.update(morningMeetings).set({ updatedAt: new Date() }).where(and(
+                eq(morningMeetings.id, meetingId),
+                eq(morningMeetings.status, "transcribing"),
+                isNull(morningMeetings.supersededAt),
+                isNull(morningMeetings.deletedAt),
+              ));
             },
-          }).catch(() => undefined);
-        }
-
-        const summarizingUpdate = await db.update(morningMeetings).set({
-          transcript,
-          status: "summarizing",
-          speechValidatedAt,
-          speechValidationProvider: "whisper_segments_v1",
-          speechValidationAttemptedAt: speechValidatedAt,
-          speechValidationFailureCode: null,
-        }).where(and(
-          eq(morningMeetings.id, meetingId),
-          eq(morningMeetings.status, "transcribing"),
-          isNull(morningMeetings.supersededAt),
-          isNull(morningMeetings.deletedAt),
-        ));
-        if (Number((summarizingUpdate as any)?.[0]?.affectedRows || 0) !== 1) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "朝会記録が見つかりません" });
-        }
-        const analyzed = await analyzeMorningMeetingWorkPlans({
-          transcript,
-          browserTranscript,
-          language: input.language,
-          profiles: participantSpeechProfiles(participantSnapshot),
-          source: processingSource,
-        });
-        transcript = analyzed.transcript;
-        const summary = analyzed.summary;
-        const completedUpdate = await db.update(morningMeetings).set({ transcript, summary, status: "completed", errorMessage: null })
-          .where(and(
+          });
+          if (!hasServerSpeechEvidence(transcription.attempts)) throw new Error("MORNING_AUDIO_SPEECH_NOT_DETECTED");
+          speechEvidenceConfirmed = true;
+          const speechValidatedAt = new Date();
+          const processingSource: MorningMeetingProcessingSource = transcription.processingSource;
+          let transcript = transcription.response
+            ? formatMorningMeetingSegments(transcription.response.segments, transcription.response.text)
+            : transcription.transcript.trim();
+          if (processingSource !== "server_audio" || transcription.audioChunkCount > 1) {
+            await createActivityLog({
+              userId: ctx.user.id,
+              actionType: "morning_meeting_transcription_recovered",
+              actionLabel: transcription.audioChunkCount > 1
+                ? "長時間朝会音声を安全分割して文字起こし"
+                : "低品質な朝会文字起こしを安全経路で再取得",
+              targetType: "morning_meeting",
+              targetId: meetingId,
+              targetName: `${date}:${input.teamCode}`,
+              metadata: {
+                processingSource,
+                audioChunkCount: transcription.audioChunkCount,
+                attemptCount: transcription.attempts.length,
+                reasons: transcription.attempts.flatMap(attempt => attempt.quality.reasons),
+              },
+            }).catch(() => undefined);
+          }
+          const summarizingUpdate = await db.update(morningMeetings).set({
+            transcript,
+            status: "summarizing",
+            speechValidatedAt,
+            speechValidationProvider: "whisper_segments_v1",
+            speechValidationAttemptedAt: speechValidatedAt,
+            speechValidationFailureCode: null,
+          }).where(and(
             eq(morningMeetings.id, meetingId),
-            eq(morningMeetings.status, "summarizing"),
+            eq(morningMeetings.status, "transcribing"),
             isNull(morningMeetings.supersededAt),
             isNull(morningMeetings.deletedAt),
           ));
-        if (Number((completedUpdate as any)?.[0]?.affectedRows || 0) !== 1) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "朝会記録が見つかりません" });
+          if (Number((summarizingUpdate as any)?.[0]?.affectedRows || 0) !== 1) return;
+          processingStatus = "summarizing";
+          const analyzed = await analyzeMorningMeetingWorkPlans({
+            transcript,
+            browserTranscript,
+            language: input.language,
+            profiles: participantSpeechProfiles(participantSnapshot),
+            source: processingSource,
+          });
+          transcript = analyzed.transcript;
+          await db.update(morningMeetings).set({ transcript, summary: analyzed.summary, status: "completed", errorMessage: null })
+            .where(and(
+              eq(morningMeetings.id, meetingId),
+              eq(morningMeetings.status, "summarizing"),
+              isNull(morningMeetings.supersededAt),
+              isNull(morningMeetings.deletedAt),
+            ));
+        } catch (error) {
+          const errorMessage = publicMorningMeetingErrorMessage(error instanceof Error ? error.message : null)
+            || "MORNING_MEETING_PROCESSING_FAILED";
+          const speechEvidence = speechEvidenceConfirmed || (error instanceof MorningMeetingTranscriptionQualityError
+            && hasServerSpeechEvidence(error.attempts));
+          const speechAttemptedAt = new Date();
+          await db.update(morningMeetings).set({
+            status: "failed",
+            errorMessage,
+            speechValidatedAt: speechEvidence ? speechAttemptedAt : null,
+            speechValidationProvider: speechEvidence ? "whisper_segments_v1" : null,
+            speechValidationAttemptedAt: speechAttemptedAt,
+            speechValidationFailureCode: speechEvidence ? null : "MORNING_AUDIO_SPEECH_NOT_DETECTED",
+          }).where(and(
+            eq(morningMeetings.id, meetingId),
+            eq(morningMeetings.status, processingStatus),
+            isNull(morningMeetings.supersededAt),
+            isNull(morningMeetings.deletedAt),
+          ));
+          if (error instanceof MorningMeetingTranscriptionQualityError) {
+            await createActivityLog({
+              userId: ctx.user.id,
+              actionType: "morning_meeting_transcription_quality_failed",
+              actionLabel: "朝会文字起こし品質検査で要再処理",
+              targetType: "morning_meeting",
+              targetId: meetingId,
+              targetName: `${date}:${input.teamCode}`,
+              metadata: {
+                errorCode: error.code,
+                attemptCount: error.attempts.length,
+                reasons: error.attempts.flatMap(attempt => attempt.quality.reasons),
+              },
+            }).catch(() => undefined);
+          }
+        } finally {
+          stopProcessingHeartbeat();
         }
-        return {
-          success: true,
-          id: meetingId,
-          date,
-          teamCode: input.teamCode,
-          startedAt,
-          participantCount: participantSnapshot.length,
-          participants: publicParticipantSnapshot(participantSnapshot),
-          transcript,
-          summary,
-          recordedBy: safeActorDisplayName(ctx.user),
-        };
-      } catch (error) {
-        if (error instanceof TRPCError && error.code === "NOT_FOUND") throw error;
-        const errorMessage = publicMorningMeetingErrorMessage(error instanceof Error ? error.message : null)
-          || "MORNING_MEETING_PROCESSING_FAILED";
-        const speechEvidence = speechEvidenceConfirmed || (error instanceof MorningMeetingTranscriptionQualityError
-          && hasServerSpeechEvidence(error.attempts));
-        const speechAttemptedAt = new Date();
-        await db.update(morningMeetings).set({
-          status: "failed",
-          errorMessage,
-          speechValidatedAt: speechEvidence ? speechAttemptedAt : null,
-          speechValidationProvider: speechEvidence ? "whisper_segments_v1" : null,
-          speechValidationAttemptedAt: speechAttemptedAt,
-          speechValidationFailureCode: speechEvidence ? null : "MORNING_AUDIO_SPEECH_NOT_DETECTED",
-        }).where(and(
-          eq(morningMeetings.id, meetingId),
-          isNull(morningMeetings.supersededAt),
-          isNull(morningMeetings.deletedAt),
-        ));
-        if (error instanceof MorningMeetingTranscriptionQualityError) {
-          await createActivityLog({
-            userId: ctx.user.id,
-            actionType: "morning_meeting_transcription_quality_failed",
-            actionLabel: "朝会文字起こし品質検査で要再処理",
-            targetType: "morning_meeting",
-            targetId: meetingId,
-            targetName: `${date}:${input.teamCode}`,
-            metadata: {
-              errorCode: error.code,
-              attemptCount: error.attempts.length,
-              reasons: error.attempts.flatMap(attempt => attempt.quality.reasons),
-            },
-          }).catch(() => undefined);
-        }
-        return { success: false, id: meetingId, error: errorMessage };
-      }
+      })().catch((error) => {
+        console.error("[MorningMeeting] detached processing failed", {
+          meetingId,
+          errorCode: publicMorningMeetingErrorMessage(error instanceof Error ? error.message : null)
+            || "MORNING_MEETING_PROCESSING_FAILED",
+        });
+      });
+
+      return {
+        success: true,
+        id: meetingId,
+        date,
+        teamCode: input.teamCode,
+        startedAt,
+        participantCount: participantSnapshot.length,
+        participants: publicParticipantSnapshot(participantSnapshot),
+        recordedBy: safeActorDisplayName(ctx.user),
+        processing: true,
+        processingStatus: "transcribing" as const,
+      };
     }),
 
   retryDailyTeamMeetingProcessing: protectedProcedure
@@ -1196,6 +1271,7 @@ export const morningMeetingRouter = router({
         throw new TRPCError({ code: "CONFLICT", message: "この朝会録音は別の処理で再実行中です" });
       }
 
+      const stopProcessingHeartbeat = startMorningMeetingProcessingHeartbeat(db, meeting.id);
       let verifiedDurationSeconds = Number(meeting.mediaDurationSeconds || 0);
       if (!meeting.mediaValidatedAt || !meeting.mediaSha256 || Number(meeting.mediaAudioStreamCount || 0) < 1 || verifiedDurationSeconds < 1) {
         const attemptedAt = new Date();
@@ -1220,7 +1296,10 @@ export const morningMeetingRouter = router({
             throw new TRPCError({ code: "NOT_FOUND", message: "朝会記録が見つかりません" });
           }
         } catch (error) {
-          if (error instanceof TRPCError && error.code === "NOT_FOUND") throw error;
+          if (error instanceof TRPCError && error.code === "NOT_FOUND") {
+            stopProcessingHeartbeat();
+            throw error;
+          }
           const rawCode = error instanceof Error ? error.message : "";
           const failureCode = /^MORNING_AUDIO_[A-Z0-9_]+$/.test(rawCode)
             ? rawCode.slice(0, 64)
@@ -1236,6 +1315,7 @@ export const morningMeetingRouter = router({
             isNull(morningMeetings.supersededAt),
             isNull(morningMeetings.deletedAt),
           ));
+          stopProcessingHeartbeat();
           throw new TRPCError({ code: "BAD_REQUEST", message: "元の音声を完全に検証できないため、再アップロードしてください" });
         }
       }
@@ -1266,6 +1346,14 @@ export const morningMeetingRouter = router({
           primaryPrompt: teamMeetingTranscriptionPrompt(meeting.teamCode, language, participantSnapshot),
           browserTranscript,
           expectedDurationSeconds: verifiedDurationSeconds,
+          onChunkCompleted: async () => {
+            await db.update(morningMeetings).set({ updatedAt: new Date() }).where(and(
+              eq(morningMeetings.id, meeting.id),
+              eq(morningMeetings.status, "transcribing"),
+              isNull(morningMeetings.supersededAt),
+              isNull(morningMeetings.deletedAt),
+            ));
+          },
         });
         speechEvidenceConfirmed = speechEvidenceConfirmed || hasServerSpeechEvidence(transcription.attempts);
         if (!speechEvidenceConfirmed) throw new Error("MORNING_AUDIO_SPEECH_NOT_DETECTED");
@@ -1371,6 +1459,8 @@ export const morningMeetingRouter = router({
             : { errorMessage },
         }).catch(() => undefined);
         return { success: false, id: meeting.id, error: errorMessage };
+      } finally {
+        stopProcessingHeartbeat();
       }
     }),
 

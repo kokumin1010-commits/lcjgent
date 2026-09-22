@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getDb, runPerformanceReconciliation, backfillMorningMeetingMediaValidation, morningMeetingMediaBackfillFromDate } = vi.hoisted(() => ({
+const { getDb, runPerformanceReconciliation, backfillMorningMeetingMediaValidation, morningMeetingMediaBackfillFromDate, finalizeStaleMorningMeetingProcessing } = vi.hoisted(() => ({
   getDb: vi.fn(),
   runPerformanceReconciliation: vi.fn(),
   backfillMorningMeetingMediaValidation: vi.fn(),
   morningMeetingMediaBackfillFromDate: vi.fn(() => "2026-09-08"),
+  finalizeStaleMorningMeetingProcessing: vi.fn(),
 }));
 
 vi.mock("./db", () => ({ getDb }));
@@ -13,6 +14,7 @@ vi.mock("./morningMeetingMediaBackfill", () => ({
   backfillMorningMeetingMediaValidation,
   morningMeetingMediaBackfillFromDate,
 }));
+vi.mock("./morningMeetingProcessingRecovery", () => ({ finalizeStaleMorningMeetingProcessing }));
 
 import {
   runPerformanceShadowReconciliation,
@@ -25,6 +27,7 @@ describe("performance scheduler deployment catch-up", () => {
     vi.useFakeTimers();
     getDb.mockResolvedValue({ execute: vi.fn() });
     backfillMorningMeetingMediaValidation.mockResolvedValue({ inspected: 0, validated: 0, failed: 0 });
+    finalizeStaleMorningMeetingProcessing.mockResolvedValue({ finalized: 0 });
     runPerformanceReconciliation.mockResolvedValue({
       skipped: false,
       runKey: "test",
@@ -49,10 +52,13 @@ describe("performance scheduler deployment catch-up", () => {
     await vi.advanceTimersByTimeAsync(90_000);
 
     expect(backfillMorningMeetingMediaValidation).toHaveBeenCalledTimes(1);
+    expect(finalizeStaleMorningMeetingProcessing).toHaveBeenCalledTimes(1);
     expect(runPerformanceReconciliation).toHaveBeenCalledWith(expect.anything(), {
       runRevision: "morning-media-v2",
       morningMeetingFromDate: "2026-09-08",
     });
+    expect(finalizeStaleMorningMeetingProcessing.mock.invocationCallOrder[0])
+      .toBeLessThan(backfillMorningMeetingMediaValidation.mock.invocationCallOrder[0]);
     expect(backfillMorningMeetingMediaValidation.mock.invocationCallOrder[0])
       .toBeLessThan(runPerformanceReconciliation.mock.invocationCallOrder[0]);
   });

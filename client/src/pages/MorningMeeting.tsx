@@ -79,6 +79,44 @@ type PendingTeamRecording = {
   uploadedMimeType?: string;
 };
 
+export function selectMorningMeetingRecorderMimeType(
+  isTypeSupported: (mimeType: string) => boolean,
+): string | undefined {
+  return [
+    "audio/webm;codecs=opus",
+    "audio/mp4;codecs=mp4a.40.2",
+    "audio/mp4",
+    "video/mp4;codecs=mp4a.40.2",
+    "video/mp4",
+    "audio/ogg;codecs=opus",
+    "audio/webm",
+    "video/webm",
+  ].find((mimeType) => isTypeSupported(mimeType));
+}
+
+export function isStoredPendingTeamRecording(
+  meeting: { id?: unknown; teamCode?: unknown; startedAt?: unknown; createdAt?: unknown; participantCount?: unknown; participantSnapshot?: unknown; createdBy?: unknown } | null | undefined,
+  recording: Pick<PendingTeamRecording, "teamCode" | "startedAt" | "participantStaffIds">,
+  creatorUserId?: number,
+): boolean {
+  if (!meeting?.id || meeting.teamCode !== recording.teamCode || !recording.startedAt) return false;
+  if (!Number.isInteger(creatorUserId) || Number(meeting.createdBy) !== creatorUserId) return false;
+  if (Number(meeting.participantCount) !== recording.participantStaffIds.length) return false;
+  const storedParticipantIds = Array.isArray(meeting.participantSnapshot)
+    ? meeting.participantSnapshot
+        .map((participant) => Number((participant as { staffId?: unknown })?.staffId))
+        .filter(Number.isInteger)
+        .sort((a, b) => a - b)
+    : [];
+  const selectedParticipantIds = [...recording.participantStaffIds].sort((a, b) => a - b);
+  if (storedParticipantIds.length !== selectedParticipantIds.length
+    || storedParticipantIds.some((staffId, index) => staffId !== selectedParticipantIds[index])) return false;
+  const storedStartedAt = new Date(String(meeting.startedAt || meeting.createdAt || "")).getTime();
+  const clientStartedAt = new Date(recording.startedAt).getTime();
+  return Number.isFinite(storedStartedAt) && Number.isFinite(clientStartedAt)
+    && Math.abs(storedStartedAt - clientStartedAt) <= 3 * 60 * 1000;
+}
+
 const TEAM_MEETING_META: Record<TeamMeetingCode, { zh: string; ja: string; flag: string }> = {
   china: { zh: "中国团队", ja: "中国チーム", flag: "🇨🇳" },
   japan: { zh: "日本团队", ja: "日本チーム", flag: "🇯🇵" },
@@ -125,6 +163,11 @@ function friendlyRecordingError(error: unknown, language: SpeechLanguage, fallba
     return language === "zh-CN"
       ? "转写质量异常，原录音与参会名单已保存；未生成正式日报。请使用原录音重新处理。"
       : "文字起こし品質に異常がありましたが、元音声と参加者記録は保存済みです。正式な日報は元音声から再処理してください。";
+  }
+  if (message.includes("MORNING_TRANSCRIPTION_PROCESS_INTERRUPTED")) {
+    return language === "zh-CN"
+      ? "原录音和参会名单已保存，但后台处理被中断。请点击使用原录音重新处理。"
+      : "元音声と参加者一覧は保存済みですが、バックグラウンド処理が中断しました。元音声から再処理してください。";
   }
   if (message.includes("MORNING-AUDIO-") || message.includes("MORNING_AUDIO_")) return fallback;
   if (message.trim().startsWith("[{") || message.includes('"code":"')) return fallback;
@@ -292,6 +335,7 @@ export default function MorningMeeting() {
   const [processingStep, setProcessingStep] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
@@ -340,11 +384,20 @@ export default function MorningMeeting() {
   const copy = MORNING_MEETING_COPY[speechLang];
   const culturePrinciples = LCJ_CULTURE_PRINCIPLES[speechLang];
   const activeTeamMeeting = dailyToday?.teamMeetings?.[activeTeamCode] || null;
+  const activeTeamMeetingProcessing = activeTeamMeeting?.status === "transcribing" || activeTeamMeeting?.status === "summarizing";
   const activeParticipantOptions = dailyToday?.participantOptionsByTeam?.[activeTeamCode] || [];
   const selectedMember = dailyToday?.members.find((member) => member.staffId === selectedStaffId)
     || dailyToday?.currentStaff
     || null;
   const selectedTargetStaffId = dailyToday?.canSelectStaff ? selectedMember?.staffId || undefined : undefined;
+
+  useEffect(() => {
+    if (!activeTeamMeetingProcessing) return;
+    const timer = window.setInterval(() => {
+      void Promise.all([refetchDailyToday(), refetchHistory()]);
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [activeTeamMeetingProcessing, refetchDailyToday, refetchHistory]);
 
   useEffect(() => {
     if (!dailyToday) return;
@@ -538,10 +591,11 @@ export default function MorningMeeting() {
   }, [personalRecordingTime, refetchDailyToday, refetchHistory, savePersonalRecitationMutation, selectedTargetStaffId, speechLang, personalRecordingStartedAt]);
 
   const startRecording = useCallback(async () => {
-    if (!dailyToday || activeTeamMeeting?.isValid || selectedParticipantIds.length === 0 || isPersonalRecording || pendingTeamRecording) return;
+    if (!dailyToday || activeTeamMeeting?.isValid || activeTeamMeetingProcessing || selectedParticipantIds.length === 0 || isPersonalRecording || pendingTeamRecording) return;
     let requestedStream: MediaStream | null = null;
     try {
       setError(null);
+      setSaveNotice(null);
       setTeamMicrophoneIssue(null);
       setMicrophoneRetryTarget("team");
 
@@ -550,15 +604,14 @@ export default function MorningMeeting() {
       streamRef.current = stream;
 
       // Start MediaRecorder. 停止時に空でない音声だけをDB/S3へ保存する。
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
-        ? 'audio/webm;codecs=opus' 
-        : 'audio/webm';
-      
+      const mimeType = selectMorningMeetingRecorderMimeType((candidate) => MediaRecorder.isTypeSupported(candidate));
       let mediaRecorder: MediaRecorder;
       try {
-        mediaRecorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32_000 });
+        mediaRecorder = mimeType
+          ? new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32_000 })
+          : new MediaRecorder(stream, { audioBitsPerSecond: 32_000 });
       } catch {
-        mediaRecorder = new MediaRecorder(stream, { mimeType });
+        mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       }
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
@@ -634,10 +687,11 @@ export default function MorningMeeting() {
     } finally {
       setMicrophoneRetryTarget(null);
     }
-  }, [dailyToday, activeTeamMeeting?.isValid, selectedParticipantIds.length, isPersonalRecording, pendingTeamRecording, captureMicrophoneIssue, activeTeamCode]);
+  }, [dailyToday, activeTeamMeeting?.isValid, activeTeamMeetingProcessing, selectedParticipantIds.length, isPersonalRecording, pendingTeamRecording, captureMicrophoneIssue, activeTeamCode]);
 
   const submitTeamRecording = useCallback(async (recording: PendingTeamRecording) => {
     setError(null);
+    setSaveNotice(null);
     setProcessingStep(copy.meetingUploading);
     let retryable = recording;
     try {
@@ -668,9 +722,16 @@ export default function MorningMeeting() {
       setRecordingTime(0);
       setRecordingStartedAt(null);
       setPendingTeamRecording(null);
+      if ("processing" in result && result.processing) {
+        setSaveNotice(speechLang === "zh-CN"
+          ? "原录音和参会名单已安全保存，AI转写与总结正在后台继续处理。"
+          : "元音声と参加者一覧は安全に保存されました。AI文字起こし・要約はバックグラウンドで続行しています。");
+      } else {
+        setSaveNotice(speechLang === "zh-CN" ? "早会录音已安全保存。" : "朝会録音を安全に保存しました。");
+      }
       if (!result.success) {
         setError(friendlyRecordingError(
-          result.error,
+          "error" in result ? result.error : null,
           speechLang,
           speechLang === "zh-CN" ? "早会录音处理失败" : "早会録音の処理に失敗しました",
         ));
@@ -682,21 +743,29 @@ export default function MorningMeeting() {
         ? { ...retryable, uploadToken: undefined, uploadedMimeType: undefined }
         : retryable;
       setPendingTeamRecording(retryableAfterError);
-      setError(friendlyRecordingError(
-        err,
-        speechLang,
-        speechLang === "zh-CN" ? "早会录音上传失败，录音仍保留在此页面，请重试保存" : "朝会録音の保存に失敗しました。録音はこの画面に保持されているため、再試行してください",
-      ));
       const refreshed = await refetchDailyToday().catch(() => null);
       const storedMeeting = refreshed?.data?.teamMeetings?.[recording.teamCode];
-      if (storedMeeting?.id && (storedMeeting.status === "failed" || storedMeeting.isValid)) {
+      if (isStoredPendingTeamRecording(storedMeeting, recording, user?.id)) {
         setPendingTeamRecording(null);
         chunksRef.current = [];
+        setRecordingTime(0);
+        setRecordingStartedAt(null);
+        setError(null);
+        setSaveNotice(speechLang === "zh-CN"
+          ? "服务器响应中断，但已确认原录音和参会名单保存成功。无需重新上传。"
+          : "サーバー応答は中断しましたが、元音声と参加者一覧の保存成功を確認しました。再アップロードは不要です。");
+        await refetchHistory().catch(() => undefined);
+      } else {
+        setError(friendlyRecordingError(
+          err,
+          speechLang,
+          speechLang === "zh-CN" ? "早会录音上传失败，录音仍保留在此页面，请重试保存" : "朝会録音の保存に失敗しました。録音はこの画面に保持されているため、再試行してください",
+        ));
       }
     } finally {
       setProcessingStep(null);
     }
-  }, [copy.meetingUploading, refetchDailyToday, refetchHistory, saveDailyTeamMeetingMutation, speechLang]);
+  }, [copy.meetingUploading, refetchDailyToday, refetchHistory, saveDailyTeamMeetingMutation, speechLang, user?.id]);
 
   const stopRecording = useCallback(async () => {
     if (!mediaRecorderRef.current) return;
@@ -1156,6 +1225,24 @@ export default function MorningMeeting() {
                 </div>
               )}
 
+              {activeTeamMeetingProcessing && !isRecording && !processingStep && (
+                <div className="w-full rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <Loader2 className="mt-0.5 h-5 w-5 flex-none animate-spin text-blue-600" />
+                    <div>
+                      <p className="font-bold text-blue-900">
+                        {speechLang === "zh-CN" ? "原录音和参会名单已保存" : "元音声と参加者一覧は保存済みです"}
+                      </p>
+                      <p className="mt-1 text-sm text-blue-800">
+                        {speechLang === "zh-CN"
+                          ? "AI转写与总结正在后台处理。无需停留在此页面，也不要重复录制。"
+                          : "AI文字起こし・要約をバックグラウンドで処理中です。この画面を開いたままにする必要はなく、再録音も不要です。"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {activeTeamMeeting?.status === "failed" && !isRecording && !processingStep && (
                 <div className="w-full rounded-2xl border border-amber-200 bg-amber-50 p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1220,7 +1307,7 @@ export default function MorningMeeting() {
               )}
 
               {/* 参加者選択 + 1日1回のRecording Button */}
-              {dailyToday && !activeTeamMeeting?.isValid && !pendingTeamRecording && !isRecording && !processingStep && (
+              {dailyToday && !activeTeamMeeting?.isValid && !activeTeamMeetingProcessing && !pendingTeamRecording && !isRecording && !processingStep && (
                 <>
                   <div className="w-full rounded-2xl border border-red-100 bg-white/90 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1338,6 +1425,13 @@ export default function MorningMeeting() {
                   <AlertCircle className="w-4 h-4" />
                   <span className="text-sm">{error}</span>
                   <button onClick={() => setError(null)} className="ml-2 text-red-400 hover:text-red-600">×</button>
+                </div>
+              )}
+              {saveNotice && !error && (
+                <div role="status" className="flex items-start gap-2 rounded-lg bg-emerald-50 px-4 py-2 text-emerald-700">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 flex-none" />
+                  <span className="text-sm">{saveNotice}</span>
+                  <button onClick={() => setSaveNotice(null)} className="ml-auto text-emerald-500 hover:text-emerald-700">×</button>
                 </div>
               )}
             </div>

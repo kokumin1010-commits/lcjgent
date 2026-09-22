@@ -135,6 +135,7 @@ export function mergeMorningMeetingChunkResponses(
 async function createSegmentedTranscriber(
   audioUrl: string,
   baseTranscriber: SegmentedTranscriber = transcribeAudio,
+  onChunkCompleted?: (completed: number, total: number) => Promise<void> | void,
 ): Promise<{
   transcribe: SegmentedTranscriber;
   cleanup: () => Promise<void>;
@@ -157,6 +158,7 @@ async function createSegmentedTranscriber(
         });
         if ("error" in response) return response;
         responses.push(response);
+        await onChunkCompleted?.(responses.length, chunks.length);
       }
       return mergeMorningMeetingChunkResponses(responses);
     };
@@ -178,10 +180,11 @@ export async function transcribeSegmentedMorningMeetingWithQualityRetry(input: {
   browserTranscript?: string;
   expectedDurationSeconds: number;
   transcribeChunk?: SegmentedTranscriber;
+  onChunkCompleted?: (completed: number, total: number) => Promise<void> | void;
 }) {
   let prepared: Awaited<ReturnType<typeof createSegmentedTranscriber>>;
   try {
-    prepared = await createSegmentedTranscriber(input.audioUrl, input.transcribeChunk);
+    prepared = await createSegmentedTranscriber(input.audioUrl, input.transcribeChunk, input.onChunkCompleted);
   } catch (error) {
     const details = error instanceof Error ? error.message : "UNKNOWN_PREPROCESSING_ERROR";
     const fallback: SegmentedTranscriber = async () => serviceError(details);

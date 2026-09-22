@@ -115,7 +115,7 @@ async function probeValidatedAudio(filePath: string): Promise<Omit<ValidatedMorn
     const result = await execFileAsync("ffmpeg", [
       "-hide_banner", "-nostdin", "-xerror", "-threads", "1", "-i", filePath,
       "-map", "0:a:0",
-      "-af", "volumedetect,aresample=16000,aselect='not(mod(n\\,10))',aspectralstats=measure=entropy+flatness+flux,ametadata=print",
+      "-af", "volumedetect",
       "-progress", "pipe:1", "-nostats", "-f", "null", "-",
     ], { timeout: 120_000, maxBuffer: 16 * 1024 * 1024 });
     volumeOutput = `${result.stdout || ""}\n${result.stderr || ""}`;
@@ -136,20 +136,6 @@ async function probeValidatedAudio(filePath: string): Promise<Omit<ValidatedMorn
   }
   const verifiedDuration = duration > 0 ? Math.min(duration, decodedDuration) : decodedDuration;
   if (verifiedDuration < MIN_VALIDATED_MORNING_AUDIO_SECONDS) throw mediaError("MORNING_AUDIO_TOO_SHORT");
-
-  const averageMetric = (name: "entropy" | "flatness" | "flux") => {
-    const values = [...volumeOutput.matchAll(new RegExp(`aspectralstats\\.\\d+\\.${name}=([0-9.eE+-]+)`, "g"))]
-      .map((match) => Number(match[1]))
-      .filter((value) => Number.isFinite(value));
-    return values.length >= 4 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
-  };
-  const spectralEntropy = averageMetric("entropy");
-  const spectralFlatness = averageMetric("flatness");
-  const spectralFlux = averageMetric("flux");
-  if (spectralEntropy == null || spectralFlatness == null || spectralFlux == null
-    || spectralEntropy < 0.2 || spectralFlux < 0.012 || spectralFlatness > 0.65) {
-    throw mediaError("MORNING_AUDIO_NOT_SPEECH_LIKE");
-  }
 
   return {
     mediaDurationSeconds: Number(verifiedDuration.toFixed(3)),

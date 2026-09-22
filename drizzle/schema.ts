@@ -7495,7 +7495,7 @@ export const morningMeetings = mysqlTable("morning_meetings", {
     staffId: number | null;
     userId: number | null;
     name: string;
-    email: string;
+    email?: string;
     position: string | null;
     nameEn?: string | null;
     aliases?: string[] | null;

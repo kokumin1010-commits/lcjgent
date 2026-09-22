@@ -78,7 +78,7 @@ describe("morning meeting failed-audio recovery", () => {
     expect(insertIndex).toBeGreaterThan(storageIndex);
     expect(qualityIndex).toBeGreaterThan(insertIndex);
     expect(summaryIndex).toBeGreaterThan(qualityIndex);
-    expect(saveBlock).toContain("verifyMorningMeetingAudioUploadToken(input.audioUploadToken, ctx.user.id)");
+    expect(saveBlock).toContain("verifyMorningMeetingAudioUploadToken(input.audioUploadToken, ctx.user.id, { allowConsumed: true })");
     expect(saveBlock).toContain("mediaSha256: mediaValidation.mediaSha256");
     expect(saveBlock).toContain("audioUploadId: uploadedAudio?.uploadId || null");
     expect(saveBlock).toContain("supersededById: newMeetingId, supersededAt: new Date()");
@@ -86,7 +86,10 @@ describe("morning meeting failed-audio recovery", () => {
     expect(saveBlock).toContain("speechValidationFailureCode: speechEvidence ? null");
     expect(saveBlock).toContain("participantSnapshot");
     expect(saveBlock).toContain('actionType: "morning_meeting_transcription_quality_failed"');
-    expect(saveBlock).toContain('set({ transcript, summary, status: "completed", errorMessage: null })');
+    expect(saveBlock).toContain('summary: analyzed.summary, status: "completed", errorMessage: null');
+    expect(saveBlock).toContain("void (async () => {");
+    expect(saveBlock).toContain("processing: true");
+    expect(saveBlock.lastIndexOf("return {")).toBeGreaterThan(summaryIndex);
   });
 
   it("reprocesses only failed daily-team records for the creator or an administrator", () => {

@@ -4,6 +4,7 @@ import {
   backfillMorningMeetingMediaValidation,
   morningMeetingMediaBackfillFromDate,
 } from "./morningMeetingMediaBackfill";
+import { finalizeStaleMorningMeetingProcessing } from "./morningMeetingProcessingRecovery";
 
 const LOG_PREFIX = "[Performance Shadow]";
 const CHECK_INTERVAL_MS = 15 * 60 * 1000;
@@ -22,6 +23,12 @@ export async function runPerformanceShadowReconciliation(runRevision?: string): 
       console.warn(`${LOG_PREFIX} database unavailable; skipped`);
       return;
     }
+    let staleMorningMeetingProcessing = { finalized: 0 };
+    try {
+      staleMorningMeetingProcessing = await finalizeStaleMorningMeetingProcessing();
+    } catch (error) {
+      console.error(`${LOG_PREFIX} stale morning meeting recovery failed; reconciliation continues`, error);
+    }
     let mediaBackfill = { inspected: 0, validated: 0, failed: 0 };
     try {
       mediaBackfill = await backfillMorningMeetingMediaValidation();
@@ -39,6 +46,7 @@ export async function runPerformanceShadowReconciliation(runRevision?: string): 
       impactsBonus: result.settings.impactsBonus,
       impactsLcjCoin: result.settings.impactsLcjCoin,
       externalNotificationsEnabled: result.settings.externalNotificationsEnabled,
+      staleMorningMeetingProcessing,
       morningMeetingMediaBackfill: mediaBackfill,
     });
   } catch (error) {

@@ -105,6 +105,7 @@ afterAll(async () => {
 describe("morning meeting large-audio safety", () => {
   it.runIf(hasFfmpeg)("fully decodes audible audio instead of trusting a container header", async () => {
     const validPath = join(workDir, "valid.webm");
+    const safariMp4Path = join(workDir, "safari-audio.m4a");
     const silentPath = join(workDir, "silent.webm");
     const shortPath = join(workDir, "short.webm");
     const tonePath = join(workDir, "tone.webm");
@@ -124,6 +125,12 @@ describe("morning meeting large-audio safety", () => {
       "flite=text='Good morning team. Today we will discuss work plans and support requests.'",
       "-ar", "16000",
       "-c:a", "libopus", "-y", validPath,
+    ]).status).toBe(0);
+    expect(spawnSync("ffmpeg", [
+      "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+      "flite=text='Good morning team. This validates mobile Safari audio.'",
+      "-ar", "16000",
+      "-c:a", "aac", "-y", safariMp4Path,
     ]).status).toBe(0);
     expect(spawnSync("ffmpeg", [
       "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
@@ -173,6 +180,13 @@ describe("morning meeting large-audio safety", () => {
       mediaSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
       audioStreamCount: 1,
     }));
+    await expect(validateMorningMeetingAudioFile({
+      filePath: safariMp4Path,
+      mimeType: "video/mp4;codecs=mp4a.40.2",
+    })).resolves.toEqual(expect.objectContaining({
+      mimeType: "audio/mp4",
+      audioStreamCount: 1,
+    }));
 
     await expect(validateMorningMeetingAudioFile({
       filePath: fakeHeaderPath,
@@ -195,33 +209,19 @@ describe("morning meeting large-audio safety", () => {
       mimeType: "audio/webm",
     })).rejects.toThrow("MORNING_AUDIO_TOO_SHORT");
 
-    await expect(validateMorningMeetingAudioFile({
-      filePath: tonePath,
-      mimeType: "audio/webm",
-    })).rejects.toThrow("MORNING_AUDIO_NOT_SPEECH_LIKE");
-
-    await expect(validateMorningMeetingAudioFile({
-      filePath: noisePath,
-      mimeType: "audio/webm",
-    })).rejects.toThrow("MORNING_AUDIO_NOT_SPEECH_LIKE");
-
-    for (const adversarialPath of [chirpPath, modulatedTonePath]) {
-      try {
-        const media = await validateMorningMeetingAudioFile({ filePath: adversarialPath, mimeType: "audio/webm" });
-        expect(isRecordedTeamMeetingAttendance({
-          status: "failed",
-          audioKey: `private/${adversarialPath.split("/").at(-1)}`,
-          participantSnapshot: [{ targetKey: "staff:44" }],
-          mediaValidatedAt: media.mediaValidatedAt,
-          mediaDurationSeconds: media.mediaDurationSeconds,
-          mediaSha256: media.mediaSha256,
-          mediaAudioStreamCount: media.audioStreamCount,
-          speechValidatedAt: null,
-          speechValidationProvider: null,
-        })).toBe(false);
-      } catch (error) {
-        expect(String(error)).toMatch(/MORNING_AUDIO_(?:NOT_SPEECH_LIKE|SILENT)/);
-      }
+    for (const unverifiedSpeechPath of [tonePath, noisePath, chirpPath, modulatedTonePath]) {
+      const media = await validateMorningMeetingAudioFile({ filePath: unverifiedSpeechPath, mimeType: "audio/webm" });
+      expect(isRecordedTeamMeetingAttendance({
+        status: "failed",
+        audioKey: `private/${unverifiedSpeechPath.split("/").at(-1)}`,
+        participantSnapshot: [{ targetKey: "staff:44" }],
+        mediaValidatedAt: media.mediaValidatedAt,
+        mediaDurationSeconds: media.mediaDurationSeconds,
+        mediaSha256: media.mediaSha256,
+        mediaAudioStreamCount: media.audioStreamCount,
+        speechValidatedAt: null,
+        speechValidationProvider: null,
+      })).toBe(false);
     }
 
     await expect(validateMorningMeetingAudioFile({
@@ -291,11 +291,13 @@ describe("morning meeting large-audio safety", () => {
   it.runIf(hasFfmpeg)("normalizes a real audio container before quality-checked mock transcription", async () => {
     const wav = syntheticSilentWav();
     let receivedChunkUrl = "";
+    const onChunkCompleted = vi.fn();
     const result = await transcribeSegmentedMorningMeetingWithQualityRetry({
       audioUrl: `data:audio/wav;base64,${wav.toString("base64")}`,
       language: "zh",
       primaryPrompt: "synthetic prompt",
       expectedDurationSeconds: 1,
+      onChunkCompleted,
       transcribeChunk: async ({ audioUrl }) => {
         receivedChunkUrl = audioUrl;
         return response(1, [segment(1, 0, 1, "合成音频仅用于验证分段转写流程完整运行。")]);
@@ -305,6 +307,7 @@ describe("morning meeting large-audio safety", () => {
     expect(receivedChunkUrl.startsWith("data:audio/mpeg;base64,")).toBe(true);
     expect(result.audioChunkCount).toBe(1);
     expect(result.processingSource).toBe("server_audio");
+    expect(onChunkCompleted).toHaveBeenCalledWith(1, 1);
   });
 
   it("uses authenticated disk-spooled multipart upload before tRPC finalization", () => {
@@ -321,7 +324,7 @@ describe("morning meeting large-audio safety", () => {
     expect(endpoint).toContain("storagePutFile");
     expect(storageSource).toContain("Body: createReadStream(filePath)");
     expect(saveBlock).toContain("audioUploadToken");
-    expect(saveBlock).toContain("verifyMorningMeetingAudioUploadToken(input.audioUploadToken, ctx.user.id)");
+    expect(saveBlock).toContain("verifyMorningMeetingAudioUploadToken(input.audioUploadToken, ctx.user.id, { allowConsumed: true })");
     expect(saveBlock).toContain("transcribeSegmentedMorningMeetingWithQualityRetry({");
     expect(mediaValidationSource).toContain("MAX_CONCURRENT_MEDIA_VALIDATIONS = 2");
     expect(mediaValidationSource).toContain('"-threads", "1"');

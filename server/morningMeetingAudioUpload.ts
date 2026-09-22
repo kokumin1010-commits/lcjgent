@@ -38,7 +38,10 @@ function tokenSecret(): Uint8Array {
 }
 
 export function normalizeMorningMeetingAudioMimeType(value: string): MorningMeetingAudioMimeType | null {
-  const mimeType = String(value || "").split(";", 1)[0].trim().toLowerCase() as MorningMeetingAudioMimeType;
+  const baseType = String(value || "").split(";", 1)[0].trim().toLowerCase();
+  const mimeType = (baseType === "video/mp4" ? "audio/mp4"
+    : baseType === "video/webm" ? "audio/webm"
+      : baseType) as MorningMeetingAudioMimeType;
   return ALLOWED_MIME_TYPES.has(mimeType) ? mimeType : null;
 }
 
@@ -105,6 +108,7 @@ export async function createMorningMeetingAudioUploadToken(
 export async function verifyMorningMeetingAudioUploadToken(
   token: string,
   expectedUserId: number,
+  options: { allowConsumed?: boolean } = {},
 ): Promise<MorningMeetingAudioUploadClaim> {
   const { payload } = await jwtVerify(token, tokenSecret(), { algorithms: ["HS256"] });
   const scope = payload.scope;
@@ -124,7 +128,7 @@ export async function verifyMorningMeetingAudioUploadToken(
     .where(and(
       eq(morningMeetingAudioUploads.uploadId, uploadId),
       eq(morningMeetingAudioUploads.userId, expectedUserId),
-      isNull(morningMeetingAudioUploads.consumedAt),
+      ...(options.allowConsumed ? [] : [isNull(morningMeetingAudioUploads.consumedAt)]),
     ))
     .limit(1);
   const key = String(stored?.storageKey || "");
