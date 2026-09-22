@@ -222,9 +222,9 @@ describe("morning meeting pipeline contracts", () => {
       routerSource
         .split("saveDailyTeamMeeting: protectedProcedure")[1]
         ?.split("retryDailyTeamMeetingProcessing: protectedProcedure")[0] ?? "";
-    expect(saveBlock).toContain("storageGet(stored.key)");
+    expect(saveBlock).toContain("storageGet(stored!.key)");
     expect(saveBlock).toContain("transcribeSegmentedMorningMeetingWithQualityRetry({");
-    expect(saveBlock).toContain("expectedDurationSeconds: input.durationSeconds");
+    expect(saveBlock).toContain("expectedDurationSeconds: mediaValidation.mediaDurationSeconds");
     expect(saveBlock).toContain("formatMorningMeetingSegments(");
     expect(saveBlock).toContain("transcription.processingSource");
     expect(saveBlock).toContain("analyzeMorningMeetingWorkPlans({");
@@ -285,7 +285,7 @@ describe("morning meeting pipeline contracts", () => {
 
   it("does not expose failed low-quality text as formal minutes in the history UI", () => {
     expect(pageSource).toContain("MORNING_TRANSCRIPTION_LOW_QUALITY");
-    expect(pageSource).toContain("转写质量异常，原录音已保存；未生成正式日报");
+    expect(pageSource).toContain("转写质量异常，原录音与参会名单已保存");
     expect(pageSource).toContain('record.status === "completed" && record.summary');
     expect(pageSource).toContain('record.status === "completed" && record.transcript');
     expect(pageSource).toContain('summary.processingSource === "server_audio_retry"');

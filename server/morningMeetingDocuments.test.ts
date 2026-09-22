@@ -174,7 +174,10 @@ describe("morning meeting document recording lifecycle", () => {
       execute: async () => { operations.push({ kind: "audit" }); },
       update: () => ({
         set: (value: unknown) => ({
-          where: async () => { operations.push({ kind: "unlink-documents", value }); },
+          where: async () => {
+            operations.push({ kind: "soft-delete-recording", value });
+            return [{ affectedRows: 1 }];
+          },
         }),
       }),
       delete: () => ({
@@ -190,10 +193,34 @@ describe("morning meeting document recording lifecycle", () => {
       ownTargetKey: null,
     })).resolves.toEqual({ success: true, source: "meeting", id: 81 });
     expect(operations).toEqual([
+      {
+        kind: "soft-delete-recording",
+        value: expect.objectContaining({
+          dailyKey: null,
+          deletedAt: expect.any(Date),
+          deletedBy: 7,
+          deleteReason: "morning-meeting-ui-delete",
+        }),
+      },
       { kind: "audit" },
-      { kind: "unlink-documents", value: { meetingId: null } },
-      { kind: "delete-recording" },
     ]);
+  });
+
+  it("does not write an audit event when a concurrent soft delete already won", async () => {
+    const operations: string[] = [];
+    const tx = {
+      select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ id: 81, createdBy: 7 }] }) }) }),
+      update: () => ({ set: () => ({ where: async () => [{ affectedRows: 0 }] }) }),
+      execute: async () => { operations.push("audit"); },
+    };
+    const db = { transaction: async (run: (value: typeof tx) => Promise<unknown>) => await run(tx) };
+    await expect(deleteMorningRecordingWithDb(db, {
+      source: "meeting",
+      id: 81,
+      actor: { id: 7, role: "user", name: "Synthetic Operator" },
+      ownTargetKey: null,
+    })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(operations).toEqual([]);
   });
 });
 
@@ -286,13 +313,12 @@ describe("morning meeting document source contracts", () => {
     expect(service).not.toMatch(/\bsummary\s*:/);
   });
 
-  it("keeps documents when a team recording is deleted and restores standalone state first", async () => {
+  it("soft-deletes a team recording while preserving its audio, snapshot, token and document association", async () => {
     const deletion = await readFile(new URL("./morningRecordingDeletion.ts", import.meta.url), "utf8");
-    const unlinkIndex = deletion.indexOf("await tx.update(morningMeetingDocuments)");
-    const deleteIndex = deletion.indexOf("await tx.delete(morningMeetings)");
-    expect(unlinkIndex).toBeGreaterThan(0);
-    expect(deleteIndex).toBeGreaterThan(unlinkIndex);
-    expect(deletion.slice(unlinkIndex, deleteIndex)).toContain("meetingId: null");
+    expect(deletion).toContain("deletedAt: new Date()");
+    expect(deletion).toContain("deletedBy: input.actor.id");
+    expect(deletion).not.toContain("tx.delete(morningMeetings)");
+    expect(deletion).not.toContain("tx.update(morningMeetingDocuments)");
     expect(deletion).not.toContain("tx.delete(morningMeetingDocuments)");
   });
 

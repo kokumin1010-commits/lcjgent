@@ -123,8 +123,8 @@ function friendlyRecordingError(error: unknown, language: SpeechLanguage, fallba
   }
   if (message.includes("MORNING_TRANSCRIPTION_LOW_QUALITY")) {
     return language === "zh-CN"
-      ? "转写质量异常，原录音已保存；未生成正式日报。请使用原录音重新处理。"
-      : "文字起こし品質に異常があったため、元音声のみ保存し、正式な日報は生成していません。元音声から再処理してください。";
+      ? "转写质量异常，原录音与参会名单已保存；未生成正式日报。请使用原录音重新处理。"
+      : "文字起こし品質に異常がありましたが、元音声と参加者記録は保存済みです。正式な日報は元音声から再処理してください。";
   }
   if (message.includes("MORNING-AUDIO-") || message.includes("MORNING_AUDIO_")) return fallback;
   if (message.trim().startsWith("[{") || message.includes('"code":"')) return fallback;
@@ -1170,6 +1170,13 @@ export default function MorningMeeting() {
                           speechLang === "zh-CN" ? "语音处理失败，可使用原录音重试。" : "音声処理に失敗しました。元音声から再処理できます。",
                         )}
                       </p>
+                      {activeTeamMeeting.attendanceRecorded && (
+                        <p className="mt-2 text-sm font-semibold text-emerald-700">
+                          {speechLang === "zh-CN"
+                            ? `参会记录已保留：${activeTeamMeeting.participantCount}人（不受转写失败影响）`
+                            : `参加記録は保存済みです：${activeTeamMeeting.participantCount}名（文字起こし失敗の影響を受けません）`}
+                        </p>
+                      )}
                     </div>
                     {activeTeamMeeting.canDelete && (
                       <Button
@@ -1436,7 +1443,8 @@ export default function MorningMeeting() {
                           {record.durationSeconds != null && <span className="flex items-center gap-1 text-sm text-gray-500"><Clock className="h-3 w-3" />{formatTime(record.durationSeconds)}</span>}
                           {record.participantCount > 0 && <span className="flex items-center gap-1 text-sm text-gray-500"><Users className="h-3 w-3" />{record.participantCount}{speechLang === "zh-CN" ? "人" : "名"}</span>}
                           <Badge variant={record.status === "failed" ? "destructive" : record.status === "completed" ? "default" : "secondary"}>{record.status === "completed" ? (speechLang === "zh-CN" ? "完成" : "完了") : record.status === "failed" ? (speechLang === "zh-CN" ? "错误" : "エラー") : (speechLang === "zh-CN" ? "处理中" : "処理中")}</Badge>
-                          {record.status === "completed" && (record.audioKey || historyType === "principles" || record.historyKind === "legacy_personal") && (isMeetingRecord ? <AudioPlayButton meetingId={record.id} /> : <DailyRecordingAudioButton recordingId={record.id} compact />)}
+                          {isMeetingRecord && record.attendanceRecorded && <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">{speechLang === "zh-CN" ? "参会已记录" : "参加記録済み"}</Badge>}
+                          {record.status === "completed" && (record.hasAudio || historyType === "principles" || record.historyKind === "legacy_personal") && (isMeetingRecord ? <AudioPlayButton meetingId={record.id} /> : <DailyRecordingAudioButton recordingId={record.id} compact />)}
                           {isMeetingRecord && record.status === "completed" && <button type="button" onClick={() => exportMeetingMinutes(record)} className="text-gray-400 hover:text-blue-600" title={speechLang === "zh-CN" ? "导出会议纪要" : "議事録を出力"}><Download className="h-4 w-4" /></button>}
                           {(record.status === "completed" ? (record.summary || record.transcript || record.participantSnapshot) : record.participantSnapshot) && <button type="button" onClick={() => setSelectedMeeting(expanded ? null : { ...record, historyKey: selectedKey })} className="text-gray-400 hover:text-blue-600">{expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}</button>}
                           {record.canDelete && (
@@ -1465,6 +1473,13 @@ export default function MorningMeeting() {
                                 speechLang === "zh-CN"
                                   ? "该录音尚未生成正式日报，可从已保存的原录音重新处理。"
                                   : "この録音から正式な日報はまだ生成されていません。保存済みの元音声から再処理できます。",
+                              )}
+                              {isMeetingRecord && record.attendanceRecorded && (
+                                <p className="mt-2 font-semibold text-emerald-700">
+                                  {speechLang === "zh-CN"
+                                    ? "原录音和参加者快照已作为参会证据保存；转写失败不会取消参会记录。"
+                                    : "元音声と参加者スナップショットは参加証跡として保存済みで、文字起こし失敗でも参加記録は失われません。"}
+                                </p>
                               )}
                             </div>
                           )}

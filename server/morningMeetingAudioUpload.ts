@@ -1,6 +1,10 @@
-import { open, stat } from "node:fs/promises";
 import { SignJWT, jwtVerify } from "jose";
+import { randomUUID } from "node:crypto";
+import { and, eq, isNull } from "drizzle-orm";
+import { morningMeetingAudioUploads } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { getDb } from "./db";
+import { validateMorningMeetingAudioFileCompletely } from "./morningMeetingMediaValidation";
 
 export const MORNING_MEETING_UPLOAD_MAX_BYTES = 256 * 1024 * 1024;
 export const MORNING_MEETING_UPLOAD_SCOPE = "morning-meeting-audio-upload";
@@ -9,11 +13,16 @@ export type MorningMeetingAudioMimeType = "audio/webm" | "audio/ogg" | "audio/mp
 
 export type MorningMeetingAudioUploadClaim = {
   scope: typeof MORNING_MEETING_UPLOAD_SCOPE;
+  uploadId: string;
   userId: number;
   key: string;
   url: string;
   mimeType: MorningMeetingAudioMimeType;
   size: number;
+  mediaDurationSeconds: number;
+  mediaSha256: string;
+  mediaValidatedAt: string;
+  audioStreamCount: number;
 };
 
 const ALLOWED_MIME_TYPES = new Set<MorningMeetingAudioMimeType>([
@@ -43,47 +52,51 @@ export async function validateMorningMeetingAudioFile(input: {
   filePath: string;
   mimeType: string;
   declaredSize?: number;
-}): Promise<{ mimeType: MorningMeetingAudioMimeType; size: number }> {
+}): Promise<{
+  mimeType: MorningMeetingAudioMimeType;
+  size: number;
+  mediaDurationSeconds: number;
+  mediaSha256: string;
+  mediaValidatedAt: Date;
+  audioStreamCount: number;
+}> {
   const mimeType = normalizeMorningMeetingAudioMimeType(input.mimeType);
   if (!mimeType) throw new Error("MORNING_AUDIO_UNSUPPORTED_FORMAT");
-
-  const fileStat = await stat(input.filePath);
-  const size = Number(fileStat.size);
-  if (!Number.isSafeInteger(size) || size <= 0) throw new Error("MORNING_AUDIO_EMPTY");
-  if (size > MORNING_MEETING_UPLOAD_MAX_BYTES) throw new Error("MORNING_AUDIO_TOO_LARGE");
-  if (input.declaredSize !== undefined && Number(input.declaredSize) !== size) {
-    throw new Error("MORNING_AUDIO_SIZE_MISMATCH");
-  }
-
-  const handle = await open(input.filePath, "r");
-  try {
-    const header = Buffer.alloc(16);
-    const { bytesRead } = await handle.read(header, 0, header.length, 0);
-    const bytes = header.subarray(0, bytesRead);
-    const isWebm = bytes.length >= 4 && bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
-    const isOgg = bytes.length >= 4 && bytes.subarray(0, 4).toString("ascii") === "OggS";
-    const isMp4 = bytes.length >= 12 && bytes.subarray(4, 8).toString("ascii") === "ftyp";
-    const signatureValid = mimeType === "audio/webm" ? isWebm : mimeType === "audio/ogg" ? isOgg : isMp4;
-    if (!signatureValid) throw new Error("MORNING_AUDIO_SIGNATURE_MISMATCH");
-  } finally {
-    await handle.close();
-  }
-
-  return { mimeType, size };
+  const validated = await validateMorningMeetingAudioFileCompletely({
+    filePath: input.filePath,
+    mimeType,
+    declaredSize: input.declaredSize,
+    maxBytes: MORNING_MEETING_UPLOAD_MAX_BYTES,
+  });
+  return { mimeType, ...validated };
 }
 
 export async function createMorningMeetingAudioUploadToken(
-  claim: Omit<MorningMeetingAudioUploadClaim, "scope">,
+  claim: Omit<MorningMeetingAudioUploadClaim, "scope" | "uploadId">,
 ): Promise<string> {
+  const uploadId = randomUUID();
+  const db = await getDb();
+  if (!db) throw new Error("MORNING_AUDIO_UPLOAD_STORAGE_UNAVAILABLE");
+  const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+  await db.insert(morningMeetingAudioUploads).values({
+    uploadId,
+    userId: claim.userId,
+    storageKey: claim.key,
+    storageUrl: claim.url,
+    mimeType: claim.mimeType,
+    size: claim.size,
+    mediaDurationSeconds: claim.mediaDurationSeconds.toFixed(3),
+    mediaSha256: claim.mediaSha256,
+    mediaValidatedAt: new Date(claim.mediaValidatedAt),
+    audioStreamCount: claim.audioStreamCount,
+    expiresAt,
+  });
   return await new SignJWT({
     scope: MORNING_MEETING_UPLOAD_SCOPE,
     userId: claim.userId,
-    key: claim.key,
-    url: claim.url,
-    mimeType: claim.mimeType,
-    size: claim.size,
   })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setJti(uploadId)
     .setIssuedAt()
     .setExpirationTime("2h")
     .sign(tokenSecret());
@@ -95,31 +108,57 @@ export async function verifyMorningMeetingAudioUploadToken(
 ): Promise<MorningMeetingAudioUploadClaim> {
   const { payload } = await jwtVerify(token, tokenSecret(), { algorithms: ["HS256"] });
   const scope = payload.scope;
+  const uploadId = typeof payload.jti === "string" ? payload.jti : "";
   const userId = Number(payload.userId);
-  const key = typeof payload.key === "string" ? payload.key : "";
-  const url = typeof payload.url === "string" ? payload.url : "";
-  const mimeType = normalizeMorningMeetingAudioMimeType(String(payload.mimeType || ""));
-  const size = Number(payload.size);
-
   if (
     scope !== MORNING_MEETING_UPLOAD_SCOPE
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uploadId)
     || userId !== expectedUserId
-    || !key.startsWith(`morning-meeting-uploads/user-${expectedUserId}/`)
-    || !url
-    || !mimeType
-    || !Number.isSafeInteger(size)
-    || size <= 0
-    || size > MORNING_MEETING_UPLOAD_MAX_BYTES
   ) {
+    throw new Error("MORNING_AUDIO_UPLOAD_TOKEN_INVALID");
+  }
+
+  const db = await getDb();
+  if (!db) throw new Error("MORNING_AUDIO_UPLOAD_TOKEN_INVALID");
+  const [stored] = await db.select().from(morningMeetingAudioUploads)
+    .where(and(
+      eq(morningMeetingAudioUploads.uploadId, uploadId),
+      eq(morningMeetingAudioUploads.userId, expectedUserId),
+      isNull(morningMeetingAudioUploads.consumedAt),
+    ))
+    .limit(1);
+  const key = String(stored?.storageKey || "");
+  const url = String(stored?.storageUrl || "");
+  const mimeType = normalizeMorningMeetingAudioMimeType(String(stored?.mimeType || ""));
+  const size = Number(stored?.size);
+  const mediaDurationSeconds = Number(stored?.mediaDurationSeconds);
+  const mediaSha256 = String(stored?.mediaSha256 || "");
+  const mediaValidatedAt = stored?.mediaValidatedAt instanceof Date
+    ? stored.mediaValidatedAt.toISOString()
+    : String(stored?.mediaValidatedAt || "");
+  const audioStreamCount = Number(stored?.audioStreamCount);
+  if (!stored
+    || new Date(stored.expiresAt).getTime() <= Date.now()
+    || !key.startsWith(`morning-meeting-uploads/user-${expectedUserId}/`)
+    || !url || !mimeType || !Number.isSafeInteger(size) || size <= 0 || size > MORNING_MEETING_UPLOAD_MAX_BYTES
+    || !Number.isFinite(mediaDurationSeconds) || mediaDurationSeconds < 1
+    || !/^[a-f0-9]{64}$/.test(mediaSha256)
+    || Number.isNaN(new Date(mediaValidatedAt).getTime())
+    || !Number.isInteger(audioStreamCount) || audioStreamCount < 1) {
     throw new Error("MORNING_AUDIO_UPLOAD_TOKEN_INVALID");
   }
 
   return {
     scope: MORNING_MEETING_UPLOAD_SCOPE,
+    uploadId,
     userId,
     key,
     url,
     mimeType,
     size,
+    mediaDurationSeconds,
+    mediaSha256,
+    mediaValidatedAt,
+    audioStreamCount,
   };
 }

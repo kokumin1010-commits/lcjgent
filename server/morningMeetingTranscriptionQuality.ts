@@ -34,6 +34,7 @@ export type MorningMeetingTranscriptionQuality = {
 export type MorningMeetingTranscriptionAttempt = {
   source: "primary" | "retry" | "browser";
   quality: MorningMeetingTranscriptionQuality;
+  speechEvidence: boolean;
   serviceErrorCode?: TranscriptionError["code"];
 };
 
@@ -62,6 +63,30 @@ function finiteAverage(values: number[]): number | null {
   const finite = values.filter(Number.isFinite);
   if (finite.length === 0) return null;
   return finite.reduce((sum, value) => sum + value, 0) / finite.length;
+}
+
+const NON_SPEECH_TRANSCRIPT = /^(?:[♪♫\s]|music|applause|silence|noise|音乐|音樂|掌声|掌聲|無音|无声|拍手|雑音)+$/iu;
+
+export function hasWhisperSpeechEvidence(response: TranscriptionResponse): boolean {
+  const segments = Array.isArray(response.segments) ? response.segments : [];
+  const meaningful = segments.filter((segment) => {
+    const text = normalizeSegment(segment?.text);
+    return text.length >= 2 && !NON_SPEECH_TRANSCRIPT.test(text);
+  });
+  if (meaningful.length < 2) return false;
+  const distinctText = new Set(meaningful.map((segment) => normalizeSegment(segment.text)));
+  const characterCount = [...distinctText].reduce((sum, text) => sum + text.length, 0);
+  const voicedSeconds = meaningful.reduce((sum, segment) =>
+    sum + Math.max(0, Math.min(30, Number(segment.end) - Number(segment.start))), 0);
+  const averageNoSpeechProbability = finiteAverage(meaningful.map((segment) => Number(segment.no_speech_prob)));
+  const averageLogProbability = finiteAverage(meaningful.map((segment) => Number(segment.avg_logprob)));
+  return distinctText.size >= 2
+    && characterCount >= 12
+    && voicedSeconds >= 2.5
+    && averageNoSpeechProbability !== null
+    && averageNoSpeechProbability <= 0.35
+    && averageLogProbability !== null
+    && averageLogProbability >= -1.1;
 }
 
 function transcriptUnits(
@@ -193,6 +218,7 @@ function compactAttempt(
   if ("error" in response) {
     return {
       source,
+      speechEvidence: false,
       serviceErrorCode: response.code,
       quality: assessMorningMeetingTranscription({
         text: "",
@@ -202,6 +228,7 @@ function compactAttempt(
   }
   return {
     source,
+    speechEvidence: hasWhisperSpeechEvidence(response),
     quality: assessMorningMeetingTranscription({
       text: response.text,
       segments: response.segments,
@@ -273,7 +300,7 @@ export async function transcribeMorningMeetingWithQualityRetry(input: {
       text: browserTranscript,
       expectedDurationSeconds: input.expectedDurationSeconds,
     });
-    attempts.push({ source: "browser", quality: browserQuality });
+    attempts.push({ source: "browser", quality: browserQuality, speechEvidence: false });
     if (browserQuality.accepted) {
       return {
         transcript: browserTranscript,

@@ -7503,6 +7503,22 @@ export const morningMeetings = mysqlTable("morning_meetings", {
   // 録音情報
   audioUrl: text("audioUrl"), // S3に保存した音声ファイルURL
   audioKey: varchar("audioKey", { length: 500 }), // S3 key
+  audioUploadId: varchar("audioUploadId", { length: 36 }).unique(), // 大文件上传令牌的一次性标识
+  mediaValidatedAt: timestamp("mediaValidatedAt"), // 服务端完整解码验证时间
+  mediaDurationSeconds: decimal("mediaDurationSeconds", { precision: 10, scale: 3 }),
+  mediaSha256: varchar("mediaSha256", { length: 64 }),
+  mediaAudioStreamCount: int("mediaAudioStreamCount"),
+  mediaValidationAttemptedAt: timestamp("mediaValidationAttemptedAt"),
+  mediaValidationFailureCode: varchar("mediaValidationFailureCode", { length: 64 }),
+  speechValidatedAt: timestamp("speechValidatedAt"),
+  speechValidationProvider: varchar("speechValidationProvider", { length: 64 }),
+  speechValidationAttemptedAt: timestamp("speechValidationAttemptedAt"),
+  speechValidationFailureCode: varchar("speechValidationFailureCode", { length: 64 }),
+  supersededById: int("supersededById"), // 明确替代此录音的新记录
+  supersededAt: timestamp("supersededAt"),
+  deletedAt: timestamp("deletedAt"), // 软删除：保留历史音频、参会快照与审计链
+  deletedBy: int("deletedBy"),
+  deleteReason: varchar("deleteReason", { length: 500 }),
   durationSeconds: int("durationSeconds"), // 録音時間（秒）
   // 文字起こし
   transcript: text("transcript"), // Whisperによる全文テキスト
@@ -7557,6 +7573,24 @@ export const morningMeetings = mysqlTable("morning_meetings", {
 });
 export type MorningMeeting = typeof morningMeetings.$inferSelect;
 export type InsertMorningMeeting = typeof morningMeetings.$inferInsert;
+
+export const morningMeetingAudioUploads = mysqlTable("morning_meeting_audio_uploads", {
+  uploadId: varchar("uploadId", { length: 64 }).primaryKey(),
+  userId: int("userId").notNull(),
+  storageKey: text("storageKey").notNull(),
+  storageUrl: text("storageUrl").notNull(),
+  mimeType: varchar("mimeType", { length: 100 }).notNull(),
+  size: int("size").notNull(),
+  mediaDurationSeconds: decimal("mediaDurationSeconds", { precision: 10, scale: 3 }).notNull(),
+  mediaSha256: varchar("mediaSha256", { length: 64 }).notNull(),
+  mediaValidatedAt: timestamp("mediaValidatedAt").notNull(),
+  audioStreamCount: int("audioStreamCount").notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  consumedAt: timestamp("consumedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  userExpiryIdx: index("idx_morning_audio_uploads_user_expiry").on(table.userId, table.expiresAt),
+}));
 
 /**
  * 朝会資料テーブル。

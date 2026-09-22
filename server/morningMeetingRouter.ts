@@ -12,10 +12,14 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "./_core/trpc";
 import { createActivityLog, getDb } from "./db";
-import { morningMeetings, morningPrincipleRecitations, staff } from "../drizzle/schema";
-import { eq, desc, asc, and, gte, lte, isNull, sql } from "drizzle-orm";
-import { storagePut, storageGet } from "./storage";
+import { morningMeetingAudioUploads, morningMeetings, morningPrincipleRecitations, staff } from "../drizzle/schema";
+import { eq, desc, asc, and, or, gte, lte, isNull, sql } from "drizzle-orm";
+import { storageDelete, storagePut, storageGet } from "./storage";
 import { verifyMorningMeetingAudioUploadToken } from "./morningMeetingAudioUpload";
+import {
+  validateMorningMeetingAudioBufferCompletely,
+  validateStoredMorningMeetingAudio,
+} from "./morningMeetingMediaValidation";
 import { transcribeSegmentedMorningMeetingWithQualityRetry } from "./morningMeetingSegmentedTranscription";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { MorningMeetingTranscriptionQualityError } from "./morningMeetingTranscriptionQuality";
@@ -24,8 +28,10 @@ import { nanoid } from "nanoid";
 import {
   canHostTeamMeetingForTeam,
   inferLegacyTeamCode,
+  isRecordedTeamMeetingAttendance,
   isValidCompletedTeamMeeting,
   jstDateForInstant,
+  parseTeamMeetingParticipantSnapshot,
   personalMorningRecordingDailyKey,
   resolveTeamMeetingStartedAt,
   staffCountryToTeamCode,
@@ -191,11 +197,13 @@ async function requireMeetingOwnerOrAdmin(db: any, meetingId: number, user: { id
     recordingKind: morningMeetings.recordingKind,
     durationSeconds: morningMeetings.durationSeconds,
     language: morningMeetings.language,
+    deletedAt: morningMeetings.deletedAt,
   })
     .from(morningMeetings)
     .where(eq(morningMeetings.id, meetingId))
     .limit(1);
   if (!meeting) throw new TRPCError({ code: "NOT_FOUND", message: "朝会記録が見つかりません" });
+  if (meeting.deletedAt) throw new TRPCError({ code: "NOT_FOUND", message: "朝会記録が見つかりません" });
   if (user.role !== "admin" && meeting.createdBy !== user.id) {
     throw new TRPCError({ code: "FORBIDDEN", message: "この朝会記録を更新する権限がありません" });
   }
@@ -207,11 +215,128 @@ type TeamMeetingParticipantSnapshot = Array<{
   staffId: number | null;
   userId: number | null;
   name: string;
-  email: string;
   position: string | null;
   nameEn?: string | null;
   aliases?: string[] | null;
 }>;
+
+export function publicParticipantSnapshot(value: unknown) {
+  return parseTeamMeetingParticipantSnapshot(value)
+    .filter((participant): participant is Record<string, unknown> => Boolean(participant && typeof participant === "object"))
+    .map((participant) => ({
+      targetKey: typeof participant.targetKey === "string" ? participant.targetKey : "",
+      staffId: Number.isInteger(Number(participant.staffId)) ? Number(participant.staffId) : null,
+      name: typeof participant.name === "string" ? participant.name : "",
+      position: typeof participant.position === "string" ? participant.position : null,
+    }))
+    .filter((participant) => participant.targetKey && participant.name);
+}
+
+export function publicMorningMeetingErrorMessage(value: unknown): string | null {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return null;
+  if (/^MORNING_(?:AUDIO|TRANSCRIPTION)_[A-Z0-9_]+(?::[A-Z0-9_,]+)?$/.test(raw)) return raw;
+  if (raw === "元の音声を完全に検証できないため、再アップロードしてください") return raw;
+  return "MORNING_MEETING_PROCESSING_FAILED";
+}
+
+function safeActorDisplayName(user: { id: number; name?: string | null }): string {
+  return String(user.name || `User ${user.id}`).slice(0, 100);
+}
+
+function publicStoredDisplayName(value: unknown, fallback: string): string {
+  const text = String(value || "").trim();
+  return text && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text) ? text : fallback;
+}
+
+function hasServerSpeechEvidence(attempts: Array<{ source?: unknown; speechEvidence?: unknown }>): boolean {
+  return attempts.some((attempt) => attempt.source !== "browser" && attempt.speechEvidence === true);
+}
+
+export function toMorningMeetingClientRecord<T extends Record<string, any>>(record: T) {
+  const {
+    audioKey: _audioKey,
+    audioUrl: _audioUrl,
+    audioUploadId: _audioUploadId,
+    dailyKey: _dailyKey,
+    mediaSha256: _mediaSha256,
+    mediaValidatedAt: _mediaValidatedAt,
+    mediaDurationSeconds: _mediaDurationSeconds,
+    mediaAudioStreamCount: _mediaAudioStreamCount,
+    mediaValidationAttemptedAt: _mediaValidationAttemptedAt,
+    mediaValidationFailureCode: _mediaValidationFailureCode,
+    speechValidatedAt: _speechValidatedAt,
+    speechValidationProvider: _speechValidationProvider,
+    speechValidationAttemptedAt: _speechValidationAttemptedAt,
+    speechValidationFailureCode: _speechValidationFailureCode,
+    supersededById: _supersededById,
+    supersededAt: _supersededAt,
+    deletedAt: _deletedAt,
+    deletedBy: _deletedBy,
+    deleteReason: _deleteReason,
+    createdByName,
+    errorMessage,
+    participantSnapshot,
+    ...safe
+  } = record;
+  return {
+    ...safe,
+    hasAudio: Boolean(record.audioKey),
+    isDeleted: Boolean(_deletedAt),
+    createdByName: publicStoredDisplayName(createdByName, `User ${Number(record.createdBy) || ""}`.trim()),
+    errorMessage: publicMorningMeetingErrorMessage(errorMessage),
+    participantSnapshot: publicParticipantSnapshot(participantSnapshot),
+  };
+}
+
+export function toMorningPersonalClientRecord<T extends Record<string, any>>(record: T) {
+  const {
+    audioKey: _audioKey,
+    audioUrl: _audioUrl,
+    dailyKey: _dailyKey,
+    userEmail: _userEmail,
+    operatorUserEmail: _operatorUserEmail,
+    mimeType: _mimeType,
+    userName,
+    operatorUserName,
+    errorMessage,
+    ...safe
+  } = record;
+  return {
+    ...safe,
+    hasAudio: Boolean(record.audioKey || record.audioUrl),
+    userName: publicStoredDisplayName(userName, `User ${Number(record.userId) || ""}`.trim()),
+    operatorUserName: publicStoredDisplayName(operatorUserName, `User ${Number(record.operatorUserId) || ""}`.trim()),
+    errorMessage: publicMorningMeetingErrorMessage(errorMessage),
+  };
+}
+
+export function canReadMorningMeeting(
+  meeting: { createdBy?: unknown; teamCode?: unknown; participantSnapshot?: unknown; deletedAt?: unknown },
+  user: Pick<RecordingActor, "id" | "role">,
+  ownTarget: Pick<RecordingTarget, "targetKey" | "staffCountry">,
+): boolean {
+  if (meeting.deletedAt) return false;
+  if (user.role === "admin") return true;
+  if (Number(meeting.createdBy) === user.id) return true;
+  const participants = parseTeamMeetingParticipantSnapshot(meeting.participantSnapshot);
+  if (participants.some((participant: any) => participant?.targetKey === ownTarget.targetKey || Number(participant?.userId) === user.id)) return true;
+  const ownTeamCode = staffCountryToTeamCode(ownTarget.staffCountry);
+  return Boolean(ownTeamCode && meeting.teamCode === ownTeamCode);
+}
+
+async function requireMeetingReadAccess(
+  db: any,
+  meeting: { createdBy?: unknown; teamCode?: unknown; participantSnapshot?: unknown; deletedAt?: unknown },
+  user: RecordingActor,
+) {
+  if (meeting.deletedAt) throw new TRPCError({ code: "NOT_FOUND", message: "朝会記録が見つかりません" });
+  if (user.role === "admin") return;
+  if (Number(meeting.createdBy) === user.id) return;
+  const ownTarget = await resolveRecordingTarget(db, user);
+  if (canReadMorningMeeting(meeting, user, ownTarget)) return;
+  throw new TRPCError({ code: "FORBIDDEN", message: "この朝会記録を閲覧する権限がありません" });
+}
 
 function participantSpeechProfiles(
   participantSnapshot: TeamMeetingParticipantSnapshot,
@@ -258,7 +383,7 @@ export const morningMeetingRouter = router({
         date: today,
         status: "recording",
         createdBy: ctx.user.id,
-        createdByName: ctx.user.name || ctx.user.email,
+        createdByName: safeActorDisplayName(ctx.user),
       });
 
       return { 
@@ -359,7 +484,7 @@ export const morningMeetingRouter = router({
           staffName: target.staffName,
           staffPosition: target.staffPosition,
           operatorUserId: ctx.user.id,
-          operatorUserName: ctx.user.name || ctx.user.email,
+          operatorUserName: safeActorDisplayName(ctx.user),
           operatorUserEmail: ctx.user.email,
           language: input.language,
           audioUrl,
@@ -375,7 +500,7 @@ export const morningMeetingRouter = router({
           targetKey: target.targetKey,
           userName: target.userName,
           staffPosition: target.staffPosition,
-          recordedBy: ctx.user.name || ctx.user.email,
+          recordedBy: safeActorDisplayName(ctx.user),
           startedAt,
         };
       } catch (error: any) {
@@ -399,7 +524,6 @@ export const morningMeetingRouter = router({
       const records = await db.select({
         id: morningPrincipleRecitations.id,
         recordingType: morningPrincipleRecitations.recordingType,
-        dailyKey: morningPrincipleRecitations.dailyKey,
         startedAt: morningPrincipleRecitations.startedAt,
         targetKey: morningPrincipleRecitations.targetKey,
         userId: morningPrincipleRecitations.userId,
@@ -429,17 +553,21 @@ export const morningMeetingRouter = router({
       }));
       const ownRecord = currentRecords.find((record) => record.userId === ctx.user.id) || null;
       if (ctx.user.role !== "admin") {
+        const publicOwnRecord = ownRecord ? toMorningPersonalClientRecord(ownRecord) : null;
         return {
           date,
           completedCount: ownRecord?.isValid ? 1 : 0,
           totalCount: 1,
-          ownRecord,
+          ownRecord: publicOwnRecord,
           members: [{
             userId: ctx.user.id,
-            name: ownRecord?.staffName || ownRecord?.userName || ctx.user.name || ctx.user.email,
+            name: publicStoredDisplayName(
+              ownRecord?.staffName || ownRecord?.userName || ctx.user.name,
+              `User ${ctx.user.id}`,
+            ),
             position: ownRecord?.staffPosition || null,
             completed: Boolean(ownRecord?.isValid),
-            recitation: ownRecord,
+            recitation: publicOwnRecord,
           }],
         };
       }
@@ -455,7 +583,7 @@ export const morningMeetingRouter = router({
         .orderBy(asc(staff.name));
 
       const byStaffId = new Map(currentRecords.filter((record) => record.staffId).map((record) => [record.staffId, record]));
-      const byEmail = new Map(currentRecords.map((record) => [record.userEmail.toLowerCase(), record]));
+      const byEmail = new Map(currentRecords.map((record) => [String(record.userEmail || "").toLowerCase(), record]));
       const members: Array<{
         staffId: number | null;
         userId: number | null;
@@ -492,8 +620,11 @@ export const morningMeetingRouter = router({
         date,
         completedCount: members.filter((member) => member.completed).length,
         totalCount: members.length,
-        ownRecord,
-        members,
+        ownRecord: ownRecord ? toMorningPersonalClientRecord(ownRecord) : null,
+        members: members.map((member) => ({
+          ...member,
+          recitation: member.recitation ? toMorningPersonalClientRecord(member.recitation) : null,
+        })),
       };
     }),
 
@@ -606,10 +737,11 @@ export const morningMeetingRouter = router({
           userName: target.userName,
           transcript,
           summary,
-          recordedBy: ctx.user.name || ctx.user.email,
+          recordedBy: safeActorDisplayName(ctx.user),
         };
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "早会録音の処理に失敗しました";
+        const errorMessage = publicMorningMeetingErrorMessage(error instanceof Error ? error.message : null)
+          || "MORNING_MEETING_PROCESSING_FAILED";
         await db.update(morningPrincipleRecitations)
           .set({ status: "failed", errorMessage })
           .where(eq(morningPrincipleRecitations.id, recordingId));
@@ -657,11 +789,6 @@ export const morningMeetingRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB connection failed" });
 
-      const startedAt = resolveTeamMeetingStartedAt(input.startedAt, input.durationSeconds);
-      if (jstDateForInstant(startedAt) !== date) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: input.language === "zh" ? "录音开始时间与早会日期不一致" : "録音開始時刻と朝会日付が一致しません" });
-      }
-
       const host = await resolveRecordingTarget(db, ctx.user);
       requireHostTeamAccess(ctx.user, host, input.teamCode);
       const activeStaff = await db.select({
@@ -689,9 +816,26 @@ export const morningMeetingRouter = router({
         name: member.name,
         nameEn: member.nameEn,
         aliases: member.aliases,
-        email: member.email,
         position: member.position,
       }));
+
+      const mediaValidation = uploadedAudio
+        ? {
+            mediaDurationSeconds: uploadedAudio.mediaDurationSeconds,
+            mediaSha256: uploadedAudio.mediaSha256,
+            mediaValidatedAt: new Date(uploadedAudio.mediaValidatedAt),
+            audioStreamCount: uploadedAudio.audioStreamCount,
+          }
+        : await validateMorningMeetingAudioBufferCompletely({
+            buffer: validatedAudio!.buffer,
+            mimeType: validatedAudio!.mimeType,
+            maxBytes: TEAM_MEETING_AUDIO_MAX_BYTES,
+          });
+
+      const startedAt = resolveTeamMeetingStartedAt(input.startedAt, mediaValidation.mediaDurationSeconds);
+      if (jstDateForInstant(startedAt) !== date) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: input.language === "zh" ? "录音开始时间与早会日期不一致" : "録音開始時刻と朝会日付が一致しません" });
+      }
 
       const dailyKey = teamMeetingDailyKey(date, input.teamCode);
       const memberTeamByTargetKey = new Map<string, TeamMeetingCode | null>(
@@ -702,44 +846,128 @@ export const morningMeetingRouter = router({
         dailyKey: morningMeetings.dailyKey,
         teamCode: morningMeetings.teamCode,
         participantSnapshot: morningMeetings.participantSnapshot,
+        audioKey: morningMeetings.audioKey,
+        mediaValidatedAt: morningMeetings.mediaValidatedAt,
+        mediaDurationSeconds: morningMeetings.mediaDurationSeconds,
+        mediaSha256: morningMeetings.mediaSha256,
+        mediaAudioStreamCount: morningMeetings.mediaAudioStreamCount,
+        speechValidatedAt: morningMeetings.speechValidatedAt,
+        speechValidationProvider: morningMeetings.speechValidationProvider,
+        supersededAt: morningMeetings.supersededAt,
+        deletedAt: morningMeetings.deletedAt,
         status: morningMeetings.status,
         createdBy: morningMeetings.createdBy,
       })
         .from(morningMeetings)
-        .where(and(eq(morningMeetings.date, date), eq(morningMeetings.recordingKind, "daily_team")))
+        .where(and(
+          eq(morningMeetings.date, date),
+          eq(morningMeetings.recordingKind, "daily_team"),
+          isNull(morningMeetings.supersededAt),
+          isNull(morningMeetings.deletedAt),
+        ))
         .orderBy(desc(morningMeetings.createdAt));
       const existing = existingCandidates.find((meeting) => meeting.dailyKey === dailyKey || meeting.teamCode === input.teamCode)
         || existingCandidates.find((meeting) => meeting.teamCode === "legacy"
           && inferLegacyTeamCode(meeting.participantSnapshot, memberTeamByTargetKey) === input.teamCode);
-      if (isValidCompletedTeamMeeting(existing?.status)) {
+      if (existing && isValidCompletedTeamMeeting(existing.status) && isRecordedTeamMeetingAttendance(existing)) {
         throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "今天该团队早会已经有效完成" : "本日の該当チーム朝会は有効に完了済みです" });
       }
       if (existing && ctx.user.role !== "admin" && existing.createdBy !== ctx.user.id) {
         throw new TRPCError({ code: "FORBIDDEN", message: "失敗した早会を再登録できるのは主持人または管理者だけです" });
       }
 
-      const baseValues = {
-        date,
-        dailyKey,
-        recordingKind: "daily_team" as const,
-        teamCode: input.teamCode,
-        startedAt,
-        participantCount: participantSnapshot.length,
-        participantSnapshot,
-        durationSeconds: input.durationSeconds,
-        language: input.language,
-        status: "recording",
-        errorMessage: null,
-        createdBy: ctx.user.id,
-        createdByName: ctx.user.name || ctx.user.email,
-      };
-      if (existing) {
-        await db.update(morningMeetings).set({ dailyKey: null }).where(eq(morningMeetings.id, existing.id));
+      let stored: { url: string; key: string } | null = null;
+      try {
+        stored = uploadedAudio
+          ? { url: uploadedAudio.url, key: uploadedAudio.key }
+          : await storagePut(
+              `morning-team-meetings/${date}/${input.teamCode}/meeting-${nanoid(32)}.${audioExtension(validatedAudio!.mimeType)}`,
+              validatedAudio!.buffer,
+              validatedAudio!.mimeType,
+            );
+      } catch {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "朝会音声を安全に保存できませんでした" });
       }
+
       let meetingId: number;
       try {
-        const inserted = await db.insert(morningMeetings).values(baseValues);
-        meetingId = Number(inserted[0].insertId);
+        meetingId = await db.transaction(async (transaction) => {
+          const lockedResult = await transaction.execute(sql`
+            SELECT id, dailyKey, teamCode, status, createdBy, audioKey, participantSnapshot,
+                   mediaValidatedAt, mediaDurationSeconds, mediaSha256, mediaAudioStreamCount,
+                   speechValidatedAt, speechValidationProvider, supersededAt, deletedAt
+            FROM morning_meetings
+            WHERE recordingKind = 'daily_team'
+              AND date = ${date}
+              AND supersededAt IS NULL
+              AND deletedAt IS NULL
+            ORDER BY createdAt DESC
+            FOR UPDATE
+          `);
+          const lockedRows = (lockedResult as any)?.[0];
+          const lockedCandidates = Array.isArray(lockedRows)
+            ? lockedRows.filter((candidate) =>
+                candidate.dailyKey === dailyKey
+                || candidate.teamCode === input.teamCode
+                || (candidate.teamCode === "legacy"
+                  && inferLegacyTeamCode(candidate.participantSnapshot, memberTeamByTargetKey) === input.teamCode)
+              )
+            : [];
+          if (lockedCandidates.some((candidate) => isValidCompletedTeamMeeting(candidate.status) && isRecordedTeamMeetingAttendance(candidate))) {
+            throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "今天该团队早会已经有效完成" : "本日の該当チーム朝会は有効に完了済みです" });
+          }
+          if (ctx.user.role !== "admin" && lockedCandidates.some((candidate) => Number(candidate.createdBy) !== ctx.user.id)) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "失敗した早会を再登録できるのは主持人または管理者だけです" });
+          }
+          if (uploadedAudio) {
+            const consumed = await transaction.update(morningMeetingAudioUploads)
+              .set({ consumedAt: new Date() })
+              .where(and(
+                eq(morningMeetingAudioUploads.uploadId, uploadedAudio.uploadId),
+                eq(morningMeetingAudioUploads.userId, ctx.user.id),
+                isNull(morningMeetingAudioUploads.consumedAt),
+              ));
+            if (Number((consumed as any)?.[0]?.affectedRows || 0) !== 1) {
+              throw new TRPCError({ code: "CONFLICT", message: "MORNING_AUDIO_UPLOAD_TOKEN_ALREADY_USED" });
+            }
+          }
+          for (const lockedExisting of lockedCandidates) {
+            await transaction.update(morningMeetings)
+              .set({ dailyKey: null })
+              .where(and(eq(morningMeetings.id, Number(lockedExisting.id)), isNull(morningMeetings.supersededAt)));
+          }
+          const inserted = await transaction.insert(morningMeetings).values({
+            date,
+            dailyKey,
+            recordingKind: "daily_team",
+            teamCode: input.teamCode,
+            startedAt,
+            participantCount: participantSnapshot.length,
+            participantSnapshot,
+            durationSeconds: Math.round(mediaValidation.mediaDurationSeconds),
+            language: input.language,
+            audioUrl: stored!.url,
+            audioKey: stored!.key,
+            audioUploadId: uploadedAudio?.uploadId || null,
+            mediaValidatedAt: mediaValidation.mediaValidatedAt,
+            mediaDurationSeconds: mediaValidation.mediaDurationSeconds.toFixed(3),
+            mediaSha256: mediaValidation.mediaSha256,
+            mediaAudioStreamCount: mediaValidation.audioStreamCount,
+            mediaValidationAttemptedAt: mediaValidation.mediaValidatedAt,
+            mediaValidationFailureCode: null,
+            status: "transcribing",
+            errorMessage: null,
+            createdBy: ctx.user.id,
+            createdByName: safeActorDisplayName(ctx.user),
+          });
+          const newMeetingId = Number(inserted[0].insertId);
+          for (const lockedExisting of lockedCandidates) {
+            await transaction.update(morningMeetings)
+              .set({ supersededById: newMeetingId, supersededAt: new Date() })
+              .where(and(eq(morningMeetings.id, Number(lockedExisting.id)), isNull(morningMeetings.supersededAt)));
+          }
+          return newMeetingId;
+        });
         try {
           await linkMorningMeetingDocumentsToMeeting({
             date,
@@ -752,32 +980,31 @@ export const morningMeetingRouter = router({
           });
         }
       } catch (error: any) {
-        if (error?.code === "ER_DUP_ENTRY") {
+        // Pre-uploaded objects may already belong to the successful transaction that
+        // consumed this one-time uploadId; never delete them on a replay conflict.
+        if (stored && !uploadedAudio) await storageDelete(stored.key).catch(() => undefined);
+        if (error?.code === "ER_DUP_ENTRY" || error?.cause?.code === "ER_DUP_ENTRY") {
           throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "今天该团队早会正在由其他人录制" : "本日の該当チーム朝会は他の主持人が登録中です" });
         }
         throw error;
       }
 
+      let speechEvidenceConfirmed = false;
       try {
-        const stored = uploadedAudio
-          ? { url: uploadedAudio.url, key: uploadedAudio.key }
-          : await storagePut(
-              `morning-team-meetings/${date}/${input.teamCode}/meeting-${meetingId}-${nanoid(16)}.${audioExtension(validatedAudio!.mimeType)}`,
-              validatedAudio!.buffer,
-              validatedAudio!.mimeType,
-            );
-        await db.update(morningMeetings).set({ audioUrl: stored.url, audioKey: stored.key, status: "transcribing" })
-          .where(eq(morningMeetings.id, meetingId));
-
         const browserTranscript = input.transcript?.trim() || "";
-        const { url: presignedUrl } = await storageGet(stored.key);
+        const { url: presignedUrl } = await storageGet(stored!.key);
         const transcription = await transcribeSegmentedMorningMeetingWithQualityRetry({
           audioUrl: presignedUrl,
           language: input.language,
           primaryPrompt: teamMeetingTranscriptionPrompt(input.teamCode, input.language, participantSnapshot),
           browserTranscript,
-          expectedDurationSeconds: input.durationSeconds,
+          expectedDurationSeconds: mediaValidation.mediaDurationSeconds,
         });
+        if (!hasServerSpeechEvidence(transcription.attempts)) {
+          throw new Error("MORNING_AUDIO_SPEECH_NOT_DETECTED");
+        }
+        speechEvidenceConfirmed = true;
+        const speechValidatedAt = new Date();
         const processingSource: MorningMeetingProcessingSource = transcription.processingSource;
         let transcript = transcription.response
           ? formatMorningMeetingSegments(
@@ -804,8 +1031,22 @@ export const morningMeetingRouter = router({
           }).catch(() => undefined);
         }
 
-        await db.update(morningMeetings).set({ transcript, status: "summarizing" })
-          .where(eq(morningMeetings.id, meetingId));
+        const summarizingUpdate = await db.update(morningMeetings).set({
+          transcript,
+          status: "summarizing",
+          speechValidatedAt,
+          speechValidationProvider: "whisper_segments_v1",
+          speechValidationAttemptedAt: speechValidatedAt,
+          speechValidationFailureCode: null,
+        }).where(and(
+          eq(morningMeetings.id, meetingId),
+          eq(morningMeetings.status, "transcribing"),
+          isNull(morningMeetings.supersededAt),
+          isNull(morningMeetings.deletedAt),
+        ));
+        if (Number((summarizingUpdate as any)?.[0]?.affectedRows || 0) !== 1) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "朝会記録が見つかりません" });
+        }
         const analyzed = await analyzeMorningMeetingWorkPlans({
           transcript,
           browserTranscript,
@@ -815,8 +1056,16 @@ export const morningMeetingRouter = router({
         });
         transcript = analyzed.transcript;
         const summary = analyzed.summary;
-        await db.update(morningMeetings).set({ transcript, summary, status: "completed", errorMessage: null })
-          .where(eq(morningMeetings.id, meetingId));
+        const completedUpdate = await db.update(morningMeetings).set({ transcript, summary, status: "completed", errorMessage: null })
+          .where(and(
+            eq(morningMeetings.id, meetingId),
+            eq(morningMeetings.status, "summarizing"),
+            isNull(morningMeetings.supersededAt),
+            isNull(morningMeetings.deletedAt),
+          ));
+        if (Number((completedUpdate as any)?.[0]?.affectedRows || 0) !== 1) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "朝会記録が見つかりません" });
+        }
         return {
           success: true,
           id: meetingId,
@@ -824,15 +1073,30 @@ export const morningMeetingRouter = router({
           teamCode: input.teamCode,
           startedAt,
           participantCount: participantSnapshot.length,
-          participants: participantSnapshot,
+          participants: publicParticipantSnapshot(participantSnapshot),
           transcript,
           summary,
-          recordedBy: ctx.user.name || ctx.user.email,
+          recordedBy: safeActorDisplayName(ctx.user),
         };
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "チーム朝会の処理に失敗しました";
-        await db.update(morningMeetings).set({ status: "failed", errorMessage })
-          .where(eq(morningMeetings.id, meetingId));
+        if (error instanceof TRPCError && error.code === "NOT_FOUND") throw error;
+        const errorMessage = publicMorningMeetingErrorMessage(error instanceof Error ? error.message : null)
+          || "MORNING_MEETING_PROCESSING_FAILED";
+        const speechEvidence = speechEvidenceConfirmed || (error instanceof MorningMeetingTranscriptionQualityError
+          && hasServerSpeechEvidence(error.attempts));
+        const speechAttemptedAt = new Date();
+        await db.update(morningMeetings).set({
+          status: "failed",
+          errorMessage,
+          speechValidatedAt: speechEvidence ? speechAttemptedAt : null,
+          speechValidationProvider: speechEvidence ? "whisper_segments_v1" : null,
+          speechValidationAttemptedAt: speechAttemptedAt,
+          speechValidationFailureCode: speechEvidence ? null : "MORNING_AUDIO_SPEECH_NOT_DETECTED",
+        }).where(and(
+          eq(morningMeetings.id, meetingId),
+          isNull(morningMeetings.supersededAt),
+          isNull(morningMeetings.deletedAt),
+        ));
         if (error instanceof MorningMeetingTranscriptionQualityError) {
           await createActivityLog({
             userId: ctx.user.id,
@@ -864,6 +1128,14 @@ export const morningMeetingRouter = router({
         recordingKind: morningMeetings.recordingKind,
         teamCode: morningMeetings.teamCode,
         audioKey: morningMeetings.audioKey,
+        mediaValidatedAt: morningMeetings.mediaValidatedAt,
+        mediaDurationSeconds: morningMeetings.mediaDurationSeconds,
+        mediaSha256: morningMeetings.mediaSha256,
+        mediaAudioStreamCount: morningMeetings.mediaAudioStreamCount,
+        speechValidatedAt: morningMeetings.speechValidatedAt,
+        speechValidationProvider: morningMeetings.speechValidationProvider,
+        supersededAt: morningMeetings.supersededAt,
+        deletedAt: morningMeetings.deletedAt,
         transcript: morningMeetings.transcript,
         language: morningMeetings.language,
         durationSeconds: morningMeetings.durationSeconds,
@@ -891,26 +1163,87 @@ export const morningMeetingRouter = router({
       if (!meeting.audioKey) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "元の音声ファイルが保存されていないため再処理できません" });
       }
+      if (meeting.supersededAt) {
+        throw new TRPCError({ code: "CONFLICT", message: "この朝会録音は新しい録音に置き換えられています" });
+      }
+      if (meeting.deletedAt) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "朝会記録が見つかりません" });
+      }
       if (meeting.teamCode !== "china" && meeting.teamCode !== "japan") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "チーム情報が不正なため再処理できません" });
       }
 
       const claimed = await db.update(morningMeetings)
         .set({ status: "transcribing", errorMessage: null })
-        .where(and(eq(morningMeetings.id, meeting.id), eq(morningMeetings.status, "failed")));
+        .where(and(
+          eq(morningMeetings.id, meeting.id),
+          eq(morningMeetings.status, "failed"),
+          isNull(morningMeetings.supersededAt),
+          isNull(morningMeetings.deletedAt),
+        ));
       const affectedRows = Number((claimed as any)?.[0]?.affectedRows || 0);
       if (affectedRows !== 1) {
-        const [latest] = await db.select({ status: morningMeetings.status })
+        const [latest] = await db.select({ status: morningMeetings.status, deletedAt: morningMeetings.deletedAt })
           .from(morningMeetings)
           .where(eq(morningMeetings.id, meeting.id))
           .limit(1);
+        if (latest?.deletedAt) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "朝会記録が見つかりません" });
+        }
         if (latest?.status === "completed") {
           return { success: true, id: meeting.id, alreadyCompleted: true };
         }
         throw new TRPCError({ code: "CONFLICT", message: "この朝会録音は別の処理で再実行中です" });
       }
 
+      let verifiedDurationSeconds = Number(meeting.mediaDurationSeconds || 0);
+      if (!meeting.mediaValidatedAt || !meeting.mediaSha256 || Number(meeting.mediaAudioStreamCount || 0) < 1 || verifiedDurationSeconds < 1) {
+        const attemptedAt = new Date();
+        try {
+          const validation = await validateStoredMorningMeetingAudio(meeting.audioKey);
+          verifiedDurationSeconds = validation.mediaDurationSeconds;
+          const mediaUpdated = await db.update(morningMeetings).set({
+            mediaValidatedAt: validation.mediaValidatedAt,
+            mediaDurationSeconds: validation.mediaDurationSeconds.toFixed(3),
+            mediaSha256: validation.mediaSha256,
+            mediaAudioStreamCount: validation.audioStreamCount,
+            mediaValidationAttemptedAt: attemptedAt,
+            mediaValidationFailureCode: null,
+            durationSeconds: Math.round(validation.mediaDurationSeconds),
+          }).where(and(
+            eq(morningMeetings.id, meeting.id),
+            eq(morningMeetings.status, "transcribing"),
+            isNull(morningMeetings.supersededAt),
+            isNull(morningMeetings.deletedAt),
+          ));
+          if (Number((mediaUpdated as any)?.[0]?.affectedRows || 0) !== 1) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "朝会記録が見つかりません" });
+          }
+        } catch (error) {
+          if (error instanceof TRPCError && error.code === "NOT_FOUND") throw error;
+          const rawCode = error instanceof Error ? error.message : "";
+          const failureCode = /^MORNING_AUDIO_[A-Z0-9_]+$/.test(rawCode)
+            ? rawCode.slice(0, 64)
+            : "MORNING_AUDIO_VALIDATION_FAILED";
+          await db.update(morningMeetings).set({
+            status: "failed",
+            errorMessage: "元の音声を完全に検証できないため、再アップロードしてください",
+            mediaValidationAttemptedAt: attemptedAt,
+            mediaValidationFailureCode: failureCode,
+          }).where(and(
+            eq(morningMeetings.id, meeting.id),
+            eq(morningMeetings.status, "transcribing"),
+            isNull(morningMeetings.supersededAt),
+            isNull(morningMeetings.deletedAt),
+          ));
+          throw new TRPCError({ code: "BAD_REQUEST", message: "元の音声を完全に検証できないため、再アップロードしてください" });
+        }
+      }
+
       const language: "ja" | "zh" = meeting.language === "ja" ? "ja" : "zh";
+      let speechEvidenceConfirmed = Boolean(
+        meeting.speechValidatedAt && meeting.speechValidationProvider === "whisper_segments_v1",
+      );
       const participantSnapshot = Array.isArray(meeting.participantSnapshot)
         ? meeting.participantSnapshot as TeamMeetingParticipantSnapshot
         : [];
@@ -932,8 +1265,11 @@ export const morningMeetingRouter = router({
           language,
           primaryPrompt: teamMeetingTranscriptionPrompt(meeting.teamCode, language, participantSnapshot),
           browserTranscript,
-          expectedDurationSeconds: Number(meeting.durationSeconds || 0),
+          expectedDurationSeconds: verifiedDurationSeconds,
         });
+        speechEvidenceConfirmed = speechEvidenceConfirmed || hasServerSpeechEvidence(transcription.attempts);
+        if (!speechEvidenceConfirmed) throw new Error("MORNING_AUDIO_SPEECH_NOT_DETECTED");
+        const speechValidatedAt = meeting.speechValidatedAt || new Date();
         const processingSource: MorningMeetingProcessingSource = transcription.processingSource;
         let transcript = transcription.response
           ? formatMorningMeetingSegments(
@@ -942,9 +1278,25 @@ export const morningMeetingRouter = router({
             )
           : transcription.transcript.trim();
 
-        await db.update(morningMeetings)
-          .set({ transcript, status: "summarizing", errorMessage: null })
-          .where(eq(morningMeetings.id, meeting.id));
+        const summarizingUpdate = await db.update(morningMeetings)
+          .set({
+            transcript,
+            status: "summarizing",
+            errorMessage: null,
+            speechValidatedAt,
+            speechValidationProvider: "whisper_segments_v1",
+            speechValidationAttemptedAt: new Date(),
+            speechValidationFailureCode: null,
+          })
+          .where(and(
+            eq(morningMeetings.id, meeting.id),
+            eq(morningMeetings.status, "transcribing"),
+            isNull(morningMeetings.supersededAt),
+            isNull(morningMeetings.deletedAt),
+          ));
+        if (Number((summarizingUpdate as any)?.[0]?.affectedRows || 0) !== 1) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "朝会記録が見つかりません" });
+        }
         const analyzed = await analyzeMorningMeetingWorkPlans({
           transcript,
           browserTranscript,
@@ -954,9 +1306,17 @@ export const morningMeetingRouter = router({
         });
         transcript = analyzed.transcript;
         const summary = analyzed.summary;
-        await db.update(morningMeetings)
+        const completedUpdate = await db.update(morningMeetings)
           .set({ transcript, summary, status: "completed", errorMessage: null })
-          .where(eq(morningMeetings.id, meeting.id));
+          .where(and(
+            eq(morningMeetings.id, meeting.id),
+            eq(morningMeetings.status, "summarizing"),
+            isNull(morningMeetings.supersededAt),
+            isNull(morningMeetings.deletedAt),
+          ));
+        if (Number((completedUpdate as any)?.[0]?.affectedRows || 0) !== 1) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "朝会記録が見つかりません" });
+        }
         await createActivityLog({
           userId: ctx.user.id,
           actionType: "morning_meeting_reprocess_completed",
@@ -975,10 +1335,26 @@ export const morningMeetingRouter = router({
         }).catch(() => undefined);
         return { success: true, id: meeting.id, alreadyCompleted: false, transcript, summary };
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "チーム朝会の再処理に失敗しました";
+        if (error instanceof TRPCError && error.code === "NOT_FOUND") throw error;
+        const errorMessage = publicMorningMeetingErrorMessage(error instanceof Error ? error.message : null)
+          || "MORNING_MEETING_PROCESSING_FAILED";
+        const speechEvidence = speechEvidenceConfirmed || (error instanceof MorningMeetingTranscriptionQualityError
+          && hasServerSpeechEvidence(error.attempts));
+        const speechAttemptedAt = new Date();
         await db.update(morningMeetings)
-          .set({ status: "failed", errorMessage })
-          .where(eq(morningMeetings.id, meeting.id));
+          .set({
+            status: "failed",
+            errorMessage,
+            speechValidatedAt: speechEvidence ? (meeting.speechValidatedAt || speechAttemptedAt) : null,
+            speechValidationProvider: speechEvidence ? "whisper_segments_v1" : null,
+            speechValidationAttemptedAt: speechAttemptedAt,
+            speechValidationFailureCode: speechEvidence ? null : "MORNING_AUDIO_SPEECH_NOT_DETECTED",
+          })
+          .where(and(
+            eq(morningMeetings.id, meeting.id),
+            isNull(morningMeetings.supersededAt),
+            isNull(morningMeetings.deletedAt),
+          ));
         await createActivityLog({
           userId: ctx.user.id,
           actionType: "morning_meeting_reprocess_failed",
@@ -1035,6 +1411,15 @@ export const morningMeetingRouter = router({
         teamCode: morningMeetings.teamCode,
         startedAt: morningMeetings.startedAt,
         durationSeconds: morningMeetings.durationSeconds,
+        audioKey: morningMeetings.audioKey,
+        mediaValidatedAt: morningMeetings.mediaValidatedAt,
+        mediaDurationSeconds: morningMeetings.mediaDurationSeconds,
+        mediaSha256: morningMeetings.mediaSha256,
+        mediaAudioStreamCount: morningMeetings.mediaAudioStreamCount,
+        speechValidatedAt: morningMeetings.speechValidatedAt,
+        speechValidationProvider: morningMeetings.speechValidationProvider,
+        supersededAt: morningMeetings.supersededAt,
+        deletedAt: morningMeetings.deletedAt,
         transcript: morningMeetings.transcript,
         language: morningMeetings.language,
         summary: morningMeetings.summary,
@@ -1047,7 +1432,12 @@ export const morningMeetingRouter = router({
         createdAt: morningMeetings.createdAt,
       })
         .from(morningMeetings)
-        .where(and(eq(morningMeetings.date, date), eq(morningMeetings.recordingKind, "daily_team")))
+        .where(and(
+          eq(morningMeetings.date, date),
+          eq(morningMeetings.recordingKind, "daily_team"),
+          isNull(morningMeetings.supersededAt),
+          isNull(morningMeetings.deletedAt),
+        ))
         .orderBy(desc(morningMeetings.createdAt));
       const activeStaff = await db.select({ id: staff.id, name: staff.name, email: staff.email, position: staff.position, country: staff.country })
         .from(staff)
@@ -1064,22 +1454,52 @@ export const morningMeetingRouter = router({
         );
         const record = directRecord || inferredLegacyRecord;
         if (!record) return null;
-        const isValid = isValidCompletedTeamMeeting(record.status);
+        const attendanceRecorded = isRecordedTeamMeetingAttendance({
+          status: record.status,
+          audioKey: record.audioKey,
+          participantSnapshot: record.participantSnapshot,
+          mediaValidatedAt: record.mediaValidatedAt,
+          mediaDurationSeconds: record.mediaDurationSeconds,
+          mediaSha256: record.mediaSha256,
+          mediaAudioStreamCount: record.mediaAudioStreamCount,
+          speechValidatedAt: record.speechValidatedAt,
+          speechValidationProvider: record.speechValidationProvider,
+          supersededAt: record.supersededAt,
+          deletedAt: record.deletedAt,
+        });
+        const isValid = isValidCompletedTeamMeeting(record.status) && attendanceRecorded;
         return {
-          ...record,
+          ...toMorningMeetingClientRecord(record),
           teamCode,
           inferredFromLegacy: !directRecord,
           canDelete: ctx.user.role === "admin" || Number(record.createdBy) === ctx.user.id,
           isValid,
+          attendanceRecorded,
           invalidReason: null,
         };
       };
-      const teamMeetings = {
+      const allTeamMeetings = {
         china: normalizeTeamMeeting("china"),
         japan: normalizeTeamMeeting("japan"),
       };
+      const currentTeamCode = staffCountryToTeamCode(currentTarget.staffCountry);
+      const visibleTeamRows = ctx.user.role === "admin"
+        ? teamMeetingRows
+        : teamMeetingRows.filter((meeting) => meeting.teamCode === currentTeamCode);
       const participantKeys = new Set(
-        Object.values(teamMeetings).flatMap((meeting) => meeting?.isValid && Array.isArray(meeting.participantSnapshot)
+        visibleTeamRows.flatMap((meeting) => isRecordedTeamMeetingAttendance({
+          status: meeting.status,
+          audioKey: meeting.audioKey,
+          participantSnapshot: meeting.participantSnapshot,
+          mediaValidatedAt: meeting.mediaValidatedAt,
+          mediaDurationSeconds: meeting.mediaDurationSeconds,
+          mediaSha256: meeting.mediaSha256,
+          mediaAudioStreamCount: meeting.mediaAudioStreamCount,
+          speechValidatedAt: meeting.speechValidatedAt,
+          speechValidationProvider: meeting.speechValidationProvider,
+          supersededAt: meeting.supersededAt,
+          deletedAt: meeting.deletedAt,
+        }) && Array.isArray(meeting.participantSnapshot)
           ? meeting.participantSnapshot.map((participant) => participant.targetKey)
           : []),
       );
@@ -1087,12 +1507,12 @@ export const morningMeetingRouter = router({
         const record = principlesRecords.find((candidate) => candidate.targetKey === targetKey) || null;
         if (!record) return null;
         const isValid = isValidCompletedTeamMeeting(record.status);
-        return {
+        return toMorningPersonalClientRecord({
           ...record,
           canDelete: ctx.user.role === "admin" || record.userId === ctx.user.id || record.targetKey === currentTarget.targetKey,
           isValid,
           invalidReason: null,
-        };
+        });
       };
       const toMember = (target: RecordingTarget) => {
         const principles = principleFor(target.targetKey);
@@ -1101,8 +1521,7 @@ export const morningMeetingRouter = router({
           targetKey: target.targetKey,
           staffId: target.staffId,
           userId: target.userId || null,
-          name: target.staffName || target.userName,
-          email: target.userEmail,
+          name: publicStoredDisplayName(target.staffName || target.userName, `User ${target.userId || ""}`.trim()),
           position: target.staffPosition,
           country: target.staffCountry,
           teamCode: staffCountryToTeamCode(target.staffCountry),
@@ -1129,25 +1548,36 @@ export const morningMeetingRouter = router({
       }
       const currentStaff = toMember(currentTarget);
       const visibleMembers = ctx.user.role === "admin" ? allMembers : [currentStaff];
-      const currentTeamCode = staffCountryToTeamCode(currentTarget.staffCountry);
-      const participantOptionsByTeam = {
+      const allParticipantOptionsByTeam = {
         china: activeStaff.filter((member) => staffCountryToTeamCode(member.country) === "china").map((member) => ({
           staffId: member.id,
           name: member.name,
           position: member.position,
-          selected: teamMeetings.china?.isValid
-            ? new Set((teamMeetings.china.participantSnapshot || []).map((participant) => participant.targetKey)).has(`staff:${member.id}`)
+          selected: allTeamMeetings.china?.attendanceRecorded
+            ? new Set((allTeamMeetings.china.participantSnapshot || []).map((participant) => participant.targetKey)).has(`staff:${member.id}`)
             : true,
         })),
         japan: activeStaff.filter((member) => staffCountryToTeamCode(member.country) === "japan").map((member) => ({
           staffId: member.id,
           name: member.name,
           position: member.position,
-          selected: teamMeetings.japan?.isValid
-            ? new Set((teamMeetings.japan.participantSnapshot || []).map((participant) => participant.targetKey)).has(`staff:${member.id}`)
+          selected: allTeamMeetings.japan?.attendanceRecorded
+            ? new Set((allTeamMeetings.japan.participantSnapshot || []).map((participant) => participant.targetKey)).has(`staff:${member.id}`)
             : true,
         })),
       };
+      const teamMeetings = ctx.user.role === "admin"
+        ? allTeamMeetings
+        : {
+            china: currentTeamCode === "china" ? allTeamMeetings.china : null,
+            japan: currentTeamCode === "japan" ? allTeamMeetings.japan : null,
+          };
+      const participantOptionsByTeam = ctx.user.role === "admin"
+        ? allParticipantOptionsByTeam
+        : {
+            china: currentTeamCode === "china" ? allParticipantOptionsByTeam.china : [],
+            japan: currentTeamCode === "japan" ? allParticipantOptionsByTeam.japan : [],
+          };
       const currentTeamMeeting = currentTeamCode ? teamMeetings[currentTeamCode] : null;
       const currentOptions = currentTeamCode ? participantOptionsByTeam[currentTeamCode] : [];
 
@@ -1294,7 +1724,8 @@ export const morningMeetingRouter = router({
         };
 
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : "Unknown error";
+        const errorMsg = publicMorningMeetingErrorMessage(error instanceof Error ? error.message : null)
+          || "MORNING_MEETING_PROCESSING_FAILED";
         await db.update(morningMeetings)
           .set({ 
             status: "failed",
@@ -1428,7 +1859,7 @@ export const morningMeetingRouter = router({
             const isValid = isValidCompletedTeamMeeting(record.status);
             return {
               ...record,
-              name: record.name || record.fallbackName,
+              name: publicStoredDisplayName(record.name || record.fallbackName, `User ${Number(record.userId) || ""}`.trim()),
               audioSource: "daily" as const,
               canDelete: ctx.user.role === "admin" || record.userId === ctx.user.id,
               isValid,
@@ -1440,7 +1871,20 @@ export const morningMeetingRouter = router({
       }
 
       if (input.type === "team") {
-        const conditions: any[] = [eq(morningMeetings.recordingKind, "daily_team")];
+        const conditions: any[] = [
+          eq(morningMeetings.recordingKind, "daily_team"),
+          isNull(morningMeetings.supersededAt),
+          isNull(morningMeetings.deletedAt),
+        ];
+        if (ctx.user.role !== "admin") {
+          const ownTarget = await resolveRecordingTarget(db, ctx.user);
+          const ownTeamCode = staffCountryToTeamCode(ownTarget.staffCountry);
+          conditions.push(or(
+            eq(morningMeetings.createdBy, ctx.user.id),
+            ...(ownTeamCode ? [eq(morningMeetings.teamCode, ownTeamCode)] : []),
+            sql`JSON_SEARCH(JSON_EXTRACT(${morningMeetings.participantSnapshot}, '$[*].targetKey'), 'one', ${ownTarget.targetKey}) IS NOT NULL`,
+          ));
+        }
         if (input.dateFrom) conditions.push(gte(morningMeetings.date, input.dateFrom));
         if (input.dateTo) conditions.push(lte(morningMeetings.date, input.dateTo));
         if (pattern) {
@@ -1463,10 +1907,23 @@ export const morningMeetingRouter = router({
           records: records.map((record) => {
             const isValid = isValidCompletedTeamMeeting(record.status);
             return {
-              ...record,
+              ...toMorningMeetingClientRecord(record),
               audioSource: "meeting" as const,
               canDelete: ctx.user.role === "admin" || Number(record.createdBy) === ctx.user.id,
               isValid,
+              attendanceRecorded: isRecordedTeamMeetingAttendance({
+                status: record.status,
+                audioKey: record.audioKey,
+                participantSnapshot: record.participantSnapshot,
+                mediaValidatedAt: record.mediaValidatedAt,
+                mediaDurationSeconds: record.mediaDurationSeconds,
+                mediaSha256: record.mediaSha256,
+                mediaAudioStreamCount: record.mediaAudioStreamCount,
+                speechValidatedAt: record.speechValidatedAt,
+                speechValidationProvider: record.speechValidationProvider,
+                supersededAt: record.supersededAt,
+                deletedAt: record.deletedAt,
+              }),
               invalidReason: null,
             };
           }),
@@ -1482,7 +1939,17 @@ export const morningMeetingRouter = router({
       if (input.dateFrom) personalConditions.push(gte(morningPrincipleRecitations.date, input.dateFrom));
       if (input.dateTo) personalConditions.push(lte(morningPrincipleRecitations.date, input.dateTo));
       if (pattern) personalConditions.push(sql`(${morningPrincipleRecitations.userName} LIKE ${pattern} OR ${morningPrincipleRecitations.staffName} LIKE ${pattern} OR ${morningPrincipleRecitations.transcript} LIKE ${pattern})`);
-      const teamConditions: any[] = [eq(morningMeetings.recordingKind, "legacy")];
+      const teamConditions: any[] = [
+        eq(morningMeetings.recordingKind, "legacy"),
+        isNull(morningMeetings.deletedAt),
+      ];
+      if (ctx.user.role !== "admin") {
+        const ownTarget = await resolveRecordingTarget(db, ctx.user);
+        teamConditions.push(or(
+          eq(morningMeetings.createdBy, ctx.user.id),
+          sql`JSON_SEARCH(JSON_EXTRACT(${morningMeetings.participantSnapshot}, '$[*].targetKey'), 'one', ${ownTarget.targetKey}) IS NOT NULL`,
+        ));
+      }
       if (input.dateFrom) teamConditions.push(gte(morningMeetings.date, input.dateFrom));
       if (input.dateTo) teamConditions.push(lte(morningMeetings.date, input.dateTo));
       if (pattern) teamConditions.push(sql`(${morningMeetings.createdByName} LIKE ${pattern} OR ${morningMeetings.transcript} LIKE ${pattern} OR JSON_EXTRACT(${morningMeetings.summary}, '$.overview') LIKE ${pattern})`);
@@ -1491,17 +1958,17 @@ export const morningMeetingRouter = router({
         db.select().from(morningMeetings).where(and(...teamConditions)),
       ]);
       const combined = [
-        ...personalRecords.map((record) => ({
+        ...personalRecords.map((record) => toMorningPersonalClientRecord({
           ...record,
           historyKind: "legacy_personal" as const,
-          name: record.staffName || record.userName,
+          name: publicStoredDisplayName(record.staffName || record.userName, `User ${Number(record.userId) || ""}`.trim()),
           audioSource: "daily" as const,
           canDelete: ctx.user.role === "admin" || record.userId === ctx.user.id,
         })),
         ...legacyTeamRecords.map((record) => ({
-          ...record,
+          ...toMorningMeetingClientRecord(record),
           historyKind: "legacy_team" as const,
-          name: record.createdByName,
+          name: publicStoredDisplayName(record.createdByName, `User ${Number(record.createdBy) || ""}`.trim()),
           audioSource: "meeting" as const,
           canDelete: ctx.user.role === "admin" || Number(record.createdBy) === ctx.user.id,
         })),
@@ -1526,11 +1993,17 @@ export const morningMeetingRouter = router({
       dateTo: z.string().optional(), // YYYY-MM-DD
       search: z.string().optional(), // テキスト検索
     }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error("DB connection failed");
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "旧共有朝会履歴は管理者のみ閲覧できます" });
+      }
 
-      const conditions = [];
+      const conditions = [
+        isNull(morningMeetings.deletedAt),
+        isNull(morningMeetings.supersededAt),
+      ];
       
       if (input.dateFrom) {
         conditions.push(gte(morningMeetings.date, input.dateFrom));
@@ -1559,7 +2032,7 @@ export const morningMeetingRouter = router({
       ]);
 
       return {
-        meetings,
+        meetings: meetings.map(toMorningMeetingClientRecord),
         total: countResult[0]?.count || 0,
       };
     }),
@@ -1567,16 +2040,18 @@ export const morningMeetingRouter = router({
   // 単一レコード取得
   getById: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error("DB connection failed");
 
       const [meeting] = await db.select()
         .from(morningMeetings)
-        .where(eq(morningMeetings.id, input.id))
+        .where(and(eq(morningMeetings.id, input.id), isNull(morningMeetings.deletedAt)))
         .limit(1);
 
-      return meeting || null;
+      if (!meeting) return null;
+      await requireMeetingReadAccess(db, meeting, ctx.user);
+      return toMorningMeetingClientRecord(meeting);
     }),
 
   // 旧クライアント互換: チーム朝会を権限検証・監査付きで削除する。
@@ -1613,7 +2088,7 @@ export const morningMeetingRouter = router({
 
   // 今日の朝会があるかチェック
   getTodayMeeting: protectedProcedure
-    .query(async () => {
+    .query(async ({ ctx }) => {
       const db = await getDb();
       if (!db) throw new Error("DB connection failed");
 
@@ -1623,13 +2098,26 @@ export const morningMeetingRouter = router({
       const jstDate = new Date(now.getTime() + jstOffset);
       const today = jstDate.toISOString().split("T")[0];
 
-      const [meeting] = await db.select()
+      const meetings = await db.select()
         .from(morningMeetings)
-        .where(eq(morningMeetings.date, today))
+        .where(and(
+          eq(morningMeetings.date, today),
+          isNull(morningMeetings.supersededAt),
+          isNull(morningMeetings.deletedAt),
+        ))
         .orderBy(desc(morningMeetings.createdAt))
-        .limit(1);
+        .limit(20);
 
-      return meeting || null;
+      if (ctx.user.role === "admin") return meetings[0] ? toMorningMeetingClientRecord(meetings[0]) : null;
+      const ownTarget = await resolveRecordingTarget(db, ctx.user);
+      const ownTeamCode = staffCountryToTeamCode(ownTarget.staffCountry);
+      const meeting = meetings.find((candidate) =>
+        Number(candidate.createdBy) === ctx.user.id
+        || candidate.teamCode === ownTeamCode
+        || parseTeamMeetingParticipantSnapshot(candidate.participantSnapshot)
+          .some((participant: any) => participant?.targetKey === ownTarget.targetKey || Number(participant?.userId) === ctx.user.id)
+      );
+      return meeting ? toMorningMeetingClientRecord(meeting) : null;
     }),
 
   // 統計情報
@@ -1637,9 +2125,12 @@ export const morningMeetingRouter = router({
     .input(z.object({
       period: z.enum(["week", "month", "all"]).default("month"),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error("DB connection failed");
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "全社朝会統計は管理者のみ閲覧できます" });
+      }
 
       const now = new Date();
       const jstOffset = 9 * 60 * 60 * 1000;
@@ -1660,8 +2151,9 @@ export const morningMeetingRouter = router({
         .from(morningMeetings)
         .where(and(
           gte(morningMeetings.date, dateFrom),
-          eq(morningMeetings.status, "completed"),
           eq(morningMeetings.recordingKind, "daily_team"),
+          isNull(morningMeetings.supersededAt),
+          isNull(morningMeetings.deletedAt),
         ))
         .orderBy(desc(morningMeetings.date));
 
@@ -1675,7 +2167,7 @@ export const morningMeetingRouter = router({
         meeting.teamCode === "china" || meeting.teamCode === "japan"
           ? meeting.teamCode
           : inferLegacyTeamCode(meeting.participantSnapshot, memberTeamByTargetKey);
-      const validMeetings = meetings.filter((meeting) => isValidCompletedTeamMeeting(meeting.status));
+      const validMeetings = meetings.filter((meeting) => isRecordedTeamMeetingAttendance(meeting));
       const totalMeetings = validMeetings.length;
       const totalDuration = validMeetings.reduce((sum, m) => sum + (m.durationSeconds || 0), 0);
       const avgDuration = totalMeetings > 0 ? Math.round(totalDuration / totalMeetings) : 0;
@@ -1763,7 +2255,8 @@ export const morningMeetingRouter = router({
           summary: summaryResult,
         };
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : "Unknown error";
+        const errorMsg = publicMorningMeetingErrorMessage(error instanceof Error ? error.message : null)
+          || "MORNING_MEETING_PROCESSING_FAILED";
         await db.update(morningMeetings)
           .set({
             status: "failed",
@@ -1802,12 +2295,23 @@ export const morningMeetingRouter = router({
       const records = await db.select({
         teamCode: morningMeetings.teamCode,
         status: morningMeetings.status,
+        audioKey: morningMeetings.audioKey,
+        mediaValidatedAt: morningMeetings.mediaValidatedAt,
+        mediaDurationSeconds: morningMeetings.mediaDurationSeconds,
+        mediaSha256: morningMeetings.mediaSha256,
+        mediaAudioStreamCount: morningMeetings.mediaAudioStreamCount,
+        speechValidatedAt: morningMeetings.speechValidatedAt,
+        speechValidationProvider: morningMeetings.speechValidationProvider,
+        supersededAt: morningMeetings.supersededAt,
+        deletedAt: morningMeetings.deletedAt,
         participantSnapshot: morningMeetings.participantSnapshot,
       })
         .from(morningMeetings)
         .where(and(
           eq(morningMeetings.date, dateStr),
-          eq(morningMeetings.recordingKind, "daily_team")
+          eq(morningMeetings.recordingKind, "daily_team"),
+          isNull(morningMeetings.supersededAt),
+          isNull(morningMeetings.deletedAt),
         ));
       const activeStaff = await db.select({ id: staff.id, country: staff.country })
         .from(staff)
@@ -1816,7 +2320,7 @@ export const morningMeetingRouter = router({
         activeStaff.map((member) => [`staff:${member.id}`, staffCountryToTeamCode(member.country)]),
       );
       const completedTeams = new Set(records
-        .filter((record) => isValidCompletedTeamMeeting(record.status))
+        .filter((record) => isRecordedTeamMeetingAttendance(record))
         .map((record) => record.teamCode === "china" || record.teamCode === "japan"
           ? record.teamCode
           : inferLegacyTeamCode(record.participantSnapshot, memberTeamByTargetKey))
@@ -1828,17 +2332,22 @@ export const morningMeetingRouter = router({
   // 音声ファイルのpresigned URLを取得（再生用）
   getAudioUrl: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error("DB connection failed");
       const [meeting] = await db.select({
+        id: morningMeetings.id,
+        createdBy: morningMeetings.createdBy,
+        teamCode: morningMeetings.teamCode,
+        participantSnapshot: morningMeetings.participantSnapshot,
         audioKey: morningMeetings.audioKey,
-        audioUrl: morningMeetings.audioUrl,
+        deletedAt: morningMeetings.deletedAt,
       })
         .from(morningMeetings)
-        .where(eq(morningMeetings.id, input.id))
+        .where(and(eq(morningMeetings.id, input.id), isNull(morningMeetings.deletedAt)))
         .limit(1);
       if (!meeting || !meeting.audioKey) return { url: null };
+      await requireMeetingReadAccess(db, meeting, ctx.user);
       const { url } = await storageGet(meeting.audioKey);
       return { url };
     }),

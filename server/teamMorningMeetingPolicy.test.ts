@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_TEAM_MEETING_MINIMUM_SECONDS,
   canHostTeamMeetingForTeam,
+  isRecordedTeamMeetingAttendance,
   isValidCompletedTeamMeeting,
   jstDateForInstant,
   normalizeMinimumTeamMeetingSeconds,
@@ -51,6 +52,98 @@ describe("team morning meeting policy", () => {
     expect(isValidCompletedTeamMeeting("completed", 59, 60)).toBe(true);
     expect(isValidCompletedTeamMeeting("completed", 60, 60)).toBe(true);
     expect(isValidCompletedTeamMeeting("failed", 600, 60)).toBe(false);
+  });
+
+  it("records attendance from persisted audio and the participant snapshot even when transcription fails", () => {
+    const evidence = {
+      audioKey: "morning-team-meetings/2026-09-21/china/meeting.webm",
+      participantSnapshot: [{ targetKey: "staff:44" }],
+      mediaValidatedAt: new Date("2026-09-21T01:00:00Z"),
+      mediaDurationSeconds: 180,
+      mediaSha256: "a".repeat(64),
+      mediaAudioStreamCount: 1,
+      speechValidatedAt: new Date("2026-09-21T01:01:00Z"),
+      speechValidationProvider: "whisper_segments_v1",
+      supersededAt: null,
+    };
+    expect(isRecordedTeamMeetingAttendance({ ...evidence, status: "failed" })).toBe(true);
+    expect(isRecordedTeamMeetingAttendance({ ...evidence, status: "transcribing" })).toBe(true);
+    expect(isRecordedTeamMeetingAttendance({ ...evidence, status: "summarizing" })).toBe(true);
+    expect(isRecordedTeamMeetingAttendance({ ...evidence, status: "completed" })).toBe(true);
+    expect(isRecordedTeamMeetingAttendance({
+      ...evidence,
+      status: "failed",
+      speechValidatedAt: null,
+      speechValidationProvider: null,
+    })).toBe(false);
+  });
+
+  it("does not invent attendance before audio persistence or without a participant snapshot", () => {
+    expect(isRecordedTeamMeetingAttendance({
+      status: "recording",
+      audioKey: null,
+      participantSnapshot: [{ targetKey: "staff:44" }],
+      mediaValidatedAt: null,
+      mediaDurationSeconds: null,
+      mediaSha256: null,
+      mediaAudioStreamCount: null,
+    })).toBe(false);
+    expect(isRecordedTeamMeetingAttendance({
+      status: "failed",
+      audioKey: null,
+      participantSnapshot: [{ targetKey: "staff:44" }],
+      mediaValidatedAt: new Date(),
+      mediaDurationSeconds: 60,
+      mediaSha256: "a".repeat(64),
+      mediaAudioStreamCount: 1,
+    })).toBe(false);
+    expect(isRecordedTeamMeetingAttendance({
+      status: "failed",
+      audioKey: "meeting.webm",
+      participantSnapshot: [],
+      mediaValidatedAt: new Date(),
+      mediaDurationSeconds: 60,
+      mediaSha256: "a".repeat(64),
+      mediaAudioStreamCount: 1,
+    })).toBe(false);
+    expect(isRecordedTeamMeetingAttendance({
+      status: "failed",
+      audioKey: "meeting.webm",
+      participantSnapshot: [{ targetKey: "staff:44" }],
+      mediaValidatedAt: null,
+      mediaDurationSeconds: null,
+      mediaSha256: null,
+      mediaAudioStreamCount: null,
+    })).toBe(false);
+    expect(isRecordedTeamMeetingAttendance({
+      status: "failed",
+      audioKey: "meeting.webm",
+      participantSnapshot: [{ targetKey: "staff:44" }],
+      mediaValidatedAt: new Date(),
+      mediaDurationSeconds: 60,
+      mediaSha256: "a".repeat(64),
+      mediaAudioStreamCount: 1,
+      supersededAt: new Date(),
+    })).toBe(false);
+    expect(isRecordedTeamMeetingAttendance({
+      status: "failed",
+      audioKey: "meeting.webm",
+      participantSnapshot: [{ targetKey: "staff:44" }],
+      mediaValidatedAt: new Date(),
+      mediaDurationSeconds: 60,
+      mediaSha256: "a".repeat(64),
+      mediaAudioStreamCount: 1,
+      deletedAt: new Date(),
+    })).toBe(false);
+    expect(isRecordedTeamMeetingAttendance({
+      status: "failed",
+      audioKey: "meeting.webm",
+      participantSnapshot: [{ targetKey: "staff:44" }],
+      mediaValidatedAt: new Date(),
+      mediaDurationSeconds: 60,
+      mediaSha256: null,
+      mediaAudioStreamCount: 1,
+    })).toBe(false);
   });
 
   it("keeps a plausible client start time and replaces a tampered time with the server inference", () => {

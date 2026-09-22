@@ -891,6 +891,23 @@ async function startServer() {
     }),
     limits: { fileSize: 256 * 1024 * 1024, files: 1, fields: 4, fieldSize: 1024 },
   });
+  const morningAudioUploadAttempts = new Map<string, number[]>();
+  const consumeMorningAudioUploadQuota = (key: string, limit: number, now = Date.now()) => {
+    const windowStart = now - 10 * 60_000;
+    if (morningAudioUploadAttempts.size > 10_000) {
+      for (const [candidateKey, attempts] of morningAudioUploadAttempts) {
+        if (!attempts.some((value) => value >= windowStart)) morningAudioUploadAttempts.delete(candidateKey);
+      }
+    }
+    const recent = (morningAudioUploadAttempts.get(key) || []).filter((value) => value >= windowStart);
+    if (recent.length >= limit) {
+      morningAudioUploadAttempts.set(key, recent);
+      return false;
+    }
+    recent.push(now);
+    morningAudioUploadAttempts.set(key, recent);
+    return true;
+  };
   const morningMeetingDocumentUpload = multer.default({
     storage: multer.diskStorage({
       destination: tmpdir(),
@@ -999,6 +1016,11 @@ async function startServer() {
         if (!user || !Number.isInteger(Number(user.id))) {
           return res.status(401).json({ errorCode: "MORNING-AUDIO-AUTH", error: "请先登录后再上传朝会录音" });
         }
+        const ipAddress = String(req.ip || req.socket?.remoteAddress || "unknown");
+        if (!consumeMorningAudioUploadQuota(`user:${Number(user.id)}`, 3)
+          || !consumeMorningAudioUploadQuota(`ip:${ipAddress}`, 12)) {
+          return res.status(429).json({ errorCode: "MORNING-AUDIO-RATE-LIMIT", error: "朝会录音上传过于频繁，请稍后再试" });
+        }
         req.morningMeetingUploadUser = user;
         next();
       } catch {
@@ -1047,6 +1069,10 @@ async function startServer() {
           url: stored.url,
           mimeType: validated.mimeType,
           size: stored.size,
+          mediaDurationSeconds: validated.mediaDurationSeconds,
+          mediaSha256: validated.mediaSha256,
+          mediaValidatedAt: validated.mediaValidatedAt.toISOString(),
+          audioStreamCount: validated.audioStreamCount,
         });
         const response = res.json({
           success: true,
@@ -1063,7 +1089,7 @@ async function startServer() {
         }
         const errorCode = error instanceof Error ? error.message : "MORNING_AUDIO_UPLOAD_FAILED";
         const status = errorCode === "MORNING_AUDIO_TOO_LARGE" ? 413
-          : errorCode.includes("UNSUPPORTED") || errorCode.includes("SIGNATURE") || errorCode.includes("EMPTY") || errorCode.includes("MISMATCH") ? 400
+          : errorCode.startsWith("MORNING_AUDIO_") ? 400
             : 500;
         console.error("[MorningMeetingAudioUpload] failed", { errorCode });
         return res.status(status).json({
@@ -4219,6 +4245,25 @@ async function startServer() {
     throw error;
   }
 
+  const { upgradeMorningMeetingsForDailyTeam } = await import("../migrations/upgradeMorningMeetingsForDailyTeam");
+  const { getDb: getMorningMeetingMigrationDb } = await import("../db");
+  const morningMeetingMigrationDb = await getMorningMeetingMigrationDb();
+  if (!morningMeetingMigrationDb) throw new Error("DATABASE_URL is required for morning meeting schema setup");
+  let morningMeetingSchemaReady = false;
+  for (let attempt = 1; attempt <= 3 && !morningMeetingSchemaReady; attempt += 1) {
+    try {
+      await upgradeMorningMeetingsForDailyTeam(morningMeetingMigrationDb);
+      morningMeetingSchemaReady = true;
+      console.log("[Migration] Morning daily team meeting schema ready");
+    } catch (error) {
+      if (attempt >= 3) {
+        console.error("[Migration] Morning daily team meeting schema failed", { attempt });
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2_000 * attempt));
+    }
+  }
+
   // Start the additive task upgrade immediately, but never keep the whole site
   // outside Railway's health window while a large TiDB ALTER/INDEX is running.
   // Task-dependent schedulers begin only after the upgrade is fully ready.
@@ -4625,11 +4670,6 @@ async function startServer() {
           import("../migrations/createMorningPrincipleRecitations").then(({ createMorningPrincipleRecitations }) => {
             createMorningPrincipleRecitations(db).catch((err: unknown) => {
               console.error("[Migration] Morning principle recitations table error:", err);
-            });
-          });
-          import("../migrations/upgradeMorningMeetingsForDailyTeam").then(({ upgradeMorningMeetingsForDailyTeam }) => {
-            upgradeMorningMeetingsForDailyTeam(db).catch((err: unknown) => {
-              console.error("[Migration] Morning daily team meeting columns error:", err);
             });
           });
           import("../migrations/upgradeAccountManagementForWorkbookImport").then(({ upgradeAccountManagementForWorkbookImport }) => {

@@ -7,7 +7,12 @@ import {
   reminderLevelForItem,
 } from "../shared/performancePolicy";
 import { currentStaffCondition } from "./staffIdentityQuery";
-import { staffCountryToTeamCode } from "./teamMorningMeetingPolicy";
+import {
+  inferLegacyTeamCode,
+  isRecordedTeamMeetingAttendance,
+  parseTeamMeetingParticipantSnapshot,
+  staffCountryToTeamCode,
+} from "./teamMorningMeetingPolicy";
 import type { PerformanceDatabase } from "./performanceUpgrade";
 import { reconcilePerformanceResponseFacts } from "./performanceResponseService";
 import { ensurePerformanceTables } from "./performanceUpgrade";
@@ -672,7 +677,7 @@ async function collectIssueFacts(
   }
 }
 
-async function collectMorningFacts(
+export async function collectMorningFacts(
   db: PerformanceDatabase,
   template: TemplateRow,
   fromDate: string,
@@ -691,10 +696,16 @@ async function collectMorningFacts(
       AND recordingType = 'principles' AND status = 'completed'
   `);
   const meetingResult = await db.execute(sql`
-    SELECT date, teamCode, participantSnapshot, createdAt
+    SELECT id, date, teamCode, participantSnapshot, audioKey, status, createdAt,
+           mediaValidatedAt, mediaDurationSeconds, mediaSha256, mediaAudioStreamCount,
+           speechValidatedAt, speechValidationProvider, supersededAt, deletedAt
     FROM morning_meetings
     WHERE date BETWEEN ${fromDate} AND ${endDate}
-      AND recordingKind = 'daily_team' AND status = 'completed'
+      AND recordingKind = 'daily_team'
+      AND audioKey IS NOT NULL
+      AND supersededAt IS NULL
+      AND deletedAt IS NULL
+      AND status IN ('transcribing', 'summarizing', 'completed', 'failed')
     ORDER BY createdAt DESC
   `);
   const recitationByKey = new Map<string, any>();
@@ -702,22 +713,40 @@ async function collectMorningFacts(
     const key = `${row.date}:${row.targetKey}`;
     if (!recitationByKey.has(key)) recitationByKey.set(key, row);
   }
-  const participantsByDateTeam = new Map<string, Set<string>>();
+  const participantsByDateTeam = new Map<string, Map<string, {
+    meetingId: number;
+    attendanceAt: Date | null;
+    transcriptionStatus: string;
+  }>>();
+  const staffRows = rowsOf<any>(staffResult);
+  const memberTeamByTargetKey = new Map(
+    staffRows.map((member) => [`staff:${Number(member.id)}`, staffCountryToTeamCode(member.country)]),
+  );
+  const selectedDateTeams = new Set<string>();
   for (const row of rowsOf<any>(meetingResult)) {
-    const key = `${row.date}:${row.teamCode}`;
-    if (participantsByDateTeam.has(key)) continue;
-    let snapshot: any[] = [];
-    try {
-      snapshot = Array.isArray(row.participantSnapshot)
-        ? row.participantSnapshot
-        : JSON.parse(String(row.participantSnapshot || "[]"));
-    } catch {
-      snapshot = [];
+    if (!isRecordedTeamMeetingAttendance(row)) continue;
+    const effectiveTeamCode = row.teamCode === "china" || row.teamCode === "japan"
+      ? row.teamCode
+      : inferLegacyTeamCode(row.participantSnapshot, memberTeamByTargetKey);
+    if (!effectiveTeamCode) continue;
+    const key = `${row.date}:${effectiveTeamCode}`;
+    if (selectedDateTeams.has(key)) continue;
+    selectedDateTeams.add(key);
+    const snapshot = parseTeamMeetingParticipantSnapshot(row.participantSnapshot);
+    const participants = new Map();
+    for (const item of snapshot) {
+      const targetKey = String(item?.targetKey || "");
+      if (!targetKey || participants.has(targetKey)) continue;
+      participants.set(targetKey, {
+        meetingId: Number(row.id),
+        attendanceAt: toDate(row.createdAt),
+        transcriptionStatus: String(row.status),
+      });
     }
-    participantsByDateTeam.set(key, new Set(snapshot.map(item => String(item?.targetKey || "")).filter(Boolean)));
+    participantsByDateTeam.set(key, participants);
   }
   const facts: FactObservation[] = [];
-  for (const member of rowsOf<any>(staffResult)) {
+  for (const member of staffRows) {
     const staffId = Number(member.id);
     const teamCode = staffCountryToTeamCode(member.country);
     if (!teamCode) continue;
@@ -725,8 +754,13 @@ async function collectMorningFacts(
       if (!isWeekday(date)) continue;
       const targetKey = `staff:${staffId}`;
       const recitation = recitationByKey.get(`${date}:${targetKey}`);
-      const attended = participantsByDateTeam.get(`${date}:${teamCode}`)?.has(targetKey) || false;
+      const attendance = participantsByDateTeam.get(`${date}:${teamCode}`)?.get(targetKey);
+      const attended = Boolean(attendance);
       const completed = Boolean(recitation && attended);
+      const recitationAt = toDate(recitation?.createdAt);
+      const completedAt = completed
+        ? new Date(Math.max(recitationAt?.getTime() || 0, attendance?.attendanceAt?.getTime() || 0))
+        : null;
       const deadline = performanceDailyObligationDeadline({
         businessDate: date,
         offsetHours: teamCode === "china" ? 8 : 9,
@@ -739,15 +773,23 @@ async function collectMorningFacts(
         businessDate: date,
         dueAt: deadline,
         status: completed ? "completed" : "pending",
-        completedAt: completed ? toDate(recitation.createdAt) : null,
-        isOnTime: completed && recitation ? (toDate(recitation.createdAt)?.getTime() || Infinity) <= deadline.getTime() : null,
+        completedAt,
+        isOnTime: completedAt ? completedAt.getTime() <= deadline.getTime() : null,
         sourceType: "morning_meeting",
         sourceId: date,
         dataQuality: "verified",
         completionNumerator: Number(Boolean(recitation)) + Number(attended),
         completionDenominator: 2,
         applicabilityStatus: "applicable",
-        summary: { businessDate: date, principlesCompleted: Boolean(recitation), attendedTeamMeeting: attended, teamCode },
+        summary: {
+          businessDate: date,
+          principlesCompleted: Boolean(recitation),
+          attendedTeamMeeting: attended,
+          teamCode,
+          attendanceEvidence: attended ? "server_validated_speech_audio_and_participant_snapshot" : null,
+          meetingId: attended ? attendance?.meetingId || null : null,
+          transcriptionStatus: attended ? attendance?.transcriptionStatus || null : null,
+        },
       });
     }
   }
@@ -980,12 +1022,19 @@ async function excludeInactiveTaskFacts(db: PerformanceDatabase, now: Date) {
 
 export async function runPerformanceReconciliation(
   db: PerformanceDatabase,
-  options: { actorUserId?: number; now?: Date; force?: boolean } = {},
+  options: { actorUserId?: number; now?: Date; force?: boolean; runRevision?: string; morningMeetingFromDate?: string } = {},
 ): Promise<{ skipped: boolean; runKey: string; counters: PerformanceReconciliationCounters; settings: Awaited<ReturnType<typeof loadSettings>> }> {
   const now = options.now || new Date();
   const initialized = await ensurePerformanceInitialized(db, options.actorUserId || 0);
   const settings = initialized.settings;
-  const slot = options.force ? `manual-${now.getTime()}` : String(Math.floor(now.getTime() / (15 * 60 * 1000)));
+  const safeRunRevision = String(options.runRevision || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 48);
+  const scheduledSlot = String(Math.floor(now.getTime() / (15 * 60 * 1000)));
+  const safeMorningMeetingFromDate = /^\d{4}-\d{2}-\d{2}$/.test(String(options.morningMeetingFromDate || ""))
+    ? String(options.morningMeetingFromDate)
+    : "";
+  const slot = options.force
+    ? `manual-${now.getTime()}`
+    : `${scheduledSlot}${safeRunRevision ? `-${safeRunRevision}` : ""}${safeMorningMeetingFromDate ? `-morning-${safeMorningMeetingFromDate}` : ""}`;
   const runKey = `${jstDate(now)}:${slot}:${PERFORMANCE_TEMPLATE_CATALOG_HASH.slice(0, 8)}`;
   const counters: PerformanceReconciliationCounters = {
     staffAssignments: initialized.assignments,
@@ -1009,6 +1058,10 @@ export async function runPerformanceReconciliation(
     const reviewerMap = await loadReviewerMap(db);
     const today = jstDate(now);
     const fromDate = maxDate(settings.effectiveFrom, dateMinusDays(today, 2));
+    const morningMeetingFromDate = maxDate(
+      settings.effectiveFrom,
+      safeMorningMeetingFromDate || fromDate,
+    );
     const observations: FactObservation[] = [];
 
     for (const template of templates.get("daily_report") || []) {
@@ -1021,7 +1074,7 @@ export async function runPerformanceReconciliation(
       observations.push(...await collectIssueFacts(db, template, settings.effectiveFrom, reviewerMap));
     }
     for (const template of templates.get("morning_meeting") || []) {
-      observations.push(...await collectMorningFacts(db, template, fromDate, today, reviewerMap));
+      observations.push(...await collectMorningFacts(db, template, morningMeetingFromDate, today, reviewerMap));
     }
     for (const template of templates.get("livestream_registration") || []) {
       observations.push(...await collectLivestreamFacts(db, template, settings.effectiveFrom, reviewerMap));

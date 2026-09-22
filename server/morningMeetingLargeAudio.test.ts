@@ -1,11 +1,18 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ENV } from "./_core/env";
 import type { TranscriptionResponse, WhisperSegment } from "./_core/voiceTranscription";
+
+const { getDb, uploadedRows } = vi.hoisted(() => ({
+  getDb: vi.fn(),
+  uploadedRows: [] as any[],
+}));
+vi.mock("./db", () => ({ getDb }));
+
 import {
   createMorningMeetingAudioUploadToken,
   validateMorningMeetingAudioFile,
@@ -16,12 +23,14 @@ import {
   transcribeSegmentedMorningMeetingWithQualityRetry,
 } from "./morningMeetingSegmentedTranscription";
 import { assessMorningMeetingTranscription } from "./morningMeetingTranscriptionQuality";
+import { isRecordedTeamMeetingAttendance } from "./teamMorningMeetingPolicy";
 
 const indexSource = readFileSync(new URL("./_core/index.ts", import.meta.url), "utf8");
 const routerSource = readFileSync(new URL("./morningMeetingRouter.ts", import.meta.url), "utf8");
 const pageSource = readFileSync(new URL("../client/src/pages/MorningMeeting.tsx", import.meta.url), "utf8");
 const dockerSource = readFileSync(new URL("../Dockerfile", import.meta.url), "utf8");
 const storageSource = readFileSync(new URL("./storage.ts", import.meta.url), "utf8");
+const mediaValidationSource = readFileSync(new URL("./morningMeetingMediaValidation.ts", import.meta.url), "utf8");
 
 let workDir = "";
 const originalCookieSecret = ENV.cookieSecret;
@@ -74,6 +83,18 @@ function response(duration: number, segments: WhisperSegment[]): TranscriptionRe
 beforeAll(async () => {
   workDir = await mkdtemp(join(tmpdir(), "lcj-morning-large-audio-test-"));
   ENV.cookieSecret = "synthetic-morning-upload-secret-with-at-least-32-bytes";
+  getDb.mockResolvedValue({
+    insert: () => ({ values: async (value: any) => { uploadedRows.push(value); } }),
+    select: () => ({
+      from: () => ({
+        where: () => ({ limit: async () => uploadedRows.length ? [uploadedRows.at(-1)] : [] }),
+      }),
+    }),
+  });
+});
+
+beforeEach(() => {
+  uploadedRows.length = 0;
 });
 
 afterAll(async () => {
@@ -82,21 +103,131 @@ afterAll(async () => {
 });
 
 describe("morning meeting large-audio safety", () => {
-  it("validates the actual audio signature instead of trusting multipart MIME", async () => {
+  it.runIf(hasFfmpeg)("fully decodes audible audio instead of trusting a container header", async () => {
     const validPath = join(workDir, "valid.webm");
+    const silentPath = join(workDir, "silent.webm");
+    const shortPath = join(workDir, "short.webm");
+    const tonePath = join(workDir, "tone.webm");
+    const noisePath = join(workDir, "noise.webm");
+    const chirpPath = join(workDir, "chirp.webm");
+    const modulatedTonePath = join(workDir, "modulated-tone.webm");
+    const videoOnlyPath = join(workDir, "video-only.webm");
+    const truncatedPath = join(workDir, "truncated.webm");
+    const fakeHeaderPath = join(workDir, "fake-header.webm");
     const invalidPath = join(workDir, "invalid.webm");
-    const webmHeader = Buffer.concat([
+    const fakeWebmHeader = Buffer.concat([
       Buffer.from([0x1a, 0x45, 0xdf, 0xa3]),
       Buffer.alloc(60, 0),
     ]);
-    await writeFile(validPath, webmHeader);
+    expect(spawnSync("ffmpeg", [
+      "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+      "flite=text='Good morning team. Today we will discuss work plans and support requests.'",
+      "-ar", "16000",
+      "-c:a", "libopus", "-y", validPath,
+    ]).status).toBe(0);
+    expect(spawnSync("ffmpeg", [
+      "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+      "anullsrc=r=16000:cl=mono", "-t", "1.2",
+      "-c:a", "libopus", "-y", silentPath,
+    ]).status).toBe(0);
+    expect(spawnSync("ffmpeg", [
+      "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+      "sine=frequency=440:sample_rate=16000:duration=0.4",
+      "-c:a", "libopus", "-y", shortPath,
+    ]).status).toBe(0);
+    expect(spawnSync("ffmpeg", [
+      "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+      "sine=frequency=440:sample_rate=16000:duration=4",
+      "-c:a", "libopus", "-y", tonePath,
+    ]).status).toBe(0);
+    expect(spawnSync("ffmpeg", [
+      "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+      "anoisesrc=color=white:sample_rate=16000:duration=4:amplitude=0.1",
+      "-c:a", "libopus", "-y", noisePath,
+    ]).status).toBe(0);
+    expect(spawnSync("ffmpeg", [
+      "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+      "aevalsrc=0.2*sin(2*PI*(300*t+150*t*t)):s=16000:d=8",
+      "-c:a", "libopus", "-y", chirpPath,
+    ]).status).toBe(0);
+    expect(spawnSync("ffmpeg", [
+      "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+      "aevalsrc=0.2*(1+0.7*sin(2*PI*3*t))*sin(2*PI*(500*t+30*sin(2*PI*2*t))):s=16000:d=8",
+      "-c:a", "libopus", "-y", modulatedTonePath,
+    ]).status).toBe(0);
+    expect(spawnSync("ffmpeg", [
+      "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+      "color=c=black:s=16x16:d=1.2", "-an", "-c:v", "libvpx-vp9", "-y", videoOnlyPath,
+    ]).status).toBe(0);
+    const validBytes = await readFile(validPath);
+    await writeFile(truncatedPath, validBytes.subarray(0, Math.floor(validBytes.length * 0.7)));
+    await writeFile(fakeHeaderPath, fakeWebmHeader);
     await writeFile(invalidPath, Buffer.alloc(64, 0x41));
 
     await expect(validateMorningMeetingAudioFile({
       filePath: validPath,
       mimeType: "audio/webm;codecs=opus",
-      declaredSize: webmHeader.length,
-    })).resolves.toEqual({ mimeType: "audio/webm", size: webmHeader.length });
+    })).resolves.toEqual(expect.objectContaining({
+      mimeType: "audio/webm",
+      mediaDurationSeconds: expect.any(Number),
+      mediaSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      audioStreamCount: 1,
+    }));
+
+    await expect(validateMorningMeetingAudioFile({
+      filePath: fakeHeaderPath,
+      mimeType: "audio/webm",
+      declaredSize: fakeWebmHeader.length,
+    })).rejects.toThrow("MORNING_AUDIO_DECODE_FAILED");
+
+    await expect(validateMorningMeetingAudioFile({
+      filePath: truncatedPath,
+      mimeType: "audio/webm",
+    })).rejects.toThrow("MORNING_AUDIO_DECODE_FAILED");
+
+    await expect(validateMorningMeetingAudioFile({
+      filePath: silentPath,
+      mimeType: "audio/webm",
+    })).rejects.toThrow("MORNING_AUDIO_SILENT");
+
+    await expect(validateMorningMeetingAudioFile({
+      filePath: shortPath,
+      mimeType: "audio/webm",
+    })).rejects.toThrow("MORNING_AUDIO_TOO_SHORT");
+
+    await expect(validateMorningMeetingAudioFile({
+      filePath: tonePath,
+      mimeType: "audio/webm",
+    })).rejects.toThrow("MORNING_AUDIO_NOT_SPEECH_LIKE");
+
+    await expect(validateMorningMeetingAudioFile({
+      filePath: noisePath,
+      mimeType: "audio/webm",
+    })).rejects.toThrow("MORNING_AUDIO_NOT_SPEECH_LIKE");
+
+    for (const adversarialPath of [chirpPath, modulatedTonePath]) {
+      try {
+        const media = await validateMorningMeetingAudioFile({ filePath: adversarialPath, mimeType: "audio/webm" });
+        expect(isRecordedTeamMeetingAttendance({
+          status: "failed",
+          audioKey: `private/${adversarialPath.split("/").at(-1)}`,
+          participantSnapshot: [{ targetKey: "staff:44" }],
+          mediaValidatedAt: media.mediaValidatedAt,
+          mediaDurationSeconds: media.mediaDurationSeconds,
+          mediaSha256: media.mediaSha256,
+          mediaAudioStreamCount: media.audioStreamCount,
+          speechValidatedAt: null,
+          speechValidationProvider: null,
+        })).toBe(false);
+      } catch (error) {
+        expect(String(error)).toMatch(/MORNING_AUDIO_(?:NOT_SPEECH_LIKE|SILENT)/);
+      }
+    }
+
+    await expect(validateMorningMeetingAudioFile({
+      filePath: videoOnlyPath,
+      mimeType: "audio/webm",
+    })).rejects.toThrow("MORNING_AUDIO_NO_AUDIO_STREAM");
 
     await expect(validateMorningMeetingAudioFile({
       filePath: invalidPath,
@@ -112,12 +243,24 @@ describe("morning meeting large-audio safety", () => {
       url: "https://storage.example.test/synthetic.webm",
       mimeType: "audio/webm",
       size: 1024,
+      mediaDurationSeconds: 120.25,
+      mediaSha256: "a".repeat(64),
+      mediaValidatedAt: "2026-09-21T01:00:00.000Z",
+      audioStreamCount: 1,
     });
+    const tokenPayload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8"));
+    expect(tokenPayload).not.toHaveProperty("key");
+    expect(tokenPayload).not.toHaveProperty("url");
+    expect(tokenPayload).not.toHaveProperty("mediaSha256");
 
     await expect(verifyMorningMeetingAudioUploadToken(token, 41)).resolves.toEqual(expect.objectContaining({
       userId: 41,
       mimeType: "audio/webm",
       size: 1024,
+      uploadId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      mediaDurationSeconds: 120.25,
+      mediaSha256: "a".repeat(64),
+      audioStreamCount: 1,
     }));
     await expect(verifyMorningMeetingAudioUploadToken(token, 42)).rejects.toThrow("MORNING_AUDIO_UPLOAD_TOKEN_INVALID");
   });
@@ -173,12 +316,15 @@ describe("morning meeting large-audio safety", () => {
     expect(indexSource).toContain("multer.diskStorage");
     expect(indexSource).toContain("256 * 1024 * 1024");
     expect(endpoint.indexOf("sdk.authenticateRequest(req)")).toBeLessThan(endpoint.indexOf("morningMeetingAudioUpload.single"));
+    expect(endpoint.indexOf("consumeMorningAudioUploadQuota")).toBeLessThan(endpoint.indexOf("morningMeetingAudioUpload.single"));
     expect(endpoint).toContain("validateMorningMeetingAudioFile");
     expect(endpoint).toContain("storagePutFile");
     expect(storageSource).toContain("Body: createReadStream(filePath)");
     expect(saveBlock).toContain("audioUploadToken");
     expect(saveBlock).toContain("verifyMorningMeetingAudioUploadToken(input.audioUploadToken, ctx.user.id)");
     expect(saveBlock).toContain("transcribeSegmentedMorningMeetingWithQualityRetry({");
+    expect(mediaValidationSource).toContain("MAX_CONCURRENT_MEDIA_VALIDATIONS = 2");
+    expect(mediaValidationSource).toContain('"-threads", "1"');
   });
 
   it("records at a bounded bitrate and keeps failed uploads retryable or downloadable", () => {

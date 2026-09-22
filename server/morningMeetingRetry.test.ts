@@ -63,20 +63,28 @@ describe("morning meeting failed-audio recovery", () => {
     expect(requestBody.get("language")).toBe("zh");
   });
 
-  it("stores original audio before quality checks and never summarizes a rejected transcript", () => {
+  it("validates and stores original audio before transcription and never summarizes first", () => {
     const saveBlock = routerSource.split("saveDailyTeamMeeting: protectedProcedure")[1]
       ?.split("retryDailyTeamMeetingProcessing: protectedProcedure")[0] ?? "";
-    const storageIndex = saveBlock.indexOf("const stored = uploadedAudio");
+    const validationIndex = saveBlock.indexOf("const mediaValidation = uploadedAudio");
+    const storageIndex = saveBlock.indexOf("stored = uploadedAudio");
+    const insertIndex = saveBlock.indexOf("transaction.insert(morningMeetings)");
     const qualityIndex = saveBlock.indexOf("transcribeSegmentedMorningMeetingWithQualityRetry({");
     const summaryIndex = saveBlock.indexOf("analyzeMorningMeetingWorkPlans({");
 
+    expect(validationIndex).toBeGreaterThanOrEqual(0);
     expect(storageIndex).toBeGreaterThanOrEqual(0);
-    expect(qualityIndex).toBeGreaterThan(storageIndex);
+    expect(storageIndex).toBeGreaterThan(validationIndex);
+    expect(insertIndex).toBeGreaterThan(storageIndex);
+    expect(qualityIndex).toBeGreaterThan(insertIndex);
     expect(summaryIndex).toBeGreaterThan(qualityIndex);
-    expect(saveBlock).toContain('set({ audioUrl: stored.url, audioKey: stored.key, status: "transcribing" })');
     expect(saveBlock).toContain("verifyMorningMeetingAudioUploadToken(input.audioUploadToken, ctx.user.id)");
+    expect(saveBlock).toContain("mediaSha256: mediaValidation.mediaSha256");
+    expect(saveBlock).toContain("audioUploadId: uploadedAudio?.uploadId || null");
+    expect(saveBlock).toContain("supersededById: newMeetingId, supersededAt: new Date()");
     expect(saveBlock).toContain("audioChunkCount: transcription.audioChunkCount");
-    expect(saveBlock).toContain('set({ status: "failed", errorMessage })');
+    expect(saveBlock).toContain("speechValidationFailureCode: speechEvidence ? null");
+    expect(saveBlock).toContain("participantSnapshot");
     expect(saveBlock).toContain('actionType: "morning_meeting_transcription_quality_failed"');
     expect(saveBlock).toContain('set({ transcript, summary, status: "completed", errorMessage: null })');
   });
@@ -89,9 +97,11 @@ describe("morning meeting failed-audio recovery", () => {
     expect(retryBlock).toContain('ctx.user.role !== "admin" && meeting.createdBy !== ctx.user.id');
     expect(retryBlock).toContain('meeting.status !== "failed"');
     expect(retryBlock).toContain("!meeting.audioKey");
+    expect(retryBlock).toContain("meeting.supersededAt");
+    expect(retryBlock).toContain("validateStoredMorningMeetingAudio(meeting.audioKey)");
     expect(retryBlock).toContain("storageGet(meeting.audioKey)");
     expect(retryBlock).toContain("transcribeSegmentedMorningMeetingWithQualityRetry({");
-    expect(retryBlock).toContain("expectedDurationSeconds: Number(meeting.durationSeconds || 0)");
+    expect(retryBlock).toContain("expectedDurationSeconds: verifiedDurationSeconds");
     expect(retryBlock).not.toContain("storagePut(");
   });
 
@@ -105,7 +115,7 @@ describe("morning meeting failed-audio recovery", () => {
     expect(retryBlock).toContain('actionType: "morning_meeting_reprocess_completed"');
     expect(retryBlock).toContain('actionType: "morning_meeting_reprocess_failed"');
     expect(retryBlock).toContain('set({ transcript, summary, status: "completed", errorMessage: null })');
-    expect(retryBlock).toContain('set({ status: "failed", errorMessage })');
+    expect(retryBlock).toContain("speechValidationFailureCode: speechEvidence ? null");
     expect(retryBlock).toContain("error instanceof MorningMeetingTranscriptionQualityError");
     expect(retryBlock).toContain("attemptCount: error.attempts.length");
     expect(retryBlock).toContain("processingSource");
@@ -117,12 +127,33 @@ describe("morning meeting failed-audio recovery", () => {
     expect(pageSource).toContain("原录音已保存，无需立即重录");
     expect(pageSource).toContain("使用原录音重新处理");
     expect(pageSource).toContain("handleRetryTeamMeetingProcessing");
-    expect(pageSource).toContain("转写质量异常，原录音已保存；未生成正式日报");
-    expect(pageSource).toContain("元音声のみ保存し、正式な日報は生成していません");
+    expect(pageSource).toContain("转写质量异常，原录音与参会名单已保存");
+    expect(pageSource).toContain("元音声と参加者記録は保存済みです");
+    expect(pageSource).toContain("参会已记录");
+    expect(pageSource).toContain("文字起こし失敗でも参加記録は失われません");
     expect(pageSource).toContain("/api/morning-meeting/audio-upload");
     expect(pageSource).toContain("录音仍保留在此页面");
     expect(pageSource).toContain("重新上传并保存");
     expect(pageSource).toContain("下载原录音");
     expect(pageSource).not.toContain("早会录音为空或超过60MB");
+  });
+
+  it("uses validated non-superseded attendance evidence without exposing storage or HR internals", () => {
+    const performanceSource = readFileSync(new URL("./performanceReconciliationService.ts", import.meta.url), "utf8");
+    expect(routerSource).toContain("isRecordedTeamMeetingAttendance({");
+    expect(routerSource).toContain("attendanceRecorded");
+    expect(routerSource).toContain("audioKey: _audioKey");
+    expect(routerSource).toContain("audioUrl: _audioUrl");
+    expect(routerSource).toContain("audioUploadId: _audioUploadId");
+    expect(routerSource).toContain("mediaSha256: _mediaSha256");
+    expect(routerSource).toContain("speechValidationProvider: _speechValidationProvider");
+    expect(routerSource).toContain("participantSnapshot: publicParticipantSnapshot(participantSnapshot)");
+    expect(routerSource).toContain("hasAudio: Boolean(record.audioKey)");
+    expect(performanceSource).toContain("audioKey IS NOT NULL");
+    expect(performanceSource).toContain("mediaValidatedAt, mediaDurationSeconds");
+    expect(performanceSource).toContain("supersededAt IS NULL");
+    expect(performanceSource).toContain("isRecordedTeamMeetingAttendance(row)");
+    expect(performanceSource).toContain("status IN ('transcribing', 'summarizing', 'completed', 'failed')");
+    expect(performanceSource).toContain('attendanceEvidence: attended ? "server_validated_speech_audio_and_participant_snapshot" : null');
   });
 });

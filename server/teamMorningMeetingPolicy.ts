@@ -42,13 +42,64 @@ export function isValidCompletedTeamMeeting(
   return status === "completed";
 }
 
+const ATTENDANCE_EVIDENCE_STATUSES = new Set([
+  "transcribing",
+  "summarizing",
+  "completed",
+  "failed",
+]);
+
+export function parseTeamMeetingParticipantSnapshot(value: unknown): Array<{ targetKey?: unknown }> {
+  if (Array.isArray(value)) return value as Array<{ targetKey?: unknown }>;
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed as Array<{ targetKey?: unknown }> : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Team attendance is proven by a persisted, fully decoded recording, server-side
+ * Whisper speech evidence, and the immutable participant snapshot captured before
+ * transcription starts. Final transcript/summary quality may still fail afterward.
+ */
+export function isRecordedTeamMeetingAttendance(input: {
+  status: unknown;
+  audioKey: unknown;
+  participantSnapshot: unknown;
+  mediaValidatedAt: unknown;
+  mediaDurationSeconds: unknown;
+  mediaSha256: unknown;
+  mediaAudioStreamCount: unknown;
+  speechValidatedAt?: unknown;
+  speechValidationProvider?: unknown;
+  supersededAt?: unknown;
+  deletedAt?: unknown;
+}): boolean {
+  if (!ATTENDANCE_EVIDENCE_STATUSES.has(String(input.status || ""))) return false;
+  if (typeof input.audioKey !== "string" || !input.audioKey.trim()) return false;
+  if (!input.mediaValidatedAt || Number.isNaN(new Date(input.mediaValidatedAt as any).getTime())) return false;
+  if (!Number.isFinite(Number(input.mediaDurationSeconds)) || Number(input.mediaDurationSeconds) < 1) return false;
+  if (typeof input.mediaSha256 !== "string" || !/^[a-f0-9]{64}$/.test(input.mediaSha256)) return false;
+  if (!Number.isInteger(Number(input.mediaAudioStreamCount)) || Number(input.mediaAudioStreamCount) < 1) return false;
+  if (!input.speechValidatedAt || Number.isNaN(new Date(input.speechValidatedAt as any).getTime())) return false;
+  if (typeof input.speechValidationProvider !== "string" || input.speechValidationProvider !== "whisper_segments_v1") return false;
+  if (input.supersededAt) return false;
+  if (input.deletedAt) return false;
+  return parseTeamMeetingParticipantSnapshot(input.participantSnapshot)
+    .some((participant) => typeof participant?.targetKey === "string" && participant.targetKey.trim().length > 0);
+}
+
 export function inferLegacyTeamCode(
   participantSnapshot: unknown,
   memberTeamByTargetKey: ReadonlyMap<string, TeamMeetingCode | null>,
 ): TeamMeetingCode | null {
-  if (!Array.isArray(participantSnapshot) || participantSnapshot.length === 0) return null;
+  const snapshot = parseTeamMeetingParticipantSnapshot(participantSnapshot);
+  if (snapshot.length === 0) return null;
   const teams = new Set<TeamMeetingCode>();
-  for (const participant of participantSnapshot) {
+  for (const participant of snapshot) {
     const targetKey = participant && typeof participant === "object" && "targetKey" in participant
       ? String((participant as { targetKey?: unknown }).targetKey || "")
       : "";

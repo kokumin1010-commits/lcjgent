@@ -7,6 +7,7 @@ import type {
 import {
   MorningMeetingTranscriptionQualityError,
   assessMorningMeetingTranscription,
+  hasWhisperSpeechEvidence,
   transcribeMorningMeetingWithQualityRetry,
 } from "./morningMeetingTranscriptionQuality";
 
@@ -46,6 +47,26 @@ const serviceError: TranscriptionError = {
   error: "synthetic service failure",
   code: "TRANSCRIPTION_FAILED",
 };
+
+describe("Whisper speech evidence", () => {
+  it("accepts multiple confident speech segments and rejects tonal hallucination patterns", () => {
+    expect(hasWhisperSpeechEvidence(response([
+      segment(1, 0, 2, "今天先确认商品资料。"),
+      segment(2, 2, 5, "下午联系合作伙伴。"),
+    ]))).toBe(true);
+    expect(hasWhisperSpeechEvidence(response([
+      segment(1, 0, 8, "音乐", { no_speech_prob: 0.8, avg_logprob: -1.5 }),
+    ]))).toBe(false);
+    expect(hasWhisperSpeechEvidence(response([
+      segment(1, 0, 4, "谢谢观看"),
+      segment(2, 4, 8, "谢谢观看"),
+    ]))).toBe(false);
+    expect(hasWhisperSpeechEvidence(response([
+      segment(1, 0, 4, "测试声音一", { no_speech_prob: 0.7 }),
+      segment(2, 4, 8, "测试声音二", { no_speech_prob: 0.7 }),
+    ]))).toBe(false);
+  });
+});
 
 const validSegments = [
   segment(1, 0, 12, "主持人说明今天依次确认每位成员的工作安排。"),

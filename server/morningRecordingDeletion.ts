@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
-import { eq, sql } from "drizzle-orm";
-import { morningMeetingDocuments, morningMeetings, morningPrincipleRecitations } from "../drizzle/schema";
+import { and, eq, isNull, sql } from "drizzle-orm";
+import { morningMeetings, morningPrincipleRecitations } from "../drizzle/schema";
 import { getDb } from "./db";
 
 export type MorningRecordingDeleteActor = {
@@ -85,17 +85,25 @@ export async function deleteMorningRecordingWithDb(db: any, input: MorningRecord
     }
 
     const rows = await tx.select().from(morningMeetings)
-      .where(eq(morningMeetings.id, input.id)).limit(1);
+      .where(and(eq(morningMeetings.id, input.id), isNull(morningMeetings.deletedAt))).limit(1);
     const record = rows[0];
     if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "朝会記録が見つかりません" });
     if (input.actor.role !== "admin" && Number(record.createdBy) !== input.actor.id) {
       throw new TRPCError({ code: "FORBIDDEN", message: "この朝会記録を削除する権限がありません" });
     }
+    const deleteReason = String(input.reason || "morning-meeting-ui-delete").trim().slice(0, 500);
+    const deleted = await tx.update(morningMeetings)
+      .set({
+        dailyKey: null,
+        deletedAt: new Date(),
+        deletedBy: input.actor.id,
+        deleteReason,
+      })
+      .where(and(eq(morningMeetings.id, input.id), isNull(morningMeetings.deletedAt)));
+    if (Number((deleted as any)?.[0]?.affectedRows || 0) !== 1) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "朝会記録が見つかりません" });
+    }
     await writeDeleteEvent(tx, input, "morning_meeting", safeMeetingSnapshot(record));
-    await tx.update(morningMeetingDocuments)
-      .set({ meetingId: null })
-      .where(eq(morningMeetingDocuments.meetingId, input.id));
-    await tx.delete(morningMeetings).where(eq(morningMeetings.id, input.id));
     return { success: true as const, source: input.source, id: input.id };
   });
 }

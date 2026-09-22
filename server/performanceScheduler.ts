@@ -1,5 +1,9 @@
 import { getDb } from "./db";
 import { runPerformanceReconciliation } from "./performanceReconciliationService";
+import {
+  backfillMorningMeetingMediaValidation,
+  morningMeetingMediaBackfillFromDate,
+} from "./morningMeetingMediaBackfill";
 
 const LOG_PREFIX = "[Performance Shadow]";
 const CHECK_INTERVAL_MS = 15 * 60 * 1000;
@@ -9,7 +13,7 @@ let intervalId: ReturnType<typeof setInterval> | null = null;
 let initialTimer: ReturnType<typeof setTimeout> | null = null;
 let running = false;
 
-export async function runPerformanceShadowReconciliation(): Promise<void> {
+export async function runPerformanceShadowReconciliation(runRevision?: string): Promise<void> {
   if (running) return;
   running = true;
   try {
@@ -18,7 +22,16 @@ export async function runPerformanceShadowReconciliation(): Promise<void> {
       console.warn(`${LOG_PREFIX} database unavailable; skipped`);
       return;
     }
-    const result = await runPerformanceReconciliation(db);
+    let mediaBackfill = { inspected: 0, validated: 0, failed: 0 };
+    try {
+      mediaBackfill = await backfillMorningMeetingMediaValidation();
+    } catch (error) {
+      console.error(`${LOG_PREFIX} morning meeting media backfill failed; reconciliation continues`, error);
+    }
+    const result = await runPerformanceReconciliation(db, {
+      runRevision,
+      morningMeetingFromDate: morningMeetingMediaBackfillFromDate(),
+    });
     console.log(`${LOG_PREFIX} reconciliation ${result.skipped ? "skipped" : "completed"}`, {
       runKey: result.runKey,
       counters: result.counters,
@@ -26,6 +39,7 @@ export async function runPerformanceShadowReconciliation(): Promise<void> {
       impactsBonus: result.settings.impactsBonus,
       impactsLcjCoin: result.settings.impactsLcjCoin,
       externalNotificationsEnabled: result.settings.externalNotificationsEnabled,
+      morningMeetingMediaBackfill: mediaBackfill,
     });
   } catch (error) {
     console.error(`${LOG_PREFIX} reconciliation failed`, error);
@@ -39,7 +53,9 @@ export function startPerformanceScheduler(): void {
   console.log(`${LOG_PREFIX} scheduler enabled (15-minute interval, shadow mode)`);
   initialTimer = setTimeout(() => {
     initialTimer = null;
-    void runPerformanceShadowReconciliation();
+    // A stable revision suffix lets only one replica claim the deployment
+    // catch-up in the current slot while still bypassing the previous adapter run.
+    void runPerformanceShadowReconciliation("morning-media-v2");
   }, INITIAL_DELAY_MS);
   intervalId = setInterval(() => {
     void runPerformanceShadowReconciliation();
