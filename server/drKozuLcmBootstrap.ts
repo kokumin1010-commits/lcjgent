@@ -15,6 +15,30 @@ const LOCK_NAME = "drkozu-lcm-normal-brand-bootstrap";
 const LCM_TERMS_VERSION = "2026-09-16-v2";
 const SOURCE_CATALOG_PAGE = 31;
 
+type BootstrapRuntimeState = "pending" | "running" | "completed" | "failed";
+let bootstrapStage = "not_started";
+let bootstrapRuntime: {
+  state: BootstrapRuntimeState;
+  failureCode: string | null;
+  updatedAt: string;
+} = { state: "pending", failureCode: null, updatedAt: new Date().toISOString() };
+
+function setBootstrapRuntime(state: BootstrapRuntimeState, stage: string, failureCode: string | null = null): void {
+  bootstrapStage = stage;
+  bootstrapRuntime = { state, failureCode, updatedAt: new Date().toISOString() };
+}
+
+function safeBootstrapFailureCode(error: unknown, stage = bootstrapStage): string {
+  const message = error instanceof Error ? error.message : "";
+  if (/^DRKOZU_LCM_[A-Za-z0-9_:.-]+$/.test(message)) return message.slice(0, 120);
+  const sqlCode = error && typeof error === "object" && "code" in error
+    ? String((error as { code?: unknown }).code || "")
+    : "";
+  const safeStage = stage.replace(/[^a-z0-9_]/gi, "_").toUpperCase().slice(0, 50) || "UNKNOWN";
+  const safeSqlCode = /^[A-Z0-9_]+$/.test(sqlCode) ? sqlCode.slice(0, 50) : "FAILED";
+  return `DRKOZU_LCM_${safeStage}_${safeSqlCode}`;
+}
+
 const ASSET_SHA256: Readonly<Record<string, string>> = {
   "brand-cover.webp": "e970485348294f8eac13f18f4fe2c9cb53abe7d21cd66800c7a5d33780aca756",
   "brand-logo.webp": "23af5fed3b00654a0a66e50b379d8c0b0eb811276d0fe7b7da64bb35bc2e2c50",
@@ -519,16 +543,20 @@ export type DrKozuLcmBootstrapResult = {
   productCount?: number;
 };
 
-export async function bootstrapDrKozuLcmBrand(): Promise<DrKozuLcmBootstrapResult> {
+async function runDrKozuLcmBootstrap(): Promise<DrKozuLcmBootstrapResult> {
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required for Dr.Kozu LCM bootstrap");
+  bootstrapStage = "source_validation";
   await verifyDrKozuLcmSources();
   const pool = mysql.createPool({ uri: process.env.DATABASE_URL, waitForConnections: true, connectionLimit: 2 });
   let lockConnection: PoolConnection | null = null;
   try {
+    bootstrapStage = "marker_table";
     await ensureMarkerTable(pool);
+    bootstrapStage = "acquire_lock";
     lockConnection = await pool.getConnection();
     const [lockRows] = await lockConnection.query<RowDataPacket[]>("SELECT GET_LOCK(?, 0) AS acquired", [LOCK_NAME]);
     if (Number(lockRows[0]?.acquired) !== 1) return { status: "busy" };
+    bootstrapStage = "completed_state";
     const completed = await completedStateIsPresent(lockConnection);
     if (completed.completed) {
       return { status: "already_completed", accountId: completed.accountId, brandProfileId: completed.brandProfileId, productCount: DRKOZU_LCM_PRODUCTS.length };
@@ -536,19 +564,28 @@ export async function bootstrapDrKozuLcmBrand(): Promise<DrKozuLcmBootstrapResul
 
     await lockConnection.beginTransaction();
     try {
+      bootstrapStage = "marker_running";
       await lockConnection.query(
         `INSERT INTO lcm_content_bootstrap_runs (bootstrapKey,sourceSha256,status,productCount,errorCode,completedAt)
          VALUES (?,?,'running',0,NULL,NULL)
          ON DUPLICATE KEY UPDATE status='running',sourceSha256=VALUES(sourceSha256),productCount=0,errorCode=NULL,completedAt=NULL`,
         [DRKOZU_LCM_BOOTSTRAP_KEY, SOURCE_PDF_SHA256],
       );
+      bootstrapStage = "source_relation";
       const sourceBrandId = await resolveSourceBrandId(lockConnection);
+      bootstrapStage = "account";
       const accountId = await createAccount(lockConnection);
+      bootstrapStage = "membership";
       await createMembership(lockConnection, accountId);
+      bootstrapStage = "brand";
       const brandProfileId = await createBrand(lockConnection, accountId, sourceBrandId);
+      bootstrapStage = "brand_owner";
       await createBrandMembership(lockConnection, accountId, brandProfileId);
+      bootstrapStage = "event_participation";
       await createFirstEditionParticipation(lockConnection, brandProfileId);
+      bootstrapStage = "products";
       const productCount = await createProducts(lockConnection, accountId, brandProfileId);
+      bootstrapStage = "marker_completed";
       await lockConnection.query(
         `UPDATE lcm_content_bootstrap_runs
             SET status='completed',accountId=?,brandProfileId=?,productCount=?,errorCode=NULL,completedAt=CURRENT_TIMESTAMP
@@ -559,7 +596,7 @@ export async function bootstrapDrKozuLcmBrand(): Promise<DrKozuLcmBootstrapResul
       return { status: "completed", accountId, brandProfileId, productCount };
     } catch (error) {
       await lockConnection.rollback();
-      const errorCode = (error instanceof Error ? error.message : "DRKOZU_LCM_BOOTSTRAP_FAILED").slice(0, 120);
+      const errorCode = safeBootstrapFailureCode(error);
       await lockConnection.query(
         `INSERT INTO lcm_content_bootstrap_runs (bootstrapKey,sourceSha256,status,productCount,errorCode,completedAt)
          VALUES (?,?,'failed',0,?,NULL)
@@ -575,4 +612,68 @@ export async function bootstrapDrKozuLcmBrand(): Promise<DrKozuLcmBootstrapResul
     }
     await pool.end();
   }
+}
+
+export async function bootstrapDrKozuLcmBrand(): Promise<DrKozuLcmBootstrapResult> {
+  setBootstrapRuntime("running", "starting");
+  try {
+    const result = await runDrKozuLcmBootstrap();
+    if (result.status === "busy") {
+      setBootstrapRuntime("pending", "lock_busy");
+    } else {
+      setBootstrapRuntime("completed", result.status);
+    }
+    return result;
+  } catch (error) {
+    const failureCode = safeBootstrapFailureCode(error);
+    setBootstrapRuntime("failed", bootstrapStage, failureCode);
+    throw error;
+  }
+}
+
+export async function getDrKozuLcmBootstrapHealth(): Promise<{
+  ok: boolean;
+  runtimeState: BootstrapRuntimeState;
+  stage: string;
+  markerStatus: "running" | "completed" | "failed" | "missing" | "unavailable";
+  productCount: number;
+  failureCode: string | null;
+  updatedAt: string;
+}> {
+  let markerStatus: "running" | "completed" | "failed" | "missing" | "unavailable" = "unavailable";
+  let productCount = 0;
+  let markerFailureCode: string | null = null;
+  if (process.env.DATABASE_URL) {
+    const pool = mysql.createPool({ uri: process.env.DATABASE_URL, waitForConnections: true, connectionLimit: 1 });
+    try {
+      const [rows] = await pool.query<RowDataPacket[]>(
+        `SELECT status,productCount,errorCode,accountId,brandProfileId
+           FROM lcm_content_bootstrap_runs
+          WHERE bootstrapKey=? AND sourceSha256=? LIMIT 1`,
+        [DRKOZU_LCM_BOOTSTRAP_KEY, SOURCE_PDF_SHA256],
+      );
+      const row = rows[0];
+      markerStatus = row ? String(row.status) as "running" | "completed" | "failed" : "missing";
+      productCount = Number(row?.productCount || 0);
+      const storedError = String(row?.errorCode || "");
+      markerFailureCode = /^DRKOZU_LCM_[A-Za-z0-9_:.-]+$/.test(storedError) ? storedError : storedError ? "DRKOZU_LCM_STORED_FAILURE" : null;
+      if (markerStatus === "completed" && (!row?.accountId || !row?.brandProfileId || productCount !== DRKOZU_LCM_PRODUCTS.length)) {
+        markerFailureCode = "DRKOZU_LCM_COMPLETED_MARKER_INVALID";
+      }
+    } catch {
+      markerStatus = "unavailable";
+    } finally {
+      await pool.end();
+    }
+  }
+  const ok = markerStatus === "completed" && productCount === DRKOZU_LCM_PRODUCTS.length && !markerFailureCode;
+  return {
+    ok,
+    runtimeState: bootstrapRuntime.state,
+    stage: bootstrapStage,
+    markerStatus,
+    productCount,
+    failureCode: bootstrapRuntime.failureCode || markerFailureCode,
+    updatedAt: bootstrapRuntime.updatedAt,
+  };
 }

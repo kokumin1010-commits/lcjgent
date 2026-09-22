@@ -57,6 +57,9 @@ describe("Dr.Kozu normal LCM brand bootstrap", () => {
     expect(source).toContain("activeOwnerCount");
     expect(source).toContain("conflictingMemberCount");
     expect(source).toContain("credentialLogged: false");
+    expect(source).toContain("safeBootstrapFailureCode");
+    expect(source).toContain("getDrKozuLcmBootstrapHealth");
+    expect(startup).toContain('/api/health/drkozu-lcm-bootstrap');
     expect(source).not.toContain("password: ");
     expect(source).not.toContain("sampleAvailable: true");
     expect(source).not.toMatch(/wholesalePrice:\s*[1-9]/);

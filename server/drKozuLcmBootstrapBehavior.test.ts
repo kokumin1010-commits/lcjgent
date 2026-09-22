@@ -186,4 +186,36 @@ describe("Dr.Kozu LCM bootstrap convergence", () => {
     expect(connection.release).toHaveBeenCalledOnce();
     expect(pool.end).toHaveBeenCalledOnce();
   });
+
+  it("reports a safe runtime failure code without exposing database error text", async () => {
+    process.env.DATABASE_URL = "mysql://unit-test.invalid/db";
+    const databaseError = Object.assign(new Error("Access denied for secret-user@private-host"), {
+      code: "ER_TABLEACCESS_DENIED_ERROR",
+    });
+    const pool = {
+      query: vi.fn(async (rawSql: unknown) => {
+        const sql = normalized(rawSql);
+        if (sql.startsWith("CREATE TABLE IF NOT EXISTS lcm_content_bootstrap_runs")) throw databaseError;
+        if (sql.startsWith("SELECT status,productCount,errorCode")) throw databaseError;
+        throw new Error(`Unhandled pool SQL: ${sql}`);
+      }),
+      getConnection: vi.fn(),
+      end: vi.fn(),
+    };
+    vi.doMock("mysql2/promise", () => mockedMysql(pool));
+
+    const { bootstrapDrKozuLcmBrand, getDrKozuLcmBootstrapHealth } = await import("./drKozuLcmBootstrap");
+    await expect(bootstrapDrKozuLcmBrand()).rejects.toThrow("Access denied for secret-user@private-host");
+    const health = await getDrKozuLcmBootstrapHealth();
+    expect(health).toMatchObject({
+      ok: false,
+      runtimeState: "failed",
+      stage: "marker_table",
+      markerStatus: "unavailable",
+      productCount: 0,
+      failureCode: "DRKOZU_LCM_MARKER_TABLE_ER_TABLEACCESS_DENIED_ERROR",
+    });
+    expect(JSON.stringify(health)).not.toContain("secret-user");
+    expect(JSON.stringify(health)).not.toContain("private-host");
+  });
 });

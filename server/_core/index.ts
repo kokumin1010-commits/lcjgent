@@ -406,6 +406,24 @@ async function startServer() {
     });
   });
 
+  app.get("/api/health/drkozu-lcm-bootstrap", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    try {
+      const { getDrKozuLcmBootstrapHealth } = await import("../drKozuLcmBootstrap");
+      const health = await getDrKozuLcmBootstrapHealth();
+      return res.status(health.ok ? 200 : 503).json(health);
+    } catch {
+      return res.status(503).json({
+        ok: false,
+        runtimeState: "failed",
+        stage: "health_check",
+        markerStatus: "unavailable",
+        productCount: 0,
+        failureCode: "DRKOZU_LCM_HEALTH_CHECK_FAILED",
+      });
+    }
+  });
+
   // Email tracking endpoint
   app.use("/api/track", trackingRouter);
   // Gmail-friendly alias (avoids 'track' keyword in URL that Gmail may filter)
