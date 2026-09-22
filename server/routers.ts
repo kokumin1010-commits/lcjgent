@@ -858,7 +858,7 @@ import {
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage } from "./line";
 import { createLineRetryKey } from "./lineRetryKey";
-import { LINE_PUBLIC_CONTACT_NAME } from "../shared/linePublicIdentity";
+import { LINE_PUBLIC_CONTACT_NAME, stripLinePublicSignature } from "../shared/linePublicIdentity";
 import {
   getActiveLineGroupMemberCounts,
   leaveLineGroupAndDeactivate,
@@ -13576,6 +13576,13 @@ ${conversationText}
             });
           }
         }
+        const message = stripLinePublicSignature(input.message);
+        if (!message) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "署名だけの本文は送信できません。[LINE_MESSAGE_EMPTY_AFTER_SIGNATURE_REMOVAL]",
+          });
+        }
         const requestId = input.requestId;
         const retryKey = createLineRetryKey(
           ["line-management-manual", input.to, requestId].join(":"),
@@ -13589,7 +13596,7 @@ ${conversationText}
             lineUserId: input.to.startsWith("U") ? input.to : undefined,
             lineGroupId: isGroup ? input.to : undefined,
             senderName: LINE_PUBLIC_CONTACT_NAME,
-            content: input.message,
+            content: message,
             lineTimestamp: Date.now(),
             pendingSummary: "LINE管理画面からの手動送信準備中",
           });
@@ -13625,7 +13632,7 @@ ${conversationText}
           });
         }
         const success = await pushMessage(input.to, [
-          { type: "text", text: input.message },
+          { type: "text", text: message },
         ], retryKey);
 
         if (!success) {

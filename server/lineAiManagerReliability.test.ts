@@ -159,7 +159,7 @@ describe("LINE AI manager durable handoff and lease fencing", () => {
       eventTimestamp: Date.now(),
       enqueueReply: false,
       preferenceCommand: "ai停止",
-      preferenceResponse: "自動返信と継続フォローを停止しました。\n\n— 高橋 悠真",
+      preferenceResponse: "自動返信と継続フォローを停止しました。",
     });
     expect(result).toEqual({ stored: true, eventId: 1 });
     expect(state.messageIds.has("msg-stop")).toBe(true);
@@ -230,6 +230,7 @@ describe("LINE AI manager durable handoff and lease fencing", () => {
       messageId: "ai-manager:76",
       lineUserId: target.lineUserId,
       senderName: "高橋 悠真",
+      content: "一緒に整理しましょう。",
       direction: "outgoing",
       responseStatus: "pending",
     }));

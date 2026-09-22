@@ -17,6 +17,7 @@ const reservation: LineOutgoingAuditReservation = {
 function createAuditDb(options?: {
   duplicate?: boolean;
   existing?: Record<string, unknown> | null;
+  rateLimitCount?: number;
 }) {
   const values = vi.fn(async () => {
     if (options?.duplicate) {
@@ -33,9 +34,11 @@ function createAuditDb(options?: {
   let executeCount = 0;
   const execute = vi.fn(async () => {
     executeCount += 1;
-    return executeCount === 2
-      ? [[{ lineGroupId: reservation.lineGroupId }]]
-      : [{ affectedRows: 1 }];
+    if (executeCount === 2) return [[{ lineGroupId: reservation.lineGroupId }]];
+    if (executeCount === 5 && options?.rateLimitCount != null) {
+      return [[{ total: options.rateLimitCount }]];
+    }
+    return [{ affectedRows: 1 }];
   });
   const insert = vi.fn(() => ({ values }));
   const transaction = vi.fn(async callback => callback({ insert, select, execute }));
@@ -156,6 +159,63 @@ describe("LINE outbound audit reliability", () => {
     expect(fake.execute.mock.invocationCallOrder[3]).toBeLessThan(fake.values.mock.invocationCallOrder[0]);
     expect(fake.values.mock.invocationCallOrder[0]).toBeLessThan(fake.execute.mock.invocationCallOrder[4]);
     expect(fake.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("atomically reserves below the configured group-user rate limit", async () => {
+    const fake = createAuditDb({ rateLimitCount: 2 });
+    const limitedReservation: LineOutgoingAuditReservation = {
+      ...reservation,
+      lineUserId: "U00000000000000000000000000000001",
+      rateLimit: {
+        messageIdPrefix: "group-public-question:",
+        windowMs: 10 * 60 * 1000,
+        maxCount: 3,
+        errorCode: "LINE_GROUP_PUBLIC_QUESTION_RATE_LIMITED",
+      },
+    };
+
+    await expect(__lineDbTestUtils.reserveLineOutgoingAuditWithDb(fake.db, limitedReservation))
+      .resolves.toEqual({ created: true, status: "pending" });
+    expect(fake.values).toHaveBeenCalledTimes(1);
+    expect(fake.execute).toHaveBeenCalledTimes(6);
+  });
+
+  it("rejects before insert when the configured group-user rate limit is reached", async () => {
+    const fake = createAuditDb({ rateLimitCount: 3 });
+    const limitedReservation: LineOutgoingAuditReservation = {
+      ...reservation,
+      lineUserId: "U00000000000000000000000000000001",
+      rateLimit: {
+        messageIdPrefix: "group-public-question:",
+        windowMs: 10 * 60 * 1000,
+        maxCount: 3,
+        errorCode: "LINE_GROUP_PUBLIC_QUESTION_RATE_LIMITED",
+      },
+    };
+
+    await expect(__lineDbTestUtils.reserveLineOutgoingAuditWithDb(fake.db, limitedReservation))
+      .rejects.toMatchObject({ code: "LINE_GROUP_PUBLIC_QUESTION_RATE_LIMITED" });
+    expect(fake.values).not.toHaveBeenCalled();
+    expect(fake.execute).toHaveBeenCalledTimes(5);
+  });
+
+  it("rejects an invalid rate-limit configuration before audit insert", async () => {
+    const fake = createAuditDb();
+    const limitedReservation: LineOutgoingAuditReservation = {
+      ...reservation,
+      lineUserId: "U00000000000000000000000000000001",
+      rateLimit: {
+        messageIdPrefix: "group-public-question:",
+        windowMs: 0,
+        maxCount: 3,
+        errorCode: "LINE_GROUP_PUBLIC_QUESTION_RATE_LIMITED",
+      },
+    };
+
+    await expect(__lineDbTestUtils.reserveLineOutgoingAuditWithDb(fake.db, limitedReservation))
+      .rejects.toThrow("LINE_OUTBOUND_RATE_LIMIT_CONFIG_INVALID");
+    expect(fake.values).not.toHaveBeenCalled();
+    expect(fake.execute).toHaveBeenCalledTimes(4);
   });
 
   it("accepts an identical response-loss retry and returns its finalized state", async () => {

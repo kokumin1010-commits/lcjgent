@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   recordLineAiManagerInboundActivity: vi.fn(async () => false),
   scheduleLineGroupInsightRefresh: vi.fn(),
   continueLineGroupOnboarding: vi.fn(async () => false),
+  tryHandleLineGroupPublicQuestion: vi.fn(async () => false),
   getGroupMemberProfile: vi.fn(),
   syncLineGroupMetadata: vi.fn(),
   containsReminderKeyword: vi.fn(() => false),
@@ -41,6 +42,10 @@ vi.mock("./lineAiManager", () => ({
 
 vi.mock("./lineGroupOnboarding", () => ({
   continueLineGroupOnboarding: mocks.continueLineGroupOnboarding,
+}));
+
+vi.mock("./lineGroupPublicQuestion", () => ({
+  tryHandleLineGroupPublicQuestion: mocks.tryHandleLineGroupPublicQuestion,
 }));
 
 vi.mock("./line", async () => {
@@ -98,6 +103,7 @@ describe("LINE general AI auto-reply runtime behavior", () => {
     mocks.saveLineMessage.mockResolvedValue({ id: 1 });
     mocks.canLineAiManagerReplyInGroup.mockResolvedValue(true);
     mocks.tryHandleLineAiManagerMessage.mockResolvedValue(false);
+    mocks.tryHandleLineGroupPublicQuestion.mockResolvedValue(false);
     mocks.recordLineAiManagerInboundActivity.mockResolvedValue(false);
     mocks.containsReminderKeyword.mockReturnValue(false);
     mocks.createReminderFromMessage.mockResolvedValue({ message: "created" });
@@ -242,6 +248,7 @@ describe("LINE general AI auto-reply runtime behavior", () => {
       lineUserId: "U-unlinked",
       text: "@LCJ TikTokは@exampleです",
       eventTimestamp: 1_789_000_000_050,
+      isExplicitMention: true,
     });
     expect(mocks.canLineAiManagerReplyInGroup).not.toHaveBeenCalled();
     expect(mocks.tryHandleLineAiManagerMessage).not.toHaveBeenCalled();
@@ -284,10 +291,43 @@ describe("LINE general AI auto-reply runtime behavior", () => {
     });
 
     expect(mocks.tryHandleLineAiManagerMessage).not.toHaveBeenCalled();
+    expect(mocks.tryHandleLineGroupPublicQuestion).toHaveBeenCalledWith({
+      lineGroupId: "C-group-ineligible",
+      lineUserId: "U-unlinked",
+      sourceMessageId: "group-ineligible-message",
+      text: "@LCJ ポイント履歴を見せて",
+    });
     expect(mocks.recordLineAiManagerInboundActivity).not.toHaveBeenCalled();
     expect(mocks.scheduleLineGroupInsightRefresh).toHaveBeenCalledWith("C-group-ineligible");
     expect(mocks.getLinePointBalance).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("lets the safe responder answer a bounded sample question from an unlinked participant", async () => {
+    mocks.canLineAiManagerReplyInGroup.mockResolvedValueOnce(false);
+    mocks.tryHandleLineGroupPublicQuestion.mockResolvedValueOnce(true);
+    const event: LineWebhookEvent = {
+      type: "message",
+      timestamp: 1_789_000_000_052,
+      source: { type: "group", groupId: "C-group-sample", userId: "U-unlinked" },
+      replyToken: "group-sample-token",
+      message: {
+        id: "group-sample-message",
+        type: "text",
+        text: "@LCJ こちらの商品のサンプルを送っていただくことは可能でしょうか？",
+      },
+    };
+
+    await processLineMessage(event);
+
+    expect(mocks.tryHandleLineGroupPublicQuestion).toHaveBeenCalledWith({
+      lineGroupId: "C-group-sample",
+      lineUserId: "U-unlinked",
+      sourceMessageId: "group-sample-message",
+      text: "@LCJ こちらの商品のサンプルを送っていただくことは可能でしょうか？",
+    });
+    expect(mocks.tryHandleLineAiManagerMessage).not.toHaveBeenCalled();
+    expect(mocks.recordLineAiManagerInboundActivity).not.toHaveBeenCalled();
   });
 
   it("propagates a group eligibility settings failure and sends no warning or generic reply", async () => {

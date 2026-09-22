@@ -23,6 +23,7 @@ const messaging = read("server/_core/lineMessaging.ts");
 const lineTransport = read("server/line.ts");
 const groupFollowUp = read("server/groupFollowUpScheduler.ts");
 const groupOnboarding = read("server/lineGroupOnboarding.ts");
+const groupPublicQuestion = read("server/lineGroupPublicQuestion.ts");
 const groupOnboardingMigration = read("drizzle/0157_line_group_onboarding.sql");
 const groupLifecycle = read("server/lineGroupLifecycle.ts");
 const groupDeliveryGuard = read("server/lineGroupDeliveryGuard.ts");
@@ -104,6 +105,7 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(groupOnboarding).toContain("normalizeLineGroupBrandName");
     expect(groupOnboarding).toContain("LINE_PUBLIC_CONTACT_NAME");
     expect(groupOnboarding).toContain("LINE_INITIAL_AUTOMATION_NOTICE");
+    expect(groupOnboarding).not.toContain("stripLinePublicSignature(delivery.replyText)");
     expect(linePublicIdentity).toContain('LINE_PUBLIC_CONTACT_NAME = "高橋 悠真"');
     expect(linePublicIdentity).toContain("初回のご案内と確認には自動サポートを利用しています");
     expect(groupOnboarding).not.toContain("invokeLLM");
@@ -114,7 +116,10 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     );
     expect(delivery.indexOf("reserveLineOutgoingAudit")).toBeGreaterThan(-1);
     expect(delivery.indexOf("reserveLineOutgoingAudit")).toBeLessThan(delivery.indexOf("await pushMessage("));
-    expect(delivery).toContain("createLineRetryKey");
+    expect(delivery).toContain("onboardingDeliveryRetryKey");
+    expect(delivery).toContain("content: delivery.replyText");
+    expect(delivery).toContain('text: delivery.replyText');
+    expect(groupOnboarding).toContain("createLineRetryKey(`line-group-onboarding:${auditMessageId}`)");
     expect(delivery).toContain('reservation.status === "responded"');
     expect(delivery).toContain('reservation.status === "cancelled" || reservation.status === "none"');
 
@@ -176,6 +181,33 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(ui).toContain("入力欄へ反映するだけで、自動送信されません");
   });
 
+  it("answers only bounded explicit public questions for unlinked group participants", () => {
+    expect(agent).toContain('await import("./lineGroupPublicQuestion")');
+    expect(agent).toContain("tryHandleLineGroupPublicQuestion");
+    expect(groupPublicQuestion).toContain('type PublicGroupQuestionIntent = "sample_request" | "commercial_terms" | "automation_identity"');
+    expect(groupPublicQuestion).toContain("isLineAiManagerRuntimeEnabled()");
+    expect(groupPublicQuestion).toContain('participant?.userType === "staff"');
+    expect(groupPublicQuestion).toContain("participant?.isBlocked");
+    expect(groupPublicQuestion).toContain("participant?.liverId");
+    expect(groupPublicQuestion).toContain("canDeliverLineAiManagerGroupReply(params.lineGroupId)");
+    expect(groupPublicQuestion).toContain("reserveLineOutgoingAudit");
+    expect(groupPublicQuestion).toContain("createLineRetryKey");
+    expect(groupPublicQuestion).toContain("PUBLIC_QUESTION_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000");
+    expect(groupPublicQuestion).toContain("PUBLIC_QUESTION_RATE_LIMIT_MAX = 3");
+    expect(groupPublicQuestion).toContain("LINE_GROUP_PUBLIC_QUESTION_RATE_LIMITED");
+    expect(db).toContain("reservation.rateLimit.messageIdPrefix");
+    expect(db).toContain("reservation.rateLimit.maxCount");
+    expect(groupPublicQuestion).toContain('reservation.status === "responded"');
+    expect(groupPublicQuestion).toContain('reservation.status !== "pending"');
+    expect(groupPublicQuestion.indexOf("reserveLineOutgoingAudit")).toBeLessThan(
+      groupPublicQuestion.indexOf("await pushMessage("),
+    );
+    expect(groupPublicQuestion).toContain("個人情報は、このグループには送らないでください");
+    expect(groupPublicQuestion).toContain("自動サポートを利用しています");
+    expect(groupPublicQuestion).not.toContain("invokeLLM");
+    expect(groupPublicQuestion).not.toContain("— 高橋 悠真");
+  });
+
   it("continuously analyzes every eligible group while keeping actual sending guarded", () => {
     expect(manager).toContain("LINE_GROUP_INSIGHT_SWEEP_MS = 5 * 60 * 1000");
     expect(manager).toContain("LINE_GROUP_INSIGHT_COOLDOWN_MS = 15 * 60 * 1000");
@@ -234,7 +266,8 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(groupFollowUp).toContain("requiresAiSuggestion && !aiSuggestion");
     expect(groupFollowUp).toContain("skippedAwaitingAi");
     expect(groupFollowUp).toContain("withLineGroupFollowUpClaim");
-    expect(groupFollowUp).toContain("const message = signGroupFollowUpMessage(rawMessage)");
+    expect(groupFollowUp).toContain("const message = normalizeGroupFollowUpMessage(rawMessage)");
+    expect(groupFollowUp).not.toContain("LCJの${LINE_PUBLIC_CONTACT_NAME}です");
     expect(groupFollowUp).toContain('expectedMode = requiresAiSuggestion ? "ai" as const : "fixed" as const');
     expect(groupFollowUp).toContain("const senderName = LINE_PUBLIC_CONTACT_NAME");
     expect(manager).toContain("insight.latestMessageAt !== currentConversation.latestMessageAt");
@@ -373,18 +406,20 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(manager).toContain("LINE_GROUP_DRAFT_COOLDOWN_MS = 30 * 1000");
   });
 
-  it("uses the exact public name while preserving honest automation and safe relationship language", () => {
+  it("uses the LINE display name without repeating a body signature while preserving honest automation", () => {
     expect(manager).toContain("人間としての経験・感情・行動を捏造しない");
     expect(manager).toContain("AIまたは自動応答か尋ねられた場合");
     expect(manager).toContain("恋愛関係や依存を誘う表現");
-    expect(manager).toContain("LINE_PUBLIC_CONTACT_SIGNATURE");
+    expect(manager).toContain("返信本文には氏名・肩書・署名を付けない");
     expect(manager).not.toContain("— LCJ公式AIマネージャー");
-    expect(ui).toContain("LINE_PUBLIC_CONTACT_SIGNATURE");
+    expect(linePublicIdentity).toContain("stripLinePublicSignature");
+    expect(linePublicIdentity).not.toContain("LINE_PUBLIC_CONTACT_SIGNATURE");
     const manualTemplates = ui.slice(
       ui.indexOf("const GROUP_MANUAL_MESSAGE_TEMPLATES"),
       ui.indexOf("type GroupManualMessageTemplateKey"),
     );
-    expect(manualTemplates.match(/LINE_PUBLIC_CONTACT_SIGNATURE/g)).toHaveLength(6);
+    expect(manualTemplates).not.toContain("LINE_PUBLIC_CONTACT_SIGNATURE");
+    expect(manualTemplates).not.toContain("— 高橋 悠真");
     expect(manualTemplates).not.toContain("LCJ公式AIマネージャー");
     expect(manager).toContain("根拠のない称賛");
     expect(manager).toContain("maxTokens: 1_200");
@@ -537,10 +572,12 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(router).toContain("await sdb.transaction(async tx =>");
     expect(router).toContain('["line-management-manual", input.to, requestId]');
     expect(router).toContain("senderName: LINE_PUBLIC_CONTACT_NAME");
+    expect(router).toContain("const message = stripLinePublicSignature(input.message)");
+    expect(router).toContain("LINE_MESSAGE_EMPTY_AFTER_SIGNATURE_REMOVAL");
     expect(agent).toContain("senderName: LINE_PUBLIC_CONTACT_NAME");
-    expect(agent).toContain("signLineCommandReply(await getPointsHistoryMessage(userId))");
-    expect(agent).toContain("signLineCommandReply(await getReminderListMessage(userId))");
-    expect(agent).toContain("const reminderMessage = signLineCommandReply(result.message)");
+    expect(agent).toContain("normalizeLineCommandReply(await getPointsHistoryMessage(userId))");
+    expect(agent).toContain("normalizeLineCommandReply(await getReminderListMessage(userId))");
+    expect(agent).toContain("const reminderMessage = normalizeLineCommandReply(result.message)");
     expect(groupFollowUp).toContain("const senderName = LINE_PUBLIC_CONTACT_NAME");
     expect(db).toContain("COALESCE(${lineMessages.lineTimestamp}, UNIX_TIMESTAMP(${lineMessages.createdAt}) * 1000)");
   });

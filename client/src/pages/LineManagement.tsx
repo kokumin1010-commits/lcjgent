@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { sortLineMessagesChronologically } from "@shared/lineMessageHistory";
-import { LINE_PUBLIC_CONTACT_NAME, LINE_PUBLIC_CONTACT_SIGNATURE } from "@shared/linePublicIdentity";
+import { LINE_PUBLIC_CONTACT_NAME } from "@shared/linePublicIdentity";
 
 type LineUser = {
   id: number;
@@ -37,16 +37,16 @@ type LineUser = {
 
 const GROUP_MANUAL_MESSAGE_TEMPLATES = {
   greeting: {
-    ja: `皆さま、はじめまして！\nこれからブランド「{{brandName}}」のご案内・サポートを担当するLCJの${LINE_PUBLIC_CONTACT_NAME}です。\n今後の商品案内やご連絡のため、差し支えなければ以下を教えてください。\n・TikTokのアカウント名／ID\n・お呼びする際のお名前（ニックネームでも大丈夫です）\n・主な配信または動画投稿のジャンル\nこちらを教えていただけますでしょうか？\nどうぞよろしくお願いいたします！\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`,
-    zh: `大家好，初次见面！\n我是LCJ的${LINE_PUBLIC_CONTACT_NAME}，今后负责品牌“{{brandName}}”的商品介绍和相关支持。\n为了之后方便联系和为您推荐商品，如果方便的话，请告诉我们以下信息。\n・TikTok账号名／ID\n・希望我们如何称呼您（昵称也可以）\n・主要直播或发布视频的领域\n今后请多关照！\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`,
+    ja: `皆さま、はじめまして！\nこれからブランド「{{brandName}}」のご案内・サポートを担当するLCJの${LINE_PUBLIC_CONTACT_NAME}です。\n今後の商品案内やご連絡のため、差し支えなければ以下を教えてください。\n・TikTokのアカウント名／ID\n・お呼びする際のお名前（ニックネームでも大丈夫です）\n・主な配信または動画投稿のジャンル\nこちらを教えていただけますでしょうか？\nどうぞよろしくお願いいたします！`,
+    zh: `大家好，初次见面！\n我是LCJ的${LINE_PUBLIC_CONTACT_NAME}，今后负责品牌“{{brandName}}”的商品介绍和相关支持。\n为了之后方便联系和为您推荐商品，如果方便的话，请告诉我们以下信息。\n・TikTok账号名／ID\n・希望我们如何称呼您（昵称也可以）\n・主要直播或发布视频的领域\n今后请多关照！`,
   },
   sample: {
-    ja: `お世話になっております。\nブランド「{{brandName}}」の商品について、現在お手元にあるサンプルや、特に興味のある商品はございますでしょうか。\nご希望の商品があれば、在庫・提供可否・条件を確認してご案内いたします。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`,
-    zh: `您好。\n关于品牌“{{brandName}}”的商品，请问您目前手上有哪些样品，或对哪些商品特别感兴趣？\n如有希望了解的商品，我们会先确认库存、提供条件及可否，再为您说明。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`,
+    ja: `お世話になっております。\nブランド「{{brandName}}」の商品について、現在お手元にあるサンプルや、特に興味のある商品はございますでしょうか。\nご希望の商品があれば、在庫・提供可否・条件を確認してご案内いたします。`,
+    zh: `您好。\n关于品牌“{{brandName}}”的商品，请问您目前手上有哪些样品，或对哪些商品特别感兴趣？\n如有希望了解的商品，我们会先确认库存、提供条件及可否，再为您说明。`,
   },
   livestream: {
-    ja: `お世話になっております。\nブランド「{{brandName}}」の商品をご紹介いただける配信や動画投稿のご予定はございますでしょうか。\n配信時期・紹介したい商品・希望条件など、決まっている範囲でお知らせいただければ、こちらで合う商品や進め方を整理いたします。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`,
-    zh: `您好。\n请问您接下来有介绍品牌“{{brandName}}”商品的直播或视频发布计划吗？\n如果方便，请把大致时间、想介绍的商品和希望条件告诉我们，我们会协助整理适合的商品和推进方式。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`,
+    ja: `お世話になっております。\nブランド「{{brandName}}」の商品をご紹介いただける配信や動画投稿のご予定はございますでしょうか。\n配信時期・紹介したい商品・希望条件など、決まっている範囲でお知らせいただければ、こちらで合う商品や進め方を整理いたします。`,
+    zh: `您好。\n请问您接下来有介绍品牌“{{brandName}}”商品的直播或视频发布计划吗？\n如果方便，请把大致时间、想介绍的商品和希望条件告诉我们，我们会协助整理适合的商品和推进方式。`,
   },
 } as const;
 
@@ -902,7 +902,7 @@ export default function LineManagement() {
                       </Badge>
                     </div>
                     <p className="mt-1 max-w-3xl text-sm text-slate-600">
-                      LINE連携済みライブコマーサー本人のDMへ、{LINE_PUBLIC_CONTACT_NAME}名義で自然な文体の自動返信を行います。公式LINEが参加中のグループでは、連携済み本人が毎回明示的に@LCJした時だけ返信し、DM・グループ双方の連絡履歴と実行結果を各人ごとに保存します。継続フォローは各ライブコマーサーで有効化後に全自動です。一般顧客への自動返信は停止したままです。
+                      LINE連携済みライブコマーサー本人のDMへ、{LINE_PUBLIC_CONTACT_NAME}名義で自然な文体の自動返信を行います。公式LINEが参加中のグループでは、通常返信は連携済み本人が毎回明示的に@LCJした時だけ行います。未連携の参加者には、@LCJ付きのサンプル・取引条件・自動応答に関する質問だけ、安全な定型文で回答します。DM・グループ双方の連絡履歴と実行結果を各人ごとに保存します。継続フォローは各ライブコマーサーで有効化後に全自動です。一般顧客への無条件な自動返信は停止したままです。
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
                       本人はLINEで「自動返信停止／自動返信再開」「フォロー停止／フォロー再開」と送るだけで設定を変更できます。従来の「AI停止／AI再開」も利用できます。
@@ -2254,8 +2254,8 @@ export default function LineManagement() {
               </p>
               <p className="mt-1 leading-relaxed">
                 {language === "ja"
-                  ? `LCJ公式アカウントが新規・再参加すると、「${LINE_PUBLIC_CONTACT_NAME}」名義でグループ名「${selectedGroup?.groupName || "未設定"}」をブランド名とした初回案内を送ります。自動サポート利用の注記は初回に1行だけ表示し、@LCJなしの応答は最初の確認2回までです。以後は必ず @LCJ を付けてください。`
-                  : `LCJ官方账号新加入或重新加入时，会以“${LINE_PUBLIC_CONTACT_NAME}”的名义，把群名“${selectedGroup?.groupName || "未设置"}”作为品牌名发送首次问候。自动支持说明只在首次显示一行；无需@LCJ的回复最多限最初2次，之后请务必添加 @LCJ。`}
+                  ? `LCJ公式アカウントが新規・再参加すると、「${LINE_PUBLIC_CONTACT_NAME}」名義でグループ名「${selectedGroup?.groupName || "未設定"}」をブランド名とした初回案内を送ります。自動サポート利用の注記は初回に1行だけ表示し、@LCJなしの応答は最初の確認2回までです。以後は必ず @LCJ を付けてください。未連携の参加者でも、サンプル・取引条件・自動応答に関する明示質問には安全な定型文で回答します。`
+                  : `LCJ官方账号新加入或重新加入时，会以“${LINE_PUBLIC_CONTACT_NAME}”的名义，把群名“${selectedGroup?.groupName || "未设置"}”作为品牌名发送首次问候。自动支持说明只在首次显示一行；无需@LCJ的回复最多限最初2次，之后请务必添加 @LCJ。即使参与者尚未绑定账号，带@LCJ的样品、合作条件或自动回复相关问题也会得到安全的固定答复。`}
               </p>
             </div>
             <div className="rounded-lg border border-sky-200 bg-sky-50/80 p-3 dark:border-sky-900 dark:bg-sky-950/20">

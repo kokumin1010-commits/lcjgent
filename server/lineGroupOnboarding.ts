@@ -10,7 +10,6 @@ import { createLineRetryKey } from "./lineRetryKey";
 import {
   LINE_INITIAL_AUTOMATION_NOTICE,
   LINE_PUBLIC_CONTACT_NAME,
-  LINE_PUBLIC_CONTACT_SIGNATURE,
 } from "../shared/linePublicIdentity";
 
 const ONBOARDING_VERSION = "group_onboarding_v1";
@@ -48,6 +47,7 @@ type ContinueOnboardingParams = {
   lineUserId: string;
   text: string;
   eventTimestamp: number;
+  isExplicitMention?: boolean;
 };
 
 type LineGroupOnboardingDb = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -96,7 +96,6 @@ export function composeLineGroupOnboardingGreeting(brandName: string): string {
     "どうぞよろしくお願いいたします！",
     "",
     LINE_INITIAL_AUTOMATION_NOTICE,
-    LINE_PUBLIC_CONTACT_SIGNATURE,
   ].join("\n");
 }
 
@@ -121,30 +120,30 @@ export function composeLineGroupOnboardingReply(
   if (currentStatus === "awaiting_profile") {
     if (signals.hasSample && signals.hasSchedule) {
       return {
-        replyText: `ありがとうございます！サンプル状況と配信・動画投稿のご予定を確認しました。\n内容をもとに、紹介しやすい商品や進め方をLCJ側で整理します。具体的な条件や可否は確認後にご案内いたします。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`,
+        replyText: "ありがとうございます！サンプル状況と配信・動画投稿のご予定を確認しました。\n内容をもとに、紹介しやすい商品や進め方をLCJ側で整理します。具体的な条件や可否は確認後にご案内いたします。",
         nextStatus: "completed",
       };
     }
     return {
-      replyText: `ありがとうございます！内容を確認しました。\n続けて、現在お手元にあるサンプルや興味のある商品、配信・動画投稿の予定時期があれば、決まっている範囲で教えてください。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`,
+      replyText: "ありがとうございます！内容を確認しました。\n続けて、現在お手元にあるサンプルや興味のある商品、配信・動画投稿の予定時期があれば、決まっている範囲で教えてください。",
       nextStatus: "awaiting_preferences",
     };
   }
 
   if (signals.hasSample && !signals.hasSchedule) {
     return {
-      replyText: `サンプル状況を教えていただき、ありがとうございます！内容を保存しました。\n今後、配信や動画投稿の予定時期を追加でお知らせいただく場合は、@LCJを付けてご連絡ください。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`,
+      replyText: "サンプル状況を教えていただき、ありがとうございます！内容を保存しました。\n今後、配信や動画投稿の予定時期を追加でお知らせいただく場合は、@LCJを付けてご連絡ください。",
       nextStatus: "completed",
     };
   }
   if (signals.hasSchedule && !signals.hasSample) {
     return {
-      replyText: `配信・動画投稿のご予定を教えていただき、ありがとうございます！内容を保存しました。\n今後、サンプル状況や興味のある商品を追加でお知らせいただく場合は、@LCJを付けてご連絡ください。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`,
+      replyText: "配信・動画投稿のご予定を教えていただき、ありがとうございます！内容を保存しました。\n今後、サンプル状況や興味のある商品を追加でお知らせいただく場合は、@LCJを付けてご連絡ください。",
       nextStatus: "completed",
     };
   }
   return {
-    replyText: `ありがとうございます！内容を保存しました。\n紹介しやすい商品や進め方をLCJ側で整理します。具体的な条件や可否は確認後にご案内いたします。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`,
+    replyText: "ありがとうございます！内容を保存しました。\n紹介しやすい商品や進め方をLCJ側で整理します。具体的な条件や可否は確認後にご案内いたします。",
     nextStatus: "completed",
   };
 }
@@ -155,6 +154,10 @@ function buildIntroAuditMessageId(joinEventId: string): string {
 
 function buildReplyAuditMessageId(sourceMessageId: string): string {
   return `line:onboard:r:${createLineRetryKey(sourceMessageId)}`;
+}
+
+function onboardingDeliveryRetryKey(auditMessageId: string): string {
+  return createLineRetryKey(`line-group-onboarding:${auditMessageId}`);
 }
 
 async function prepareJoinUsingDb(
@@ -456,7 +459,7 @@ async function deliverPendingOnboarding(
   const sent = await pushMessage(
     delivery.lineGroupId,
     [{ type: "text", text: delivery.replyText }],
-    createLineRetryKey(`line-group-onboarding:${delivery.auditMessageId}`),
+    onboardingDeliveryRetryKey(delivery.auditMessageId),
   );
   if (!sent) throw new Error("LINE_GROUP_ONBOARDING_DELIVERY_FAILED");
   await finalizeLineOutgoingAudit(
@@ -584,6 +587,10 @@ export async function beginLineGroupOnboarding(params: BeginOnboardingParams): P
 }
 
 export async function continueLineGroupOnboarding(params: ContinueOnboardingParams): Promise<boolean> {
+  if (params.isExplicitMention) {
+    const { classifyLineGroupPublicQuestion } = await import("./lineGroupPublicQuestion");
+    if (classifyLineGroupPublicQuestion(params.text)) return false;
+  }
   const db = await getDb();
   if (!db) throw new Error("LINE_GROUP_ONBOARDING_DB_UNAVAILABLE");
   const delivery = await prepareReplyUsingDb(db, params);
@@ -598,4 +605,5 @@ export const __lineGroupOnboardingTestUtils = {
   prepareReplyUsingDb,
   readPendingDeliveryUsingDb,
   completeDeliveryUsingDb,
+  deliverPendingOnboarding,
 };

@@ -21,7 +21,7 @@ const {
   isLineGroupInsightCurrent,
   reserveLineGroupDraftAuditWithDb,
   parseAiManagerReply,
-  signLinePublicContactReply,
+  normalizeLinePublicContactReply,
   parseAiManagerPreferenceCommand,
   getAiManagerPreferenceResponse,
   isWithinAiManagerHours,
@@ -39,34 +39,34 @@ describe("LCJ LINE AI manager", () => {
     expect(normalizeTikTokUsername(null)).toBeNull();
   });
 
-  it("always signs the public reply as 高橋 悠真", () => {
+  it("keeps the public reply unsigned because LINE already displays the account name", () => {
     const parsed = parseAiManagerReply(JSON.stringify({
       reply: "今日も配信準備を進められていて素敵です。次は配信予定日を教えてください。",
       intent: "配信予定確認",
       nextAction: "配信予定日を確認する",
     }));
-    expect(parsed.reply).toContain("— 高橋 悠真");
+    expect(parsed.reply).not.toContain("高橋 悠真");
     expect(parsed.reply).not.toContain("LCJ公式AIマネージャー");
     expect(parsed.intent).toBe("配信予定確認");
   });
 
-  it("replaces a queued legacy AI signature without duplicating the public name", () => {
+  it("removes a queued legacy AI signature", () => {
     const parsed = parseAiManagerReply(JSON.stringify({
       reply: "ありがとうございます。\n— LCJ公式AIマネージャー",
       intent: "感謝",
       nextAction: "会話を継続する",
     }));
-    expect(parsed.reply.match(/高橋 悠真/g)).toHaveLength(1);
+    expect(parsed.reply).toBe("ありがとうございます。");
     expect(parsed.reply).not.toContain("LCJ公式AIマネージャー");
   });
 
-  it("keeps the public name exact and supports natural auto-reply controls", () => {
-    expect(signLinePublicContactReply("ありがとうございます。\n\n— 高橋 悠真"))
-      .toBe("ありがとうございます。\n\n— 高橋 悠真");
+  it("removes the public signature and supports natural auto-reply controls", () => {
+    expect(normalizeLinePublicContactReply("ありがとうございます。\n\n— 高橋 悠真"))
+      .toBe("ありがとうございます。");
     expect(parseAiManagerPreferenceCommand("自動返信停止")).toBe("ai停止");
     expect(parseAiManagerPreferenceCommand("自動返信再開")).toBe("ai再開");
     expect(getAiManagerPreferenceResponse("ai停止")).toContain("自動返信再開");
-    expect(getAiManagerPreferenceResponse("ai停止")).toContain("— 高橋 悠真");
+    expect(getAiManagerPreferenceResponse("ai停止")).not.toContain("高橋 悠真");
   });
 
   it("limits proactive delivery to weekday daytime in Japan", () => {
@@ -300,7 +300,7 @@ describe("LCJ LINE AI manager", () => {
     });
     expect(message).not.toContain("非公開商品B");
     expect(message).toContain("公開商品A");
-    expect(message).toContain("— 高橋 悠真");
+    expect(message).not.toContain("高橋 悠真");
   });
 
   it("changes immutable draft revisions when settings, insights, or published products change", () => {

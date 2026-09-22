@@ -4234,6 +4234,12 @@ export type LineOutgoingAuditReservation = {
   content: string;
   lineTimestamp: number;
   pendingSummary: string;
+  rateLimit?: {
+    messageIdPrefix: string;
+    windowMs: number;
+    maxCount: number;
+    errorCode: string;
+  };
 };
 
 type LineOutgoingAuditDb = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -4245,6 +4251,41 @@ async function reserveLineOutgoingAuditWithDb(
   return db.transaction(async tx => {
     if (reservation.lineGroupId) {
       await lockLineGroupConversationUsingExecutor(tx, reservation.lineGroupId);
+    }
+    if (reservation.rateLimit) {
+      if (!reservation.lineGroupId || !reservation.lineUserId) {
+        throw new Error("LINE_OUTBOUND_RATE_LIMIT_SCOPE_INVALID");
+      }
+      const rateLimitWindowMs = Number(reservation.rateLimit.windowMs);
+      const rateLimitMaxCount = Math.floor(Number(reservation.rateLimit.maxCount));
+      if (
+        !reservation.rateLimit.messageIdPrefix ||
+        !Number.isFinite(rateLimitWindowMs) ||
+        rateLimitWindowMs <= 0 ||
+        !Number.isFinite(rateLimitMaxCount) ||
+        rateLimitMaxCount <= 0
+      ) {
+        throw new Error("LINE_OUTBOUND_RATE_LIMIT_CONFIG_INVALID");
+      }
+      const rateLimitResult = await tx.execute(sql`
+        SELECT COUNT(*) AS total
+        FROM line_messages
+        WHERE lineGroupId = ${reservation.lineGroupId}
+          AND lineUserId = ${reservation.lineUserId}
+          AND messageId LIKE ${`${reservation.rateLimit.messageIdPrefix}%`}
+          AND messageId <> ${reservation.messageId}
+          AND COALESCE(lineTimestamp, UNIX_TIMESTAMP(createdAt) * 1000)
+            >= (UNIX_TIMESTAMP(CURRENT_TIMESTAMP) * 1000 - ${rateLimitWindowMs})
+      `);
+      const rateLimitRows = Array.isArray(rateLimitResult) && Array.isArray(rateLimitResult[0])
+        ? rateLimitResult[0]
+        : rateLimitResult;
+      const rateLimitRow = Array.isArray(rateLimitRows) ? rateLimitRows[0] as { total?: number | string } : null;
+      if (Number(rateLimitRow?.total || 0) >= rateLimitMaxCount) {
+        const error = new Error(reservation.rateLimit.errorCode);
+        (error as Error & { code?: string }).code = reservation.rateLimit.errorCode;
+        throw error;
+      }
     }
     try {
       await tx.insert(lineMessages).values({

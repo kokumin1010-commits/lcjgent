@@ -103,7 +103,7 @@ describe("LINE group onboarding", () => {
     expect(greeting).toContain("@LCJを付けずそのまま送っていただけます");
     expect(greeting).toContain("LCJの高橋 悠真です");
     expect(greeting).toContain("初回のご案内と確認には自動サポートを利用しています");
-    expect(greeting).toContain("— 高橋 悠真");
+    expect(greeting).not.toContain("— 高橋 悠真");
     expect(greeting).not.toContain("LCJ公式AIマネージャー");
   });
 
@@ -321,7 +321,7 @@ describe("LINE group onboarding", () => {
     );
     expect(mocks.pushMessage).toHaveBeenCalledWith(
       GROUP_ID,
-      [{ type: "text", text: expect.stringContaining("— 高橋 悠真") }],
+      [{ type: "text", text: expect.not.stringContaining("— 高橋 悠真") }],
       expect.stringMatching(/^[0-9a-f-]{36}$/),
     );
     expect(mocks.finalizeLineOutgoingAudit).toHaveBeenCalledWith(
@@ -384,6 +384,21 @@ describe("LINE group onboarding", () => {
       auditMessageId,
       "LINEグループ初回会話応答送信済み",
     );
+  });
+
+  it("defers an explicit sample question to the dedicated safe question responder", async () => {
+    await expect(continueLineGroupOnboarding({
+      lineGroupId: GROUP_ID,
+      sourceMessageId: "explicit-sample-question",
+      lineUserId: "unlinked-user-1",
+      text: "@LCJ サンプルを送っていただくことは可能でしょうか？",
+      eventTimestamp: JOIN_EVENT_AT,
+      isExplicitMention: true,
+    })).resolves.toBe(false);
+
+    expect(mocks.getDb).not.toHaveBeenCalled();
+    expect(mocks.reserveLineOutgoingAudit).not.toHaveBeenCalled();
+    expect(mocks.pushMessage).not.toHaveBeenCalled();
   });
 
   it.each(["cancelled", "none"] as const)("never sends a terminal %s onboarding audit", async status => {
@@ -502,6 +517,59 @@ describe("LINE group onboarding", () => {
     await expect(beginLineGroupOnboarding(payload)).resolves.toBe(true);
     expect(mocks.pushMessage).toHaveBeenCalledTimes(2);
     expect(mocks.pushMessage.mock.calls[0][2]).toBe(mocks.pushMessage.mock.calls[1][2]);
+    expect(mocks.pushMessage.mock.calls[1][1][0].text).not.toContain("— 高橋 悠真");
+    expect(auditMessageId).not.toMatch(/:u$/);
+  });
+
+  it("retries a legacy signed pending audit with the exact immutable body and audit ID", async () => {
+    const legacyAuditMessageId = "line:onboard:r:legacy-signed-pending";
+    const legacyReplyText = "保存済みの旧onboarding返信\n\n— 高橋 悠真";
+    const delivery = {
+      lineGroupId: GROUP_ID,
+      sourceMessageId: "legacy-source-message",
+      auditMessageId: legacyAuditMessageId,
+      replyText: legacyReplyText,
+      nextStatus: "completed" as const,
+      isIntro: false,
+    };
+    const db = {
+      execute: vi.fn().mockResolvedValue([[{
+        isActive: 1,
+        autoReplyEnabled: 1,
+        ...ACTIVE_ONBOARDING_LIFECYCLE,
+        pendingAuditMessageId: legacyAuditMessageId,
+      }], []]),
+      transaction: vi.fn(async (callback: any) => callback({
+        execute: vi.fn().mockResolvedValue([{ affectedRows: 1 }, []]),
+      })),
+    };
+    mocks.reserveLineOutgoingAudit.mockResolvedValue({ created: false, status: "pending" });
+    mocks.finalizeLineOutgoingAudit
+      .mockRejectedValueOnce(new Error("audit unavailable"))
+      .mockResolvedValueOnce(undefined);
+
+    await expect(
+      __lineGroupOnboardingTestUtils.deliverPendingOnboarding(db as any, delivery),
+    ).rejects.toThrow("audit unavailable");
+    await expect(
+      __lineGroupOnboardingTestUtils.deliverPendingOnboarding(db as any, delivery),
+    ).resolves.toBe(true);
+
+    expect(mocks.reserveLineOutgoingAudit).toHaveBeenCalledTimes(2);
+    for (const [reservation] of mocks.reserveLineOutgoingAudit.mock.calls) {
+      expect(reservation).toEqual(expect.objectContaining({
+        messageId: legacyAuditMessageId,
+        content: legacyReplyText,
+      }));
+    }
+    expect(mocks.pushMessage).toHaveBeenCalledTimes(2);
+    expect(mocks.pushMessage.mock.calls[0][1][0].text).toBe(legacyReplyText);
+    expect(mocks.pushMessage.mock.calls[1][1][0].text).toBe(legacyReplyText);
+    expect(mocks.pushMessage.mock.calls[0][2]).toBe(mocks.pushMessage.mock.calls[1][2]);
+    expect(mocks.finalizeLineOutgoingAudit).toHaveBeenLastCalledWith(
+      legacyAuditMessageId,
+      "LINEグループ初回会話応答送信済み",
+    );
   });
 
   it("autonomously recovers a durable pending onboarding delivery", async () => {

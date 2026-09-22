@@ -21,7 +21,7 @@ import {
 } from "./db";
 import { pushMessage } from "./line";
 import { createLineRetryKey } from "./lineRetryKey";
-import { LINE_PUBLIC_CONTACT_NAME, LINE_PUBLIC_CONTACT_SIGNATURE } from "../shared/linePublicIdentity";
+import { LINE_PUBLIC_CONTACT_NAME, stripLinePublicSignature } from "../shared/linePublicIdentity";
 
 const AI_MANAGER_MODEL = "gpt-5-mini";
 const AI_MANAGER_ENABLED = process.env.LINE_AI_MANAGER_ENABLED !== "false";
@@ -386,20 +386,20 @@ function parseAiManagerReply(content: unknown): AiManagerReply {
   const reply = String(parsed.reply || "").trim().slice(0, AI_MANAGER_MAX_REPLY_CHARS);
   if (!reply) throw new Error("AI manager returned an empty reply");
   return {
-    reply: signLinePublicContactReply(reply),
+    reply: normalizeLinePublicContactReply(reply),
     intent: String(parsed.intent || "conversation").trim().slice(0, 100),
     nextAction: String(parsed.nextAction || "会話を継続する").trim().slice(0, 1_000),
   };
 }
 
-function signLinePublicContactReply(text: string): string {
-  const withoutLegacySignature = String(text || "")
-    .replace(/\n{0,2}—\s*(?:LCJ公式AIマネージャー|高橋\s*悠真)\s*$/u, "")
-    .trim();
-  const maxBodyLength = AI_MANAGER_MAX_REPLY_CHARS - LINE_PUBLIC_CONTACT_SIGNATURE.length - 2;
-  const body = withoutLegacySignature.slice(0, maxBodyLength).trim();
+function normalizeLinePublicContactReply(text: string): string {
+  const body = stripLinePublicSignature(text).slice(0, AI_MANAGER_MAX_REPLY_CHARS).trim();
   if (!body) throw new Error("AI manager returned an empty reply");
-  return `${body}\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`;
+  return body;
+}
+
+export function isLineAiManagerRuntimeEnabled(): boolean {
+  return AI_MANAGER_ENABLED;
 }
 
 async function ensureDefaultSetting(target: { lineUserId: string; liverId: number }) {
@@ -1058,7 +1058,6 @@ function composeLineGroupMessageDraft(params: {
   if (params.validatedProductName) {
     parts.push(`公開中のLCM商品候補として「${sanitizeForAi(params.validatedProductName, 200)}」も、今回のお話に合いそうです。`);
   }
-  parts.push(LINE_PUBLIC_CONTACT_SIGNATURE);
   return parts.filter(Boolean).join("\n\n").slice(0, 600);
 }
 
@@ -1506,8 +1505,8 @@ export async function analyzeLineGroupConversation(
         primarySignal?.label === "配信後の振り返り" ? "良かった点と次回改善したい点を1つずつ確認する" :
           "配信準備で困っていることを1つ確認する";
   const suggestedMessage = primarySignal?.label === "配信日程" ?
-    `いつもありがとうございます。次回の配信予定が決まっていましたら、無理のない範囲で教えてください。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}` :
-    `いつもありがとうございます。配信準備で困っていることがあれば、こちらで一緒に整理します。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`;
+    "いつもありがとうございます。次回の配信予定が決まっていましたら、無理のない範囲で教えてください。" :
+    "いつもありがとうございます。配信準備で困っていることがあれば、こちらで一緒に整理します。";
   const insight: LineGroupAiInsight = {
     groupName: groupContext.groupName,
     summary: topics.length > 0
@@ -1749,7 +1748,7 @@ async function generateAiManagerReply(params: {
 
 絶対ルール:
 - 人間としての経験・感情・行動を捏造しない。AIまたは自動応答か尋ねられた場合は、自動サポートを利用していると正直に答える。
-- 通常文面ではAI・システム・自動生成を繰り返し強調せず、自然で簡潔な担当者トーンにする。返信末尾の署名は必ず「${LINE_PUBLIC_CONTACT_SIGNATURE}」だけにする。
+- 通常文面ではAI・システム・自動生成を繰り返し強調せず、自然で簡潔な担当者トーンにする。LINEの表示名で担当者名が見えるため、返信本文には氏名・肩書・署名を付けない。
 - 恋愛関係や依存を誘う表現、性的表現、独占的表現、過度な迎合をしない。
 - 根拠のない称賛、投稿を見たという虚偽、売上・在庫・発送・報酬・契約の断定をしない。
 - 医療、法律、投資、個人情報、安全に関わる内容は断定せず、確認できる事実と安全な次の操作だけ示す。
@@ -1836,7 +1835,7 @@ async function persistOutboundAuditIntent(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   if (!event.responseText) throw new Error("AI response text is unavailable");
-  const publicResponseText = signLinePublicContactReply(event.responseText);
+  const publicResponseText = normalizeLinePublicContactReply(event.responseText);
 
   let lineGroupId: string | null = null;
   if (event.sourceMessageId) {
@@ -1879,7 +1878,7 @@ async function persistOutboundAuditAndFinalize(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   if (!event.responseText) throw new Error("AI response text is unavailable");
-  const publicResponseText = signLinePublicContactReply(event.responseText);
+  const publicResponseText = normalizeLinePublicContactReply(event.responseText);
   const target = targetOverride || await getAiManagerTarget(event.lineUserId);
   await persistOutboundAuditIntent(event);
 
@@ -1992,12 +1991,12 @@ function getAiManagerPreferenceResponse(
   const startsAll = command === "ai再開";
   const stopsFollowUp = command === "フォロー停止";
   return stopsAll
-    ? `自動返信と継続フォローを停止しました。再開するときは「自動返信再開」と送ってください。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`
+    ? "自動返信と継続フォローを停止しました。再開するときは「自動返信再開」と送ってください。"
     : startsAll
-      ? `自動返信を再開しました。継続フォローは必要な場合のみ管理設定から有効になります。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`
+      ? "自動返信を再開しました。継続フォローは必要な場合のみ管理設定から有効になります。"
       : stopsFollowUp
-        ? `継続フォローを停止しました。通常のご質問には引き続きこちらでお返事します。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`
-        : `継続フォローを再開しました。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`;
+        ? "継続フォローを停止しました。通常のご質問には引き続きこちらでお返事します。"
+        : "継続フォローを再開しました。";
 }
 
 async function processAiManagerEvent(eventId: number): Promise<void> {
@@ -2086,8 +2085,8 @@ async function processAiManagerEvent(eventId: number): Promise<void> {
       const errorCode = compactErrorCode(error);
       decision = {
         reply: queuedEvent.triggerType === "inactivity_follow_up"
-          ? `こんにちは。最近の配信準備はいかがですか？配信日程・商品選び・サンプル確認のうち、今いちばん進めたいものを一つ教えてください。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`
-          : `メッセージありがとうございます。内容は受け取りました。今いちばん進めたいのは、配信日程・商品選び・サンプル確認のどれですか？一つずつ一緒に整理します。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`,
+          ? "こんにちは。最近の配信準備はいかがですか？配信日程・商品選び・サンプル確認のうち、今いちばん進めたいものを一つ教えてください。"
+          : "メッセージありがとうございます。内容は受け取りました。今いちばん進めたいのは、配信日程・商品選び・サンプル確認のどれですか？一つずつ一緒に整理します。",
         intent: queuedEvent.triggerType === "inactivity_follow_up" ? "継続フォロー" : "確認質問",
         nextAction: "本人が進めたい項目を確認する",
       };
@@ -2103,7 +2102,7 @@ async function processAiManagerEvent(eventId: number): Promise<void> {
   }
 
   if (!decision) return;
-  decision = { ...decision, reply: signLinePublicContactReply(decision.reply) };
+  decision = { ...decision, reply: normalizeLinePublicContactReply(decision.reply) };
   const sendingLease = await acquireAiManagerEventLease(eventId, ["ready"], "sending");
   if (!sendingLease) return;
   const latestTarget = await getAiManagerTarget(queuedEvent.lineUserId);
@@ -3283,7 +3282,7 @@ export const __lineAiManagerTestUtils = {
   isLineGroupInsightCurrent,
   reserveLineGroupDraftAuditWithDb,
   parseAiManagerReply,
-  signLinePublicContactReply,
+  normalizeLinePublicContactReply,
   parseAiManagerPreferenceCommand,
   getAiManagerPreferenceResponse,
   isWithinAiManagerHours,

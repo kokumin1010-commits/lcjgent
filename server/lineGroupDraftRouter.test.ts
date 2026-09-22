@@ -62,7 +62,7 @@ describe("LINE group AI draft API", () => {
     vi.clearAllMocks();
     state.getLineGroupByLineId.mockResolvedValue({ lineGroupId: groupId, isActive: true });
     state.generateLineGroupMessageDraft.mockResolvedValue({
-      message: "配信準備で困っていることはありますか？\n\n— 高橋 悠真",
+      message: "配信準備で困っていることはありますか？",
       model: "gpt-5-mini",
       sourceMessageCount: 4,
       latestMessageAt: "2026-09-21T00:00:00.000Z",
@@ -76,7 +76,7 @@ describe("LINE group AI draft API", () => {
       currentDraft: "この文章を自然にしてください",
     });
 
-    expect(result.message).toContain("— 高橋 悠真");
+    expect(result.message).not.toContain("— 高橋 悠真");
     expect(state.generateLineGroupMessageDraft).toHaveBeenCalledWith(
       groupId,
       "この文章を自然にしてください",

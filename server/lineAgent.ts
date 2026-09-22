@@ -8,7 +8,7 @@ import {
   updateLineMessageSenderName,
   updateLineUserLastMessage,
 } from "./db";
-import { LINE_PUBLIC_CONTACT_NAME, LINE_PUBLIC_CONTACT_SIGNATURE } from "../shared/linePublicIdentity";
+import { LINE_PUBLIC_CONTACT_NAME, stripLinePublicSignature } from "../shared/linePublicIdentity";
 
 // LINE API configuration
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || "";
@@ -361,10 +361,8 @@ function containsPointsHistoryKeyword(text: string): boolean {
   return POINTS_HISTORY_KEYWORDS.some((keyword) => lowerText.includes(keyword.toLowerCase()));
 }
 
-export function signLineCommandReply(text: string): string {
-  const body = String(text || "").trim();
-  if (!body || body.endsWith(LINE_PUBLIC_CONTACT_SIGNATURE)) return body;
-  return `${body}\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`;
+export function normalizeLineCommandReply(text: string): string {
+  return stripLinePublicSignature(text);
 }
 
 // Beauty Wallet is the only live balance. Never derive a current balance from
@@ -414,6 +412,7 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       lineUserId: userId,
       text: messageText,
       eventTimestamp: event.timestamp,
+      isExplicitMention: true,
     });
     if (handledByOnboarding) {
       console.log("[LINE Agent] Group message handled by bounded onboarding");
@@ -475,12 +474,29 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       } = await import("./lineAiManager");
       const canReply = await canLineAiManagerReplyInGroup(groupId!, userId);
       if (!canReply) {
+        try {
+          const { tryHandleLineGroupPublicQuestion } = await import("./lineGroupPublicQuestion");
+          const handled = await tryHandleLineGroupPublicQuestion({
+            lineGroupId: groupId!,
+            lineUserId: userId,
+            sourceMessageId: event.message.id,
+            text: messageText,
+          });
+          if (handled) {
+            console.log("[LINE Agent] Explicit group question handled by safe public responder");
+            return;
+          }
+        } catch (cause) {
+          const handoffError = new Error("LINE public group-question delivery failed", { cause });
+          handoffError.name = "LineAiManagerHandoffError";
+          throw handoffError;
+        }
         console.log("[LINE Agent] Ignoring ineligible explicit group mention");
         return;
       }
       if (isDirectCommand) {
         await recordLineAiManagerInboundActivity(event, profile?.displayName);
-        const privateCommandMessage = `ポイント履歴の確認やリマインダーの確認・設定は、個人情報保護のためLCJ公式LINEとの1対1トークで送ってください。グループ内では照会・登録を行いません。\n\n${LINE_PUBLIC_CONTACT_SIGNATURE}`;
+        const privateCommandMessage = "ポイント履歴の確認やリマインダーの確認・設定は、個人情報保護のためLCJ公式LINEとの1対1トークで送ってください。グループ内では照会・登録を行いません。";
         if (event.replyToken) {
           try {
             await replyMessage(event.replyToken, [
@@ -513,7 +529,7 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
 
     // Check for points history request
     if (containsPointsHistoryKeyword(messageText)) {
-      const historyMessage = signLineCommandReply(await getPointsHistoryMessage(userId));
+      const historyMessage = normalizeLineCommandReply(await getPointsHistoryMessage(userId));
       
       if (event.replyToken) {
         await replyMessage(event.replyToken, [
@@ -529,7 +545,7 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       // Check if it's a reminder list request
       const lowerText = messageText.toLowerCase();
       if (lowerText.includes("一覧") || lowerText.includes("確認") || lowerText.includes("リスト")) {
-        const listMessage = signLineCommandReply(await getReminderListMessage(userId));
+        const listMessage = normalizeLineCommandReply(await getReminderListMessage(userId));
         if (event.replyToken) {
           await replyMessage(event.replyToken, [
             { type: "text", text: listMessage },
@@ -541,7 +557,7 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
 
       // Try to create a reminder
       const result = await createReminderFromMessage(userId, messageText);
-      const reminderMessage = signLineCommandReply(result.message);
+      const reminderMessage = normalizeLineCommandReply(result.message);
       if (event.replyToken) {
         await replyMessage(event.replyToken, [
           { type: "text", text: reminderMessage },

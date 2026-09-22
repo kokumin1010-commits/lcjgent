@@ -26,7 +26,7 @@ vi.mock("./lineAiManager", () => ({
 }));
 vi.mock("./lineRetryKey", () => ({ createLineRetryKey: mocks.createLineRetryKey }));
 
-import { checkAndSendGroupFollowUps, signGroupFollowUpMessage } from "./groupFollowUpScheduler";
+import { checkAndSendGroupFollowUps, normalizeGroupFollowUpMessage } from "./groupFollowUpScheduler";
 
 const dueGroup = {
   id: 1,
@@ -73,13 +73,13 @@ describe("group follow-up scheduler AI safety", () => {
 
   afterEach(() => vi.useRealTimers());
 
-  it("normalizes unsigned and legacy fixed follow-ups to one 高橋 悠真 signature", () => {
-    expect(signGroupFollowUpMessage("固定文面"))
-      .toBe("固定文面\n\n— 高橋 悠真");
-    expect(signGroupFollowUpMessage("固定文面\n\n— LCJ公式AIマネージャー"))
-      .toBe("固定文面\n\n— 高橋 悠真");
-    expect(signGroupFollowUpMessage("固定文面\n\n— 高橋 悠真"))
-      .toBe("固定文面\n\n— 高橋 悠真");
+  it("keeps follow-ups unsigned and removes queued legacy/current signatures", () => {
+    expect(normalizeGroupFollowUpMessage("固定文面"))
+      .toBe("固定文面");
+    expect(normalizeGroupFollowUpMessage("固定文面\n\n— LCJ公式AIマネージャー"))
+      .toBe("固定文面");
+    expect(normalizeGroupFollowUpMessage("固定文面\n\n— 高橋 悠真"))
+      .toBe("固定文面");
   });
 
   it("does not fall back to a fixed message when AI follow-up is enabled but no current suggestion exists", async () => {
@@ -95,9 +95,10 @@ describe("group follow-up scheduler AI safety", () => {
   });
 
   it("claims, reserves, sends and finalizes a current AI suggestion before committing suppression", async () => {
-    const suggestedMessage = "配信準備で困っている点はありますか？\n\n— 高橋 悠真";
+    const queuedSuggestion = "配信準備で困っている点はありますか？\n\n— 高橋 悠真";
+    const deliveredMessage = "配信準備で困っている点はありますか？";
     mocks.getLineGroupAiInsight.mockResolvedValue({ analysisEnabled: true, proactiveAiEnabled: true, insight: {} });
-    mocks.getLineGroupProactiveSuggestion.mockResolvedValue(suggestedMessage);
+    mocks.getLineGroupProactiveSuggestion.mockResolvedValue(queuedSuggestion);
     mocks.withLineGroupFollowUpClaim.mockImplementation(async (params, deliver) => {
       expect(params).toEqual({
         lineGroupId: dueGroup.lineGroupId,
@@ -115,11 +116,11 @@ describe("group follow-up scheduler AI safety", () => {
     expect(mocks.reserveLineOutgoingAudit).toHaveBeenCalledWith(expect.objectContaining({
       lineGroupId: dueGroup.lineGroupId,
       senderName: "高橋 悠真",
-      content: suggestedMessage,
+      content: deliveredMessage,
     }));
     expect(mocks.pushMessage).toHaveBeenCalledWith(
       dueGroup.lineGroupId,
-      [{ type: "text", text: suggestedMessage }],
+      [{ type: "text", text: deliveredMessage }],
       "00000000-0000-4000-8000-000000000001",
     );
     expect(mocks.finalizeLineOutgoingAudit.mock.invocationCallOrder[0]).toBeLessThan(
@@ -215,7 +216,7 @@ describe("group follow-up scheduler AI safety", () => {
     expect(mocks.getLineGroupProactiveSuggestion).not.toHaveBeenCalled();
     expect(mocks.pushMessage).toHaveBeenCalledWith(
       dueGroup.lineGroupId,
-      [{ type: "text", text: "固定文面\n\n— 高橋 悠真" }],
+      [{ type: "text", text: "固定文面" }],
       expect.any(String),
     );
   });

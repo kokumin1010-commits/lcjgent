@@ -105,6 +105,39 @@ describe("LINE management manual send reliability", () => {
     );
   });
 
+  it("removes a trailing public signature before both audit and LINE delivery", async () => {
+    const caller = appRouter.createCaller(createAdminContext());
+    await caller.line.sendMessage({
+      to: groupId,
+      message: "サンプルの可否を確認します。\n\n— 高橋 悠真",
+      requestId,
+    });
+
+    expect(state.reserveLineOutgoingAudit).toHaveBeenCalledWith(expect.objectContaining({
+      content: "サンプルの可否を確認します。",
+      senderName: "高橋 悠真",
+    }));
+    expect(state.pushMessage).toHaveBeenCalledWith(
+      groupId,
+      [{ type: "text", text: "サンプルの可否を確認します。" }],
+      expect.any(String),
+    );
+  });
+
+  it("rejects a message that contains only a removable signature", async () => {
+    const caller = appRouter.createCaller(createAdminContext());
+    await expect(caller.line.sendMessage({
+      to: groupId,
+      message: "— 高橋 悠真",
+      requestId,
+    })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining("LINE_MESSAGE_EMPTY_AFTER_SIGNATURE_REMOVAL"),
+    });
+    expect(state.reserveLineOutgoingAudit).not.toHaveBeenCalled();
+    expect(state.pushMessage).not.toHaveBeenCalled();
+  });
+
   it("rejects a reused UUID whose immutable target or body conflicts", async () => {
     const conflict = new Error("LINE_OUTBOUND_IDEMPOTENCY_CONFLICT") as Error & { code?: string };
     conflict.code = "LINE_OUTBOUND_IDEMPOTENCY_CONFLICT";
