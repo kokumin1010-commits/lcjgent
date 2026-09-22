@@ -22,6 +22,13 @@ export type UnifiedTaskFeedItem = {
     name: string;
     department: string | null;
   } | null;
+  assignees: Array<{
+    id: number;
+    personKey: string;
+    name: string;
+    department: string | null;
+    status: UnifiedTaskStatus | "blocked";
+  }>;
   createdAt: Date;
   startDate: number;
   deadline: Date | null;
@@ -42,6 +49,13 @@ export type UnifiedTaskFeedItem = {
 type LegacyTaskRow = {
   task: Omit<Task, "completionToken" | "screenshotKey" | "screenshotKeys" | "requestId">;
   staff: { id: number; name: string; department: string | null } | null;
+  assignees?: Array<{
+    id: number;
+    personKey: string;
+    name: string;
+    department: string | null;
+    status: UnifiedTaskStatus | "blocked";
+  }>;
   displayStatus?: UnifiedTaskStatus;
   canEdit?: boolean;
   canSubmitFeedback?: boolean;
@@ -70,7 +84,7 @@ export function buildUnifiedTaskFeed(
   legacyRows: LegacyTaskRow[],
   reportRows: ReportFollowupRow[]
 ): UnifiedTaskFeedItem[] {
-  const manualItems: UnifiedTaskFeedItem[] = legacyRows.map(({ task, staff, displayStatus, canEdit, canSubmitFeedback, executionSummary }) => ({
+  const manualItems: UnifiedTaskFeedItem[] = legacyRows.map(({ task, staff, assignees, displayStatus, canEdit, canSubmitFeedback, executionSummary }) => ({
     key: `manual:${task.id}`,
     source: "manual",
     id: task.id,
@@ -83,6 +97,17 @@ export function buildUnifiedTaskFeed(
           department: staff.department || null,
         }
       : null,
+    assignees: assignees?.length
+      ? assignees
+      : staff
+        ? [{
+            id: staff.id,
+            personKey: `staff:${staff.id}`,
+            name: staff.name,
+            department: staff.department || null,
+            status: displayStatus || task.status,
+          }]
+        : [],
     createdAt: task.createdAt,
     startDate: task.startDate,
     deadline: task.deadline || null,
@@ -109,6 +134,17 @@ export function buildUnifiedTaskFeed(
             department: null,
           }
         : null,
+      assignees: staff
+        ? [{
+            id: staff.id,
+            personKey: staff.linkedStaffId
+              ? `staff:${staff.linkedStaffId}`
+              : `report-staff:${staff.id}`,
+            name: staff.name,
+            department: null,
+            status: followup.status === "pending" ? "in_progress" : followup.status,
+          }]
+        : [],
       createdAt: followup.createdAt,
       startDate: report?.reportDate
         ? report.reportDate.getTime()
@@ -144,6 +180,7 @@ export function filterUnifiedTaskFeed(
       item.title,
       item.staff?.name,
       item.staff?.department,
+      ...item.assignees.flatMap(assignee => [assignee.name, assignee.department]),
       item.category,
     ].some(value => value?.toLocaleLowerCase().includes(normalized));
   });

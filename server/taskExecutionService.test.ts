@@ -159,6 +159,11 @@ describe("task execution access and scoring contract", () => {
     expect(database).toContain('archiveReason = "Archived from task management"');
     expect(executionService).toContain("taskNotificationOutbox");
     expect(executionService).toContain("feedback:${insertedFeedback.id}:creator");
+    expect(executionService).toContain("const visibleAssignments = canManage");
+    expect(executionService).toContain("access.reviewableStaffIds.includes(item.staffId)");
+    expect(executionService).toContain("assignees: visibleAssignments.map");
+    expect(executionService).toContain("personKey: `staff:${item.staffId}`");
+    expect(executionService).toContain("status: item.status");
     expect(router).not.toContain("Creator notification failed");
     expect(reconciliation).toContain("MAX(latest.id)");
     expect(reconciliation).toContain("report_followups followup");

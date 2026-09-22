@@ -208,11 +208,24 @@ export async function getVisibleTaskExecutionRows(
           department: ownAssignment.department,
         }
       : row.staff;
+    const visibleAssignments = canManage
+      ? taskAssignments
+      : taskAssignments.filter(item =>
+          item.staffId === access.staffId
+          || access.reviewableStaffIds.includes(item.staffId)
+        );
 
     return [{
       ...row,
       task: toTaskClientRecord(row.task),
       staff: displayStaff,
+      assignees: visibleAssignments.map(item => ({
+        id: item.staffId,
+        personKey: `staff:${item.staffId}`,
+        name: item.staffName,
+        department: item.department,
+        status: item.status,
+      })),
       displayStatus,
       canEdit: canManage,
       canSubmitFeedback: Boolean(ownAssignment) && !isCancelled,

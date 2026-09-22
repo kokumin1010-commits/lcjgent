@@ -43,6 +43,23 @@ describe("daily-report tasks in the master task list", () => {
     expect(taskList).toContain("utils.task.feed.invalidate()");
   });
 
+  it("groups the task list by every visible assignee with compact collapsible sections", () => {
+    expect(taskList).toContain('data-testid="task-person-groups"');
+    expect(taskList).toContain("按负责人分组");
+    expect(taskList).toContain("全部负责人");
+    expect(taskList).toContain("全部展开");
+    expect(taskList).toContain("全部收起");
+    expect(taskList).toContain("多人任务会分别显示在每位执行人名下");
+    expect(taskList).toContain("item.assignees");
+    expect(taskList).toContain(".map(person => person.name)");
+    expect(taskList).toContain("groupTasksByPerson(items)");
+    expect(taskList).toContain("group.counts.blocked");
+    expect(taskList).toContain('data-testid="task-person-unfinished-marker"');
+    expect(taskList).toContain('data-testid="task-unfinished-dot"');
+    expect(taskList).toContain("未完成 {group.unfinishedCount}项");
+    expect(taskList).toContain("isTaskUnfinishedForPerson(item, group.key)");
+  });
+
   it("opens a report-derived task at its original daily report", () => {
     expect(taskList).toContain("setLocation(item.href)");
     expect(reports).toContain('get("reportId")');

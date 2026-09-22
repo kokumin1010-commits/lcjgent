@@ -67,6 +67,10 @@ describe("unified task feed", () => {
         createdAt: new Date("2026-01-01T00:00:00.000Z"),
         updatedAt: new Date("2026-01-01T00:00:00.000Z"),
       },
+      assignees: [
+        { id: 3, personKey: "staff:3", name: "担当者A", department: "営業", status: "completed" },
+        { id: 8, personKey: "staff:8", name: "共同担当C", department: "運営", status: "blocked" },
+      ],
     }],
     [{
       followup: reportFollowup,
@@ -109,17 +113,24 @@ describe("unified task feed", () => {
       status: "in_progress",
       href: "/master/reports?reportId=42",
       canEdit: false,
+      assignees: [{ id: 5, personKey: "report-staff:5" }],
     });
     expect(feed[1]).toMatchObject({
       source: "manual",
       status: "pending",
       href: "/master/tasks/7",
+      assignees: [
+        { id: 3, personKey: "staff:3", name: "担当者A", department: "営業", status: "completed" },
+        { id: 8, personKey: "staff:8", name: "共同担当C", department: "運営", status: "blocked" },
+      ],
     });
   });
 
   it("searches task text, assignee and category across both sources", () => {
     expect(filterUnifiedTaskFeed(feed, "客户", "all")).toHaveLength(1);
     expect(filterUnifiedTaskFeed(feed, "担当者A", "all")).toHaveLength(1);
+    expect(filterUnifiedTaskFeed(feed, "共同担当C", "all")).toHaveLength(1);
+    expect(filterUnifiedTaskFeed(feed, "運営", "all")).toHaveLength(1);
     expect(filterUnifiedTaskFeed(feed, "確認", "all")[0].source).toBe("daily_report");
   });
 
