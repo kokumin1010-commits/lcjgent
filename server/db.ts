@@ -1990,7 +1990,8 @@ export async function updateFollowupStatus(
   status: "pending" | "completed" | "cancelled", 
   resultCategory?: "成約" | "継続" | "保留" | "失注" | "完了",
   resultNote?: string,
-  actorUserId: number | null = null
+  actorUserId: number | null = null,
+  expectedIdentity?: { reportStaffId: number; linkedStaffId: number }
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -2011,15 +2012,47 @@ export async function updateFollowupStatus(
     const before = (await transaction.select().from(reportFollowups)
       .where(eq(reportFollowups.id, id)).limit(1).for("update"))[0];
     if (!before || before.archivedAt || before.duplicateOfId) return;
+    if (expectedIdentity) {
+      const profile = (await transaction.select({
+        id: reportStaff.id,
+        linkedStaffId: reportStaff.linkedStaffId,
+        isActive: reportStaff.isActive,
+        archivedAt: reportStaff.archivedAt,
+        canonicalStaffId: staff.id,
+      }).from(reportStaff)
+        .innerJoin(staff, and(
+          eq(staff.id, reportStaff.linkedStaffId),
+          eq(staff.isActive, "active"),
+          isNull(staff.archivedAt),
+          isNull(staff.mergedIntoStaffId),
+        ))
+        .where(eq(reportStaff.id, before.reportStaffId)).limit(1).for("update"))[0];
+      if (
+        before.reportStaffId !== expectedIdentity.reportStaffId
+        || profile?.linkedStaffId !== expectedIdentity.linkedStaffId
+        || profile?.canonicalStaffId !== expectedIdentity.linkedStaffId
+        || profile?.isActive !== "active"
+        || profile?.archivedAt
+      ) {
+        throw new Error("Report task employee identity changed before completion");
+      }
+      if (before.status !== "pending") {
+        throw new Error("Only pending report tasks can be completed");
+      }
+    }
     await transaction.execute(sql`
       INSERT INTO entity_revision_audits
         (entityType, entityId, action, actorUserId, beforeState, afterState)
       VALUES ('report_followup', ${id}, 'status_update', ${actorUserId},
         ${JSON.stringify(before)}, ${JSON.stringify({ ...before, ...updateData })})
     `);
-    await transaction.update(reportFollowups).set(updateData).where(and(
-      eq(reportFollowups.id, id), isNull(reportFollowups.duplicateOfId), isNull(reportFollowups.archivedAt)
-    ));
+    const updateConditions = [
+      eq(reportFollowups.id, id),
+      isNull(reportFollowups.duplicateOfId),
+      isNull(reportFollowups.archivedAt),
+    ];
+    if (expectedIdentity) updateConditions.push(eq(reportFollowups.status, "pending"));
+    await transaction.update(reportFollowups).set(updateData).where(and(...updateConditions));
   });
 }
 

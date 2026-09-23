@@ -25,10 +25,9 @@ import {
   validateTaskAssignees,
 } from "./taskAssignmentPolicy";
 import {
-  extractAndCreateReportFollowups,
-  extractReportFollowupBatch,
-  safelyExtractReportFollowups,
-} from "./reportFollowupAutomation";
+  processDailyReportTaskLifecycle,
+  processDailyReportTaskLifecycleBatch,
+} from "./dailyReportTaskReview";
 import { adminProcedure, brandScopedFinanceProcedure, financeProcedure, publicProcedure, protectedProcedure, rateLimitedPublicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { nanoid } from "nanoid";
@@ -3882,6 +3881,9 @@ export const appRouter = router({
           reportRows.map(row => ({
             ...row,
             canEdit: row.report ? canWriteReport(scope, row.report) : false,
+            canSubmitFeedback: row.report
+              ? scope.ownReportStaffIds.includes(row.report.reportStaffId)
+              : false,
           }))
         );
         return {
@@ -3979,6 +3981,28 @@ export const appRouter = router({
           requestId: input.requestId,
         });
         return { success: true, execution };
+      }),
+
+    completeOwnReportFollowup: protectedProcedure
+      .input(z.object({
+        id: z.number().int().positive(),
+        resultNote: z.string().trim().min(2).max(2000),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const followup = await getFollowupById(input.id);
+        if (!followup) throw new TRPCError({ code: "NOT_FOUND", message: "任务不存在" });
+        const scope = await resolveReportVisibilityScope(ctx.user);
+        if (!scope.ownReportStaffIds.includes(followup.reportStaffId)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "仅任务所属员工本人可以勾选完成" });
+        }
+        if (!scope.ownStaffId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "员工身份尚未绑定" });
+        }
+        await updateFollowupStatus(input.id, "completed", "完了", input.resultNote, ctx.user.id, {
+          reportStaffId: followup.reportStaffId,
+          linkedStaffId: scope.ownStaffId,
+        });
+        return { success: true };
       }),
 
     getStaffByTaskId: protectedProcedure
@@ -4321,7 +4345,7 @@ export const appRouter = router({
             targetId: report.id,
             targetName: input.workContent.substring(0, 50),
           });
-          await safelyExtractReportFollowups(report);
+          await processDailyReportTaskLifecycle(report);
         }
         
         return report;
@@ -4372,8 +4396,12 @@ export const appRouter = router({
         const scope = await resolveReportVisibilityScope(ctx.user);
         const reportData = await getReportById(input.reportId);
         assertCanWriteReport(scope, reportData?.report);
-        const result = await extractAndCreateReportFollowups(reportData.report, { force: true });
-        return { success: result.status === "succeeded", ...result };
+        const result = await processDailyReportTaskLifecycle(reportData.report, { forceExtraction: true });
+        return {
+          success: result.extraction.status === "succeeded" && result.review.status === "succeeded",
+          ...result.extraction,
+          taskReview: result.review,
+        };
       }),
 
     update: protectedProcedure
@@ -4405,7 +4433,7 @@ export const appRouter = router({
         await updateReport(id, data, ctx.user.id, "update");
         const updated = await getReportById(id);
         if (updated?.report) {
-          await safelyExtractReportFollowups(updated.report);
+          await processDailyReportTaskLifecycle(updated.report);
         }
         return { success: true };
       }),
@@ -4703,8 +4731,12 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         assertCanWriteReport(scope, reportData.report);
 
         try {
-          const result = await extractAndCreateReportFollowups(reportData.report, { force: true });
-          return { success: result.status === "succeeded", ...result };
+          const result = await processDailyReportTaskLifecycle(reportData.report, { forceExtraction: true });
+          return {
+            success: result.extraction.status === "succeeded" && result.review.status === "succeeded",
+            ...result.extraction,
+            taskReview: result.review,
+          };
         } catch (error) {
           console.error("Followup extraction error:", error);
           return {
@@ -4981,7 +5013,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           visibility: buildReportWriteFilter(scope),
         });
 
-        const result = await extractReportFollowupBatch(
+        const result = await processDailyReportTaskLifecycleBatch(
           reports.map(row => row.report),
           4
         );
@@ -13213,7 +13245,7 @@ ${conversationText}
           remarks: remarks.trim() || (isChineseStaff ? "无" : "なし"),
         });
 
-        await safelyExtractReportFollowups(report);
+        await processDailyReportTaskLifecycle(report);
 
         return { success: true, report };
       }),

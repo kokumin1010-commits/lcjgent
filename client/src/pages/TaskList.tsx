@@ -91,6 +91,7 @@ export default function TaskList() {
   const [expandedGroupKeys, setExpandedGroupKeys] = useState<Set<string>>(
     () => new Set()
   );
+  const [completingTaskKey, setCompletingTaskKey] = useState<string | null>(null);
   const utils = trpc.useUtils();
 
   const {
@@ -104,7 +105,9 @@ export default function TaskList() {
 
   const syncReports = trpc.report.batchExtractFollowups.useMutation({
     onSuccess: result => {
-      toast.success(`日報から${result.totalCreated}件のタスクを追加しました`);
+      toast.success(
+        `日報から${result.totalCreated}件を追加し、旧タスク${result.totalAutoCompleted}件を完了にしました`
+      );
       utils.task.feed.invalidate();
     },
     onError: error => {
@@ -114,6 +117,9 @@ export default function TaskList() {
     },
   });
 
+  const completeManualTask = trpc.task.submitExecutionFeedback.useMutation();
+  const completeReportTask = trpc.task.completeOwnReportFollowup.useMutation();
+
   const counts = feed?.counts || {
     all: 0,
     pending: 0,
@@ -122,6 +128,39 @@ export default function TaskList() {
     cancelled: 0,
   };
   const items = feed?.items || [];
+
+  const markItemCompleted = async (item: (typeof items)[number]) => {
+    if (
+      !item.canSubmitFeedback ||
+      item.status === "completed" ||
+      item.status === "cancelled" ||
+      item.executionSummary?.ownStatus === "completed"
+    ) return;
+    setCompletingTaskKey(item.key);
+    try {
+      if (item.source === "manual") {
+        await completeManualTask.mutateAsync({
+          requestId: crypto.randomUUID(),
+          taskId: item.id,
+          status: "completed",
+          feedbackNote: "员工在任务列表中勾选已完成",
+        });
+      } else {
+        await completeReportTask.mutateAsync({
+          id: item.id,
+          resultNote: "员工在任务列表中勾选已完成",
+        });
+      }
+      toast.success("任务已完成，已移入完成记录");
+      await utils.task.feed.invalidate();
+    } catch (error) {
+      toast.error("任务完成操作失败", {
+        description: error instanceof Error ? error.message : "请稍后重试",
+      });
+    } finally {
+      setCompletingTaskKey(null);
+    }
+  };
 
   const personGroups = useMemo(() => groupTasksByPerson(items), [items]);
 
@@ -199,8 +238,8 @@ export default function TaskList() {
         <CardContent className="flex gap-3 p-4 text-sm text-blue-900">
           <FileText className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
-            今後保存・更新される日報はAIが自動分析し、未完了の具体的な行動だけを「日報分析」タスクとして追加します。
-            既存の日報は「過去30日の日報を同期」で補完できます。
+            日報を保存・更新すると、AIは前回までの未完了タスクを先に照合し、今回の日報に明確な完了事実があるものを完了へ移します。
+            その後、新しい未完了行動だけを「日報分析」タスクとして追加します。既存の日報は「過去30日の日報を同期」で日付順に補完できます。
           </p>
         </CardContent>
       </Card>
@@ -443,6 +482,30 @@ export default function TaskList() {
                                       </div>
                                     )}
                                   </div>
+                                  {item.canSubmitFeedback &&
+                                    item.status !== "completed" &&
+                                    item.status !== "cancelled" &&
+                                    item.executionSummary?.ownStatus !== "completed" && (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                                        data-testid="task-self-complete"
+                                        disabled={completingTaskKey === item.key}
+                                        onClick={event => {
+                                          event.stopPropagation();
+                                          void markItemCompleted(item);
+                                        }}
+                                      >
+                                        {completingTaskKey === item.key ? (
+                                          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                                        )}
+                                        完成にする
+                                      </Button>
+                                    )}
                                 </div>
                               </CardHeader>
                               <CardContent className="p-4 pt-1">

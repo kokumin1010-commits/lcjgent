@@ -99,7 +99,8 @@ describe("unified task feed", () => {
         createdAt: new Date("2026-09-20T00:00:00.000Z"),
         updatedAt: new Date("2026-09-20T00:00:00.000Z"),
       },
-      canEdit: false,
+      canEdit: true,
+      canSubmitFeedback: false,
     }]
   );
 
@@ -112,7 +113,8 @@ describe("unified task feed", () => {
       source: "daily_report",
       status: "in_progress",
       href: "/master/reports?reportId=42",
-      canEdit: false,
+      canEdit: true,
+      canSubmitFeedback: false,
       assignees: [{ id: 5, personKey: "report-staff:5" }],
     });
     expect(feed[1]).toMatchObject({

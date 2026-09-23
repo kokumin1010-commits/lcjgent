@@ -17,6 +17,10 @@ const reconciliation = readFileSync(
   new URL("./performanceReconciliationService.ts", import.meta.url),
   "utf8"
 );
+const lifecycle = readFileSync(
+  new URL("./dailyReportTaskReview.ts", import.meta.url),
+  "utf8"
+);
 
 describe("daily-report tasks in the master task list", () => {
   it("merges manual tasks with report followups under report visibility rules", () => {
@@ -27,11 +31,19 @@ describe("daily-report tasks in the master task list", () => {
     expect(database).toContain("buildReportVisibilityCondition(visibility)");
   });
 
-  it("automatically analyzes every form-created, edited and chat-created report", () => {
-    expect(routers.match(/await safelyExtractReportFollowups\(/g)).toHaveLength(3);
-    expect(routers).toContain("await safelyExtractReportFollowups(report)");
-    expect(routers).toContain("await safelyExtractReportFollowups(updated.report)");
-    expect(routers).toContain("await extractReportFollowupBatch(");
+  it("reviews older tasks before extracting new tasks for every form, edit, chat and batch path", () => {
+    expect(routers.match(/await processDailyReportTaskLifecycle\(/g)).toHaveLength(5);
+    expect(routers).toContain("await processDailyReportTaskLifecycle(report)");
+    expect(routers).toContain("await processDailyReportTaskLifecycle(updated.report)");
+    expect(routers).toContain("await processDailyReportTaskLifecycleBatch(");
+    expect(lifecycle).toContain("sourceReport.reportDate <");
+    expect(lifecycle).toContain("confidence >= 0.9");
+    expect(lifecycle).toContain("ai_next_report_complete");
+    expect(lifecycle).toContain("queue.sort((left, right)");
+    expect(lifecycle).toContain("TASK_REVIEW_FAILED");
+    expect(lifecycle).toContain("creatorStaffId === linkedStaffId");
+    expect(lifecycle).toContain("lcj_brain_project_execution_task_links");
+    expect(lifecycle).toContain("INNER JOIN staff activeStaff");
     expect(routers).not.toContain("Simple keyword-based extraction for batch processing");
   });
 
@@ -41,6 +53,16 @@ describe("daily-report tasks in the master task list", () => {
     expect(taskList).toContain("手動登録");
     expect(taskList).toContain("過去30日の日報を同期");
     expect(taskList).toContain("utils.task.feed.invalidate()");
+    expect(taskList).toContain('data-testid="task-self-complete"');
+    expect(taskList).toContain("员工在任务列表中勾选已完成");
+    expect(taskList).toContain("任务已完成，已移入完成记录");
+    expect(taskList).toContain('item.executionSummary?.ownStatus !== "completed"');
+    expect(taskList).toContain("trpc.task.completeOwnReportFollowup.useMutation");
+    expect(routers).toContain("completeOwnReportFollowup: protectedProcedure");
+    expect(routers).toContain("scope.ownReportStaffIds.includes(followup.reportStaffId)");
+    expect(database).toContain("expectedIdentity?: { reportStaffId: number; linkedStaffId: number }");
+    expect(database).toContain('if (before.status !== "pending")');
+    expect(database).toContain('eq(reportFollowups.status, "pending")');
   });
 
   it("groups the task list by every visible assignee with compact collapsible sections", () => {

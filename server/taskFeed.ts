@@ -72,6 +72,7 @@ type ReportFollowupRow = {
   staff: ReportStaff | null;
   report: Report | null;
   canEdit: boolean;
+  canSubmitFeedback: boolean;
 };
 
 function toMillis(value: Date | number | null | undefined) {
@@ -121,7 +122,7 @@ export function buildUnifiedTaskFeed(
   }));
 
   const reportItems: UnifiedTaskFeedItem[] = reportRows.map(
-    ({ followup, staff, report, canEdit }) => ({
+    ({ followup, staff, report, canEdit, canSubmitFeedback }) => ({
       key: `daily-report:${followup.id}`,
       source: "daily_report",
       id: followup.id,
@@ -155,7 +156,7 @@ export function buildUnifiedTaskFeed(
       reportId: followup.reportId,
       reportDate: report?.reportDate || null,
       canEdit,
-      canSubmitFeedback: canEdit,
+      canSubmitFeedback,
       executionSummary: null,
     })
   );
