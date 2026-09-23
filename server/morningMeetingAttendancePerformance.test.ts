@@ -19,8 +19,8 @@ const verifiedMedia = {
   mediaDurationSeconds: "120.000",
   mediaSha256: "b".repeat(64),
   mediaAudioStreamCount: 1,
-  speechValidatedAt: new Date("2026-09-21T01:12:00.000Z"),
-  speechValidationProvider: "whisper_segments_v1",
+  speechValidatedAt: null,
+  speechValidationProvider: null,
   supersededAt: null,
 };
 
@@ -64,7 +64,7 @@ describe("morning meeting attendance performance facts", () => {
       summary: {
         principlesCompleted: true,
         attendedTeamMeeting: true,
-        attendanceEvidence: "server_validated_speech_audio_and_participant_snapshot",
+        attendanceEvidence: "server_validated_audio_and_participant_snapshot",
         meetingId: 901,
         transcriptionStatus: "failed",
       },

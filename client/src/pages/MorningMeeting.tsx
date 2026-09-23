@@ -591,7 +591,7 @@ export default function MorningMeeting() {
   }, [personalRecordingTime, refetchDailyToday, refetchHistory, savePersonalRecitationMutation, selectedTargetStaffId, speechLang, personalRecordingStartedAt]);
 
   const startRecording = useCallback(async () => {
-    if (!dailyToday || activeTeamMeeting?.isValid || activeTeamMeetingProcessing || selectedParticipantIds.length === 0 || isPersonalRecording || pendingTeamRecording) return;
+    if (!dailyToday || activeTeamMeeting?.attendanceRecorded || activeTeamMeetingProcessing || selectedParticipantIds.length === 0 || isPersonalRecording || pendingTeamRecording) return;
     let requestedStream: MediaStream | null = null;
     try {
       setError(null);
@@ -687,7 +687,7 @@ export default function MorningMeeting() {
     } finally {
       setMicrophoneRetryTarget(null);
     }
-  }, [dailyToday, activeTeamMeeting?.isValid, activeTeamMeetingProcessing, selectedParticipantIds.length, isPersonalRecording, pendingTeamRecording, captureMicrophoneIssue, activeTeamCode]);
+  }, [dailyToday, activeTeamMeeting?.attendanceRecorded, activeTeamMeetingProcessing, selectedParticipantIds.length, isPersonalRecording, pendingTeamRecording, captureMicrophoneIssue, activeTeamCode]);
 
   const submitTeamRecording = useCallback(async (recording: PendingTeamRecording) => {
     setError(null);
@@ -1150,12 +1150,17 @@ export default function MorningMeeting() {
                 const meeting = dailyToday?.teamMeetings?.[teamCode] || null;
                 const available = Boolean(dailyToday?.availableTeamCodes?.includes(teamCode));
                 const valid = Boolean(meeting?.isValid);
+                const attendanceRecorded = Boolean(meeting?.attendanceRecorded);
                 const statusText = valid
                   ? (speechLang === "zh-CN" ? "完成" : "完了")
                   : meeting?.status === "failed"
-                    ? (speechLang === "zh-CN" ? "处理失败 / 可重新处理" : "処理失敗 / 再処理可能")
+                    ? attendanceRecorded
+                      ? (speechLang === "zh-CN" ? "参会已登记 / 转写可重试" : "参加登録済み / 文字起こし再処理可")
+                      : (speechLang === "zh-CN" ? "保存失败 / 可重试" : "保存失敗 / 再試行可能")
                     : meeting
-                      ? (speechLang === "zh-CN" ? "处理中" : "処理中")
+                      ? attendanceRecorded
+                        ? (speechLang === "zh-CN" ? "参会已登记 / 转写中" : "参加登録済み / 文字起こし中")
+                        : (speechLang === "zh-CN" ? "处理中" : "処理中")
                       : copy.pending;
                 return (
                   <button
@@ -1170,7 +1175,7 @@ export default function MorningMeeting() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-black text-gray-900">{TEAM_MEETING_META[teamCode].flag} {speechLang === "zh-CN" ? TEAM_MEETING_META[teamCode].zh : TEAM_MEETING_META[teamCode].ja}</span>
-                      <Badge variant={valid ? "default" : meeting?.status === "failed" ? "destructive" : "secondary"}>{statusText}</Badge>
+                      <Badge variant={valid ? "default" : attendanceRecorded ? "secondary" : meeting?.status === "failed" ? "destructive" : "secondary"}>{statusText}</Badge>
                     </div>
                     <p className="mt-3 text-sm text-gray-600">
                       {meeting
@@ -1307,7 +1312,7 @@ export default function MorningMeeting() {
               )}
 
               {/* 参加者選択 + 1日1回のRecording Button */}
-              {dailyToday && !activeTeamMeeting?.isValid && !activeTeamMeetingProcessing && !pendingTeamRecording && !isRecording && !processingStep && (
+              {dailyToday && !activeTeamMeeting?.attendanceRecorded && !activeTeamMeetingProcessing && !pendingTeamRecording && !isRecording && !processingStep && (
                 <>
                   <div className="w-full rounded-2xl border border-red-100 bg-white/90 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">

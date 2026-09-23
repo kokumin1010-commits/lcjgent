@@ -157,6 +157,6 @@ describe("morning meeting failed-audio recovery", () => {
     expect(performanceSource).toContain("supersededAt IS NULL");
     expect(performanceSource).toContain("isRecordedTeamMeetingAttendance(row)");
     expect(performanceSource).toContain("status IN ('transcribing', 'summarizing', 'completed', 'failed')");
-    expect(performanceSource).toContain('attendanceEvidence: attended ? "server_validated_speech_audio_and_participant_snapshot" : null');
+    expect(performanceSource).toContain('attendanceEvidence: attended ? "server_validated_audio_and_participant_snapshot" : null');
   });
 });

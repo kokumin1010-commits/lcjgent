@@ -209,11 +209,11 @@ describe("morning meeting large-audio safety", () => {
       mimeType: "audio/webm",
     })).rejects.toThrow("MORNING_AUDIO_TOO_SHORT");
 
-    for (const unverifiedSpeechPath of [tonePath, noisePath, chirpPath, modulatedTonePath]) {
-      const media = await validateMorningMeetingAudioFile({ filePath: unverifiedSpeechPath, mimeType: "audio/webm" });
+    for (const transcriptionUnavailablePath of [tonePath, noisePath, chirpPath, modulatedTonePath]) {
+      const media = await validateMorningMeetingAudioFile({ filePath: transcriptionUnavailablePath, mimeType: "audio/webm" });
       expect(isRecordedTeamMeetingAttendance({
         status: "failed",
-        audioKey: `private/${unverifiedSpeechPath.split("/").at(-1)}`,
+        audioKey: `private/${transcriptionUnavailablePath.split("/").at(-1)}`,
         participantSnapshot: [{ targetKey: "staff:44" }],
         mediaValidatedAt: media.mediaValidatedAt,
         mediaDurationSeconds: media.mediaDurationSeconds,
@@ -221,7 +221,7 @@ describe("morning meeting large-audio safety", () => {
         mediaAudioStreamCount: media.audioStreamCount,
         speechValidatedAt: null,
         speechValidationProvider: null,
-      })).toBe(false);
+      })).toBe(true);
     }
 
     await expect(validateMorningMeetingAudioFile({

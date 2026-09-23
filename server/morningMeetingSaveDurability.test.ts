@@ -9,6 +9,7 @@ import { normalizeMorningMeetingAudioMimeType } from "./morningMeetingAudioUploa
 const routerSource = readFileSync(new URL("./morningMeetingRouter.ts", import.meta.url), "utf8");
 const uploadSource = readFileSync(new URL("./morningMeetingAudioUpload.ts", import.meta.url), "utf8");
 const backfillSource = readFileSync(new URL("./morningMeetingMediaBackfill.ts", import.meta.url), "utf8");
+const pageSource = readFileSync(new URL("../client/src/pages/MorningMeeting.tsx", import.meta.url), "utf8");
 
 describe("morning meeting save durability", () => {
   it("chooses MP4 on Safari when WebM is unavailable", () => {
@@ -105,5 +106,18 @@ describe("morning meeting save durability", () => {
     expect(heartbeatIndex).toBeGreaterThan(claimIndex);
     expect(validationIndex).toBeGreaterThan(heartbeatIndex);
     expect(retryBlock.match(/stopProcessingHeartbeat\(\)/g)?.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("keeps attendance registered independently when speech-to-text fails", () => {
+    const saveBlock = routerSource.split("saveDailyTeamMeeting: protectedProcedure")[1]
+      ?.split("retryDailyTeamMeetingProcessing: protectedProcedure")[0] ?? "";
+    expect(saveBlock).toContain("transaction.insert(morningMeetings)");
+    expect(saveBlock).toContain("participantSnapshot");
+    expect(saveBlock).toContain("void (async () => {");
+    expect(saveBlock).toContain("if (existing && isRecordedTeamMeetingAttendance(existing))");
+    expect(routerSource).toContain("canHostTeamMeeting: Boolean(currentTeamCode && !currentTeamMeeting?.attendanceRecorded)");
+    expect(pageSource).toContain("activeTeamMeeting?.attendanceRecorded");
+    expect(pageSource).toContain("参会已登记 / 转写可重试");
+    expect(pageSource).toContain("参会记录已保留");
   });
 });

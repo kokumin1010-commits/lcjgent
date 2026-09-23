@@ -934,8 +934,8 @@ export const morningMeetingRouter = router({
       const existing = existingCandidates.find((meeting) => meeting.dailyKey === dailyKey || meeting.teamCode === input.teamCode)
         || existingCandidates.find((meeting) => meeting.teamCode === "legacy"
           && inferLegacyTeamCode(meeting.participantSnapshot, memberTeamByTargetKey) === input.teamCode);
-      if (existing && isValidCompletedTeamMeeting(existing.status) && isRecordedTeamMeetingAttendance(existing)) {
-        throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "今天该团队早会已经有效完成" : "本日の該当チーム朝会は有効に完了済みです" });
+      if (existing && isRecordedTeamMeetingAttendance(existing)) {
+        throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "今天该团队的参会名单已经登记；转写失败时请使用原录音重新处理" : "本日の参加者一覧は登録済みです。文字起こし失敗時は元音声から再処理してください" });
       }
       if (existing && ctx.user.role !== "admin" && existing.createdBy !== ctx.user.id) {
         throw new TRPCError({ code: "FORBIDDEN", message: "失敗した早会を再登録できるのは主持人または管理者だけです" });
@@ -978,8 +978,8 @@ export const morningMeetingRouter = router({
                   && inferLegacyTeamCode(candidate.participantSnapshot, memberTeamByTargetKey) === input.teamCode)
               )
             : [];
-          if (lockedCandidates.some((candidate) => isValidCompletedTeamMeeting(candidate.status) && isRecordedTeamMeetingAttendance(candidate))) {
-            throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "今天该团队早会已经有效完成" : "本日の該当チーム朝会は有効に完了済みです" });
+          if (lockedCandidates.some((candidate) => isRecordedTeamMeetingAttendance(candidate))) {
+            throw new TRPCError({ code: "CONFLICT", message: input.language === "zh" ? "今天该团队的参会名单已经登记；转写失败时请使用原录音重新处理" : "本日の参加者一覧は登録済みです。文字起こし失敗時は元音声から再処理してください" });
           }
           if (ctx.user.role !== "admin" && lockedCandidates.some((candidate) => Number(candidate.createdBy) !== ctx.user.id)) {
             throw new TRPCError({ code: "FORBIDDEN", message: "失敗した早会を再登録できるのは主持人または管理者だけです" });
@@ -1674,7 +1674,7 @@ export const morningMeetingRouter = router({
       return {
         date,
         canSelectStaff: ctx.user.role === "admin",
-        canHostTeamMeeting: Boolean(currentTeamCode && !currentTeamMeeting?.isValid),
+        canHostTeamMeeting: Boolean(currentTeamCode && !currentTeamMeeting?.attendanceRecorded),
         availableTeamCodes: ctx.user.role === "admin" ? ["china", "japan"] as const : currentTeamCode ? [currentTeamCode] : [],
         currentTeamCode,
         currentStaff,

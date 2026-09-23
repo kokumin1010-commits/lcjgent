@@ -61,9 +61,10 @@ export function parseTeamMeetingParticipantSnapshot(value: unknown): Array<{ tar
 }
 
 /**
- * Team attendance is proven by a persisted, fully decoded recording, server-side
- * Whisper speech evidence, and the immutable participant snapshot captured before
- * transcription starts. Final transcript/summary quality may still fail afterward.
+ * Team attendance is proven independently from transcription by a persisted,
+ * fully decoded recording and the immutable participant snapshot captured before
+ * background speech-to-text starts. Transcription and summary may fail without
+ * removing the already recorded attendance evidence.
  */
 export function isRecordedTeamMeetingAttendance(input: {
   status: unknown;
@@ -84,8 +85,6 @@ export function isRecordedTeamMeetingAttendance(input: {
   if (!Number.isFinite(Number(input.mediaDurationSeconds)) || Number(input.mediaDurationSeconds) < 1) return false;
   if (typeof input.mediaSha256 !== "string" || !/^[a-f0-9]{64}$/.test(input.mediaSha256)) return false;
   if (!Number.isInteger(Number(input.mediaAudioStreamCount)) || Number(input.mediaAudioStreamCount) < 1) return false;
-  if (!input.speechValidatedAt || Number.isNaN(new Date(input.speechValidatedAt as any).getTime())) return false;
-  if (typeof input.speechValidationProvider !== "string" || input.speechValidationProvider !== "whisper_segments_v1") return false;
   if (input.supersededAt) return false;
   if (input.deletedAt) return false;
   return parseTeamMeetingParticipantSnapshot(input.participantSnapshot)

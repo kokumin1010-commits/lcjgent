@@ -75,7 +75,13 @@ describe("team morning meeting policy", () => {
       status: "failed",
       speechValidatedAt: null,
       speechValidationProvider: null,
-    })).toBe(false);
+    })).toBe(true);
+    expect(isRecordedTeamMeetingAttendance({
+      ...evidence,
+      status: "failed",
+      speechValidatedAt: new Date("invalid"),
+      speechValidationProvider: "failed_provider",
+    })).toBe(true);
   });
 
   it("does not invent attendance before audio persistence or without a participant snapshot", () => {

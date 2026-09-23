@@ -786,7 +786,7 @@ export async function collectMorningFacts(
           principlesCompleted: Boolean(recitation),
           attendedTeamMeeting: attended,
           teamCode,
-          attendanceEvidence: attended ? "server_validated_speech_audio_and_participant_snapshot" : null,
+          attendanceEvidence: attended ? "server_validated_audio_and_participant_snapshot" : null,
           meetingId: attended ? attendance?.meetingId || null : null,
           transcriptionStatus: attended ? attendance?.transcriptionStatus || null : null,
         },
