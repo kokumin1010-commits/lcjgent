@@ -19,6 +19,8 @@ function mysqlErrorCode(error) {
   for (let depth = 0; depth < 4 && current && typeof current === "object"; depth += 1) {
     const code = String(current.code || "");
     if (code) return code;
+    const message = String(current.message || "");
+    if (/^(?:STARTUP_MIGRATION|DATABASE_URL)_[A-Z0-9_]+$/.test(message)) return message;
     current = current.cause;
   }
   return "UNKNOWN";
@@ -61,10 +63,18 @@ async function readMigrationDescriptor() {
   const targetEntry = entries[targetIndex];
   const previousEntry = entries[targetIndex - 1];
   const migrationPath = path.join(MIGRATIONS_FOLDER, `${MIGRATION_TAG}.sql`);
-  const migrationSql = await fs.readFile(migrationPath, "utf8");
+  const previousMigrationPath = path.join(
+    MIGRATIONS_FOLDER,
+    `${String(previousEntry.tag || "")}.sql`,
+  );
+  const [migrationSql, previousMigrationSql] = await Promise.all([
+    fs.readFile(migrationPath, "utf8"),
+    fs.readFile(previousMigrationPath, "utf8"),
+  ]);
   return {
     folderMillis: Number(targetEntry.when),
     previousFolderMillis: Number(previousEntry.when),
+    previousHash: createHash("sha256").update(previousMigrationSql).digest("hex"),
     hash: createHash("sha256").update(migrationSql).digest("hex"),
     statements: migrationSql
       .split("--> statement-breakpoint")
@@ -86,16 +96,12 @@ async function tableExists(connection, tableName) {
 
 async function readDrizzleLedgerState(connection, descriptor) {
   if (!(await tableExists(connection, "__drizzle_migrations"))) {
-    throw new Error("STARTUP_MIGRATION_LEDGER_MISSING");
+    return {
+      ledgerAvailable: false,
+      alreadyRecorded: false,
+      canRecordSafely: false,
+    };
   }
-  const [latestRows] = await connection.execute(
-    "SELECT hash, created_at FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1",
-  );
-  const latest = latestRows?.[0] || null;
-  if (!latest || Number(latest.created_at || 0) < descriptor.previousFolderMillis) {
-    throw new Error("STARTUP_MIGRATION_PREREQUISITE_MISSING");
-  }
-
   const [sameTimestampRows] = await connection.execute(
     "SELECT hash FROM __drizzle_migrations WHERE created_at = ? ORDER BY id",
     [descriptor.folderMillis],
@@ -106,7 +112,99 @@ async function readDrizzleLedgerState(connection, descriptor) {
   if (timestampHashes.some(hash => hash !== descriptor.hash)) {
     throw new Error("STARTUP_MIGRATION_LEDGER_HASH_MISMATCH");
   }
-  return { alreadyRecorded: timestampHashes.includes(descriptor.hash) };
+  const alreadyRecorded = timestampHashes.includes(descriptor.hash);
+  const [previousTimestampRows] = await connection.execute(
+    "SELECT hash FROM __drizzle_migrations WHERE created_at = ? ORDER BY id",
+    [descriptor.previousFolderMillis],
+  );
+  const previousTimestampHashes = Array.isArray(previousTimestampRows)
+    ? previousTimestampRows.map(row => String(row.hash || ""))
+    : [];
+  const predecessorRecordedExactly =
+    previousTimestampHashes.length > 0 &&
+    previousTimestampHashes.every(hash => hash === descriptor.previousHash);
+  return {
+    ledgerAvailable: true,
+    alreadyRecorded,
+    canRecordSafely: alreadyRecorded || predecessorRecordedExactly,
+  };
+}
+
+function hasRequiredIndex(indexRows, tableName, indexName, columns, unique) {
+  const matchingRows = indexRows
+    .filter(row =>
+      String(row.tableName || row.TABLE_NAME || "") === tableName &&
+      String(row.indexName || row.INDEX_NAME || "") === indexName,
+    )
+    .sort((left, right) =>
+      Number(left.seqInIndex || left.SEQ_IN_INDEX || 0) -
+      Number(right.seqInIndex || right.SEQ_IN_INDEX || 0),
+    );
+  if (matchingRows.length !== columns.length) return false;
+  if (matchingRows.some(row => Number(row.nonUnique ?? row.NON_UNIQUE ?? 1) !== (unique ? 0 : 1))) {
+    return false;
+  }
+  return columns.every(
+    (columnName, index) =>
+      String(matchingRows[index]?.columnName || matchingRows[index]?.COLUMN_NAME || "") === columnName,
+  );
+}
+
+async function verifyRequiredSchema(connection) {
+  const readinessQueries = [
+    "SELECT dailyReportEnabled FROM line_group_settings LIMIT 0",
+    `SELECT report_id, latest_event_id, report_date, staff_name, action, content,
+            findings, notes, edit_count, occurred_at, payload_hash, received_at, updated_at
+       FROM tw_daily_line_report_inbox LIMIT 0`,
+    "SELECT rollout_key, target_group_id, applied_at FROM tw_daily_line_rollouts LIMIT 0",
+    `SELECT id, event_id, target_group_id, event_json, messages_json, payload_hash,
+            status, attempt_count, next_attempt_at, lease_token, lease_expires_at,
+            line_retry_key, first_external_attempt_at, member_count, sent_at,
+            last_error, created_at, updated_at
+       FROM tw_daily_line_outbox LIMIT 0`,
+  ];
+  try {
+    for (const query of readinessQueries) await connection.execute(query);
+  } catch {
+    throw new Error("STARTUP_MIGRATION_SCHEMA_VERIFICATION_FAILED");
+  }
+
+  let indexRowsResult;
+  try {
+    [indexRowsResult] = await connection.execute(
+      `SELECT TABLE_NAME AS tableName, INDEX_NAME AS indexName,
+              NON_UNIQUE AS nonUnique, SEQ_IN_INDEX AS seqInIndex,
+              COLUMN_NAME AS columnName
+         FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME IN (
+            'tw_daily_line_report_inbox',
+            'tw_daily_line_rollouts',
+            'tw_daily_line_outbox'
+          )
+        ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX`,
+    );
+  } catch {
+    throw new Error("STARTUP_MIGRATION_SCHEMA_VERIFICATION_FAILED");
+  }
+  const indexRows = Array.isArray(indexRowsResult) ? indexRowsResult : [];
+  const requiredIndexes = [
+    ["tw_daily_line_report_inbox", "PRIMARY", ["report_id"], true],
+    ["tw_daily_line_report_inbox", "tw_daily_line_inbox_event_uq", ["latest_event_id"], true],
+    ["tw_daily_line_report_inbox", "tw_daily_line_inbox_staff_date_uq", ["report_date", "staff_name"], true],
+    ["tw_daily_line_report_inbox", "tw_daily_line_inbox_date_idx", ["report_date", "staff_name", "report_id"], false],
+    ["tw_daily_line_rollouts", "PRIMARY", ["rollout_key"], true],
+    ["tw_daily_line_outbox", "PRIMARY", ["id"], true],
+    ["tw_daily_line_outbox", "tw_daily_line_outbox_event_uq", ["event_id"], true],
+    ["tw_daily_line_outbox", "tw_daily_line_outbox_due_idx", ["status", "next_attempt_at", "id"], false],
+  ];
+  if (
+    requiredIndexes.some(([tableName, indexName, columns, unique]) =>
+      !hasRequiredIndex(indexRows, tableName, indexName, columns, unique),
+    )
+  ) {
+    throw new Error("STARTUP_MIGRATION_SCHEMA_VERIFICATION_FAILED");
+  }
 }
 
 async function main() {
@@ -137,11 +235,19 @@ async function main() {
       }
     }
 
-    if (!ledgerState.alreadyRecorded) {
+    await verifyRequiredSchema(connection);
+
+    if (!ledgerState.alreadyRecorded && ledgerState.canRecordSafely) {
       await connection.execute(
         "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)",
         [descriptor.hash, descriptor.folderMillis],
       );
+    } else if (!ledgerState.alreadyRecorded) {
+      console.warn("[StartupMigration] LEDGER_BEHIND_SCHEMA_VERIFIED", {
+        code: ledgerState.ledgerAvailable
+          ? "STARTUP_MIGRATION_LEDGER_BEHIND"
+          : "STARTUP_MIGRATION_LEDGER_MISSING",
+      });
     }
 
     console.log(
@@ -155,7 +261,19 @@ async function main() {
   }
 }
 
-main().catch(error => {
-  console.error("[StartupMigration] FAILED", { code: mysqlErrorCode(error) });
-  process.exit(1);
-});
+export {
+  mysqlErrorCode,
+  readDrizzleLedgerState,
+  verifyRequiredSchema,
+};
+
+const isDirectRun =
+  Boolean(process.argv[1]) &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isDirectRun) {
+  main().catch(error => {
+    console.error("[StartupMigration] FAILED", { code: mysqlErrorCode(error) });
+    process.exit(1);
+  });
+}

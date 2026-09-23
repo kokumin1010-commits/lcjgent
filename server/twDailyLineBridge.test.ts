@@ -197,6 +197,13 @@ describe("SalesDash daily report LINE receiver", () => {
     expect(startupMigrationSource).toContain("REQUIRED_MIGRATION_APPLIED 0161");
     expect(startupMigrationSource).toContain("SELECT GET_LOCK(?, 120) AS acquired");
     expect(startupMigrationSource).toContain("STARTUP_MIGRATION_PREREQUISITE_MISSING");
+    expect(startupMigrationSource).toContain("STARTUP_MIGRATION_SCHEMA_VERIFICATION_FAILED");
+    expect(startupMigrationSource).toContain("LEDGER_BEHIND_SCHEMA_VERIFIED");
+    expect(startupMigrationSource).toContain("canRecordSafely");
+    expect(startupMigrationSource).toContain("dailyReportEnabled");
+    expect(startupMigrationSource).not.toContain(
+      'Number(latest.created_at || 0) < descriptor.previousFolderMillis',
+    );
     expect(startupMigrationSource).toContain("INSERT INTO __drizzle_migrations (hash, created_at)");
     expect(startupMigrationSource).toContain("WHERE created_at = ? ORDER BY id");
     expect(startupMigrationSource).not.toContain("LIMIT 1\",\n    [descriptor.folderMillis]");
