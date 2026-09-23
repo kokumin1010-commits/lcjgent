@@ -4447,16 +4447,7 @@ async function startServer() {
     const { ensureLineAiManagerStorage } = await import("../lineAiManager");
     await ensureLineAiManagerStorage();
     console.log("[LINE AI Manager] Storage ready");
-    const {
-      applyTwDailyLineTargetGroupRollout,
-      startTwDailyLineOutboxWorker,
-    } = await import("../twDailyLineBridge");
-    const dailyLineRollout = await applyTwDailyLineTargetGroupRollout();
-    console.log("[TwDailyLine] Target group rollout checked", {
-      applied: dailyLineRollout.applied,
-      alreadyApplied: dailyLineRollout.alreadyApplied,
-      matchCount: dailyLineRollout.matchCount,
-    });
+    const { startTwDailyLineOutboxWorker } = await import("../twDailyLineBridge");
     startTwDailyLineOutboxWorker();
     console.log("[TwDailyLine] Outbox worker started");
   } catch (error) {

@@ -7,6 +7,7 @@ import {
   reserveLineOutgoingAudit,
 } from "./db";
 import {
+  getGroupSummary,
   getLineGroupMemberCount,
   getLineMessageQuotaStatus,
   pushMessage,
@@ -25,6 +26,33 @@ const OUTBOX_MAX_BACKOFF_SECONDS = 3_600;
 const OUTBOX_WORKER_INTERVAL_MS = 60_000;
 const LINE_RETRY_SAFETY_WINDOW_MS = 23 * 60 * 60_000;
 const DEFAULT_TARGET_GROUP_NAME = "卡雅仕台灣總部本部TW KYOGOKU";
+const TARGET_GROUP_VERIFICATION_ATTEMPTS = 3;
+
+export function normalizeTwDailyLineTargetGroupName(value: string): string {
+  return String(value || "")
+    .normalize("NFKC")
+    .replace(/[\s\u3000]+/g, "")
+    .replace(/\(\d+\)$/, "")
+    .trim();
+}
+
+async function verifyTwDailyLineTargetGroup(
+  lineGroupId: string,
+  normalizedTargetGroupName: string,
+) {
+  for (let attempt = 1; attempt <= TARGET_GROUP_VERIFICATION_ATTEMPTS; attempt += 1) {
+    const summary = await getGroupSummary(lineGroupId);
+    if (summary?.groupName) {
+      return normalizeTwDailyLineTargetGroupName(summary.groupName) === normalizedTargetGroupName
+        ? summary
+        : null;
+    }
+    if (attempt < TARGET_GROUP_VERIFICATION_ATTEMPTS) {
+      await new Promise(resolve => setTimeout(resolve, attempt * 1_000));
+    }
+  }
+  throw new Error("TW_DAILY_LINE_TARGET_GROUP_VERIFICATION_UNAVAILABLE");
+}
 const salesDashDailyUrlSchema = z.string().max(500).regex(
   /^https:\/\/salesdash\.buzzdrop\.co\.jp\/tw-staff\?(?:reportId=\d+&reportDate=\d{4}-\d{2}-\d{2}|reportDate=\d{4}-\d{2}-\d{2})$/,
 );
@@ -270,6 +298,49 @@ export async function applyTwDailyLineTargetGroupRollout(): Promise<{
   const targetGroupName = String(
     process.env.TW_DAILY_LINE_TARGET_GROUP_NAME || DEFAULT_TARGET_GROUP_NAME,
   ).trim();
+  const normalizedTargetGroupName = normalizeTwDailyLineTargetGroupName(targetGroupName);
+
+  const existingRolloutResult: any = await db.execute(sql`
+    SELECT rollout_key
+    FROM tw_daily_line_rollouts
+    WHERE rollout_key = 'target-group-v1'
+    LIMIT 1
+  `);
+  const existingRolloutRows = Array.isArray(existingRolloutResult?.[0])
+    ? existingRolloutResult[0]
+    : existingRolloutResult;
+  if (Array.isArray(existingRolloutRows) && existingRolloutRows.length > 0) {
+    return { applied: false, alreadyApplied: true, matchCount: 1 };
+  }
+
+  const candidateResult: any = await db.execute(sql`
+    SELECT lineGroupId, groupName
+    FROM line_groups
+    WHERE isActive = true
+      AND groupName IS NOT NULL
+      AND groupName <> ''
+    ORDER BY id
+  `);
+  const candidateRows = Array.isArray(candidateResult?.[0]) ? candidateResult[0] : candidateResult;
+  const matches = (Array.isArray(candidateRows) ? candidateRows : []).filter(
+    row => normalizeTwDailyLineTargetGroupName(String(row.groupName || "")) === normalizedTargetGroupName,
+  );
+  if (matches.length !== 1) {
+    return { applied: false, alreadyApplied: false, matchCount: matches.length };
+  }
+
+  const lineGroupId = String(matches[0].lineGroupId || "");
+  if (!/^C[A-Za-z0-9_-]{8,63}$/.test(lineGroupId)) {
+    throw new Error("TW_DAILY_LINE_TARGET_GROUP_ID_INVALID");
+  }
+  const verifiedSummary = await verifyTwDailyLineTargetGroup(
+    lineGroupId,
+    normalizedTargetGroupName,
+  );
+  if (!verifiedSummary) {
+    return { applied: false, alreadyApplied: false, matchCount: 0 };
+  }
+
   return db.transaction(async tx => {
     const existingResult: any = await tx.execute(sql`
       SELECT rollout_key
@@ -282,26 +353,36 @@ export async function applyTwDailyLineTargetGroupRollout(): Promise<{
     if (Array.isArray(existingRows) && existingRows.length > 0) {
       return { applied: false, alreadyApplied: true, matchCount: 1 };
     }
-
-    const matchResult: any = await tx.execute(sql`
-      SELECT lineGroupId
+    const lockedGroupResult: any = await tx.execute(sql`
+      SELECT lineGroupId, groupName, isActive
       FROM line_groups
       WHERE isActive = true
-        AND BINARY groupName = BINARY ${targetGroupName}
-        AND OCTET_LENGTH(groupName) = OCTET_LENGTH(${targetGroupName})
       ORDER BY id
-      LIMIT 2
       FOR UPDATE
     `);
-    const matchRows = Array.isArray(matchResult?.[0]) ? matchResult[0] : matchResult;
-    const matches = Array.isArray(matchRows) ? matchRows : [];
-    if (matches.length !== 1) {
-      return { applied: false, alreadyApplied: false, matchCount: matches.length };
+    const lockedGroupRows = Array.isArray(lockedGroupResult?.[0])
+      ? lockedGroupResult[0]
+      : lockedGroupResult;
+    const committedMatches = (Array.isArray(lockedGroupRows) ? lockedGroupRows : []).filter(
+      row =>
+        normalizeTwDailyLineTargetGroupName(String(row.groupName || "")) ===
+        normalizedTargetGroupName,
+    );
+    if (
+      committedMatches.length !== 1 ||
+      String(committedMatches[0].lineGroupId || "") !== lineGroupId
+    ) {
+      return {
+        applied: false,
+        alreadyApplied: false,
+        matchCount: committedMatches.length,
+      };
     }
-    const lineGroupId = String(matches[0].lineGroupId || "");
-    if (!/^C[A-Za-z0-9_-]{8,63}$/.test(lineGroupId)) {
-      throw new Error("TW_DAILY_LINE_TARGET_GROUP_ID_INVALID");
-    }
+    await tx.execute(sql`
+      UPDATE line_groups
+      SET groupName = ${verifiedSummary.groupName.trim()}
+      WHERE lineGroupId = ${lineGroupId}
+    `);
     await tx.execute(sql`
       UPDATE line_group_settings
       SET dailyReportEnabled = false
@@ -864,6 +945,13 @@ export async function processTwDailyLineOutbox(limit = 20) {
   let sent = 0;
   let failed = 0;
   try {
+    try {
+      await applyTwDailyLineTargetGroupRollout();
+    } catch (error) {
+      console.warn("[TwDailyLine] Target group rollout deferred", {
+        code: controlledDeliveryError(error),
+      });
+    }
     for (let index = 0; index < Math.min(Math.max(limit, 1), 100); index += 1) {
       const row = await claimNextDailyLineOutbox();
       if (!row) break;

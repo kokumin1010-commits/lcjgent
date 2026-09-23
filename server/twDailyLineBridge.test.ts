@@ -5,6 +5,7 @@ import {
   __twDailyLineBridgeTestUtils,
   canonicalizeSalesDashTwDailyEnvelope,
   formatTwDailyLineMessage,
+  normalizeTwDailyLineTargetGroupName,
   verifySalesDashTwDailyRequest,
   type TwDailyLineBridgeEvent,
 } from "./twDailyLineBridge";
@@ -164,7 +165,20 @@ describe("SalesDash daily report LINE receiver", () => {
     expect(migrationSource).toContain("`dailyReportEnabled` boolean NOT NULL DEFAULT false");
     expect(routerSource).toContain("dailyReportEnabled: z.boolean().optional()");
     expect(routerSource).toContain("WHERE lineGroupId <> ${input.lineGroupId}");
-    expect(bridgeSource).toContain("BINARY groupName = BINARY ${targetGroupName}");
+    expect(normalizeTwDailyLineTargetGroupName("卡雅仕 台灣總部本部 TW KYOGOKU（18）")).toBe(
+      "卡雅仕台灣總部本部TWKYOGOKU",
+    );
+    expect(bridgeSource).toContain("TARGET_GROUP_VERIFICATION_ATTEMPTS = 3");
+    expect(bridgeSource).toContain("TW_DAILY_LINE_TARGET_GROUP_VERIFICATION_UNAVAILABLE");
+    expect(bridgeSource).toContain("await applyTwDailyLineTargetGroupRollout()");
+    expect(bridgeSource).toContain("Target group rollout deferred");
+    expect(bridgeSource).toContain("WHERE isActive = true");
+    expect(bridgeSource).toContain("SELECT lineGroupId, groupName, isActive");
+    expect(bridgeSource).toContain("committedMatches.length !== 1");
+    expect(bridgeSource).toContain("ORDER BY id\n      FOR UPDATE");
+    expect(bridgeSource).not.toContain("SET isActive = true, groupName");
+    expect(serverSource).not.toContain("const dailyLineRollout = await applyTwDailyLineTargetGroupRollout()");
+    expect(bridgeSource).toContain("matches.length !== 1");
     expect(bridgeSource).toContain("groupIds.length !== 1");
     expect(bridgeSource).toContain("LINE_DAILY_TARGET_GROUP_CARDINALITY_INVALID");
     expect(uiSource).toContain("把SalesDash员工日报发到这个群");
