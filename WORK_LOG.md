@@ -3805,3 +3805,13 @@ queueから「文案を確認して返信」を押すと既存グループ会話
 性能対策としてmigration `0160_line_group_reply_review`で`line_messages(lineGroupId, sourceType, direction, lineTimestamp, id)`の非破壊indexを追加し、Railway fallbackは同名indexのduplicateだけを許容して他のDDL失敗をfail closedにする。
 
 検証はfocused **67 tests**、広範LINE回帰 **13 files・169 tests**、production build、migration runner構文、diff／secret監査に成功。full TypeScript baselineには既存**1,163 diagnostics**が残るが、新規queue filesと変更したLINE UI review pathの新規診断は0件。独立最終reviewは**GO（P0/P1 0件）**。feature SHA `bc23a4872c1d7c03d82dd030bcc4d46fc2886c0a`はGitHub CI／Railwayともsuccess。本番`/api/health/line-ai-manager`はHTTP 200・storage／automation readyで、`/master/line`配信chunkに「グループAI返信確認」「AI返信推奨」「返信不要候補」「AIおすすめ返信（未送信）」「文案を確認して返信」「送信処理中」をGET/read-onlyで確認した。実LINE送信、group設定変更、group leave、本番DB直接操作は行っていない。
+
+
+### 2026-09-23｜早会参会登记与语音转写完全分离・生产验收
+团队早会在原录音、可解码音频、音频流质量、时长/哈希和参会人员快照安全落库后即独立成立参会记录；Whisper/AI文字起こし与总结继续作为后台处理状态。转写处理中或失败时，既有参会名单不会取消、覆盖或要求重新录音，页面分别显示“参会已登记／转写中、可重试或失败”，并明确“转写失败不影响参会记录”。同一团队当天已有参会记录后不再允许因转写失败重复录制，转写仍可从已保存原音频单独重试。
+
+早会策略、绩效证据、保存耐久性、重试和大音频相关测试通过；最终启动迁移与早会专项6文件41项全部通过，完整`pnpm build`成功，仅保留仓库既有Sharp导入警告。全库TypeScript检查仍有既有1,163条/85文件诊断，本次早会和启动迁移相关文件诊断为0。独立发布复审最终结论GO，P0/P1为0。
+
+首次功能部署和一次空提交重试均在业务服务监听前被新引入的`0161`启动迁移包装器阻断，Railway日志稳定显示`[StartupMigration] FAILED { code: 'UNKNOWN' }`；当前线上旧版本期间始终健康。根因是包装器错误要求生产Drizzle迁移总账必须连续到`0160`，而生产已有多条“实际结构幂等补齐、总账非连续”的历史路径。修复`573434ff`改为核验准确的`0160` SQL SHA-256；只有前序哈希精确一致时才补记`0161`，总账缺失/落后时仅幂等补齐并验证实际Schema，不伪造迁移记录。启动前同时逐列探测LINE日报桥运行时全部字段并核对主键、唯一键和调度索引，任何缺列、缺索引、哈希冲突或元数据读取失败继续稳定失败关闭，错误日志只输出原因码而不输出数据库连接或资料。
+
+修复提交通过GitHub/Railway，Railway状态为Success。生产`/`、`/master/morning-meeting`和`/health`均返回HTTP 200；版本化`MorningMeeting`资源已包含“参会记录已保留”“不受转写失败影响”和对应日文文案。生产验收仅执行页面、健康检查和静态资源只读请求，没有启动录音、上传音频、登记或修改任何真实参会人员，也没有直接连接或修改生产数据库。
