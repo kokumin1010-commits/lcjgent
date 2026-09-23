@@ -40,6 +40,17 @@ function elapsedLabel(minutes: number, language: string): string {
   return language === "ja" ? `${days}日前` : `${days}天前`;
 }
 
+function contextTimeLabel(value: string, language: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString(language === "ja" ? "ja-JP" : "zh-CN", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function recommendationLabel(item: QueueItem, language: string): string {
   const labels: Record<QueueItem["recommendation"], [string, string]> = {
     sample_request: ["サンプル質問", "样品问题"],
@@ -108,13 +119,84 @@ function ReviewCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="rounded-lg border bg-background p-3">
-          <p className="mb-1 text-xs font-medium text-muted-foreground">
-            {language === "ja" ? "最新の参加者メッセージ" : "群成员最新消息"}
-          </p>
-          <p className="line-clamp-4 whitespace-pre-wrap break-words text-sm">
-            {item.contentPreview}
-          </p>
+        <div className="overflow-hidden rounded-xl border bg-slate-50/80 dark:bg-slate-950/30">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-background/80 px-3 py-2">
+            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+              {language === "ja" ? "判断に使うグループ会話" : "用于判断的群聊上下文"}
+            </p>
+            <span className="text-[11px] text-muted-foreground">
+              {language === "ja"
+                ? `${item.contextMessageCount || item.contextMessages.length}件・時系列`
+                : `${item.contextMessageCount || item.contextMessages.length}条・按时间顺序`}
+            </span>
+          </div>
+          {item.contextMessages.length > 0 ? (
+            <div className="max-h-96 space-y-2 overflow-y-auto p-3">
+              {item.contextMessages.map(message => {
+                const isOfficial = message.direction === "outgoing";
+                const isStaff = message.direction === "incoming" && message.senderType === "staff";
+                const participantTypeLabel = message.senderType === "liver"
+                  ? (language === "ja" ? "ライバー" : "主播")
+                  : message.senderType === "customer"
+                    ? (language === "ja" ? "顧客" : "客户")
+                    : (language === "ja" ? "未設定" : "未设置");
+                return (
+                  <div
+                    key={`${message.id}:${message.messageId}`}
+                    className={`flex ${isOfficial ? "justify-end" : "justify-start"}`}
+                  >
+                    <div className={`max-w-[92%] rounded-lg border px-3 py-2 text-sm shadow-sm ${
+                      isOfficial
+                        ? "border-blue-200 bg-blue-50 text-blue-950 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100"
+                        : isStaff
+                          ? "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100"
+                          : "border-slate-200 bg-white text-slate-950 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                    }`}>
+                      <div className="mb-1 flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                        <span>{message.senderName}</span>
+                        {isOfficial && (
+                          <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                            {language === "ja" ? "LCJ公式送信" : "LCJ官方发送"}
+                          </Badge>
+                        )}
+                        {isStaff && (
+                          <Badge className="h-5 bg-amber-500 px-1.5 text-[10px] text-white hover:bg-amber-500">
+                            {language === "ja" ? "LCJスタッフ" : "LCJ员工"}
+                          </Badge>
+                        )}
+                        {!isOfficial && !isStaff && (
+                          <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                            {participantTypeLabel}
+                          </Badge>
+                        )}
+                        {message.isBlocked && (
+                          <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
+                            {language === "ja" ? "ブロック" : "已屏蔽"}
+                          </Badge>
+                        )}
+                        <span>{contextTimeLabel(message.sentAt, language)}</span>
+                      </div>
+                      <p className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-3">
+              <p className="mb-1 text-xs font-medium text-muted-foreground">
+                {language === "ja" ? "最新の参加者メッセージ" : "群成员最新消息"}
+              </p>
+              <p className="whitespace-pre-wrap break-words text-sm">{item.contentPreview}</p>
+            </div>
+          )}
+          {item.contextTruncated && (
+            <p className="border-t px-3 py-2 text-[11px] text-muted-foreground">
+              {language === "ja"
+                ? `最新${item.contextMessages.length}件を表示しています。全履歴は「会話を確認」で確認できます。`
+                : `当前显示最近${item.contextMessages.length}条。全部记录可在“查看对话”中确认。`}
+            </p>
+          )}
         </div>
         {item.suggestedReply && (
           <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 dark:border-violet-900 dark:bg-violet-950/20">
@@ -182,6 +264,7 @@ export default function LineGroupReplyReviewQueue({ language, onOpenGroup }: Pro
       item.senderName,
       item.contentPreview,
       item.reason,
+      ...item.contextMessages.flatMap(message => [message.senderName, message.content]),
     ].some(value => value.toLowerCase().includes(normalized)));
   }, [filter, queue.data]);
   const recommended = filtered.filter(item => item.shouldReply);
@@ -225,6 +308,11 @@ export default function LineGroupReplyReviewQueue({ language, onOpenGroup }: Pro
               {language === "ja"
                 ? "各グループの最新参加者メッセージ後にLCJ返信がないものだけを表示します。AI返信推奨を優先し、文案は必ず人が確認してから送信します。個別LINEの履歴・未応答はここには入りません。"
                 : "这里只显示各群组最新成员消息之后尚无LCJ回复的项目，并优先显示AI建议回复。文案必须由人工确认后才能发送；个人LINE消息不会混入这里。"}
+            </p>
+            <p className="mt-2 text-xs font-medium text-violet-700 dark:text-violet-300">
+              {language === "ja"
+                ? "会話欄ではスタッフ発言を黄色で表示します。LINEユーザーの「ユーザータイプ＝スタッフ」に設定された人の発言後は、AI返信候補から自動で外れます。"
+                : "对话栏会用黄色显示员工发言。在线用户中被明确设为“用户类型＝员工”的人员发言后，该项目会自动从AI回复候选中移除。"}
             </p>
           </div>
           <div className="flex items-center gap-2">

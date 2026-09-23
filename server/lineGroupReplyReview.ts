@@ -8,6 +8,7 @@ import {
 const MAX_REVIEW_GROUPS = 200;
 const MAX_PREVIEW_LENGTH = 500;
 const MAX_SENDER_NAME_LENGTH = 120;
+const MAX_CONTEXT_MESSAGES_PER_GROUP = 100;
 
 export type LineGroupReplyRecommendation =
   | "sample_request"
@@ -16,6 +17,19 @@ export type LineGroupReplyRecommendation =
   | "question"
   | "request"
   | "no_reply";
+
+export type LineGroupReplyContextMessage = {
+  id: number;
+  messageId: string;
+  direction: "incoming" | "outgoing";
+  senderLineUserId: string | null;
+  senderName: string;
+  senderType: "customer" | "staff" | "liver" | "unknown";
+  isBlocked: boolean;
+  content: string;
+  responseStatus: string | null;
+  sentAt: string;
+};
 
 export type LineGroupReplyReviewItem = {
   lineGroupId: string;
@@ -28,6 +42,9 @@ export type LineGroupReplyReviewItem = {
   senderName: string;
   contentPreview: string;
   unansweredMessageCount: number;
+  contextMessages: LineGroupReplyContextMessage[];
+  contextMessageCount: number;
+  contextTruncated: boolean;
   deliveryPending: boolean;
   receivedAt: string;
   elapsedMinutes: number;
@@ -58,6 +75,22 @@ type QueueRow = {
   autoReplyEnabled?: unknown;
 };
 
+type ContextRow = {
+  id?: unknown;
+  lineGroupId?: unknown;
+  messageId?: unknown;
+  direction?: unknown;
+  lineUserId?: unknown;
+  senderName?: unknown;
+  senderType?: unknown;
+  isBlocked?: unknown;
+  content?: unknown;
+  responseStatus?: unknown;
+  lineTimestamp?: unknown;
+  createdAt?: unknown;
+  contextMessageCount?: unknown;
+};
+
 function firstExecuteRows<T>(result: unknown): T[] {
   if (!Array.isArray(result)) return [];
   if (Array.isArray(result[0])) return result[0] as T[];
@@ -79,6 +112,19 @@ function sanitizePreview(value: unknown, maxLength: number): string {
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
     .trim()
     .slice(0, maxLength);
+}
+
+function normalizeSenderType(value: unknown): LineGroupReplyContextMessage["senderType"] {
+  const normalized = String(value || "unknown").trim().toLowerCase();
+  if (normalized === "customer" || normalized === "staff" || normalized === "liver") return normalized;
+  return "unknown";
+}
+
+function isConversationResponseContextMessage(message: LineGroupReplyContextMessage): boolean {
+  if (message.direction === "incoming" && message.senderType === "staff" && !message.isBlocked) return true;
+  if (message.direction !== "outgoing" || message.responseStatus !== "responded") return false;
+  return ["manual:", "ai-manager:", "group-public-question:", "line:onboard:r:"]
+    .some(prefix => message.messageId.startsWith(prefix));
 }
 
 function isChineseText(text: string): boolean {
@@ -167,11 +213,99 @@ export function classifyLineGroupReplyNeed(text: string): {
   };
 }
 
-function rowEventTime(row: QueueRow): Date {
+function rowEventTime(row: { lineTimestamp?: unknown; createdAt?: unknown }): Date {
   const lineTimestamp = Number(row.lineTimestamp || 0);
   if (Number.isFinite(lineTimestamp) && lineTimestamp > 0) return new Date(lineTimestamp);
   const fallback = row.createdAt instanceof Date ? row.createdAt : new Date(String(row.createdAt || ""));
   return Number.isNaN(fallback.getTime()) ? new Date(0) : fallback;
+}
+
+async function getContextMessagesByGroup(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  lineGroupIds: string[],
+): Promise<Map<string, { messages: LineGroupReplyContextMessage[]; total: number }>> {
+  const uniqueGroupIds = Array.from(new Set(lineGroupIds.filter(Boolean))).slice(0, MAX_REVIEW_GROUPS);
+  if (uniqueGroupIds.length === 0) return new Map();
+
+  const result = await db.execute(sql`
+    SELECT
+      scoped.id,
+      scoped.lineGroupId,
+      scoped.messageId,
+      scoped.direction,
+      scoped.lineUserId,
+      scoped.senderName,
+      scoped.senderType,
+      scoped.isBlocked,
+      scoped.content,
+      scoped.responseStatus,
+      scoped.lineTimestamp,
+      scoped.createdAt,
+      scoped.contextMessageCount
+    FROM (
+      SELECT
+        messages.id,
+        messages.lineGroupId,
+        messages.messageId,
+        messages.direction,
+        messages.lineUserId,
+        messages.senderName,
+        COALESCE(contextSender.userType, 'unknown') AS senderType,
+        COALESCE(contextSender.isBlocked, FALSE) AS isBlocked,
+        messages.content,
+        messages.responseStatus,
+        messages.lineTimestamp,
+        messages.createdAt,
+        ROW_NUMBER() OVER (
+          PARTITION BY messages.lineGroupId
+          ORDER BY
+            COALESCE(messages.lineTimestamp, UNIX_TIMESTAMP(messages.createdAt) * 1000) DESC,
+            messages.id DESC
+        ) AS contextRank,
+        COUNT(*) OVER (PARTITION BY messages.lineGroupId) AS contextMessageCount
+      FROM line_messages messages
+      LEFT JOIN line_users contextSender ON contextSender.lineUserId = messages.lineUserId
+      WHERE messages.lineGroupId IN (${sql.join(uniqueGroupIds.map(groupId => sql`${groupId}`), sql`, `)})
+        AND messages.sourceType = 'group'
+        AND messages.messageType = 'text'
+        AND NULLIF(TRIM(messages.content), '') IS NOT NULL
+        AND NOT (
+          messages.direction = 'outgoing'
+          AND messages.responseStatus = 'cancelled'
+        )
+    ) scoped
+    WHERE scoped.contextRank <= ${MAX_CONTEXT_MESSAGES_PER_GROUP}
+    ORDER BY
+      scoped.lineGroupId ASC,
+      COALESCE(scoped.lineTimestamp, UNIX_TIMESTAMP(scoped.createdAt) * 1000) ASC,
+      scoped.id ASC
+  `);
+
+  const contextByGroup = new Map<string, { messages: LineGroupReplyContextMessage[]; total: number }>();
+  for (const row of firstExecuteRows<ContextRow>(result)) {
+    const lineGroupId = sanitizePreview(row.lineGroupId, 64);
+    if (!lineGroupId) continue;
+    const direction = String(row.direction) === "outgoing" ? "outgoing" : "incoming";
+    const senderType = direction === "outgoing" ? "staff" : normalizeSenderType(row.senderType);
+    const message: LineGroupReplyContextMessage = {
+      id: Math.max(0, Number(row.id || 0)),
+      messageId: sanitizePreview(row.messageId, 128),
+      direction,
+      senderLineUserId: row.lineUserId ? sanitizePreview(row.lineUserId, 64) : null,
+      senderName: sanitizePreview(row.senderName, MAX_SENDER_NAME_LENGTH)
+        || (direction === "outgoing" ? "LCJ公式" : "参加者"),
+      senderType,
+      isBlocked: finiteBoolean(row.isBlocked, false),
+      content: sanitizePreview(row.content, 5_000),
+      responseStatus: row.responseStatus ? sanitizePreview(row.responseStatus, 32) : null,
+      sentAt: rowEventTime(row).toISOString(),
+    };
+    const current = contextByGroup.get(lineGroupId) || { messages: [], total: 0 };
+    current.messages.push(message);
+    current.total = Math.max(current.total, Number(row.contextMessageCount || current.messages.length));
+    contextByGroup.set(lineGroupId, current);
+  }
+  return contextByGroup;
 }
 
 export async function getLineGroupReplyReviewQueue(): Promise<LineGroupReplyReviewItem[]> {
@@ -208,15 +342,27 @@ export async function getLineGroupReplyReviewQueue(): Promise<LineGroupReplyRevi
           AND NOT EXISTS (
             SELECT 1
             FROM line_messages previousOutgoing
+            LEFT JOIN line_users previousOutgoingSender ON previousOutgoingSender.lineUserId = previousOutgoing.lineUserId
             WHERE previousOutgoing.lineGroupId = g.lineGroupId
               AND previousOutgoing.sourceType = 'group'
-              AND previousOutgoing.direction = 'outgoing'
-              AND previousOutgoing.responseStatus = 'responded'
               AND (
-                previousOutgoing.messageId LIKE 'manual:%'
-                OR previousOutgoing.messageId LIKE 'ai-manager:%'
-                OR previousOutgoing.messageId LIKE 'group-public-question:%'
-                OR previousOutgoing.messageId LIKE 'line:onboard:r:%'
+                (
+                  previousOutgoing.direction = 'outgoing'
+                  AND previousOutgoing.responseStatus = 'responded'
+                  AND (
+                    previousOutgoing.messageId LIKE 'manual:%'
+                    OR previousOutgoing.messageId LIKE 'ai-manager:%'
+                    OR previousOutgoing.messageId LIKE 'group-public-question:%'
+                    OR previousOutgoing.messageId LIKE 'line:onboard:r:%'
+                  )
+                )
+                OR (
+                  previousOutgoing.direction = 'incoming'
+                  AND previousOutgoing.messageType = 'text'
+                  AND previousOutgoing.responseStatus <> 'cancelled'
+                  AND previousOutgoingSender.userType = 'staff'
+                  AND COALESCE(previousOutgoingSender.isBlocked, FALSE) = FALSE
+                )
               )
               AND (
                 COALESCE(previousOutgoing.lineTimestamp, UNIX_TIMESTAMP(previousOutgoing.createdAt) * 1000) >
@@ -244,15 +390,27 @@ export async function getLineGroupReplyReviewQueue(): Promise<LineGroupReplyRevi
           AND NOT EXISTS (
             SELECT 1
             FROM line_messages previousOutgoingCount
+            LEFT JOIN line_users previousOutgoingCountSender ON previousOutgoingCountSender.lineUserId = previousOutgoingCount.lineUserId
             WHERE previousOutgoingCount.lineGroupId = g.lineGroupId
               AND previousOutgoingCount.sourceType = 'group'
-              AND previousOutgoingCount.direction = 'outgoing'
-              AND previousOutgoingCount.responseStatus = 'responded'
               AND (
-                previousOutgoingCount.messageId LIKE 'manual:%'
-                OR previousOutgoingCount.messageId LIKE 'ai-manager:%'
-                OR previousOutgoingCount.messageId LIKE 'group-public-question:%'
-                OR previousOutgoingCount.messageId LIKE 'line:onboard:r:%'
+                (
+                  previousOutgoingCount.direction = 'outgoing'
+                  AND previousOutgoingCount.responseStatus = 'responded'
+                  AND (
+                    previousOutgoingCount.messageId LIKE 'manual:%'
+                    OR previousOutgoingCount.messageId LIKE 'ai-manager:%'
+                    OR previousOutgoingCount.messageId LIKE 'group-public-question:%'
+                    OR previousOutgoingCount.messageId LIKE 'line:onboard:r:%'
+                  )
+                )
+                OR (
+                  previousOutgoingCount.direction = 'incoming'
+                  AND previousOutgoingCount.messageType = 'text'
+                  AND previousOutgoingCount.responseStatus <> 'cancelled'
+                  AND previousOutgoingCountSender.userType = 'staff'
+                  AND COALESCE(previousOutgoingCountSender.isBlocked, FALSE) = FALSE
+                )
               )
               AND (
                 COALESCE(previousOutgoingCount.lineTimestamp, UNIX_TIMESTAMP(previousOutgoingCount.createdAt) * 1000) >
@@ -323,15 +481,27 @@ export async function getLineGroupReplyReviewQueue(): Promise<LineGroupReplyRevi
       AND NOT EXISTS (
         SELECT 1
         FROM line_messages outgoing
+        LEFT JOIN line_users outgoingSender ON outgoingSender.lineUserId = outgoing.lineUserId
         WHERE outgoing.lineGroupId = g.lineGroupId
           AND outgoing.sourceType = 'group'
-          AND outgoing.direction = 'outgoing'
-          AND outgoing.responseStatus = 'responded'
           AND (
-            outgoing.messageId LIKE 'manual:%'
-            OR outgoing.messageId LIKE 'ai-manager:%'
-            OR outgoing.messageId LIKE 'group-public-question:%'
-            OR outgoing.messageId LIKE 'line:onboard:r:%'
+            (
+              outgoing.direction = 'outgoing'
+              AND outgoing.responseStatus = 'responded'
+              AND (
+                outgoing.messageId LIKE 'manual:%'
+                OR outgoing.messageId LIKE 'ai-manager:%'
+                OR outgoing.messageId LIKE 'group-public-question:%'
+                OR outgoing.messageId LIKE 'line:onboard:r:%'
+              )
+            )
+            OR (
+              outgoing.direction = 'incoming'
+              AND outgoing.messageType = 'text'
+              AND outgoing.responseStatus <> 'cancelled'
+              AND outgoingSender.userType = 'staff'
+              AND COALESCE(outgoingSender.isBlocked, FALSE) = FALSE
+            )
           )
           AND (
             COALESCE(outgoing.lineTimestamp, UNIX_TIMESTAMP(outgoing.createdAt) * 1000) >
@@ -349,30 +519,49 @@ export async function getLineGroupReplyReviewQueue(): Promise<LineGroupReplyRevi
     LIMIT ${MAX_REVIEW_GROUPS}
   `);
 
+  const queueRows = firstExecuteRows<QueueRow>(result);
+  const contextByGroup = await getContextMessagesByGroup(
+    db,
+    queueRows.map(row => sanitizePreview(row.lineGroupId, 64)),
+  );
   const now = Date.now();
-  return firstExecuteRows<QueueRow>(result).map(row => {
+  return queueRows.flatMap(row => {
     const contentPreview = sanitizePreview(row.content, MAX_PREVIEW_LENGTH);
     const unansweredContext = sanitizePreview(row.unansweredContext, 2_000) || contentPreview;
     const classification = classifyLineGroupReplyNeed(unansweredContext);
     const receivedAt = rowEventTime(row);
-    return {
-      lineGroupId: sanitizePreview(row.lineGroupId, 64),
+    const lineGroupId = sanitizePreview(row.lineGroupId, 64);
+    const context = contextByGroup.get(lineGroupId) || { messages: [], total: 0 };
+    const incomingMessageDbId = Math.max(0, Number(row.incomingMessageDbId || 0));
+    if (context.messages.some(message => {
+      if (!isConversationResponseContextMessage(message)) return false;
+      const responseAt = new Date(message.sentAt).getTime();
+      return responseAt > receivedAt.getTime()
+        || (responseAt === receivedAt.getTime() && message.id > incomingMessageDbId);
+    })) {
+      return [];
+    }
+    return [{
+      lineGroupId,
       groupName: sanitizePreview(row.groupName, 255) || sanitizePreview(row.lineGroupId, 64),
       pictureUrl: row.pictureUrl ? String(row.pictureUrl) : null,
       incomingMessageId: sanitizePreview(row.incomingMessageId, 64),
-      incomingMessageDbId: Math.max(0, Number(row.incomingMessageDbId || 0)),
+      incomingMessageDbId,
       conversationRevision: Math.max(0, Number(row.conversationRevision || 0)),
       senderLineUserId: row.senderLineUserId ? sanitizePreview(row.senderLineUserId, 64) : null,
       senderName: sanitizePreview(row.senderName, MAX_SENDER_NAME_LENGTH) || "参加者",
       contentPreview,
       unansweredMessageCount: Math.max(1, Number(row.unansweredMessageCount || 1)),
+      contextMessages: context.messages,
+      contextMessageCount: context.total,
+      contextTruncated: context.total > context.messages.length,
       deliveryPending: finiteBoolean(row.deliveryPending),
       receivedAt: receivedAt.toISOString(),
       elapsedMinutes: Math.max(0, Math.floor((now - receivedAt.getTime()) / 60_000)),
       ...classification,
       analysisEnabled: finiteBoolean(row.analysisEnabled),
       autoReplyEnabled: finiteBoolean(row.autoReplyEnabled),
-    };
+    }];
   }).sort((left, right) => {
     if (left.shouldReply !== right.shouldReply) return left.shouldReply ? -1 : 1;
     return right.incomingMessageDbId - left.incomingMessageDbId;
@@ -416,15 +605,27 @@ export async function dismissLineGroupReplyReviewItem(params: {
         AND NOT EXISTS (
           SELECT 1
           FROM line_messages replied
+          LEFT JOIN line_users repliedSender ON repliedSender.lineUserId = replied.lineUserId
           WHERE replied.lineGroupId = target.lineGroupId
             AND replied.sourceType = 'group'
-            AND replied.direction = 'outgoing'
-            AND replied.responseStatus = 'responded'
             AND (
-              replied.messageId LIKE 'manual:%'
-              OR replied.messageId LIKE 'ai-manager:%'
-              OR replied.messageId LIKE 'group-public-question:%'
-              OR replied.messageId LIKE 'line:onboard:r:%'
+              (
+                replied.direction = 'outgoing'
+                AND replied.responseStatus = 'responded'
+                AND (
+                  replied.messageId LIKE 'manual:%'
+                  OR replied.messageId LIKE 'ai-manager:%'
+                  OR replied.messageId LIKE 'group-public-question:%'
+                  OR replied.messageId LIKE 'line:onboard:r:%'
+                )
+              )
+              OR (
+                replied.direction = 'incoming'
+                AND replied.messageType = 'text'
+                AND replied.responseStatus <> 'cancelled'
+                AND repliedSender.userType = 'staff'
+                AND COALESCE(repliedSender.isBlocked, FALSE) = FALSE
+              )
             )
             AND (
               COALESCE(replied.lineTimestamp, UNIX_TIMESTAMP(replied.createdAt) * 1000) >

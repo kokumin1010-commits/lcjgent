@@ -175,8 +175,16 @@ describe("LINE group management regression contracts", () => {
     expect(dbSource).toContain("isNull(lineMessages.lineGroupId)");
     expect(uiSource).toContain('sourceType: "user"');
     expect(uiSource).toContain("グループAI返信確認");
-    expect(uiSource).toContain("個別LINE履歴");
-    expect(uiSource).toContain("個別未応答");
+    expect(uiSource).toContain("ここは公式LINEとの1対1トーク履歴です");
+    expect(uiSource).toContain('language === "ja" ? "個別LINE" : "个人LINE"');
+    expect(uiSource).toContain('language === "ja" ? "未応答" : "待回复"');
+    expect(uiSource).toContain('tabFromUrl || "group-reply-review"');
+    expect(uiSource).toContain("グループ対応");
+    expect(uiSource).toContain("個別LINE");
+    expect(uiSource).toContain("管理・連携");
+    expect(uiSource).toContain("2xl:grid-cols-[1.05fr_1.35fr_1.35fr]");
+    expect(uiSource).toContain("grid grid-cols-1 gap-1 sm:grid-cols-2");
+    expect(uiSource).not.toContain('TabsList className="h-auto flex-wrap justify-start"');
   });
 
   it("prioritizes AI-recommended group replies but always requires human review before send", () => {
@@ -199,6 +207,18 @@ describe("LINE group management regression contracts", () => {
     expect(routerSource).toContain("LINE_GROUP_CONVERSATION_CHANGED");
     expect(dbSource).toContain("expectedGroupConversationRevision");
     expect(groupReplyReviewUiSource).toContain("送信処理中");
+    expect(groupReplyReviewUiSource).toContain("判断に使うグループ会話");
+    expect(groupReplyReviewUiSource).toContain("LCJスタッフ");
+    expect(groupReplyReviewUiSource).toContain("LCJ公式送信");
+    expect(groupReplyReviewUiSource).toContain("ユーザータイプ＝スタッフ");
+    expect(groupReplyReviewUiSource).toContain("participantTypeLabel");
+    expect(groupReplyReviewUiSource).toContain("contextMessages.map");
+    expect(groupReplyReviewSource).toContain("ROW_NUMBER() OVER");
+    expect(groupReplyReviewSource).toContain("contextSender.userType");
+    expect(groupReplyReviewSource).toContain("previousOutgoingSender.userType = 'staff'");
+    expect(groupReplyReviewSource).toContain("outgoingSender.userType = 'staff'");
+    expect(groupReplyReviewSource).toContain("isConversationResponseContextMessage");
+    expect(groupReplyReviewSource).toContain("responseAt === receivedAt.getTime() && message.id > incomingMessageDbId");
     expect(groupReplyReviewUiSource).not.toContain("sendMessage.mutate");
   });
 

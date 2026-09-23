@@ -198,3 +198,15 @@ queue取得時の`conversationRevision`をmanual sendへ渡し、immutable outgo
 query性能のためmigration `0160_line_group_reply_review`で`line_messages(lineGroupId, sourceType, direction, lineTimestamp, id)`indexを追加した。fallbackは同名indexのduplicateだけを許容し、他のDDL失敗はfail closedとする。
 
 検証はfocused 67 tests、関連LINE 13 files・169 tests、production build、migration構文、diff／secret監査に成功。full TypeScript baselineには既存1,163 diagnosticsが残るが、新規queue filesと変更LINE UI review pathの新規診断は0件。独立最終reviewは**GO（P0/P1 0件）**。feature SHA `bc23a4872c1d7c03d82dd030bcc4d46fc2886c0a`のGitHub CI／Railwayはsuccess。本番healthはHTTP 200・AI manager storage／group automation defaults／runtime readyで、配信`LineManagement`／`LineGroupReplyReviewQueue` chunkに新tab、AI返信推奨、返信不要候補、未送信文案、人間確認、送信処理中の表示をGET/read-onlyで確認した。実LINE送信、設定mutation、group leave、本番DB直接操作は実施していない。
+
+## グループAI返信確認の上部navigation・時系列context・スタッフ対応境界（2026-09-23追加）
+
+`/master/line`はURLに`?tab=`指定がない場合、招待済みgroup専用の`AI返信確認`を初期表示する。上部navigationは「グループ対応」「個別LINE」「管理・連携」の3領域に分け、最小幅では全buttonを1列、`sm`以上ではgroupを2列・他を3列、`2xl`以上で3領域を横並びにする。実際のproduction CSSを読み込んだ320px／1600px Chromium QAで、ラベルと件数badgeが重ならず、mobileでは安全に縦stackすることを確認した。
+
+queue取得時に候補groupごとの保存済みtextを最新100件まで取得し、event時刻とDB IDで決定的に選択後、古い順に表示する。受信参加者、認識済みLCJスタッフ、LCJ公式outgoingを同じcontext欄へ残し、公式送信、スタッフ、`ライバー／顧客／未設定`、block状態を別badge・色で区別する。未送信の`cancelled` outgoing auditと空textは除外する。候補は最大200 group、contextは最大100件／groupに制限する。TiDBの[Window Functions公式仕様](https://docs.pingcap.com/tidb/stable/window-functions/)で、MySQL 8.0相当のwindow function、`ROW_NUMBER()`、および`GROUP_CONCAT()`と`APPROX_PERCENTILE()`を除くaggregate functionsのwindow利用を確認したため、現在の`ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...)`と`COUNT(*) OVER (PARTITION BY ...)`は互換範囲内である。
+
+LCJスタッフは表示名から推測しない。保存済み`line_users.userType='staff'`だけをstaff表示へ使い、対応済み境界としてはさらに`isBlocked=false`を要求する。未blockの既知スタッフが候補参加者の後に発言した場合、primary SQL・返信不要処理・context hydration後のrace guardのすべてでAI候補を除外する。順序は`COALESCE(lineTimestamp, createdAt)`、同時刻はDB IDを使い、同じtimestampでより大きいIDのスタッフ返信も除外する。スタッフ発言より後に参加者の新しい質問がある場合は新候補を残し、block済みstaffは対応済みとは扱わない。管理者は既存ユーザーlink/editの`ユーザータイプ＝スタッフ`で明示設定する。
+
+queue APIと返信不要mutationは引き続き`protectedProcedure`＋LINE管理admin認可、active lifecycle、`sourceType='group'`限定である。queue componentにLINE push／reply経路はなく、「文案を確認して返信」は未送信文を既存group dialogへ渡すだけで、人間の確認、expected conversation revision、送信前immutable audit、deterministic retry key、lifecycle再検証を必須とする。通常groupの明示`@LCJ`／本人資格gate、限定onboarding、限定明示質問経路は変更せず、一般group投稿への広い自動返信は追加していない。
+
+upstream `011e261d`統合後の最終検証は関連LINE 11 files・142 tests、production build、変更module bundle、diff／secret監査に成功。full TypeScript baselineは既存1,163 diagnostics／85 filesでexit 2だが今回5変更fileは0件。独立read-only reviewは同一timestamp＋高DB ID race、mobile stack、staff明示判定、manual-review-only境界を確認し、最終**GO（P0/P1 0件）**。検証では実LINE送信、group設定変更、group leave、本番DB直接操作を行っていない。

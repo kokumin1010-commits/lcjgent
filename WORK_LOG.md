@@ -3826,3 +3826,14 @@ queueから「文案を確認して返信」を押すと既存グループ会話
 日报复核失败复用既有`report_followup_extraction_runs`持久记录，不新增表、包或环境变量。`TASK_REVIEW_FAILED`由调度器走review-only路径，绝不重新运行已成功的任务提取/对账；使用条件更新claim、随机lease token、5分钟租约、1分钟心跳、事务提交前同token续租校验、指数退避和最多5次dead-letter，防止多副本重复模型调用或失去租约后继续写入。真实提取失败仍走原有完整生命周期重试。
 
 验证：任务/日报/权限/绩效专项23个测试文件共120项通过；最终重点安全测试覆盖canonical身份不一致与AI后身份重绑、非`LCJB-`前缀但真实关联的Brain任务、日报原文证据门槛、人工反馈优先、重复完成幂等、review-only不重跑提取、CAS竞争、第五次dead-letter、active多执行人聚合、本人专用完成权限和终态保护。生产构建成功。全仓TypeScript仍有历史基线诊断，但本次新增服务、调度器、任务feed、页面、新路由范围和DB跟进事务范围均为0条新增诊断。桌面与手机端本地视觉QA确认任务分组、说明文案与完成按钮无溢出。
+
+## 2026-09-23｜LINEグループAI返信確認：上部整理・会話context・スタッフ対応境界
+`/master/line`の初期表示を、招待済みLINEグループ専用の**AI返信確認**へ変更した。上部メニューは従来の重なりやすい1本のtab列を廃止し、「グループ対応」「個別LINE」「管理・連携」の3領域へ分離した。320px級では各領域と各buttonを1列、`sm`以上では領域内を2列／3列、`2xl`以上で3領域を横並びにするため、AI返信件数badgeや`高橋 悠真`表示を含めても重ならない。実production CSSを使った320px／1600px screenshot QAで、mobile縦stack・desktop横並び・文字とbadgeの非重複を確認した。
+
+グループqueueは候補1文だけでなく、対象グループの保存済みtextをLINE event timestamp＋DB ID順で最新100件まで時系列表示する。参加者、明示登録されたLCJスタッフ、LCJ公式送信をそれぞれ表示し、公式送信は青系・右寄せ、スタッフは黄系、その他は`ライバー／顧客／未設定`、block状態もbadgeで区別する。検索対象もcontext内の送信者名・本文まで拡張した。スタッフ判定は表示名の推測を禁止し、`line_users.userType='staff'`として明示保存され、かつblockされていないLINEユーザーだけに限定する。運用者はユーザーlink/editの`ユーザータイプ＝スタッフ`で設定する。
+
+未blockの既知スタッフが参加者候補より後に発言済みの場合、その会話は人が対応した境界としてAI返信候補から除外する。primary candidate query、返信不要transaction、context hydration後のrace guardのすべてで、`COALESCE(lineTimestamp, createdAt)`、同時刻ならDB `id`の順を使う。同一timestampでもより大きいDB IDのスタッフ発言を見落とさないfocused testを追加した。block済みスタッフは対応済み境界にせず、スタッフ発言より後に参加者が新たな質問をした場合はその新しい候補を残す。contextのwindow queryは最大200 group×100件へ制限し、cancelled outgoing auditと空textを除外する。TiDB公式仕様でMySQL 8相当のwindow function、`ROW_NUMBER()`、`COUNT()`等のaggregate window利用がサポートされることも確認した。
+
+queueは従来どおりLINE管理admin限定・`sourceType='group'`限定であり、LINE push／replyを直接呼ばない。おすすめ文案は未送信のまま既存group dialogへ渡し、人間の内容確認、conversation revision再照合、immutable outgoing audit、deterministic retry key、lifecycle／設定再検証を通った既存manual sendだけが送信できる。通常group返信の明示`@LCJ`／本人資格gate、限定onboarding、未連携参加者の限定明示質問以外を自動返信しない境界は変更していない。
+
+最終検証はupstream `011e261d`統合後に関連LINE **11 files・142 tests**成功、production build成功、変更moduleのbundle成功、diff／secret監査成功。build時の既存`sharp` import warning、chunk size warning、local DB不在によるmigration `ECONNREFUSED`からruntime initializerへの安全な委譲だけを確認した。full TypeScriptは既存baseline **1,163 diagnostics／85 files**でexit 2だが、今回の5変更fileは0件。独立read-only reviewはblocker修正前の指摘を閉じ、統合後も最終**GO（P0/P1 0件）**。検証中に実LINE送信、設定変更、group leave、本番DB直接操作は行っていない。

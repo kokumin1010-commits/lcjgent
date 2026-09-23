@@ -61,7 +61,7 @@ export default function LineManagement() {
   const searchString = useSearch();
   const urlParams = new URLSearchParams(searchString);
   const tabFromUrl = urlParams.get("tab");
-  const [activeTab, setActiveTab] = useState(tabFromUrl || "users");
+  const [activeTab, setActiveTab] = useState(tabFromUrl || "group-reply-review");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [showMessageDialog, setShowMessageDialog] = useState(false);
@@ -715,54 +715,80 @@ export default function LineManagement() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="h-auto flex-wrap justify-start">
-          <TabsTrigger value="users" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            {language === "ja" ? "ユーザー" : "用户"}
-          </TabsTrigger>
-          <TabsTrigger value="livers" className="flex items-center gap-2">
-            <Radio className="h-4 w-4" />
-            {language === "ja" ? "ライバー連携" : "主播关联"}
-            {liverLinkedUsers && liverLinkedUsers.length > 0 && (
-              <Badge variant="secondary" className="ml-1 text-xs">
-                {liverLinkedUsers.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="ai-managers" className="flex items-center gap-2">
-            <Bot className="h-4 w-4" />
-            {LINE_PUBLIC_CONTACT_NAME}
-            {(aiManagerData?.stats.total || 0) > 0 && (
-              <Badge variant="secondary" className="ml-1 text-xs">
-                {aiManagerData?.stats.replyEnabled || 0}/{aiManagerData?.stats.total || 0}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="groups" className="flex items-center gap-2">
-            <Building2 className="h-4 w-4" />
-            {language === "ja" ? "グループ" : "群组"}
-          </TabsTrigger>
-          <TabsTrigger value="group-reply-review" className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-violet-600" />
-            {language === "ja" ? "グループAI返信確認" : "群组AI回复确认"}
-            {(groupReplyReviewQueue.data?.filter(item => item.shouldReply).length || 0) > 0 && (
-              <Badge variant="destructive" className="ml-1 text-xs">
-                {groupReplyReviewQueue.data?.filter(item => item.shouldReply).length || 0}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="messages" className="flex items-center gap-2">
-            <History className="h-4 w-4" />
-            {language === "ja" ? "個別LINE履歴" : "个人LINE记录"}
-          </TabsTrigger>
-          <TabsTrigger value="follow-ups" className="flex items-center gap-2">
-            <Bell className="h-4 w-4" />
-            {language === "ja" ? "フォローアップ" : "跟进"}
-          </TabsTrigger>
-          <TabsTrigger value="pending" className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            {language === "ja" ? "個別未応答" : "个人待回复"}
-          </TabsTrigger>
+        <TabsList
+          aria-label={language === "ja" ? "LINE管理メニュー" : "LINE管理菜单"}
+          className="grid h-auto w-full grid-cols-1 items-stretch gap-2 rounded-xl bg-slate-100 p-2 2xl:grid-cols-[1.05fr_1.35fr_1.35fr] dark:bg-slate-900"
+        >
+          <div className="min-w-0 rounded-lg border border-violet-200 bg-violet-50/80 p-2 dark:border-violet-900 dark:bg-violet-950/20">
+            <p className="px-1 pb-1 text-[11px] font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300">
+              {language === "ja" ? "グループ対応" : "群组处理"}
+            </p>
+            <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+              <TabsTrigger value="group-reply-review" className="h-9 min-w-0 px-2 text-xs sm:text-sm">
+                <Sparkles className="h-4 w-4 text-violet-600" />
+                {language === "ja" ? "AI返信確認" : "AI回复确认"}
+                {(groupReplyReviewQueue.data?.filter(item => item.shouldReply).length || 0) > 0 && (
+                  <Badge variant="destructive" className="ml-0.5 h-5 min-w-5 px-1.5 text-[10px]">
+                    {groupReplyReviewQueue.data?.filter(item => item.shouldReply).length || 0}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="groups" className="h-9 min-w-0 px-2 text-xs sm:text-sm">
+                <Building2 className="h-4 w-4" />
+                {language === "ja" ? "グループ一覧" : "群组列表"}
+              </TabsTrigger>
+            </div>
+          </div>
+
+          <div className="min-w-0 rounded-lg border border-sky-200 bg-sky-50/80 p-2 dark:border-sky-900 dark:bg-sky-950/20">
+            <p className="px-1 pb-1 text-[11px] font-bold uppercase tracking-wide text-sky-700 dark:text-sky-300">
+              {language === "ja" ? "個別LINE" : "个人LINE"}
+            </p>
+            <div className="grid grid-cols-1 gap-1 sm:grid-cols-3">
+              <TabsTrigger value="messages" className="h-9 min-w-0 px-2 text-xs sm:text-sm">
+                <History className="h-4 w-4" />
+                {language === "ja" ? "履歴" : "记录"}
+              </TabsTrigger>
+              <TabsTrigger value="pending" className="h-9 min-w-0 px-2 text-xs sm:text-sm">
+                <Clock className="h-4 w-4" />
+                {language === "ja" ? "未応答" : "待回复"}
+              </TabsTrigger>
+              <TabsTrigger value="follow-ups" className="h-9 min-w-0 px-2 text-xs sm:text-sm">
+                <Bell className="h-4 w-4" />
+                {language === "ja" ? "フォロー" : "跟进"}
+              </TabsTrigger>
+            </div>
+          </div>
+
+          <div className="min-w-0 rounded-lg border border-slate-200 bg-white/80 p-2 dark:border-slate-700 dark:bg-slate-950/40">
+            <p className="px-1 pb-1 text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+              {language === "ja" ? "管理・連携" : "管理・关联"}
+            </p>
+            <div className="grid grid-cols-1 gap-1 sm:grid-cols-3">
+              <TabsTrigger value="users" className="h-9 min-w-0 px-2 text-xs sm:text-sm">
+                <User className="h-4 w-4" />
+                {language === "ja" ? "ユーザー" : "用户"}
+              </TabsTrigger>
+              <TabsTrigger value="livers" className="h-9 min-w-0 px-2 text-xs sm:text-sm">
+                <Radio className="h-4 w-4" />
+                {language === "ja" ? "ライバー" : "主播"}
+                {liverLinkedUsers && liverLinkedUsers.length > 0 && (
+                  <Badge variant="secondary" className="ml-0.5 h-5 min-w-5 px-1.5 text-[10px]">
+                    {liverLinkedUsers.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="ai-managers" className="h-9 min-w-0 px-2 text-xs sm:text-sm">
+                <Bot className="h-4 w-4" />
+                {LINE_PUBLIC_CONTACT_NAME}
+                {(aiManagerData?.stats.total || 0) > 0 && (
+                  <Badge variant="secondary" className="ml-0.5 h-5 px-1.5 text-[10px]">
+                    {aiManagerData?.stats.replyEnabled || 0}/{aiManagerData?.stats.total || 0}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            </div>
+          </div>
         </TabsList>
 
         {/* Users Tab */}

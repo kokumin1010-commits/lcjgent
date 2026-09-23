@@ -78,6 +78,59 @@ describe("LINE group reply review queue", () => {
   it("returns only latest unmatched group inbound rows and maps a safe suggestion", async () => {
     mocks.execute.mockImplementation(async (query: any) => {
       const text = queryText(query);
+      if (text.includes("ROW_NUMBER() OVER")) {
+        expect(text).toContain("contextSender.userType");
+        expect(text).toContain("messages.direction = 'outgoing'");
+        expect(text).toContain("messages.responseStatus = 'cancelled'");
+        expect(text).not.toContain("contextSender.userType = 'staff'");
+        return [[
+          {
+            id: 98,
+            lineGroupId: "C123456789",
+            messageId: "m-98",
+            direction: "incoming",
+            lineUserId: "U-CREATOR",
+            senderName: "Cindy",
+            senderType: "liver",
+            isBlocked: 0,
+            content: "こちらは私のアカウントです。",
+            responseStatus: "none",
+            lineTimestamp: Date.now() - 180_000,
+            createdAt: new Date(),
+            contextMessageCount: 3,
+          },
+          {
+            id: 99,
+            lineGroupId: "C123456789",
+            messageId: "m-99",
+            direction: "incoming",
+            lineUserId: "U-STAFF",
+            senderName: "京極 琉",
+            senderType: "staff",
+            isBlocked: 0,
+            content: "こちらで確認します。",
+            responseStatus: "none",
+            lineTimestamp: Date.now() - 120_000,
+            createdAt: new Date(),
+            contextMessageCount: 3,
+          },
+          {
+            id: 100,
+            lineGroupId: "C123456789",
+            messageId: "m-100",
+            direction: "incoming",
+            lineUserId: "U-CREATOR",
+            senderName: "Cindy",
+            senderType: "liver",
+            isBlocked: 0,
+            content: "追加でサンプルも可能でしょうか？",
+            responseStatus: "none",
+            lineTimestamp: Date.now() - 60_000,
+            createdAt: new Date(),
+            contextMessageCount: 3,
+          },
+        ], []];
+      }
       expect(text).toContain("lifecycle.isActive = TRUE");
       expect(text).toContain("candidate.sourceType = 'group'");
       expect(text).toContain("candidate.direction = 'incoming'");
@@ -97,6 +150,10 @@ describe("LINE group reply review queue", () => {
       expect(text).toContain("candidate.responseStatus NOT IN ('responded', 'cancelled')");
       expect(text).toContain("candidateSender.userType");
       expect(text).toContain("recentSender.userType");
+      expect(text).toContain("previousOutgoingSender.userType = 'staff'");
+      expect(text).toContain("COALESCE(previousOutgoingSender.isBlocked, FALSE) = FALSE");
+      expect(text).toContain("outgoingSender.userType = 'staff'");
+      expect(text).toContain("COALESCE(outgoingSender.isBlocked, FALSE) = FALSE");
       return [[{
         lineGroupId: "C123456789",
         groupName: "テストブランド LCJ",
@@ -133,6 +190,74 @@ describe("LINE group reply review queue", () => {
     });
     expect(result[0].suggestedReply).toContain("サンプル提供の可否をブランド側へ確認します");
     expect(result[0].suggestedReply).toContain("個人情報はグループに書かず");
+    expect(result[0].contextMessageCount).toBe(3);
+    expect(result[0].contextTruncated).toBe(false);
+    expect(result[0].contextMessages).toHaveLength(3);
+    expect(result[0].contextMessages[1]).toMatchObject({
+      senderName: "京極 琉",
+      senderType: "staff",
+      content: "こちらで確認します。",
+    });
+  });
+
+  it("drops a stale queue candidate when a known staff reply has the same timestamp and a higher DB id", async () => {
+    const baseTime = Date.now() - 180_000;
+    mocks.execute.mockImplementation(async (query: any) => {
+      const text = queryText(query);
+      if (text.includes("ROW_NUMBER() OVER")) {
+        return [[
+          {
+            id: 200,
+            lineGroupId: "C-RACE",
+            messageId: "m-question",
+            direction: "incoming",
+            lineUserId: "U-CREATOR",
+            senderName: "Creator",
+            senderType: "liver",
+            isBlocked: 0,
+            content: "サンプルは可能でしょうか？",
+            responseStatus: "none",
+            lineTimestamp: baseTime,
+            createdAt: new Date(baseTime),
+            contextMessageCount: 2,
+          },
+          {
+            id: 201,
+            lineGroupId: "C-RACE",
+            messageId: "m-staff",
+            direction: "incoming",
+            lineUserId: "U-STAFF",
+            senderName: "LCJ Staff",
+            senderType: "staff",
+            isBlocked: 0,
+            content: "こちらで確認します。",
+            responseStatus: "none",
+            lineTimestamp: baseTime,
+            createdAt: new Date(baseTime),
+            contextMessageCount: 2,
+          },
+        ], []];
+      }
+      return [[{
+        lineGroupId: "C-RACE",
+        groupName: "Race Group",
+        incomingMessageId: "m-question",
+        incomingMessageDbId: 200,
+        conversationRevision: 2,
+        senderLineUserId: "U-CREATOR",
+        senderName: "Creator",
+        content: "サンプルは可能でしょうか？",
+        unansweredContext: "サンプルは可能でしょうか？",
+        unansweredMessageCount: 1,
+        deliveryPending: 0,
+        lineTimestamp: baseTime,
+        createdAt: new Date(baseTime),
+        analysisEnabled: 1,
+        autoReplyEnabled: 1,
+      }], []];
+    });
+
+    await expect(getLineGroupReplyReviewQueue()).resolves.toEqual([]);
   });
 
   it("supports direct execute-row shapes used by test and driver adapters", () => {
@@ -148,6 +273,8 @@ describe("LINE group reply review queue", () => {
         expect(text).toContain("selected.messageId =");
         expect(text).toContain("target.id <= selected.id");
         expect(text).toContain("replied.responseStatus = 'responded'");
+        expect(text).toContain("repliedSender.userType = 'staff'");
+        expect(text).toContain("COALESCE(repliedSender.isBlocked, FALSE) = FALSE");
         expect(text).toContain("targetSender.userType");
         return [[{ id: 98 }, { id: 100 }]];
       }
