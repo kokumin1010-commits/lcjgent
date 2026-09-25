@@ -453,6 +453,12 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         labelZh: "广告司令塔",
         labelJa: "広告司令塔",
       },
+      {
+        icon: Video,
+        path: "/master/tiktok-ads",
+        labelZh: "TikTok广告连携",
+        labelJa: "TikTok広告連携",
+      },
     ],
   },
   {
@@ -711,11 +717,15 @@ export function canViewDepartmentMenuItem(options: {
     permissionsData.permissions === undefined
   )
     return true;
+  const permissionTarget = normalizedPath === "/master/tiktok-ads"
+    ? "/master/ad-dashboard"
+    : path;
   return permissionsData.permissions.some(
     permission =>
       (permission.canView === true ||
         permission.canView === 1 ||
         permission.canView === "1") &&
-      permissionMatchesMenuPath(permission.pageKey, path)
+      (permissionMatchesMenuPath(permission.pageKey, path) ||
+        permissionMatchesMenuPath(permission.pageKey, permissionTarget))
   );
 }

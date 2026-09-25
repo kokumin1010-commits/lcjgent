@@ -144,6 +144,7 @@ const BrandPortal = lazy(() => import("./pages/BrandPortal"));
 const BrandSimulationView = lazy(() => import("./pages/BrandSimulationView"));
 const BrandPortalAdmin = lazy(() => import("./pages/BrandPortalAdmin"));
 const AdDashboard = lazy(() => import("./pages/AdDashboard"));
+const TikTokAdsIntegration = lazy(() => import("./pages/TikTokAdsIntegration"));
 const Recruit = lazy(() => import("./pages/Recruit"));
 const ProductVote = lazy(() => import("./pages/ProductVote"));
 const ShortVideoMatrix = lazy(() => import("./pages/ShortVideoMatrix"));
@@ -725,6 +726,11 @@ function Router() {
         <Route path="/master/ad-dashboard">
           <DashboardLayout>
             <AdDashboard />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/tiktok-ads">
+          <DashboardLayout>
+            <TikTokAdsIntegration />
           </DashboardLayout>
         </Route>
 

@@ -23,7 +23,7 @@ describe("department admin menu", () => {
       "人事部",
       "短视频运营部",
     ]);
-    expect(ADMIN_MENU_ITEMS).toHaveLength(60);
+    expect(ADMIN_MENU_ITEMS).toHaveLength(67);
     expect(new Set(ADMIN_MENU_ITEMS.map(item => item.path)).size).toBe(
       ADMIN_MENU_ITEMS.length
     );
@@ -58,6 +58,7 @@ describe("department admin menu", () => {
     expect(groupForPath("/master/step-email/analytics")).toBe("商务部");
     expect(groupForPath("/master/livers")).toBe("达人部");
     expect(groupForPath("/master/ad-dashboard")).toBe("广告投流部");
+    expect(groupForPath("/master/tiktok-ads")).toBe("广告投流部");
     expect(groupForPath("/master/system-users")).toBe("IT部");
     expect(
       ADMIN_MENU_GROUPS.find(group => group.labelZh === "IT部")?.items.some(
@@ -138,6 +139,17 @@ describe("department admin menu", () => {
         permissionsLoading: false,
       })
     ).toBe(false);
+    expect(
+      canViewDepartmentMenuItem({
+        path: "/master/tiktok-ads",
+        userRole: "user",
+        permissionsData: {
+          isAdmin: false,
+          permissions: [{ pageKey: "/master/ad-dashboard", canView: true }],
+        },
+        permissionsLoading: false,
+      })
+    ).toBe(true);
     const selectionPermissions = {
       isAdmin: false,
       permissions: [{ pageKey: "/master/selection-center", canView: true }],

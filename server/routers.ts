@@ -85,6 +85,7 @@ import { isValidEmailForSending, getInvalidEmailReason } from "./emailValidator"
 import { csvSnapshotRouter } from "./csvSnapshotProcedures";
 import { morningMeetingRouter } from "./morningMeetingRouter";
 import { storeManagementRouter } from "./storeManagementRouter";
+import { tiktokAdsRouter } from "./tiktokAdsRouter";
 import { brandDayRouter } from "./brandDayRouter";
 import { brandBusinessRouter } from "./brandBusinessRouter";
 import { brandBdCommandRouter } from "./brandBdCommandRouter";
@@ -31550,6 +31551,7 @@ JSON形式で推薦順序を返してください。`;
   rundown: rundownRouter,
   setImage: setImageRouter,
   storeManagement: storeManagementRouter,
+  tiktokAds: tiktokAdsRouter,
   brandDay: brandDayRouter,
   brandBusiness: brandBusinessRouter,
   brandBdCommand: brandBdCommandRouter,

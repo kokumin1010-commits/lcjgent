@@ -3867,3 +3867,13 @@ LCF TOP headerからは指定どおり「LCJ公式」buttonだけを削除した
 LCM商品詳細は、サンプル受付の「あり／なし」status表示を外し、公開商品すべてに最優先の「ブランドさんに連絡」buttonを追加した。連絡はLCM内の専用threadへ保存され、問い合わせ者とブランド双方のmypageで返信できる。連携済みの有効なbrand ownerだけへemail通知し、担当者未連携時はLCM運営受付へfallbackする。email addressは相手に公開しない。新規連絡は10分5件のaccount単位atomic limiter、self-brand拒否、商品／brand公開状態、approved membership、brand active membership、transaction内message・thread・audit保存を通過してから通知する。thread一覧は`lastMessageAt + id`、thread内messageは`id`のkeyset cursorで「さらに表示」でき、固定上限を設けない。
 最終検証はLCF／LCM関連43 test files・306 tests成功、exact production build成功、変更module bundle成功、`git diff --check`／secret-like追加監査成功。全体TypeScriptは既存baseline 1,163 diagnosticsだが、今回変更fileは0件。1440px／390pxの実画面確認で第2回初心者sectionのinline CTAとfixed barが重ならず操作できること、既存LCM contact visual fixtureで商品CTA、送信form、thread、返信欄がdesktop／mobileとも横溢れしないことを確認した。実送信、申込、production DB書込みは行っていない。
 feature SHA `8874fd41b15d96a599796b9f27d61a19fdcc2c1d`はGitHub CI success、Railway deployment `6655961479`も同一SHAでproduction success。本番root、`/2nd`、`/lcm`、`/lcm/products/drkozu-cell-peel-crystal`は全てHTTP 200。配信chunkで第2回修正文言、初心者申込、ブランド連絡、owner未連携fallback、thread／messageの「さらに表示」を確認し、削除対象のCOMMON SIGN、最終黄色CTA、「サンプル受付なし」は残っていない。本番DOMでTOP headerの「LCJ公式」button削除とfooter link維持も確認した。desktop／mobile再撮影でTOP、初心者CTA、商品contact CTAに重なり・横溢れがない。acceptanceはGET／DOM read-onlyのみで、連絡、email、申込、sample、卸取引のmutationは実施していない。
+
+## 2026-09-25｜TikTok for Business广告连携独立页面
+
+按用户要求，在现有店铺管理和广告司令塔之外新增独立`/master/tiktok-ads`页面，并从店铺管理顶部和广告投流部侧栏提供入口。页面以LCJ-01广告账户为对象，统一展示账户状态、全期间花费／曝光／点击／CTR／CPC／TikTok转化事件／CPA、16个Campaign、19个广告组、48个广告及素材文字、最近30日趋势与API能力说明。首次接入数据来自2026-09-25通过已授权TikTok for Business连接器只读取得并做SHA来源记录的完整快照；页面明确标注快照采集时间、转换事件不等于店铺订单，以及广告账户层级和Campaign层级原始报表的曝光合计相差1次并保留两份官方原始值。
+
+服务端新增只读连接器和tRPC query。生产未配置专用令牌时返回已验证快照；配置`TIKTOK_BUSINESS_ACCESS_TOKEN`（及可选`TIKTOK_BUSINESS_ADVERTISER_ID`）后，服务器端使用TikTok Marketing API v1.3 GET接口读取账户、Campaign、广告组、广告和综合报表，令牌绝不进入浏览器、日志或返回值。接口只读，不提供创建、启停、预算或素材写入。实时响应必须带完整单页分页元数据，列表长度须与`total_number`一致，Campaign绩效须与Campaign一一对应；缺失、截断或API失败时以脱敏错误码回退快照，不显示不完整数据或原始异常。
+
+访问边界复用现有RBAC：技术管理员、层级超级管理员、显式`/master/tiktok-ads`权限或既有`/master/ad-dashboard`查看权限可访问；其他登录用户由前后端双重拒绝。投放状态按Campaign→广告组→广告父子层级计算，已启用的子项若上层暂停则显示“上层已暂停”，不计入有效投放。当前快照16个Campaign全部暂停，因此有效投放为0，不再把19个广告错误显示为投放中。
+
+验证：TikTok、店铺、广告、导航专项25文件224/224件通过；核心安全测试5文件25/25件通过，覆盖权限拒绝、既有广告权限继承、令牌不泄露、API错误脱敏、对象与三类报表分页缺失／多页／总数不一致回退、Campaign指标一一对应及父级暂停状态。production build成功，桌面1440px、手机390px、Campaign表、广告素材卡和店铺管理手机入口均完成实际构建视觉QA。全量TypeScript仍有仓库既有1163条诊断，本次TikTok、店铺管理和菜单文件诊断0；全量Vitest既有48文件223项失败均来自未配置数据库等基线，本次新增和专项测试无失败。独立安全审查最终结论GO。尚未在生产执行广告创建、启停、预算调整或任何TikTok写入。

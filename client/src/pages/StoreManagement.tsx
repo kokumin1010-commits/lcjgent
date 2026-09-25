@@ -4,6 +4,7 @@
  */
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
+import { useLocation } from 'wouter';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { 
@@ -80,6 +81,7 @@ async function uploadStoreAvatar(file: File, storeId?: number): Promise<{ url: s
 
 export default function StoreManagement() {
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingStore, setEditingStore] = useState<any | null>(null);
@@ -123,7 +125,7 @@ export default function StoreManagement() {
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-orange-100 px-6 py-4">
-        <div className="max-w-[1600px] mx-auto flex items-center justify-between">
+        <div className="max-w-[1600px] mx-auto flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <Store className="h-7 w-7 text-orange-600" />
             <h1 className="text-2xl font-bold text-gray-900">店铺管理</h1>
@@ -131,9 +133,14 @@ export default function StoreManagement() {
               {storesQuery.data?.length || 0} 店铺
             </span>
           </div>
-          <Button onClick={() => setShowCreateDialog(true)} className="bg-orange-500 hover:bg-orange-600">
-            <Plus className="h-4 w-4 mr-1" /> 添加店铺
-          </Button>
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <Button variant="outline" onClick={() => setLocation('/master/tiktok-ads')} className="flex-1 border-slate-300 bg-slate-950 text-white hover:bg-slate-800 hover:text-white sm:flex-none">
+              <Megaphone className="h-4 w-4 mr-1" /> TikTok广告连携
+            </Button>
+            <Button onClick={() => setShowCreateDialog(true)} className="flex-1 bg-orange-500 hover:bg-orange-600 sm:flex-none">
+              <Plus className="h-4 w-4 mr-1" /> 添加店铺
+            </Button>
+          </div>
         </div>
       </div>
 
