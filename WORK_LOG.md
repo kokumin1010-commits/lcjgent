@@ -3949,3 +3949,13 @@ feature SHA `ded1ea6101fd0ace7d1a97bc50c1e6f16ca9e4a9`はGitHub CI run `36133091
 390×900のlocal実画面で、3ボタンが1行に収まり、文字切れ・重なり・横溢れがないことを確認した。focused 3 files・35 tests、全LCF 33 files・231 tests、production build、変更component bundle、`git diff --check`に成功した。全体TypeScriptは既存1,163 diagnosticsで、今回2変更fileは0件。独立read-only reviewは**GO（P0/P1/P2 0件）**。申込送信やOpenChat投稿は行っていない。
 
 feature SHA `500030220fdc1cc9c214c3720153da99d159ac15`はGitHub CI run `36138669546`がsuccess、Railway production deployment `6661391106`も同一SHAでsuccess。本番`/2nd`はHTTP 200で、entry `index-BMZL3diX.js`が`LcfSecondEdition-tr246KR1.js`を参照し、compact 3列、短縮label、完全な`aria-label`を配信している。390px本番DOMでは3buttonはいずれも約115.3×48px、左右16px内に収まり、実画面でも文字切れ・重なり・横溢れがないことを確認した。申込送信やOpenChat投稿は行っていない。
+
+## 2026-09-25｜样品申请物流闭环（本番反映前）
+
+`/master/sample-requests`新增运营管理员手动物流维护：可登记配送状态（准备中、已发货、运输中、派送中、已送达、配送异常、退回）、承运商、追踪号、HTTPS追踪链接、预计送达、当前位置、主播可见说明和事件时间。每次保存以事务更新当前快照并追加不可变物流时间线；旧的一键“已发货”入口改为失败关闭，避免缺少承运商和追踪号的记录。原有样品申请、审批、额度和主播申请流程保持不变。
+
+主播本人页面只通过JWT绑定的`liverId`读取自己的样品，并显示列表摘要、详情、配送公司官方追踪入口和时间线。API从主播DTO剥离`recordedBy`、`logisticsUpdatedBy`和`reviewedBy`等内部人员ID；所有运营读取、审批、物流、额度和指定主播历史接口统一改为`adminProcedure`，普通登录用户在进入数据库逻辑前即被拒绝。追踪URL由服务端和前端双重规范化，仅允许无凭据的公共HTTPS域名，拒绝localhost、内部后缀、私有/保留IPv4和全部IPv6字面量；已知的ヤマト、佐川、日本郵便、西濃可由追踪号生成官方URL。
+
+并发更新使用请求行`FOR UPDATE`和单调`logistics_revision`乐观锁，事务内同时递增revision、更新快照并插入事件，同秒提交也不会静默覆盖。物流Schema采用版本化、运行时唯一权威升级：Railway监听前持有同一物理连接的MySQL命名锁，只有验证加密pre-backup成功后才执行任何新增物流DDL，完成后再验证既有样品行数/ID/金额摘要不变、执行post-backup并写入v2成功marker；备份失败的catch路径不创建marker表。健康检查严格核对快照列类型/可空性、`TIMESTAMP(3)`、revision默认值、事件列、自增主键、历史索引和v2 marker。空的漂移事件表可在备份后重建，非空列/主键漂移失败关闭，错误历史索引可在备份后修复；`run-migrations.mjs`和Drizzle journal不包含会绕过备份门槛的物流DDL。
+
+发布前验证：专项14/14通过；全项目Vitest为4,605通过、45跳过、223失败，失败仍集中在latest-main已有48个数据库/外部环境依赖文件，本功能测试无失败；production build成功，仅保留仓库既有`receiptMaskingService.ts` sharp namespace warning。全量TypeScript仍有仓库既有1,162项诊断，本次新增共享规则、升级模块、测试和两个UI文件均为0，`sampleRequestRouter.ts`仍是同main既有37项nullable DB与2项旧`mallProducts.brand`诊断，`server/_core/index.ts`仍为既有4项。1440px与390px实际构建视觉QA通过，管理弹窗和主播详情/追踪/时间线均无横向溢出、console error、page error或failed request。最终独立只读复审为GO，P0/P1/P2/P3均为0。验证未连接或写入生产数据库，也未使用生产身份执行物流mutation。

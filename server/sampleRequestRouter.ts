@@ -1,11 +1,42 @@
-import { router, publicProcedure, protectedProcedure } from "./_core/trpc";
+import { router, publicProcedure, adminProcedure } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
-import { sampleRequests, sampleRequestItems, liverCredits, mallProducts, livers, brandLivestreams } from "../drizzle/schema";
+import { sampleRequests, sampleRequestItems, sampleRequestLogisticsEvents, liverCredits, mallProducts, livers, brandLivestreams } from "../drizzle/schema";
 import { eq, desc, and, sql, like, or, gte, lte, isNull } from "drizzle-orm";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
+import mysql, { type Pool, type RowDataPacket } from "mysql2/promise";
+import { buildCarrierTrackingUrl, normalizeHttpsUrl, SAMPLE_LOGISTICS_STATUSES } from "../shared/sampleLogistics";
+
+let logisticsPool: Pool | null = null;
+
+function getLogisticsPool(): Pool {
+  if (!logisticsPool) {
+    if (!process.env.DATABASE_URL) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "データベースが利用できません" });
+    logisticsPool = mysql.createPool({ uri: process.env.DATABASE_URL, waitForConnections: true, connectionLimit: 4 });
+  }
+  return logisticsPool;
+}
+
+function assertSampleLogisticsAdmin(ctx: any) {
+  if (!ctx.user || ctx.user.role !== "admin") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "物流情報を更新する権限がありません" });
+  }
+  const actorUserId = Number(ctx.user.id);
+  if (!Number.isSafeInteger(actorUserId) || actorUserId <= 0) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "物流情報を更新する権限がありません" });
+  }
+  return actorUserId;
+}
+
+async function getLogisticsEvents(db: any, requestId: number, includeActor = false) {
+  const events = await db.select().from(sampleRequestLogisticsEvents)
+    .where(eq(sampleRequestLogisticsEvents.requestId, requestId))
+    .orderBy(desc(sampleRequestLogisticsEvents.occurredAt), desc(sampleRequestLogisticsEvents.id));
+  if (includeActor) return events;
+  return events.map(({ recordedBy: _recordedBy, ...event }: any) => event);
+}
 
 // Helper: verify liver token (JWT)
 async function verifyLiverToken(token: string): Promise<{ liverId: number; type: string } | null> {
@@ -544,12 +575,15 @@ export const sampleRequestRouter = router({
       for (const req of requests) {
         const items = await db.select().from(sampleRequestItems)
           .where(eq(sampleRequestItems.requestId, req.id));
+        const logisticsEvents = await getLogisticsEvents(db, req.id);
+        const { logisticsUpdatedBy: _logisticsUpdatedBy, reviewedBy: _reviewedBy, ...liverRequest } = req;
         result.push({
-          ...req,
+          ...liverRequest,
           totalAmount: Number(req.totalAmount),
           creditUsed: Number(req.creditUsed),
           outOfPocketAmount: Number(req.outOfPocketAmount),
           cashAmount: Number(req.cashAmount),
+          logisticsEvents,
           items: items.map(i => ({
             ...i,
             price: Number(i.price),
@@ -596,7 +630,7 @@ export const sampleRequestRouter = router({
   // ========== 運営向けAPI ==========
 
   // 全サンプル請求一覧（運営用）
-  listAll: protectedProcedure
+  listAll: adminProcedure
     .input(z.object({
       status: z.string().optional(),
       month: z.string().optional(),
@@ -653,6 +687,7 @@ export const sampleRequestRouter = router({
         const items = await db.select().from(sampleRequestItems)
           .where(eq(sampleRequestItems.requestId, req.id));
         const liverCredit = creditMap.get(req.liverId) || null;
+        const logisticsEvents = await getLogisticsEvents(db, req.id, true);
         result.push({
           ...req,
           totalAmount: Number(req.totalAmount),
@@ -660,6 +695,7 @@ export const sampleRequestRouter = router({
           outOfPocketAmount: Number(req.outOfPocketAmount),
           cashAmount: Number(req.cashAmount),
           liverCredit,
+          logisticsEvents,
           items: items.map(i => ({
             ...i,
             price: Number(i.price),
@@ -672,7 +708,7 @@ export const sampleRequestRouter = router({
     }),
 
   // 請求承認
-  approve: protectedProcedure
+  approve: adminProcedure
     .input(z.object({
       id: z.number(),
       comment: z.string().optional(),
@@ -721,7 +757,7 @@ export const sampleRequestRouter = router({
     }),
 
   // 請求却下
-  reject: protectedProcedure
+  reject: adminProcedure
     .input(z.object({
       id: z.number(),
       comment: z.string().min(1, "却下理由を入力してください"),
@@ -741,21 +777,115 @@ export const sampleRequestRouter = router({
       return { success: true };
     }),
 
-  // 発送済みにする
-  markShipped: protectedProcedure
+  // 物流情報を手動更新（運営用）
+  updateLogistics: adminProcedure
+    .input(z.object({
+      id: z.number().int().positive(),
+      logisticsStatus: z.enum(SAMPLE_LOGISTICS_STATUSES),
+      shippingCarrier: z.string().max(120).optional().nullable(),
+      trackingNumber: z.string().max(160).optional().nullable(),
+      trackingUrl: z.string().max(2000).optional().nullable(),
+      estimatedDeliveryAt: z.string().optional().nullable(),
+      latestLocation: z.string().max(255).optional().nullable(),
+      note: z.string().max(2000).optional().nullable(),
+      occurredAt: z.string().optional(),
+      expectedRevision: z.number().int().nonnegative(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const actorUserId = assertSampleLogisticsAdmin(ctx);
+      const clean = (value: string | null | undefined) => String(value || "").trim() || null;
+      const carrier = clean(input.shippingCarrier);
+      const trackingNumber = clean(input.trackingNumber);
+      const suppliedTrackingUrl = clean(input.trackingUrl);
+      const safeSuppliedUrl = normalizeHttpsUrl(suppliedTrackingUrl);
+      if (suppliedTrackingUrl && !safeSuppliedUrl) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "追跡URLはhttps://で始まる有効なURLを入力してください" });
+      }
+      if (input.logisticsStatus !== "preparing" && (!carrier || !trackingNumber)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "発送後の状態には配送会社と追跡番号が必要です" });
+      }
+      const trackingUrl = safeSuppliedUrl || buildCarrierTrackingUrl(carrier, trackingNumber);
+      const occurredAt = input.occurredAt ? new Date(input.occurredAt) : new Date();
+      if (!Number.isFinite(occurredAt.getTime()) || occurredAt.getTime() > Date.now() + 5 * 60 * 1000) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "物流更新日時が正しくありません" });
+      }
+      const estimatedDeliveryAt = input.estimatedDeliveryAt ? new Date(input.estimatedDeliveryAt) : null;
+      if (estimatedDeliveryAt && !Number.isFinite(estimatedDeliveryAt.getTime())) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "お届け予定日時が正しくありません" });
+      }
+
+      const pool = getLogisticsPool();
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        const [rows] = await connection.query<RowDataPacket[]>(
+          "SELECT id,status,created_at,logistics_status,logistics_revision FROM sample_requests WHERE id=? FOR UPDATE",
+          [input.id],
+        );
+        const before = rows[0];
+        if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "サンプル申請が見つかりません" });
+        if (!["approved", "shipped"].includes(String(before.status))) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "承認済みの申請のみ物流情報を登録できます" });
+        }
+        if (occurredAt.getTime() < new Date(before.created_at).getTime()) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "物流更新日時を申請日時より前にはできません" });
+        }
+        const beforeRevision = Number(before.logistics_revision || 0);
+        if (input.expectedRevision !== beforeRevision) {
+          throw new TRPCError({ code: "CONFLICT", message: "物流情報が別の担当者に更新されました。再読み込みしてください" });
+        }
+        const previousLogisticsStatus = String(before.logistics_status || "");
+        if (input.logisticsStatus === "preparing" && (String(before.status) === "shipped" || (previousLogisticsStatus && previousLogisticsStatus !== "preparing"))) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "発送後の物流状態を発送準備中には戻せません" });
+        }
+        if (["delivered", "returned"].includes(previousLogisticsStatus) && input.logisticsStatus !== previousLogisticsStatus) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "配達完了・返送後の状態は変更できません" });
+        }
+        const [latestEventRows] = await connection.query<RowDataPacket[]>(
+          "SELECT occurred_at FROM sample_request_logistics_events WHERE request_id=? ORDER BY occurred_at DESC,id DESC LIMIT 1 FOR UPDATE",
+          [input.id],
+        );
+        if (latestEventRows[0]?.occurred_at && occurredAt.getTime() < new Date(latestEventRows[0].occurred_at).getTime()) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "物流更新日時を最新の物流履歴より前にはできません" });
+        }
+
+        const requestStatus = input.logisticsStatus === "preparing" ? "approved" : "shipped";
+        const firstShippedAt = input.logisticsStatus === "preparing" ? null : occurredAt;
+        const firstDeliveredAt = input.logisticsStatus === "delivered" ? occurredAt : null;
+        await connection.query(
+          `UPDATE sample_requests SET status=?, logistics_status=?, shipping_carrier=?, tracking_number=?, tracking_url=?,
+           estimated_delivery_at=?, latest_location=?, logistics_note=?, shipped_at=COALESCE(shipped_at,?), delivered_at=COALESCE(delivered_at,?),
+           logistics_updated_at=CURRENT_TIMESTAMP(3), logistics_revision=logistics_revision+1, logistics_updated_by=? WHERE id=?`,
+          [requestStatus, input.logisticsStatus, carrier, trackingNumber, trackingUrl, estimatedDeliveryAt, clean(input.latestLocation), clean(input.note), firstShippedAt, firstDeliveredAt, actorUserId, input.id],
+        );
+        await connection.query(
+          `INSERT INTO sample_request_logistics_events
+           (request_id,logistics_status,shipping_carrier,tracking_number,tracking_url,estimated_delivery_at,latest_location,note,occurred_at,recorded_by)
+           VALUES (?,?,?,?,?,?,?,?,?,?)`,
+          [input.id, input.logisticsStatus, carrier, trackingNumber, trackingUrl, estimatedDeliveryAt, clean(input.latestLocation), clean(input.note), occurredAt, actorUserId],
+        );
+        await connection.commit();
+        return { success: true, logisticsRevision: beforeRevision + 1 };
+      } catch (error) {
+        await connection.rollback();
+        if (error instanceof TRPCError) throw error;
+        console.error("[SampleLogistics] update failed", { requestId: input.id, errorCode: String((error as any)?.code || "SAMPLE_LOGISTICS_UPDATE_FAILED") });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "物流情報の保存に失敗しました" });
+      } finally {
+        connection.release();
+      }
+    }),
+
+  // 旧クライアントは追跡情報なしで発送済みにできないよう失敗させる
+  markShipped: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
-      const db = await getDb();
-
-      await db.update(sampleRequests)
-        .set({ status: "shipped", shippedAt: new Date() })
-        .where(eq(sampleRequests.id, input.id));
-
-      return { success: true };
+    .mutation(async ({ ctx }) => {
+      assertSampleLogisticsAdmin(ctx);
+      throw new TRPCError({ code: "BAD_REQUEST", message: "物流情報画面から配送会社と追跡番号を入力してください" });
     }),
 
   // マイナスクレジットを一括修正（運営用）
-  fixNegativeCredits: protectedProcedure
+  fixNegativeCredits: adminProcedure
     .mutation(async () => {
       const db = await getDb();
       // 全てのマイナスクレジットを0にリセット
@@ -768,7 +898,7 @@ export const sampleRequestRouter = router({
   // ========== クレジット管理API（運営用） ==========
 
   // ライバー一覧＋当月クレジット
-  listCredits: protectedProcedure
+  listCredits: adminProcedure
     .input(z.object({ month: z.string() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -804,7 +934,7 @@ export const sampleRequestRouter = router({
     }),
 
   // クレジット設定（運営が配信時間・売上を入力 → 自動計算）
-  setCredit: protectedProcedure
+  setCredit: adminProcedure
     .input(z.object({
       liverId: z.number(),
       month: z.string(),
@@ -914,7 +1044,7 @@ export const sampleRequestRouter = router({
     }),
 
   // ライバーのクレジット履歴取得（運営用 - ライバー詳細ページ向け）
-  getLiverCreditHistory: protectedProcedure
+  getLiverCreditHistory: adminProcedure
     .input(z.object({ liverId: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -941,7 +1071,7 @@ export const sampleRequestRouter = router({
     }),
 
   // ライバーのサンプル請求履歴取得（運営用 - ライバー詳細ページ向け）
-  getLiverRequests: protectedProcedure
+  getLiverRequests: adminProcedure
     .input(z.object({ liverId: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -953,11 +1083,13 @@ export const sampleRequestRouter = router({
       for (const req of requests) {
         const items = await db.select().from(sampleRequestItems)
           .where(eq(sampleRequestItems.requestId, req.id));
+        const logisticsEvents = await getLogisticsEvents(db, req.id, true);
         result.push({
           ...req,
           totalAmount: Number(req.totalAmount),
           creditUsed: Number(req.creditUsed),
           outOfPocketAmount: Number(req.outOfPocketAmount),
+          logisticsEvents,
           items: items.map(i => ({
             ...i,
             price: Number(i.price),

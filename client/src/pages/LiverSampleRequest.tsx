@@ -34,7 +34,10 @@ import {
   History,
   BarChart3,
   AlertTriangle,
+  MapPin,
+  ExternalLink,
 } from "lucide-react";
+import { normalizeHttpsUrl, SAMPLE_LOGISTICS_LABELS, type SampleLogisticsStatus } from "@shared/sampleLogistics";
 
 // Types
 interface SampleItem {
@@ -698,6 +701,15 @@ export default function LiverSampleRequest() {
                             )}
                           </div>
                         </div>
+                        {req.logisticsStatus && (
+                          <div className="mt-3 flex flex-wrap items-center gap-2 rounded border border-blue-800/50 bg-blue-950/30 px-2.5 py-2 text-xs text-blue-200">
+                            <Truck className="h-3.5 w-3.5" />
+                            <span className="font-semibold">{SAMPLE_LOGISTICS_LABELS[req.logisticsStatus as SampleLogisticsStatus] || req.logisticsStatus}</span>
+                            {req.shippingCarrier && <span className="text-gray-400">{req.shippingCarrier}</span>}
+                            {req.trackingNumber && <span className="font-mono text-gray-300">{req.trackingNumber}</span>}
+                            {req.estimatedDeliveryAt && <span className="ml-auto text-blue-300">予定 {new Date(req.estimatedDeliveryAt).toLocaleDateString("ja-JP")}</span>}
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   );
@@ -1012,10 +1024,46 @@ export default function LiverSampleRequest() {
                 </div>
               )}
 
-              {selectedRequest.status === "shipped" && selectedRequest.shippedAt && (
-                <div className="bg-blue-900/30 border border-blue-700/50 rounded p-2 text-blue-300 text-sm flex items-center gap-2">
-                  <Truck className="h-4 w-4" />
-                  発送済み: {new Date(selectedRequest.shippedAt).toLocaleDateString("ja-JP")}
+              {(selectedRequest.logisticsStatus || selectedRequest.status === "shipped") && (
+                <div className="rounded-lg border border-blue-700/60 bg-blue-950/30 p-3 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-blue-200 font-semibold">
+                      <Truck className="h-4 w-4" />
+                      配送状況: {selectedRequest.logisticsStatus
+                        ? SAMPLE_LOGISTICS_LABELS[selectedRequest.logisticsStatus as SampleLogisticsStatus]
+                        : "発送済み"}
+                    </div>
+                    {selectedRequest.estimatedDeliveryAt && (
+                      <span className="text-xs text-blue-300">お届け予定 {new Date(selectedRequest.estimatedDeliveryAt).toLocaleString("ja-JP")}</span>
+                    )}
+                  </div>
+                  <div className="grid gap-2 text-sm sm:grid-cols-2">
+                    {selectedRequest.shippingCarrier && <div><span className="text-gray-500">配送会社</span><div className="text-white">{selectedRequest.shippingCarrier}</div></div>}
+                    {selectedRequest.trackingNumber && <div><span className="text-gray-500">追跡番号</span><div className="font-mono text-white break-all">{selectedRequest.trackingNumber}</div></div>}
+                    {selectedRequest.latestLocation && (
+                      <div className="sm:col-span-2 flex items-start gap-2 text-gray-200"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" />{selectedRequest.latestLocation}</div>
+                    )}
+                  </div>
+                  {normalizeHttpsUrl(selectedRequest.trackingUrl) && (
+                    <a href={normalizeHttpsUrl(selectedRequest.trackingUrl)!} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                      配送会社で追跡する <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                  {selectedRequest.logisticsNote && <div className="rounded bg-gray-900/70 p-2 text-sm text-gray-300">{selectedRequest.logisticsNote}</div>}
+                  {(selectedRequest.logisticsEvents || []).length > 0 && (
+                    <div className="border-t border-blue-900 pt-3">
+                      <div className="mb-2 flex items-center gap-1 text-xs font-semibold text-gray-300"><History className="h-3.5 w-3.5" />配送履歴</div>
+                      <div className="space-y-2">
+                        {(selectedRequest.logisticsEvents || []).map((event: any) => (
+                          <div key={event.id} className="border-l-2 border-blue-700 pl-3 text-xs">
+                            <div className="font-semibold text-blue-300">{SAMPLE_LOGISTICS_LABELS[event.logisticsStatus as SampleLogisticsStatus] || event.logisticsStatus}</div>
+                            <div className="text-gray-400">{new Date(event.occurredAt).toLocaleString("ja-JP")}{event.latestLocation ? ` · ${event.latestLocation}` : ""}</div>
+                            {event.note && <div className="mt-1 text-gray-300">{event.note}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>

@@ -4780,6 +4780,17 @@ export const sampleRequests = mysqlTable("sample_requests", {
   reviewedBy: varchar("reviewed_by", { length: 255 }), // 審査した管理者
   reviewedAt: timestamp("reviewed_at"),
   shippedAt: timestamp("shipped_at"), // 発送日時
+  logisticsStatus: mysqlEnum("logistics_status", ["preparing", "shipped", "in_transit", "out_for_delivery", "delivered", "delivery_exception", "returned"]),
+  shippingCarrier: varchar("shipping_carrier", { length: 120 }),
+  trackingNumber: varchar("tracking_number", { length: 160 }),
+  trackingUrl: text("tracking_url"),
+  estimatedDeliveryAt: datetime("estimated_delivery_at"),
+  latestLocation: varchar("latest_location", { length: 255 }),
+  logisticsNote: text("logistics_note"),
+  deliveredAt: datetime("delivered_at"),
+  logisticsUpdatedAt: timestamp("logistics_updated_at", { fsp: 3 }),
+  logisticsRevision: int("logistics_revision").default(0).notNull(),
+  logisticsUpdatedBy: int("logistics_updated_by"),
   
   // 配送先住所
   postalCode: varchar("postal_code", { length: 10 }),
@@ -4796,6 +4807,25 @@ export const sampleRequests = mysqlTable("sample_requests", {
 });
 export type SampleRequest = typeof sampleRequests.$inferSelect;
 export type InsertSampleRequest = typeof sampleRequests.$inferInsert;
+
+/** Immutable manual logistics timeline for a sample request. */
+export const sampleRequestLogisticsEvents = mysqlTable("sample_request_logistics_events", {
+  id: int("id").autoincrement().primaryKey(),
+  requestId: int("request_id").notNull(),
+  logisticsStatus: mysqlEnum("logistics_status", ["preparing", "shipped", "in_transit", "out_for_delivery", "delivered", "delivery_exception", "returned"]).notNull(),
+  shippingCarrier: varchar("shipping_carrier", { length: 120 }),
+  trackingNumber: varchar("tracking_number", { length: 160 }),
+  trackingUrl: text("tracking_url"),
+  estimatedDeliveryAt: datetime("estimated_delivery_at"),
+  latestLocation: varchar("latest_location", { length: 255 }),
+  note: text("note"),
+  occurredAt: datetime("occurred_at").notNull(),
+  recordedBy: int("recorded_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, table => ({
+  requestHistory: index("idx_sample_logistics_request_time").on(table.requestId, table.occurredAt),
+}));
+export type SampleRequestLogisticsEvent = typeof sampleRequestLogisticsEvents.$inferSelect;
 
 /**
  * Sample Request Items table - サンプル請求内の個別商品

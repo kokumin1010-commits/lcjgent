@@ -96,6 +96,7 @@ import { getNavigationUsageHealth } from "../userNavigationUsage";
 import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runAuctionSchemaUpgradeSetup } from "../auctionSchemaUpgrade";
 import { runLivestreamSetImageUpgradeSetup } from "../livestreamSetImageUpgrade";
+import { getSampleLogisticsUpgradeHealth, runSampleLogisticsUpgradeSetup } from "../sampleLogisticsUpgrade";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
 import { runLiverPayrollRecovery } from "../liverPayrollRecovery";
 import { runLivestreamTimingRepair } from "../livestreamTimingRepair";
@@ -501,6 +502,16 @@ async function startServer() {
         recoveryKey: "tiktok-ads-command-center-operations-v1",
         errorCode: "TIKTOK_ADS_OPERATION_HEALTH_UNAVAILABLE",
       });
+    }
+  });
+
+  app.get("/api/health/sample-logistics", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    try {
+      const health = await getSampleLogisticsUpgradeHealth();
+      return res.status(health.healthy ? 200 : 503).json({ ok: health.healthy, ...health });
+    } catch {
+      return res.status(503).json({ ok: false, errorCode: "SAMPLE_LOGISTICS_HEALTH_UNAVAILABLE" });
     }
   });
 
@@ -4388,6 +4399,17 @@ async function startServer() {
     await runInfluencerBdUpgradeSetup();
   } catch (error) {
     console.error("[InfluencerBdUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Sample requests must expose a consistent logistics snapshot and immutable
+  // timeline before either the admin or liver route can read the new fields.
+  try {
+    await runSampleLogisticsUpgradeSetup();
+  } catch (error) {
+    console.error("[SampleLogisticsUpgrade] pre-listen setup failed", {
+      errorCode: error instanceof Error ? error.message.split(":", 1)[0] : "SAMPLE_LOGISTICS_UPGRADE_FAILED",
+    });
     throw error;
   }
 

@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { buildCarrierTrackingUrl, normalizeHttpsUrl, SAMPLE_LOGISTICS_LABELS, SAMPLE_LOGISTICS_STATUSES, type SampleLogisticsStatus } from "@shared/sampleLogistics";
 
 // Tabs
 type AdminTab = "requests" | "credits";
@@ -44,6 +45,13 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
   rejected: { label: "却下", color: "bg-red-600", icon: XCircle },
   shipped: { label: "発送済み", color: "bg-blue-600", icon: Truck },
   cancelled: { label: "キャンセル", color: "bg-gray-600", icon: XCircle },
+};
+
+const toLocalDateTimeInput = (value?: string | Date | null) => {
+  const date = value ? new Date(value) : new Date();
+  if (!Number.isFinite(date.getTime())) return "";
+  const shifted = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return shifted.toISOString().slice(0, 16);
 };
 
 const RANK_CONFIG: Record<string, { label: string; color: string; badge: string }> = {
@@ -66,6 +74,16 @@ export default function SampleRequestsAdmin() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [actionComment, setActionComment] = useState("");
   const [actionId, setActionId] = useState<number | null>(null);
+  const [logisticsOpen, setLogisticsOpen] = useState(false);
+  const [logisticsRequest, setLogisticsRequest] = useState<any>(null);
+  const [logisticsStatus, setLogisticsStatus] = useState<SampleLogisticsStatus>("preparing");
+  const [shippingCarrier, setShippingCarrier] = useState("");
+  const [trackingNumber, setTrackingNumber] = useState("");
+  const [trackingUrl, setTrackingUrl] = useState("");
+  const [estimatedDeliveryAt, setEstimatedDeliveryAt] = useState("");
+  const [latestLocation, setLatestLocation] = useState("");
+  const [logisticsNote, setLogisticsNote] = useState("");
+  const [logisticsOccurredAt, setLogisticsOccurredAt] = useState("");
 
   // Credit management
   const now = new Date();
@@ -83,7 +101,7 @@ export default function SampleRequestsAdmin() {
 
   // API calls
   const requestsQuery = trpc.sampleRequest.listAll.useQuery(
-    { status: statusFilter || undefined },
+    {},
     { enabled: activeTab === "requests" }
   );
 
@@ -102,8 +120,13 @@ export default function SampleRequestsAdmin() {
     onError: (e) => toast.error(e.message),
   });
 
-  const shippedMutation = trpc.sampleRequest.markShipped.useMutation({
-    onSuccess: () => { toast.success("発送済みにしました"); requestsQuery.refetch(); },
+  const logisticsMutation = trpc.sampleRequest.updateLogistics.useMutation({
+    onSuccess: () => {
+      toast.success("物流情報を保存しました。ライバー画面にも反映されます");
+      requestsQuery.refetch();
+      if (selectedLiverId) liverRequestsQuery.refetch();
+      setLogisticsOpen(false);
+    },
     onError: (e) => toast.error(e.message),
   });
 
@@ -138,15 +161,17 @@ export default function SampleRequestsAdmin() {
   const requests = requestsQuery.data || [];
   const credits = creditsQuery.data || [];
 
-  // Filter requests by search
+  // Filter requests locally so the summary cards always reflect every request.
   const filteredRequests = useMemo(() => {
-    if (!searchQuery) return requests;
     const q = searchQuery.toLowerCase();
-    return requests.filter((r: any) =>
-      r.liverName?.toLowerCase().includes(q) ||
-      (r.items || []).some((i: any) => i.productName?.toLowerCase().includes(q))
-    );
-  }, [requests, searchQuery]);
+    return requests.filter((r: any) => {
+      if (statusFilter && r.status !== statusFilter) return false;
+      if (!q) return true;
+      return r.liverName?.toLowerCase().includes(q) ||
+        r.trackingNumber?.toLowerCase().includes(q) ||
+        (r.items || []).some((i: any) => i.productName?.toLowerCase().includes(q));
+    });
+  }, [requests, searchQuery, statusFilter]);
 
   // Stats
   const stats = useMemo(() => {
@@ -169,6 +194,39 @@ export default function SampleRequestsAdmin() {
     setActionId(id);
     setActionComment("");
     setRejectOpen(true);
+  }
+
+  function openLogistics(req: any) {
+    setLogisticsRequest(req);
+    setLogisticsStatus(req.logisticsStatus || (req.status === "shipped" ? "shipped" : "preparing"));
+    setShippingCarrier(req.shippingCarrier || "");
+    setTrackingNumber(req.trackingNumber || "");
+    setTrackingUrl(req.trackingUrl || "");
+    setEstimatedDeliveryAt(req.estimatedDeliveryAt ? toLocalDateTimeInput(req.estimatedDeliveryAt) : "");
+    setLatestLocation(req.latestLocation || "");
+    setLogisticsNote(req.logisticsNote || "");
+    setLogisticsOccurredAt(toLocalDateTimeInput());
+    setLogisticsOpen(true);
+  }
+
+  function saveLogistics() {
+    if (!logisticsRequest) return;
+    if (logisticsStatus !== "preparing" && (!shippingCarrier.trim() || !trackingNumber.trim())) {
+      toast.error("発送後の状態には配送会社と追跡番号が必要です");
+      return;
+    }
+    logisticsMutation.mutate({
+      id: logisticsRequest.id,
+      logisticsStatus,
+      shippingCarrier: shippingCarrier.trim() || null,
+      trackingNumber: trackingNumber.trim() || null,
+      trackingUrl: trackingUrl.trim() || null,
+      estimatedDeliveryAt: estimatedDeliveryAt ? new Date(estimatedDeliveryAt).toISOString() : null,
+      latestLocation: latestLocation.trim() || null,
+      note: logisticsNote.trim() || null,
+      occurredAt: new Date(logisticsOccurredAt).toISOString(),
+      expectedRevision: Number(logisticsRequest.logisticsRevision || 0),
+    });
   }
 
   function openEditCredit(liver: any) {
@@ -250,7 +308,7 @@ export default function SampleRequestsAdmin() {
               <Input
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="ライバー名・商品名で検索"
+                placeholder="ライバー名・商品名・追跡番号で検索"
                 className="pl-10 bg-gray-900 border-gray-700 text-white"
               />
             </div>
@@ -383,6 +441,29 @@ export default function SampleRequestsAdmin() {
                             </div>
                           )}
 
+                          {(req.logisticsStatus || req.trackingNumber) && (
+                            <div className="rounded border border-blue-800/60 bg-blue-950/30 p-3 text-xs space-y-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 font-semibold text-blue-200">
+                                  <Truck className="h-4 w-4" />
+                                  物流: {SAMPLE_LOGISTICS_LABELS[req.logisticsStatus as SampleLogisticsStatus] || "未登録"}
+                                </div>
+                                {req.estimatedDeliveryAt && <span className="text-blue-300">お届け予定 {new Date(req.estimatedDeliveryAt).toLocaleString("ja-JP")}</span>}
+                              </div>
+                              <div className="grid gap-1 sm:grid-cols-2 text-gray-300">
+                                {req.shippingCarrier && <div>配送会社: {req.shippingCarrier}</div>}
+                                {req.trackingNumber && <div>追跡番号: <span className="font-mono">{req.trackingNumber}</span></div>}
+                                {req.latestLocation && <div className="sm:col-span-2">現在地・状況: {req.latestLocation}</div>}
+                              </div>
+                              {normalizeHttpsUrl(req.trackingUrl) && (
+                                <a href={normalizeHttpsUrl(req.trackingUrl)!} target="_blank" rel="noreferrer" className="inline-flex text-blue-300 underline underline-offset-2">
+                                  配送状況を追跡
+                                </a>
+                              )}
+                              {req.logisticsNote && <div className="rounded bg-gray-900/70 p-2 text-gray-300">{req.logisticsNote}</div>}
+                            </div>
+                          )}
+
                           {/* Action Buttons */}
                           <div className="flex gap-2">
                             {req.status === "pending" && (
@@ -395,9 +476,9 @@ export default function SampleRequestsAdmin() {
                                 </Button>
                               </>
                             )}
-                            {req.status === "approved" && (
-                              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 flex-1" onClick={() => shippedMutation.mutate({ id: req.id })}>
-                                <Truck className="h-3 w-3 mr-1" /> 発送済みにする
+                            {(req.status === "approved" || req.status === "shipped") && (
+                              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 flex-1" onClick={() => openLogistics(req)}>
+                                <Truck className="h-3 w-3 mr-1" /> {req.logisticsStatus ? "物流情報を更新" : "物流情報を登録"}
                               </Button>
                             )}
                           </div>
@@ -547,6 +628,79 @@ export default function SampleRequestsAdmin() {
             >
               <XCircle className="h-4 w-4 mr-2" />
               却下する
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ============ LOGISTICS DIALOG ============ */}
+      <Dialog open={logisticsOpen} onOpenChange={setLogisticsOpen}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Truck className="h-5 w-5 text-blue-400" />
+              物流情報 - {logisticsRequest?.liverName} #{logisticsRequest?.id}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label className="text-gray-300">物流状態 *</Label>
+                <select value={logisticsStatus} onChange={e => setLogisticsStatus(e.target.value as SampleLogisticsStatus)} className="mt-1 h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 text-sm text-white">
+                  {SAMPLE_LOGISTICS_STATUSES.map(status => <option key={status} value={status}>{SAMPLE_LOGISTICS_LABELS[status]}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label className="text-gray-300">更新日時 *</Label>
+                <Input type="datetime-local" value={logisticsOccurredAt} onChange={e => setLogisticsOccurredAt(e.target.value)} className="mt-1 bg-gray-800 border-gray-700 text-white" />
+              </div>
+              <div>
+                <Label className="text-gray-300">配送会社 {logisticsStatus !== "preparing" && "*"}</Label>
+                <Input value={shippingCarrier} onChange={e => setShippingCarrier(e.target.value)} placeholder="例: ヤマト運輸" className="mt-1 bg-gray-800 border-gray-700 text-white" />
+              </div>
+              <div>
+                <Label className="text-gray-300">追跡番号 {logisticsStatus !== "preparing" && "*"}</Label>
+                <Input value={trackingNumber} onChange={e => setTrackingNumber(e.target.value)} placeholder="伝票番号を入力" className="mt-1 bg-gray-800 border-gray-700 text-white font-mono" />
+              </div>
+              <div>
+                <Label className="text-gray-300">お届け予定日時</Label>
+                <Input type="datetime-local" value={estimatedDeliveryAt} onChange={e => setEstimatedDeliveryAt(e.target.value)} className="mt-1 bg-gray-800 border-gray-700 text-white" />
+              </div>
+              <div>
+                <Label className="text-gray-300">現在地・配送状況</Label>
+                <Input value={latestLocation} onChange={e => setLatestLocation(e.target.value)} placeholder="例: 東京営業所を通過" className="mt-1 bg-gray-800 border-gray-700 text-white" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-gray-300">追跡URL（任意）</Label>
+              <Input value={trackingUrl} onChange={e => setTrackingUrl(e.target.value)} placeholder="未入力なら主要配送会社は自動生成" className="mt-1 bg-gray-800 border-gray-700 text-white" />
+              {!trackingUrl && buildCarrierTrackingUrl(shippingCarrier, trackingNumber) && (
+                <p className="mt-1 text-xs text-blue-300">配送会社と追跡番号から安全な追跡URLを自動生成します。</p>
+              )}
+            </div>
+            <div>
+              <Label className="text-gray-300">ライバーへの物流メモ</Label>
+              <Textarea value={logisticsNote} onChange={e => setLogisticsNote(e.target.value)} placeholder="配送遅延、受取時の注意など" className="mt-1 bg-gray-800 border-gray-700 text-white" />
+            </div>
+            {(logisticsRequest?.logisticsEvents || []).length > 0 && (
+              <div className="rounded border border-gray-700 bg-gray-950/60 p-3">
+                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-200"><History className="h-4 w-4" />物流履歴</div>
+                <div className="space-y-2">
+                  {(logisticsRequest.logisticsEvents || []).map((event: any) => (
+                    <div key={event.id} className="border-l-2 border-blue-700 pl-3 text-xs text-gray-300">
+                      <div className="font-semibold text-blue-300">{SAMPLE_LOGISTICS_LABELS[event.logisticsStatus as SampleLogisticsStatus] || event.logisticsStatus}</div>
+                      <div>{new Date(event.occurredAt).toLocaleString("ja-JP")}{event.latestLocation ? ` · ${event.latestLocation}` : ""}</div>
+                      {event.note && <div className="mt-1 text-gray-400">{event.note}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLogisticsOpen(false)}>キャンセル</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700" onClick={saveLogistics} disabled={logisticsMutation.isPending || !logisticsOccurredAt}>
+              <Truck className="h-4 w-4 mr-2" />保存してライバーに表示
             </Button>
           </DialogFooter>
         </DialogContent>
