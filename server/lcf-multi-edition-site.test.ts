@@ -37,10 +37,10 @@ describe("LCF multi-edition brand site", () => {
     }
   });
 
-  it("links back to the official LCJ site from both the header and footer", () => {
+  it("removes the LCJ official header button while keeping the footer reference link", () => {
     expect(brandHome).toContain('const lcjOfficialSite = "https://livecommercejapan.jp/"');
-    expect(brandHome.match(/href=\{lcjOfficialSite\}/g)).toHaveLength(2);
-    expect(brandHome.match(/target="_blank" rel="noopener noreferrer"/g)).toHaveLength(2);
+    expect(brandHome.match(/href=\{lcjOfficialSite\}/g)).toHaveLength(1);
+    expect(brandHome).not.toContain("LCJ公式 <ArrowUpRight");
     expect(brandHome).toContain("LCJ公式サイト");
   });
 

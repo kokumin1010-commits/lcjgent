@@ -68,9 +68,6 @@ function BrandHeader() {
           </span>
         </a>
         <nav className="flex items-center gap-2 text-xs font-black tracking-[0.03em] sm:gap-3" aria-label="メインナビゲーション">
-          <a href={lcjOfficialSite} target="_blank" rel="noopener noreferrer" className="hidden items-center gap-1.5 px-3 py-2 text-black/55 transition-colors hover:text-black md:inline-flex">
-            LCJ公式 <ArrowUpRight size={13} />
-          </a>
           <a href="/lcf/mypage" className="inline-flex min-h-10 items-center gap-2 rounded-full bg-[#101010] px-4 py-2.5 text-[11px] text-white transition-colors hover:bg-[#7c3aed] sm:px-5 sm:text-xs">
             <UserRound size={15} /> マイページ
           </a>

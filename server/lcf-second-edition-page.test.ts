@@ -35,8 +35,10 @@ describe("LCF second-edition official page", () => {
   });
 
   it("publishes the confirmed date, venue and concept without a fixed booth count", () => {
-    expect(page).toContain("見る展示会から、");
-    expect(page).toContain("売る展示会へ。");
+    expect(page).toContain("見る展示会から、配信して売る展示会へ。");
+    expect(page).toContain("商品と出会い、実際に試し、学び、販売につなげる。");
+    expect(page).toContain("企業とライブコマーサーの出会いを、商談だけで終わらせず、実際の販売へとつなげる2日間です。");
+    expect(page).not.toContain("商品と出会い、試し、学び、会場から届ける。");
     expect(page).toContain("2026年12月8日（火）");
     expect(page).toContain("12月9日（水）");
     expect(page).toContain("東京都立産業貿易センター");
@@ -45,6 +47,30 @@ describe("LCF second-edition official page", () => {
     expect(page).not.toContain("会場公式情報を見る");
     expect(page).not.toContain("https://www.sanbo.metro.tokyo.lg.jp/");
     expect(page).not.toMatch(/70ブース|70 BOOTHS|1,500㎡/);
+  });
+
+  it("places the supplied first-edition live-selling photo beneath the revised event introduction", () => {
+    const headingIndex = page.indexOf("見る展示会から、配信して売る展示会へ。");
+    const bodyIndex = page.indexOf("商品と出会い、実際に試し、学び、販売につなげる。");
+    const photoIndex = page.indexOf("src={SELLING_EXPERIENCE_PHOTO.src}");
+    const officialMovieIndex = page.indexOf("function OfficialMovie");
+    expect(page).toContain('const SELLING_EXPERIENCE_PHOTO = {');
+    expect(page).toContain("MuEkHqRECZbGKrzB.webp");
+    expect(page).toContain("width: 2048");
+    expect(page).toContain("height: 1365");
+    expect(page).toContain("第1回LIVE COMMERCE FESTIVALでライブコマーサーが商品を手に取り紹介している実景");
+    expect(page).toContain("src={SELLING_EXPERIENCE_PHOTO.src}");
+    expect(page).toContain("width={SELLING_EXPERIENCE_PHOTO.width}");
+    expect(page).toContain("height={SELLING_EXPERIENCE_PHOTO.height}");
+    expect(page).toContain('loading="lazy"');
+    expect(page).toContain("商品との出会いを、その場の配信と販売へ。");
+    expect(page).toContain("EDITION 01 / LIVE SELLING PROOF");
+    expect(page).toContain("md:col-span-2");
+    expect(page).toContain("見る展示会から、配信して売る展示会へ。企業とライブコマーサーの直接マッチング");
+    expect(headingIndex).toBeGreaterThan(-1);
+    expect(headingIndex).toBeLessThan(bodyIndex);
+    expect(bodyIndex).toBeLessThan(photoIndex);
+    expect(photoIndex).toBeLessThan(officialMovieIndex);
   });
 
   it("keeps the header focused and the application actions visible while scrolling", () => {
@@ -77,12 +103,19 @@ describe("LCF second-edition official page", () => {
     expect(page).not.toContain("bg-[length:230%_auto]");
   });
 
-  it("keeps labelled concept images and the yearless yellow fascia", () => {
+  it("keeps the two labelled concept images while removing the unwanted common-sign section", () => {
     expect(page).toContain("nKtCVJQpUiElkcWi.jpg");
     expect(page).toContain("ffORXTavLEVGMmDT.jpg");
     expect(page.match(/完成予想イメージ/g)?.length).toBeGreaterThanOrEqual(2);
-    expect(page).toContain("<LcfFascia");
-    expect(page).toContain("この黄色が、");
+    const visualStories = page.slice(page.indexOf("function VisualStories()"), page.indexOf("function Proof()"));
+    expect(visualStories).toContain("width={LIVE_IMAGE.width}");
+    expect(visualStories).toContain("height={LIVE_IMAGE.height}");
+    expect(visualStories).toContain("width={MATCHING_IMAGE.width}");
+    expect(visualStories).toContain("height={MATCHING_IMAGE.height}");
+    expect(page).not.toContain("<LcfFascia");
+    expect(page).not.toContain("COMMON SIGN");
+    expect(page).not.toContain("function Signage");
+    expect(page).not.toContain("YEARLESS_FASCIA_SVG");
   });
 
   it("labels the supplied MP4 as the first-edition official movie without YouTube branding or outbound links", () => {
@@ -98,7 +131,10 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain('preload="metadata"');
     expect(page).toContain("EDITION 01 / OFFICIAL MOVIE");
     expect(page).toContain("第1回公式映像を見る");
-    expect(page).toContain("第1回LCFで生まれた会場の熱気");
+    expect(page).toContain("ライブコマースが、日本のBtoC市場を変える。");
+    expect(page).toContain("第1回LCFで生まれた会場の熱気。ブランドとライブコマーサーの出会い。");
+    expect(page).toContain("その熱量と、ここでしか生まれない出会いを、映像でご覧ください。");
+    expect(page).toContain("※映像はミュートで再生されます。プレイヤーから音声をオンにしてお楽しみいただけます。");
     expect(page).not.toContain("第2回LCFの空気");
     expect(page).not.toContain("youtube-nocookie.com");
     expect(page).not.toContain("youtube.com/embed");
@@ -113,6 +149,8 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("EDITION 01 / LIVE STREAMING");
     expect(page).toContain('id="edition-one-live-streaming"');
     expect(page).toContain("第1回、会場から生まれたライブ配信。");
+    expect(page).toContain("商品を手に取り、その魅力を言葉で伝える。");
+    expect(page).toContain("会場で生まれた熱量とライブコマースの可能性をご覧ください。");
     expect(page).toContain("第1回 LIVE COMMERCE FESTIVAL 集合写真");
     expect(page).toContain('id="edition-one-group-photo"');
     expect(page).toContain("EDITION_ONE_GROUP_PHOTO");
@@ -123,7 +161,9 @@ describe("LCF second-edition official page", () => {
   it("overlays the proof heading on the group photo and uses the requested audience stage scene", () => {
     expect(page).toContain('id="edition-one-group-photo" className="relative');
     expect(page).toContain("PROOF FROM EDITION 01");
-    expect(page).toContain("開催した事実が、");
+    expect(page).toContain("第1回の実績が、");
+    expect(page).toContain("第2回をつくる。");
+    expect(page).toContain("第1回で生まれた企業とライブコマーサーの出会い、実際の販売、そして会場の熱量。");
     expect(page).toContain("absolute inset-0 flex flex-col justify-between");
     expect(page).toContain('id: "D2-209"');
     expect(page).toContain("lSPjZzCAExTglDlY.webp");
@@ -135,17 +175,26 @@ describe("LCF second-edition official page", () => {
     for (const id of ["D1-104", "D1-094", "D1-030", "D1-053", "D1-137", "D2-114", "D2-035", "D2-064"]) {
       expect(page).toContain(`lcf2026PhotoById["${id}"]`);
     }
-    expect(page).toContain("開催した事実が、");
+    expect(page).toContain("第1回の実績が、");
     expect(page).toContain("第1回公式レポートに保存している実景と実績です");
     expect(page.match(/loading="lazy"/g)?.length).toBeGreaterThanOrEqual(8);
     expect(page).toContain("第1回DAY2は全セミナープログラムが満席");
   });
 
-  it("uses the limited Japan-first claim with the disclosed research footnote", () => {
-    expect(page).toContain("日本初※");
-    expect(page).toContain("マッチング×セミナー型");
-    expect(page).toContain("2026年8月の第1回開催発表時点における自社調べ");
-    expect(page).toContain("直接マッチング、実践セミナー、商品体験および会場からのライブ販売");
+  it("removes the redundant next-LCF section and keeps the remaining sections consecutively numbered", () => {
+    expect(page).not.toContain("function Concept");
+    expect(page).not.toContain('id="concept"');
+    expect(page).not.toContain("THE NEXT LCF");
+    expect(page).not.toContain("日本初※");
+    expect(page).toContain('href="#experience"');
+    expect(page).not.toContain('href="#concept"');
+    for (const marker of ["01 / SELLING EXPERIENCE", "02 / ALWAYS-ON MARKET", "03 / BEGINNER SUPPORT", "04 / HAMAMATSUCHO"]) {
+      expect(page).toContain(marker);
+    }
+    expect(page).not.toContain("function FinalCta");
+    expect(page).not.toContain("JOIN THE FLOOR");
+    expect(page).not.toContain("見る側から、");
+    expect(page).toContain("function StickyApplicationBar");
   });
 
   it("welcomes beginners and explains support through live preparation", () => {
@@ -157,8 +206,16 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("アカウント・商品設定");
     expect(page).toContain("当日の配信準備");
     expect(page).not.toContain("初めての方も歓迎｜配信準備をサポート");
-    expect(page).toContain("プラットフォーム審査、ブランド承認、配信開始、売上を保証するものではありません");
-    expect(page).toContain("ライブコマーサー申込へ");
+    expect(page).toContain("セミナーコンテンツ（予定）");
+    expect(page).toContain("トップライブコマーサーセッション");
+    expect(page).toContain("「売れる配信」の秘訣");
+    expect(page).toContain("GMVを高めるライブ配信準備");
+    expect(page).toContain("※セミナー内容は現時点での予定です。今後変更となる場合があります。");
+    const beginnerSupport = page.slice(page.indexOf("function BeginnerSupport()"), page.indexOf("function Venue()"));
+    expect(beginnerSupport).toContain('href={event.applicationLiverPath}');
+    expect(beginnerSupport).toContain("ライブコマーサーとして申し込む");
+    expect(beginnerSupport).toContain("初心者サポートを希望する");
+    expect(page).not.toContain("「興味はある。でも、何から始めればいいか分からない」方へ。");
     expect(liverForm).toContain("ライブコマース初心者サポートを希望しますか？");
     expect(liverForm).toContain("beginnerSupport: (answers.beginnerSupport as 'yes' | 'no') || 'no'");
     expect(router).toContain('beginnerSupport: z.enum(["yes", "no"]).default("no")');
@@ -186,12 +243,24 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("メーカー事前マッチングはこちらから");
     expect(page).toContain("LCF開催前に、出展メーカーの商品情報を確認し、ライブ配信したい商品を探すことができます");
     expect(page).toContain("サンプルや配信条件について相談できます");
+    expect(page).toContain("sivJnwYjdZtRGkJL.webp");
+    expect(page).toContain("LCMで公開商品やブランドを探せる実際の商品探索画面");
+    expect(page).toContain("事前マッチングはこちらから");
+    expect(page).toContain("LCMとは？");
+    expect(page).not.toContain(">商品を探す<");
+    expect(page).not.toContain(">事前マッチングについて<");
     expect(page).toContain('id="lcm"');
     expect(page).toContain("LCFの2日を、");
     expect(page).toContain("毎日の商談へ。");
     expect(page).toContain('href="/lcm"');
     expect(page).toContain('href="/lcm/manage?workspace=brand"');
     expect(page).toContain('href="/lcm/manage?workspace=creator"');
+    expect(page).toContain("ブランドが商品を登録");
+    expect(page).toContain("商品を見つけ、次の配信につなげる。");
+    expect(page).toContain("商品を掲載して、販売機会をつくる。");
+    expect(page).toContain("配信したい商品を見つける。");
+    expect(page).toContain("まずは、どんな商品があるか見てみる。");
+    expect(page).toContain("掲載商品を見る");
     expect(page).toContain("LCFとLCMは同じ会員アカウントです");
     expect(page).toContain("ブランドと商品は当面無料で本人が公開でき");
     expect(page).toContain("ライブコマーサー公式プロフィールは公開同意と運営確認後に反映されます");
@@ -208,7 +277,20 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain('<iframe src={VENUE_MAP_EMBED}');
     expect(page).toContain('mt-6 scroll-mt-20 overflow-hidden');
     expect(page).toContain("〒105-7501 東京都港区海岸1-7-1 東京ポートシティ竹芝");
+    expect(page).toContain("東京・浜松町で、");
+    expect(page).toContain("JR浜松町駅から徒歩5分、ゆりかもめ竹芝駅から徒歩2分。");
+    expect(page).toContain("企業とライブコマーサーが出会い、商品を知り、話し、そしてその場で配信・販売できる空間をつくります。");
+    expect(page).toContain("cooervvFkHfjnVRF.jpg");
+    expect(page).toContain("VENUE_EXTERIOR_PHOTO");
+    expect(page).toContain("東京ポートシティ竹芝 外観");
     expect(page).not.toContain("会場公式情報を見る");
+  });
+
+  it("aligns the first-edition proof statistics with fixed value, label and note rows", () => {
+    expect(page).toContain("flex min-h-56 flex-col");
+    expect(page).toContain("flex min-h-20 items-end");
+    expect(page).toContain("mt-5 flex min-h-10 items-start");
+    expect(page).toContain("mt-auto min-h-8 pt-2");
   });
 
   it("separates optional-field send and skip controls and returns validation failures to their field", () => {

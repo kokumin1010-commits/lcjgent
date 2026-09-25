@@ -296,6 +296,36 @@ export const lcmWholesaleInquiries = mysqlTable("lcm_wholesale_inquiries", {
   index("idx_lcm_inquiry_brand").on(table.brandProfileId, table.status, table.updatedAt),
 ]);
 
+export const lcmBrandContacts = mysqlTable("lcm_brand_contacts", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  contactCode: varchar("contactCode", { length: 32 }).notNull(),
+  productId: int("productId").notNull(),
+  brandProfileId: int("brandProfileId").notNull(),
+  requesterAccountId: int("requesterAccountId").notNull(),
+  subject: varchar("subject", { length: 120 }).notNull(),
+  status: mysqlEnum("status", ["open", "replied", "closed"]).default("open").notNull(),
+  lastMessageAt: timestamp("lastMessageAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_lcm_brand_contact_code").on(table.contactCode),
+  index("idx_lcm_brand_contact_requester").on(table.requesterAccountId, table.lastMessageAt),
+  index("idx_lcm_brand_contact_brand").on(table.brandProfileId, table.status, table.lastMessageAt),
+  index("idx_lcm_brand_contact_product").on(table.productId, table.lastMessageAt),
+]);
+
+export const lcmBrandContactMessages = mysqlTable("lcm_brand_contact_messages", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  contactId: bigint("contactId", { mode: "number" }).notNull(),
+  senderAccountId: int("senderAccountId").notNull(),
+  senderRole: mysqlEnum("senderRole", ["requester", "brand"]).notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_lcm_brand_contact_message_thread").on(table.contactId, table.id),
+  index("idx_lcm_brand_contact_message_sender").on(table.senderAccountId, table.createdAt),
+]);
+
 export const lcmProductInterests = mysqlTable("lcm_product_interests", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
   productId: int("productId").notNull(),
@@ -412,6 +442,10 @@ export type LcmSampleRequest = typeof lcmSampleRequests.$inferSelect;
 export type InsertLcmSampleRequest = typeof lcmSampleRequests.$inferInsert;
 export type LcmWholesaleInquiry = typeof lcmWholesaleInquiries.$inferSelect;
 export type InsertLcmWholesaleInquiry = typeof lcmWholesaleInquiries.$inferInsert;
+export type LcmBrandContact = typeof lcmBrandContacts.$inferSelect;
+export type InsertLcmBrandContact = typeof lcmBrandContacts.$inferInsert;
+export type LcmBrandContactMessage = typeof lcmBrandContactMessages.$inferSelect;
+export type InsertLcmBrandContactMessage = typeof lcmBrandContactMessages.$inferInsert;
 export type LcmProductInterest = typeof lcmProductInterests.$inferSelect;
 export type InsertLcmProductInterest = typeof lcmProductInterests.$inferInsert;
 export type LcmSampleCartItem = typeof lcmSampleCartItems.$inferSelect;

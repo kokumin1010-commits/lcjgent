@@ -79,3 +79,9 @@ LCF TOP上部を、大きな2slideイベントbannerと、その下の左main／
 Vite実画面を1440×1900と390×760で確認し、desktopのmain／sidebar、mobileの縦stack、header、banner、arrow、CTA、申込領域に重なり・横溢れがないことを確認した。最新main `af75914b`統合後、LCF／LCM関連7 test files・64 tests、production build、変更component bundle、diff／secret監査に成功。全体TypeScriptの既存1,163 diagnosticsに対し変更2fileは0件。独立read-only UX reviewは**GO（P0/P1 0件）**で、reviewの非阻断P2／P3もtouch target／ARIAとdestination／responsive回帰testへ反映した。
 
 feature SHA `f617126c993ad2f44e1475ffddf1c05f67b6f77d`のGitHub CIとRailway production deploymentはsuccess。本番rootはHTTP 200、server HTMLに既存SEO title、配信entry `index-KLmYFpjK.js`から参照される`LiveCommerceFestivalTop-0iSfXAAB.js`に「第2回 お申し込み受付中」「新着ニュース」「出展企業のメリット」「ライブコマーサーのメリット」「LCF公式TikTok」「第1回 公式動画」を確認した。本番をdesktop 1440×1900とmobile 390×760で再撮影し、指定portal配置・縦stack・carousel操作・申込CTAに見切れ、重なり、横溢れがないことを目視確認した。
+
+## 第2回ページの運営修正とTOP header整理（2026-09-25追加／本番反映前）
+第2回ページは、提供された第1回ライブ販売実景写真を修正文言の直後へ配置した。LCM紹介は公開LCM画面をclean captureした実画面素材へ切り替えた。完成予想2画像はCONCEPT IMAGE表記を維持し、確認済み実寸2176×1632をHTMLの`width`／`height`へ追加した。実景、実画面、完成予想を文言とaltで混同しない構成にしている。
+不要指定のConcept、COMMON SIGN、年号なし看板素材button、最終黄色CTAはsourceから削除した。初心者supportの申込buttonと画面下fixed申込barは既存の第2回申込pathを使用する。浜松町sectionには、東京都立産業貿易センター浜松町館が入る東京ポートシティ竹芝の外観写真を配置した。公開案内元は港区観光協会の[東京ポートシティ竹芝 オフィスタワー](https://visit-minato-city.tokyo/ja-jp/places/2613)を確認した。会場住所、約1,530㎡、天井高5m、無柱空間、フローリングという既存の確認済み情報は維持している。
+LCF TOPではheaderの「LCJ公式」buttonのみ削除し、footerのLCJ公式サイトlinkは維持した。TOPと第2回のtitle、description、canonical、Event／WebSite／Organization JSON-LD、既存routeは変更していない。
+LCF／LCM関連43 files・306 tests、production build、変更component bundle、diff／secret監査に成功した。全体TypeScript既存1,163 diagnosticsに対し今回変更fileは0件。独立read-only LCF reviewは**GO（P0/P1/P2 0件）**。1440×1100と390×1100のlocal実画面で初心者sectionをprogrammatic scrollして確認し、inline申込CTAがfixed barの上で操作可能で、横溢れや重なりがないことを確認した。本番の申込・送信操作は実施していない。

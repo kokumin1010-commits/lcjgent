@@ -5,7 +5,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearch } from "wouter";
-import { AlertCircle, ArrowLeft, ArrowRight, BadgeJapaneseYen, BadgePercent, Building2, CalendarRange, CheckCircle2, Clock3, Eye, Flag, FolderTree, ImagePlus, Link2, Loader2, LockKeyhole, Megaphone, PackageCheck, PackagePlus, Save, Search, Send, ShieldCheck, ShoppingBag, Star, Truck, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, BadgeJapaneseYen, BadgePercent, Building2, CalendarRange, CheckCircle2, Clock3, Eye, Flag, FolderTree, ImagePlus, Link2, Loader2, LockKeyhole, Megaphone, MessageCircle, PackageCheck, PackagePlus, Save, Search, Send, ShieldCheck, ShoppingBag, Star, Truck, X } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { LcmPublicLayout } from "@/components/lcm/LcmPublicLayout";
@@ -92,8 +92,10 @@ export default function LcmManage() {
   const claimPage = Number(params.get("claim") || 0) || null;
   const sampleProductId = Number(params.get("sample") || 0) || null;
   const wholesaleProductId = Number(params.get("wholesale") || 0) || null;
+  const contactProductId = Number(params.get("contact") || 0) || null;
   const requestedBrandId = Number(params.get("brand") || 0) || null;
   const showRequests = params.get("requests") === "1";
+  const showContacts = params.get("contacts") === "1";
   const showBrandReviews = params.get("reviews") === "1";
   const requestedWorkspace = getRequestedFestivalWorkspace(params.get("workspace"));
   const showCreatorProfile = requestedWorkspace === "creator" || params.get("creator") === "profile";
@@ -123,9 +125,11 @@ export default function LcmManage() {
     }
   }, [access.error?.data?.code, access.isError]);
   const manageBrand = trpc.lcm.getManageBrand.useQuery({ brandId: selectedBrand?.brand.id || 0 }, { enabled: Boolean(approved && selectedBrand?.member.status === "active"), retry: false });
-  const memberProduct = trpc.lcm.getMemberProduct.useQuery({ productId: sampleProductId || wholesaleProductId || 0 }, { enabled: Boolean(approved && (sampleProductId || wholesaleProductId)), retry: false });
+  const memberProduct = trpc.lcm.getMemberProduct.useQuery({ productId: sampleProductId || wholesaleProductId || contactProductId || 0 }, { enabled: Boolean(approved && (sampleProductId || wholesaleProductId || contactProductId)), retry: false });
   const myRequests = trpc.lcm.listMyRequests.useQuery(undefined, { enabled: Boolean(approved), retry: false });
+  const myContacts = trpc.lcm.listMyBrandContacts.useInfiniteQuery({}, { enabled: Boolean(approved && showContacts && !requestedBrandId), retry: false, getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined });
   const brandRequests = trpc.lcm.listBrandRequests.useQuery({ brandId: requestedBrandId || selectedBrand?.brand.id || 0 }, { enabled: Boolean(approved && showRequests && requestedBrandId), retry: false });
+  const brandContacts = trpc.lcm.listBrandContacts.useInfiniteQuery({ brandId: requestedBrandId || selectedBrand?.brand.id || 0 }, { enabled: Boolean(approved && showContacts && requestedBrandId), retry: false, getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined });
   const brandReviews = trpc.lcm.listBrandReviews.useQuery({ brandId: requestedBrandId || selectedBrand?.brand.id || 0 }, { enabled: Boolean(approved && showBrandReviews && requestedBrandId), retry: false });
 
   useEffect(() => {
@@ -166,6 +170,8 @@ export default function LcmManage() {
   const uploadImage = trpc.lcm.uploadImage.useMutation({ onError: (error) => toast.error(error.message) });
   const createSample = trpc.lcm.createSampleRequest.useMutation({ onSuccess: async () => { toast.success("サンプル申請を送信しました"); await myRequests.refetch(); window.location.assign("/lcm/manage?requests=1"); }, onError: (error) => toast.error(error.message) });
   const createWholesale = trpc.lcm.createWholesaleInquiry.useMutation({ onSuccess: async () => { toast.success("卸商談を申し込みました"); await myRequests.refetch(); window.location.assign("/lcm/manage?requests=1"); }, onError: (error) => toast.error(error.message) });
+  const createBrandContact = trpc.lcm.createBrandContact.useMutation({ onSuccess: async (data) => { data.brandNotification.success ? toast.success(data.deliveryRoute === "brand_owners" ? "ブランドさんへ連絡し、メールでも通知しました" : "連絡を保存し、担当者未連携のためLCM運営受付へ通知しました") : toast.warning("連絡を保存しました。メール通知結果は運営記録をご確認ください"); window.location.assign("/lcm/manage?contacts=1"); }, onError: (error) => toast.error(error.message) });
+  const replyBrandContact = trpc.lcm.replyBrandContact.useMutation({ onSuccess: async (data) => { data.notification.success ? toast.success(data.deliveryRoute === "lcm_operations" ? "返信を保存し、担当者未連携のためLCM運営受付へ通知しました" : "返信し、相手へメールでも通知しました") : toast.warning("返信を保存しました。メール通知結果は運営記録をご確認ください"); await Promise.all([myContacts.refetch(), brandContacts.refetch(), utils.lcm.getBrandContactThread.invalidate()]); }, onError: (error) => toast.error(error.message) });
   const cancelSample = trpc.lcm.cancelSampleRequest.useMutation({ onSuccess: async () => { toast.success("サンプル申請を取り消しました"); await myRequests.refetch(); }, onError: (error) => toast.error(error.message) });
   const cancelWholesale = trpc.lcm.cancelWholesaleInquiry.useMutation({ onSuccess: async () => { toast.success("卸商談を取り消しました"); await myRequests.refetch(); }, onError: (error) => toast.error(error.message) });
   const updateSampleStatus = trpc.lcm.updateSampleStatus.useMutation({ onSuccess: async () => { toast.success("サンプル申請の状態を更新しました"); await brandRequests.refetch(); }, onError: (error) => toast.error(error.message) });
@@ -188,6 +194,9 @@ export default function LcmManage() {
   if (!membership) return <MembershipApplication email={access.data.account.email} accountType={access.data.account.accountType} preferredType={requestedWorkspace} companyAccountLink={access.data.companyAccountLink} liverAccountLink={access.data.liverAccountLink} pending={membershipMutation.isPending} onSubmit={(data) => membershipMutation.mutate(data)} />;
   if (membership.status !== "approved") return <LcmPublicLayout><main className="grid min-h-[65vh] place-items-center px-5"><div className="max-w-xl border border-black/15 bg-white p-8"><Clock3 className="h-10 w-10 text-[#d45b16]" /><p className="mt-5 text-xs font-black tracking-[0.16em]">MEMBERSHIP STATUS</p><h1 className="mt-2 text-3xl font-black">{membership.status === "pending" ? "会員状態を確認しています" : membership.status === "rejected" ? "LCMを利用できません" : "LCMの利用を停止しています"}</h1><p className="mt-4 text-sm leading-7 text-black/60">状態：{statusLabels[membership.status] || membership.status}{membership.reviewNote ? `｜${membership.reviewNote}` : ""}</p><p className="mt-4 text-xs leading-6 text-black/50">再開が必要な場合は、表示された理由を添えてLCM運営へお問い合わせください。</p></div></main></LcmPublicLayout>;
 
+  if (contactProductId) {
+    return <BrandContactApplication product={memberProduct.data} isLoading={memberProduct.isLoading} pending={createBrandContact.isPending} onSubmit={(data) => createBrandContact.mutate({ productId: contactProductId, ...data })} />;
+  }
   if (sampleProductId || wholesaleProductId) {
     return <RequestApplication product={memberProduct.data} isLoading={memberProduct.isLoading} mode={sampleProductId ? "sample" : "wholesale"} pending={createSample.isPending || createWholesale.isPending} onSample={(data) => createSample.mutate({ productId: sampleProductId!, ...data })} onWholesale={(data) => createWholesale.mutate({ productId: wholesaleProductId!, ...data })} />;
   }
@@ -198,7 +207,7 @@ export default function LcmManage() {
   if (requestedWorkspace === "brand" && !roles.brand) {
     return <WorkspaceUnavailable title="ブランドマイページを利用できません" description="有効なLCF企業申込またはブランド管理権限が確認できません。" />;
   }
-  if (activeWorkspace === "creator" && !showRequests) {
+  if (activeWorkspace === "creator" && !showRequests && !showContacts) {
     return <LcmCreatorWorkspace
       membership={membership}
       profile={access.data.creatorProfile}
@@ -214,12 +223,18 @@ export default function LcmManage() {
     />;
   }
   const canOwnBrands = roles.brand;
-  if (showRequests || showBrandReviews || !canOwnBrands) {
+  if (showRequests || showContacts || showBrandReviews || !canOwnBrands) {
     if (showBrandReviews && requestedBrandId) {
       return <BrandReviewInbox data={brandReviews.data} isLoading={brandReviews.isLoading} brandId={requestedBrandId} onReport={(reviewId, details) => reportProductReview.mutate({ reviewId, reason: "inaccurate", details })} />;
     }
     if (showRequests && requestedBrandId) {
       return <BrandRequestInbox data={brandRequests.data} isLoading={brandRequests.isLoading} onSampleStatus={(payload) => updateSampleStatus.mutate(payload)} onWholesaleStatus={(payload) => updateWholesaleStatus.mutate(payload)} />;
+    }
+    if (showContacts && requestedBrandId) {
+      return <BrandContactInbox brandId={requestedBrandId} data={{ contacts: (brandContacts.data?.pages || []).flatMap((page) => page.contacts), hasNext: brandContacts.hasNextPage }} isLoading={brandContacts.isLoading} isError={brandContacts.isError} loadingMore={brandContacts.isFetchingNextPage} pending={replyBrandContact.isPending} onLoadMore={() => void brandContacts.fetchNextPage()} onReply={(contactId, message) => replyBrandContact.mutateAsync({ contactId, message })} />;
+    }
+    if (showContacts) {
+      return <BrandContactHistory data={{ contacts: (myContacts.data?.pages || []).flatMap((page) => page.contacts), hasNext: myContacts.hasNextPage }} isLoading={myContacts.isLoading} isError={myContacts.isError} loadingMore={myContacts.isFetchingNextPage} pending={replyBrandContact.isPending} onLoadMore={() => void myContacts.fetchNextPage()} onReply={(contactId, message) => replyBrandContact.mutateAsync({ contactId, message })} />;
     }
     return <RequestHistory data={myRequests.data} isLoading={myRequests.isLoading} onCancelSample={(id) => cancelSample.mutate({ id })} onCancelWholesale={(id) => cancelWholesale.mutate({ id })} />;
   }
@@ -228,7 +243,7 @@ export default function LcmManage() {
   const canDraftManage = selectedBrand?.member.status === "active";
   const canPerformApprovedOperations = selectedBrand?.member.status === "active";
 	  return <LcmPublicLayout><main className="mx-auto max-w-[1440px] px-5 py-10 md:px-8 md:py-16">
-	    <div className="flex flex-wrap items-end justify-between gap-5 border-b border-black/20 pb-6"><div><p className="text-xs font-black tracking-[0.18em] text-[#9b6200]">LCM WORKSPACE / FREE REGISTRATION</p><h1 className="mt-2 text-4xl font-black tracking-tight md:text-6xl">ブランドを育てる。</h1><p className="mt-3 text-sm font-medium text-black/55">{membership.displayName}｜{membership.businessName || membership.memberType}｜ブランド・商品登録は当面無料</p></div><div className="flex flex-wrap gap-2"><Link href="/lcm/manage?requests=1" className="inline-flex border border-black bg-white px-4 py-3 text-sm font-black">申請履歴</Link><Link href="/lcm" className="inline-flex border border-black px-4 py-3 text-sm font-black">公開マーケットを見る<Eye className="ml-2 h-4 w-4" /></Link></div></div>
+		    <div className="flex flex-wrap items-end justify-between gap-5 border-b border-black/20 pb-6"><div><p className="text-xs font-black tracking-[0.18em] text-[#9b6200]">LCM WORKSPACE / FREE REGISTRATION</p><h1 className="mt-2 text-4xl font-black tracking-tight md:text-6xl">ブランドを育てる。</h1><p className="mt-3 text-sm font-medium text-black/55">{membership.displayName}｜{membership.businessName || membership.memberType}｜ブランド・商品登録は当面無料</p></div><div className="flex flex-wrap gap-2"><Link href="/lcm/manage?contacts=1" className="inline-flex items-center bg-[#bd480d] px-4 py-3 text-sm font-black text-white"><MessageCircle className="mr-2 h-4 w-4" />ブランド連絡履歴</Link><Link href="/lcm/manage?requests=1" className="inline-flex border border-black bg-white px-4 py-3 text-sm font-black">申請履歴</Link><Link href="/lcm" className="inline-flex border border-black px-4 py-3 text-sm font-black">公開マーケットを見る<Eye className="ml-2 h-4 w-4" /></Link></div></div>
 
 	    <BrandDiscoveryPanel
 	      brands={myBrands.data || []}
@@ -273,7 +288,7 @@ export default function LcmManage() {
 	            const productsReady = selectedProducts.length > 0 && selectedProducts.every((product) => product.status === "published");
 	            return <article key={item.id} className="overflow-hidden border border-black/15 bg-white"><div className="relative aspect-[16/7] bg-[#eeeae0]"><LcmProductImage src={item.heroImageUrl} alt="" className="h-full w-full object-cover" /><span className="absolute left-3 top-3 bg-white px-2.5 py-1 text-[10px] font-black">{statusLabels[item.status] || item.status}</span></div><div className="p-5"><div className="flex items-start justify-between gap-4"><div><h4 className="text-xl font-black">{item.title}</h4><p className="mt-2 text-xs leading-6 text-black/50">{campaignDate(item.startsAt)}〜{campaignDate(item.endsAt)}｜対象{item.productIds.length}商品</p></div><BadgePercent className="h-6 w-6 shrink-0 text-[#d45b16]" /></div><p className="mt-3 line-clamp-2 text-xs leading-6 text-black/55">{item.summary || "概要を入力してください"}</p><div className="mt-4"><div className="flex items-center justify-between text-[10px] font-black"><span>{readiness.ready ? "公開必須項目が揃っています" : `公開準備 ${readiness.completed}/${readiness.total}`}</span><span>{readiness.percent}%</span></div><div className="mt-1.5 h-1.5 bg-black/10"><div className={`h-full ${readiness.ready && productsReady ? "bg-[#16805b]" : "bg-[#f7cc35]"}`} style={{ width: `${readiness.percent}%` }} /></div></div>{!productsReady && item.productIds.length > 0 && <p className="mt-2 text-[10px] font-bold text-[#b44a20]">対象商品を先にすべて公開してください</p>}{item.moderationReason && <p className="mt-3 border-l-4 border-red-400 bg-red-50 p-3 text-xs font-bold text-red-700">運営からの連絡：{item.moderationReason}</p>}<div className="mt-5 flex flex-wrap gap-2 border-t border-black/10 pt-4"><button type="button" onClick={() => { setEditingCampaignId(item.id); setCampaignForm(campaignFormFromItem(item)); setShowProductEditor(false); setShowCampaignEditor(true); }} className="border border-black px-3 py-2.5 text-xs font-black">編集</button>{item.status === "draft" && <button type="button" disabled={!readiness.ready || !productsReady || activeBrand.status !== "published" || publishCampaign.isPending} onClick={() => publishCampaign.mutate({ campaignId: item.id })} className="bg-[#171714] px-3 py-2.5 text-xs font-black text-white disabled:opacity-40">公開する</button>}{item.status === "published" && <><Link href={`/lcm/campaigns/${item.slug}`} className="border border-black px-3 py-2.5 text-xs font-black">公開ページ</Link><button type="button" disabled={unpublishCampaign.isPending} onClick={() => { if (window.confirm("このキャンペーンを下書きへ戻しますか？公開ページから非表示になります。")) unpublishCampaign.mutate({ campaignId: item.id }); }} className="border border-black/30 px-3 py-2.5 text-xs font-black">下書きへ戻す</button></>}</div></div></article>;
 	          })}{manageBrand.data?.campaigns.length === 0 && <div className="col-span-full border border-dashed border-black/25 bg-white p-9 text-center"><Megaphone className="mx-auto h-9 w-9 text-black/20" /><p className="mt-3 font-black">まだキャンペーンがありません</p><p className="mt-2 text-xs leading-6 text-black/50">商品を公開してから、報酬・割引・期間をまとめた選品ページを作成できます。</p></div>}</div>}
-	          <div className="mt-10 flex flex-wrap items-end justify-between gap-3 border-b border-black/20 pb-4"><div><p className="text-xs font-black tracking-[0.16em] text-black/45">PRODUCTS</p><h3 className="mt-1 text-2xl font-black">商品管理</h3></div><div className="flex flex-wrap gap-2">{canPerformApprovedOperations && <><Link href={`/lcm/manage?brand=${activeBrand.id}&reviews=1`} className="inline-flex items-center border border-black bg-white px-4 py-3 text-sm font-black"><Star className="mr-1.5 h-4 w-4" />レビュー</Link><Link href={`/lcm/manage?brand=${activeBrand.id}&requests=1`} className="border border-black bg-white px-4 py-3 text-sm font-black">サンプル・商談</Link></>}<button type="button" disabled={!canDraftManage} onClick={() => { setEditingProductId(null); setProductForm(emptyProduct); setShowCampaignEditor(false); setShowProductEditor(true); }} className="inline-flex items-center bg-[#f7cc35] px-4 py-3 text-sm font-black disabled:opacity-40"><PackagePlus className="mr-2 h-4 w-4" />商品を追加</button></div></div>
+		          <div className="mt-10 flex flex-wrap items-end justify-between gap-3 border-b border-black/20 pb-4"><div><p className="text-xs font-black tracking-[0.16em] text-black/45">PRODUCTS</p><h3 className="mt-1 text-2xl font-black">商品管理</h3></div><div className="flex flex-wrap gap-2">{canPerformApprovedOperations && <><Link href={`/lcm/manage?brand=${activeBrand.id}&contacts=1`} className="inline-flex items-center bg-[#bd480d] px-4 py-3 text-sm font-black text-white"><MessageCircle className="mr-1.5 h-4 w-4" />ブランド宛て連絡</Link><Link href={`/lcm/manage?brand=${activeBrand.id}&reviews=1`} className="inline-flex items-center border border-black bg-white px-4 py-3 text-sm font-black"><Star className="mr-1.5 h-4 w-4" />レビュー</Link><Link href={`/lcm/manage?brand=${activeBrand.id}&requests=1`} className="border border-black bg-white px-4 py-3 text-sm font-black">サンプル・商談</Link></>}<button type="button" disabled={!canDraftManage} onClick={() => { setEditingProductId(null); setProductForm(emptyProduct); setShowCampaignEditor(false); setShowProductEditor(true); }} className="inline-flex items-center bg-[#f7cc35] px-4 py-3 text-sm font-black disabled:opacity-40"><PackagePlus className="mr-2 h-4 w-4" />商品を追加</button></div></div>
           {showProductEditor ? <ProductEditor form={productForm} setForm={setProductForm} editing={Boolean(editingProductId)} pending={createProduct.isPending || updateProduct.isPending || uploadImage.isPending} onUpload={async (file) => { const base64Data = await fileToBase64(file); const result = await uploadImage.mutateAsync({ brandId: activeBrand.id, fileName: file.name, contentType: file.type as "image/jpeg" | "image/png" | "image/webp", base64Data }); toast.success("商品画像をアップロードしました"); return result.url; }} onCancel={() => { setShowProductEditor(false); setEditingProductId(null); }} onSave={() => { const data = productPayload(productForm); editingProductId ? updateProduct.mutate({ productId: editingProductId, data }) : createProduct.mutate({ brandId: activeBrand.id, data }); }} /> : <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{(manageBrand.data?.products || []).map((item) => {
             const readiness = productReadiness(item);
             return <article key={item.id} className="flex min-w-0 flex-col border border-black/15 bg-white p-3">
@@ -442,6 +457,58 @@ function WorkspaceUnavailable({ title, description }: { title: string; descripti
 
 const sampleStatusLabels: Record<string, string> = { pending: "申請中", approved: "承認済み", rejected: "見送り", preparing: "発送準備中", shipped: "発送済み", delivered: "受取済み", live_scheduled: "配信予定", completed: "完了", cancelled: "取消済み" };
 const wholesaleStatusLabels: Record<string, string> = { requested: "申込済み", reviewing: "確認中", accepted: "商談承認", declined: "見送り", negotiating: "条件調整中", completed: "完了", cancelled: "取消済み" };
+
+function BrandContactApplication({ product, isLoading, pending, onSubmit }: { product: any; isLoading: boolean; pending: boolean; onSubmit: (data: { subject: string; message: string }) => void }) {
+  const [subject, setSubject] = useState("商品について相談したい");
+  const [message, setMessage] = useState("");
+  if (isLoading) return <LcmPublicLayout><main className="grid min-h-[65vh] place-items-center"><Loader2 className="h-9 w-9 animate-spin" /></main></LcmPublicLayout>;
+  if (!product) return <LcmPublicLayout><main className="mx-auto max-w-xl px-5 py-20"><div className="border border-red-200 bg-red-50 p-7"><AlertCircle className="h-8 w-8 text-red-700" /><h1 className="mt-4 text-2xl font-black">連絡対象の商品を確認できません</h1><Link href="/lcm" className="mt-5 inline-flex border-b border-black pb-1 text-sm font-black">商品一覧へ戻る</Link></div></main></LcmPublicLayout>;
+  return <LcmPublicLayout><main className="mx-auto max-w-5xl px-5 py-10 md:py-16">
+    <Link href={`/lcm/products/${product.slug}`} className="inline-flex items-center text-sm font-black"><ArrowLeft className="mr-2 h-4 w-4" />商品へ戻る</Link>
+    <div className="mt-7 grid gap-8 lg:grid-cols-[0.72fr_1.28fr]">
+      <aside className="self-start border border-black/15 bg-white p-5"><div className="aspect-square bg-[#eeeae0]"><LcmProductImage src={product.primaryImageUrl} alt={product.name} className="h-full w-full object-contain p-2" /></div><p className="mt-4 text-xs font-black tracking-[0.12em] text-black/45">{product.brandName}</p><h1 className="mt-2 text-2xl font-black">{product.name}</h1><p className="mt-3 text-sm leading-6 text-black/55">{product.summary}</p></aside>
+      <section className="border border-black/15 bg-white p-5 md:p-8"><p className="text-xs font-black tracking-[0.16em] text-[#9b6200]">CONTACT THE BRAND</p><h2 className="mt-2 text-3xl font-black">ブランドさんに連絡</h2><p className="mt-4 text-sm leading-7 text-black/60">商品について聞きたいこと、配信条件、コラボ相談などを送れます。内容はLCMマイページに保存され、連携済みのブランド担当者へメール通知します。担当者未連携時はLCM運営が受け付けます。</p>
+        <form onSubmit={(event) => { event.preventDefault(); onSubmit({ subject, message }); }} className="mt-7 grid gap-5">
+          <Field label="件名"><input required minLength={2} maxLength={120} value={subject} onChange={(event) => setSubject(event.target.value)} className={inputClass()} /></Field>
+          <Field label="ブランドへのメッセージ" note="個人の住所・電話番号・決済情報は書かないでください。"><textarea required minLength={10} maxLength={5000} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="例：この商品をライブ配信で紹介したいです。提供条件や配信時の注意点をご相談できますか？" className="min-h-52 w-full border border-black/20 bg-white px-3 py-3 text-sm leading-7 outline-none focus:border-black" /></Field>
+          <div className="flex items-start gap-3 border border-amber-200 bg-amber-50 p-4 text-xs font-bold leading-6 text-amber-950"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" /><span>送信後は双方のLCMマイページで履歴と返信を確認できます。メールは通知用で、相手のメールアドレスは公開しません。</span></div>
+          <button type="submit" disabled={pending || message.trim().length < 10} className="inline-flex min-h-14 items-center justify-center bg-[#bd480d] px-6 py-4 text-sm font-black text-white disabled:opacity-50">{pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}ブランドさんに連絡する</button>
+        </form>
+      </section>
+    </div>
+  </main></LcmPublicLayout>;
+}
+
+function BrandContactHistory({ data, isLoading, isError, loadingMore, pending, onLoadMore, onReply }: { data: any; isLoading: boolean; isError: boolean; loadingMore: boolean; pending: boolean; onLoadMore: () => void; onReply: (contactId: number, message: string) => Promise<unknown> }) {
+  return <LcmPublicLayout><main className="mx-auto max-w-6xl px-5 py-10 md:py-16"><div className="flex flex-wrap items-end justify-between gap-4 border-b border-black/20 pb-5"><div><p className="text-xs font-black tracking-[0.16em] text-[#9b6200]">BRAND CONTACTS</p><h1 className="mt-2 text-4xl font-black">ブランド連絡履歴</h1><p className="mt-3 text-sm leading-7 text-black/55">商品から送った連絡とブランドからの返信を、同じthreadで確認できます。</p></div><Link href="/lcm" className="border border-black px-4 py-3 text-sm font-black">商品を探す</Link></div><ContactThreadList mode="requester" data={data} isLoading={isLoading} isError={isError} loadingMore={loadingMore} pending={pending} onLoadMore={onLoadMore} onReply={onReply} /></main></LcmPublicLayout>;
+}
+
+function BrandContactInbox({ brandId, data, isLoading, isError, loadingMore, pending, onLoadMore, onReply }: { brandId: number; data: any; isLoading: boolean; isError: boolean; loadingMore: boolean; pending: boolean; onLoadMore: () => void; onReply: (contactId: number, message: string) => Promise<unknown> }) {
+  return <LcmPublicLayout><main className="mx-auto max-w-6xl px-5 py-10 md:py-16"><div className="flex flex-wrap items-end justify-between gap-4 border-b border-black/20 pb-5"><div><p className="text-xs font-black tracking-[0.16em] text-[#9b6200]">BRAND CONTACT INBOX</p><h1 className="mt-2 text-4xl font-black">ブランド宛て連絡</h1><p className="mt-3 text-sm leading-7 text-black/55">商品に関する問い合わせへLCM内で返信します。返信内容は相手のマイページに残り、メールでも通知されます。</p></div><Link href={brandId ? `/lcm/manage?brand=${brandId}&workspace=brand` : "/lcm/manage?workspace=brand"} className="border border-black px-4 py-3 text-sm font-black">ブランド管理へ</Link></div><ContactThreadList mode="brand" data={data} isLoading={isLoading} isError={isError} loadingMore={loadingMore} pending={pending} onLoadMore={onLoadMore} onReply={onReply} /></main></LcmPublicLayout>;
+}
+
+function ContactThreadList({ mode, data, isLoading, isError, loadingMore, pending, onLoadMore, onReply }: { mode: "requester" | "brand"; data: any; isLoading: boolean; isError: boolean; loadingMore: boolean; pending: boolean; onLoadMore: () => void; onReply: (contactId: number, message: string) => Promise<unknown> }) {
+  const contacts = data?.contacts || [];
+  if (isLoading) return <div className="grid min-h-72 place-items-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  if (isError) return <div className="mt-8 border border-red-200 bg-red-50 p-8 text-center"><AlertCircle className="mx-auto h-8 w-8 text-red-700" /><p className="mt-3 font-black">ブランド連絡を読み込めませんでした</p><p className="mt-2 text-xs text-black/55">時間をおいてページを再読み込みしてください。</p></div>;
+  if (!contacts.length) return <div className="mt-8 border border-dashed border-black/20 bg-white p-10 text-center"><MessageCircle className="mx-auto h-9 w-9 text-black/20" /><p className="mt-3 font-black">ブランド連絡はまだありません</p></div>;
+  return <div className="mt-8 grid gap-5">{contacts.map((item: any) => <ContactThreadCard key={Number(item.contact.id)} mode={mode} item={item} pending={pending} onReply={onReply} />)}{data?.hasNext && <button type="button" disabled={loadingMore} onClick={onLoadMore} className="inline-flex min-h-12 items-center justify-center border border-black bg-white px-5 py-3 text-sm font-black disabled:opacity-50">{loadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}以前の連絡をさらに表示</button>}</div>;
+}
+
+function ContactThreadCard({ mode, item, pending, onReply }: { mode: "requester" | "brand"; item: any; pending: boolean; onReply: (contactId: number, message: string) => Promise<unknown> }) {
+  const contactId = Number(item.contact.id);
+  const threadQuery = trpc.lcm.getBrandContactThread.useInfiniteQuery({ contactId }, { retry: false, getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined });
+  const [draft, setDraft] = useState("");
+  const thread = useMemo(() => {
+    const deduped = new Map<number, any>();
+    for (const message of (threadQuery.data?.pages || []).flatMap((page) => page.messages)) deduped.set(Number(message.id), message);
+    return [...deduped.values()].sort((left, right) => Number(left.id) - Number(right.id));
+  }, [threadQuery.data?.pages]);
+  return <article className="border border-black/15 bg-white"><header className="grid gap-3 border-b border-black/10 bg-[#f6f4ee] p-5 sm:grid-cols-[1fr_auto] sm:items-start"><div><p className="text-[10px] font-black tracking-[0.12em] text-black/40">{item.contact.contactCode}</p><h2 className="mt-1 text-xl font-black">{item.contact.subject}</h2><p className="mt-2 text-xs text-black/55">{item.brandName ? `${item.brandName}｜` : item.requesterName ? `${item.requesterName}（${item.requesterType}）｜` : ""}<Link href={`/lcm/products/${item.productSlug}`} className="font-black underline">{item.productName}</Link></p></div><span className="inline-flex justify-self-start bg-white px-2.5 py-1 text-[11px] font-black">{item.contact.status === "replied" ? "ブランド返信済み" : item.contact.status === "closed" ? "終了" : "返信待ち・進行中"}</span></header>
+    <div className="grid gap-3 p-5">{threadQuery.isLoading ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : threadQuery.isError ? <p className="text-center text-xs font-bold text-red-700">メッセージを読み込めませんでした。</p> : <>{threadQuery.hasNextPage && <button type="button" disabled={threadQuery.isFetchingNextPage} onClick={() => void threadQuery.fetchNextPage()} className="mx-auto inline-flex min-h-11 items-center border border-black/20 px-4 py-2 text-xs font-black disabled:opacity-50">{threadQuery.isFetchingNextPage && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}以前のメッセージを表示</button>}{thread.map((message: any) => { const own = message.senderRole === mode; return <div key={message.id} className={`max-w-[88%] ${own ? "ml-auto" : "mr-auto"}`}><p className={`mb-1 text-[10px] font-black ${own ? "text-right text-[#a64518]" : "text-black/40"}`}>{own ? "あなた" : message.senderRole === "brand" ? "ブランド担当者" : "問い合わせ者"}｜{new Date(message.createdAt).toLocaleString("ja-JP")}</p><p className={`whitespace-pre-wrap break-words px-4 py-3 text-sm leading-7 ${own ? "bg-[#fff0e8] text-[#51200c]" : "bg-[#f0eee8] text-black/75"}`}>{message.body}</p></div>; })}</>}</div>
+    <form onSubmit={async (event) => { event.preventDefault(); if (draft.trim().length < 2) return; try { await onReply(contactId, draft.trim()); setDraft(""); } catch { /* mutation onError preserves and reports the draft */ } }} className="grid gap-2 border-t border-black/10 p-5 sm:grid-cols-[1fr_auto]"><label className="sr-only" htmlFor={`contact-reply-${contactId}`}>返信内容</label><textarea id={`contact-reply-${contactId}`} value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={5000} rows={3} placeholder="返信を入力" className="w-full border border-black/20 p-3 text-sm leading-6 outline-none focus:border-black" /><button type="submit" disabled={pending || draft.trim().length < 2} className="inline-flex min-h-12 items-center justify-center self-end bg-[#171714] px-5 py-3 text-sm font-black text-white disabled:opacity-45"><Send className="mr-2 h-4 w-4" />返信して通知</button></form>
+  </article>;
+}
 
 function RequestApplication({ product, isLoading, mode, pending, onSample, onWholesale }: { product: any; isLoading: boolean; mode: "sample" | "wholesale"; pending: boolean; onSample: (data: any) => void; onWholesale: (data: any) => void }) {
   const [purpose, setPurpose] = useState(""); const [contentType, setContentType] = useState<"live" | "short_video" | "both" | "other">("live"); const [plannedDate, setPlannedDate] = useState(""); const [message, setMessage] = useState("");

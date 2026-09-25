@@ -1,9 +1,11 @@
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gte, inArray, isNotNull, like, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, like, lt, notInArray, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import {
   lcmAuditLogs,
+  lcmBrandContactMessages,
+  lcmBrandContacts,
   lcmBrandEventParticipations,
   lcmBrandMembers,
   lcmBrandProfiles,
@@ -41,6 +43,9 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_BRANDS_PER_ACCOUNT = 50;
 const MAX_PRODUCTS_PER_BRAND = 500;
 const LCM_BASE_URL = "https://www.livecommercefestival.com/lcm";
+const LCM_CONTACT_FALLBACK_EMAIL = "lcj.inquiry@livecommercejapan.jp";
+const BRAND_CONTACT_PAGE_SIZE = 10;
+const BRAND_CONTACT_MESSAGE_PAGE_SIZE = 50;
 const uploadRateLimits = new Map<number, { count: number; resetAt: number }>();
 
 const nullableText = (max: number) => z.string().trim().max(max).optional().nullable();
@@ -376,7 +381,11 @@ async function brandOwnerEmails(db: any, brandProfileId: number): Promise<string
   const rows = await db.select({ email: festivalAccounts.email })
     .from(lcmBrandMembers)
     .innerJoin(festivalAccounts, eq(lcmBrandMembers.festivalAccountId, festivalAccounts.id))
-    .where(and(eq(lcmBrandMembers.brandProfileId, brandProfileId), eq(lcmBrandMembers.status, "active")));
+    .where(and(
+      eq(lcmBrandMembers.brandProfileId, brandProfileId),
+      eq(lcmBrandMembers.role, "owner"),
+      eq(lcmBrandMembers.status, "active"),
+    ));
   const emails: string[] = rows
     .map((row: { email?: unknown }) => typeof row.email === "string" ? row.email.trim().toLowerCase() : "")
     .filter((email: string) => email.length > 0);
@@ -386,14 +395,26 @@ async function brandOwnerEmails(db: any, brandProfileId: number): Promise<string
 async function notifyLcm(params: { to: string[]; subject: string; content: string; entityType: string; entityId: string | number }) {
   const recipients = [...new Set(params.to.map((email) => email.trim().toLowerCase()).filter(Boolean))];
   if (!recipients.length) return { recipientCount: 0, success: false, provider: null, errorCode: "recipient_missing" };
+  const safeSubject = params.subject.replace(/[\r\n\u0000-\u001F\u007F]+/g, " ").trim().slice(0, 200);
   let result: Awaited<ReturnType<typeof sendEmail>>;
   try {
-    result = await sendEmail({ to: recipients, subject: params.subject, content: params.content });
+    result = await sendEmail({ to: recipients, subject: safeSubject, content: params.content });
   } catch (error: any) {
     result = { success: false, errorCode: String(error?.code || error?.message || "send_exception").slice(0, 100) };
   }
   await writeAudit({ actorRole: "system", entityType: params.entityType, entityId: params.entityId, action: "email_notification", after: { recipientCount: recipients.length, success: result.success, provider: result.provider || null, errorCode: result.errorCode || null } });
   return { recipientCount: recipients.length, success: result.success, provider: result.provider || null, errorCode: result.errorCode || null };
+}
+
+async function assertBrandContactRateLimit(db: any, accountId: number): Promise<void> {
+  await db.execute(sql`SELECT id FROM lcm_memberships WHERE festivalAccountId = ${accountId} FOR UPDATE`);
+  const since = new Date(Date.now() - 10 * 60 * 1000);
+  const [row] = await db.select({ count: sql<number>`count(*)` })
+    .from(lcmBrandContactMessages)
+    .where(and(eq(lcmBrandContactMessages.senderAccountId, accountId), gte(lcmBrandContactMessages.createdAt, since)));
+  if (Number(row?.count || 0) >= 5) {
+    throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "短時間に送信できる連絡は5件までです。10分ほど待ってから再度お試しください" });
+  }
 }
 
 async function getActiveBrandMember(festivalAccountId: number, brandProfileId: number, dbOverride?: any) {
@@ -1838,6 +1859,176 @@ export const lcmRouter = router({
       notifyLcm({ to: [ctx.lcmAccount.email], subject: `【LCM】サンプル申請を受け付けました ${item.requestCode}`, content: `サンプル申請を受け付けました。\n\n商品：${item.productName}\n申請番号：${item.requestCode}\n\n${LCM_BASE_URL}/manage?requests=1`, entityType: "sample_request", entityId: item.id }),
     ]));
     return { success: outcome.created.length > 0, ...outcome };
+  }),
+
+  createBrandContact: lcmMemberProcedure.input(z.object({
+    productId: z.number().int().positive(),
+    subject: z.string().trim().min(2).max(120).refine((value) => !/[\r\n]/.test(value), "件名に改行は使用できません"),
+    message: z.string().trim().min(10).max(5000),
+  }).strict()).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const [product] = await db.select({
+      id: lcmProducts.id,
+      name: lcmProducts.name,
+      brandProfileId: lcmProducts.brandProfileId,
+      brandName: lcmBrandProfiles.displayName,
+    }).from(lcmProducts)
+      .innerJoin(lcmBrandProfiles, eq(lcmProducts.brandProfileId, lcmBrandProfiles.id))
+      .where(and(eq(lcmProducts.id, input.productId), eq(lcmProducts.status, "published"), eq(lcmBrandProfiles.status, "published")))
+      .limit(1);
+    if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "公開中の商品が見つかりません" });
+    if (await getActiveBrandMember(ctx.lcmAccount.accountId, product.brandProfileId, db)) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "自社ブランドの商品には連絡できません" });
+    }
+    const contactCode = `LCM-C-${nanoid(10).toUpperCase()}`;
+    const now = new Date();
+    const contactId = await db.transaction(async (tx: any) => {
+      await assertBrandContactRateLimit(tx, ctx.lcmAccount.accountId);
+      const result = await tx.insert(lcmBrandContacts).values({
+        contactCode,
+        productId: product.id,
+        brandProfileId: product.brandProfileId,
+        requesterAccountId: ctx.lcmAccount.accountId,
+        subject: input.subject,
+        status: "open",
+        lastMessageAt: now,
+      });
+      const id = insertedId(result);
+      await tx.insert(lcmBrandContactMessages).values({ contactId: id, senderAccountId: ctx.lcmAccount.accountId, senderRole: "requester", body: input.message });
+      await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: "member", entityType: "brand_contact", entityId: id, action: "created", after: { contactCode, productId: product.id, brandProfileId: product.brandProfileId } }, tx);
+      return id;
+    });
+    const owners = await brandOwnerEmails(db, product.brandProfileId);
+    const deliveryRoute = owners.length > 0 ? "brand_owners" as const : "lcm_operations" as const;
+    const brandNotification = await notifyLcm({
+      to: owners.length > 0 ? owners : [LCM_CONTACT_FALLBACK_EMAIL],
+      subject: `【LCM】${product.name}への新しい連絡 ${contactCode}`,
+      content: `LCMにブランド宛ての新しい連絡が届きました。\n\nブランド：${product.brandName}\n商品：${product.name}\n件名：${input.subject}\n連絡番号：${contactCode}\n通知経路：${deliveryRoute === "brand_owners" ? "連携済みブランド担当者" : "ブランド担当者未連携のためLCM運営受付"}\n\n内容：\n${input.message}\n\n返信はLCMブランドマイページから行ってください。\n${LCM_BASE_URL}/manage?brand=${product.brandProfileId}&contacts=1`,
+      entityType: "brand_contact",
+      entityId: contactId,
+    });
+    const requesterNotification = await notifyLcm({
+      to: [ctx.lcmAccount.email],
+      subject: `【LCM】ブランドへの連絡を受け付けました ${contactCode}`,
+      content: `ブランドへの連絡を受け付けました。\n\nブランド：${product.brandName}\n商品：${product.name}\n件名：${input.subject}\n連絡番号：${contactCode}\n\n返信と履歴はLCMマイページで確認できます。\n${LCM_BASE_URL}/manage?contacts=1`,
+      entityType: "brand_contact",
+      entityId: contactId,
+    });
+    return { success: true, contactCode, deliveryRoute, brandNotification, requesterNotification };
+  }),
+
+  listMyBrandContacts: lcmMemberProcedure.input(z.object({ cursor: z.object({ lastMessageAt: z.string().datetime(), id: z.number().int().positive() }).optional() }).strict()).query(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const cursorCondition = input.cursor
+      ? or(
+          lt(lcmBrandContacts.lastMessageAt, new Date(input.cursor.lastMessageAt)),
+          and(eq(lcmBrandContacts.lastMessageAt, new Date(input.cursor.lastMessageAt)), lt(lcmBrandContacts.id, input.cursor.id)),
+        )
+      : undefined;
+    const rows = await db.select({ contact: lcmBrandContacts, productName: lcmProducts.name, productSlug: lcmProducts.slug, brandName: lcmBrandProfiles.displayName })
+      .from(lcmBrandContacts)
+      .innerJoin(lcmProducts, eq(lcmBrandContacts.productId, lcmProducts.id))
+      .innerJoin(lcmBrandProfiles, eq(lcmBrandContacts.brandProfileId, lcmBrandProfiles.id))
+      .where(and(eq(lcmBrandContacts.requesterAccountId, ctx.lcmAccount.accountId), cursorCondition))
+      .orderBy(desc(lcmBrandContacts.lastMessageAt), desc(lcmBrandContacts.id))
+      .limit(BRAND_CONTACT_PAGE_SIZE + 1);
+    const contacts = rows.slice(0, BRAND_CONTACT_PAGE_SIZE);
+    const lastContact = contacts[contacts.length - 1]?.contact;
+    return {
+      contacts,
+      nextCursor: rows.length > BRAND_CONTACT_PAGE_SIZE && lastContact
+        ? { lastMessageAt: new Date(lastContact.lastMessageAt).toISOString(), id: Number(lastContact.id) }
+        : null,
+    };
+  }),
+
+  listBrandContacts: lcmMemberProcedure.input(z.object({ brandId: z.number().int().positive(), cursor: z.object({ lastMessageAt: z.string().datetime(), id: z.number().int().positive() }).optional() }).strict()).query(async ({ ctx, input }) => {
+    await requireActiveBrandMember(ctx.lcmAccount.accountId, input.brandId);
+    const db = await requireDb();
+    const cursorCondition = input.cursor
+      ? or(
+          lt(lcmBrandContacts.lastMessageAt, new Date(input.cursor.lastMessageAt)),
+          and(eq(lcmBrandContacts.lastMessageAt, new Date(input.cursor.lastMessageAt)), lt(lcmBrandContacts.id, input.cursor.id)),
+        )
+      : undefined;
+    const rows = await db.select({ contact: lcmBrandContacts, productName: lcmProducts.name, productSlug: lcmProducts.slug, requesterName: lcmMemberships.displayName, requesterType: lcmMemberships.memberType })
+      .from(lcmBrandContacts)
+      .innerJoin(lcmProducts, eq(lcmBrandContacts.productId, lcmProducts.id))
+      .innerJoin(lcmMemberships, eq(lcmBrandContacts.requesterAccountId, lcmMemberships.festivalAccountId))
+      .where(and(eq(lcmBrandContacts.brandProfileId, input.brandId), cursorCondition))
+      .orderBy(desc(lcmBrandContacts.lastMessageAt), desc(lcmBrandContacts.id))
+      .limit(BRAND_CONTACT_PAGE_SIZE + 1);
+    const contacts = rows.slice(0, BRAND_CONTACT_PAGE_SIZE);
+    const lastContact = contacts[contacts.length - 1]?.contact;
+    return {
+      contacts,
+      nextCursor: rows.length > BRAND_CONTACT_PAGE_SIZE && lastContact
+        ? { lastMessageAt: new Date(lastContact.lastMessageAt).toISOString(), id: Number(lastContact.id) }
+        : null,
+    };
+  }),
+
+  getBrandContactThread: lcmMemberProcedure.input(z.object({
+    contactId: z.number().int().positive(),
+    cursor: z.number().int().positive().optional(),
+  }).strict()).query(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const [contact] = await db.select().from(lcmBrandContacts).where(eq(lcmBrandContacts.id, input.contactId)).limit(1);
+    if (!contact) throw new TRPCError({ code: "NOT_FOUND", message: "連絡threadが見つかりません" });
+    const isRequester = Number(contact.requesterAccountId) === Number(ctx.lcmAccount.accountId);
+    const isBrand = Boolean(await getActiveBrandMember(ctx.lcmAccount.accountId, contact.brandProfileId, db));
+    if (!isRequester && !isBrand) throw new TRPCError({ code: "FORBIDDEN", message: "この連絡threadを表示できません" });
+    const conditions = [eq(lcmBrandContactMessages.contactId, contact.id)];
+    if (input.cursor) conditions.push(lt(lcmBrandContactMessages.id, input.cursor));
+    const rows = await db.select().from(lcmBrandContactMessages)
+      .where(and(...conditions))
+      .orderBy(desc(lcmBrandContactMessages.id))
+      .limit(BRAND_CONTACT_MESSAGE_PAGE_SIZE + 1);
+    const pageRows = rows.slice(0, BRAND_CONTACT_MESSAGE_PAGE_SIZE).reverse();
+    return {
+      messages: pageRows,
+      nextCursor: rows.length > BRAND_CONTACT_MESSAGE_PAGE_SIZE && pageRows.length > 0 ? Number(pageRows[0].id) : null,
+    };
+  }),
+
+  replyBrandContact: lcmMemberProcedure.input(z.object({ contactId: z.number().int().positive(), message: z.string().trim().min(2).max(5000) }).strict()).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const [contact] = await db.select().from(lcmBrandContacts).where(eq(lcmBrandContacts.id, input.contactId)).limit(1);
+    if (!contact) throw new TRPCError({ code: "NOT_FOUND", message: "連絡threadが見つかりません" });
+    const isRequester = Number(contact.requesterAccountId) === Number(ctx.lcmAccount.accountId);
+    const isBrand = Boolean(await getActiveBrandMember(ctx.lcmAccount.accountId, contact.brandProfileId, db));
+    if (!isRequester && !isBrand) throw new TRPCError({ code: "FORBIDDEN", message: "この連絡threadを操作できません" });
+    const senderRole = isRequester ? "requester" as const : "brand" as const;
+    const now = new Date();
+    await db.transaction(async (tx: any) => {
+      await assertBrandContactRateLimit(tx, ctx.lcmAccount.accountId);
+      await tx.insert(lcmBrandContactMessages).values({ contactId: contact.id, senderAccountId: ctx.lcmAccount.accountId, senderRole, body: input.message });
+      await tx.update(lcmBrandContacts).set({ status: senderRole === "brand" ? "replied" : "open", lastMessageAt: now }).where(eq(lcmBrandContacts.id, contact.id));
+      await writeAudit({ actorAccountId: ctx.lcmAccount.accountId, actorRole: senderRole === "brand" ? "brand_owner" : "member", entityType: "brand_contact", entityId: contact.id, action: "message_sent", after: { senderRole } }, tx);
+    });
+    const [product] = await db.select({ name: lcmProducts.name, brandName: lcmBrandProfiles.displayName }).from(lcmProducts)
+      .innerJoin(lcmBrandProfiles, eq(lcmProducts.brandProfileId, lcmBrandProfiles.id))
+      .where(eq(lcmProducts.id, contact.productId)).limit(1);
+    const replyBrandOwners = senderRole === "requester" ? await brandOwnerEmails(db, contact.brandProfileId) : [];
+    const deliveryRoute = senderRole === "brand"
+      ? "requester" as const
+      : replyBrandOwners.length > 0
+        ? "brand_owners" as const
+        : "lcm_operations" as const;
+    const recipients = senderRole === "brand"
+      ? [await accountEmail(db, contact.requesterAccountId)].filter((email): email is string => Boolean(email))
+      : replyBrandOwners.length > 0
+        ? replyBrandOwners
+        : [LCM_CONTACT_FALLBACK_EMAIL];
+    const destination = senderRole === "brand" ? `${LCM_BASE_URL}/manage?contacts=1` : `${LCM_BASE_URL}/manage?brand=${contact.brandProfileId}&contacts=1`;
+    const notification = await notifyLcm({
+      to: recipients,
+      subject: `【LCM】ブランド連絡に新しい返信 ${contact.contactCode}`,
+      content: `LCMのブランド連絡に新しいメッセージが届きました。\n\nブランド：${product?.brandName || "ブランド"}\n商品：${product?.name || "商品"}\n件名：${contact.subject}\n連絡番号：${contact.contactCode}\n\n内容：\n${input.message}\n\n返信と履歴：\n${destination}`,
+      entityType: "brand_contact",
+      entityId: contact.id,
+    });
+    return { success: true, deliveryRoute, notification };
   }),
 
   createWholesaleInquiry: lcmMemberProcedure.input(z.object({ productId: z.number().int().positive(), requestedQuantity: z.number().int().min(1).max(1_000_000), intendedUse: z.string().trim().min(10).max(5000), requestedStartDate: z.coerce.date().optional().nullable(), message: nullableText(5000) }).strict()).mutation(async ({ ctx, input }) => {

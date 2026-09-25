@@ -1,9 +1,9 @@
 import mysql, { type Pool, type PoolConnection, type ResultSetHeader, type RowDataPacket } from "mysql2/promise";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
 
-const UPGRADE_KEY = "lcm-marketplace-v4-campaign-pages";
-const PRE_BACKUP_REASON = "pre-lcm-marketplace-v4-campaign-pages";
-const POST_BACKUP_REASON = "post-lcm-marketplace-v4-campaign-pages";
+const UPGRADE_KEY = "lcm-marketplace-v5-brand-contacts";
+const PRE_BACKUP_REASON = "pre-lcm-marketplace-v5-brand-contacts";
+const POST_BACKUP_REASON = "post-lcm-marketplace-v5-brand-contacts";
 const REQUIRED_TABLES = [
   "lcm_memberships",
   "lcm_creator_profiles",
@@ -14,6 +14,8 @@ const REQUIRED_TABLES = [
   "lcm_campaign_products",
   "lcm_sample_requests",
   "lcm_wholesale_inquiries",
+  "lcm_brand_contacts",
+  "lcm_brand_contact_messages",
   "lcm_product_interests",
   "lcm_sample_cart_items",
   "lcm_brand_event_participations",
@@ -29,6 +31,8 @@ const ADDITIVE_ENGAGEMENT_TABLES = [
   "lcm_review_reports",
   "lcm_campaigns",
   "lcm_campaign_products",
+  "lcm_brand_contacts",
+  "lcm_brand_contact_messages",
 ] as const;
 const REQUIRED_PRODUCT_COLUMNS = {
   thirtySecondPitch: "TEXT NULL",
@@ -404,6 +408,36 @@ async function createLcmTables(pool: Pool): Promise<void> {
       UNIQUE KEY uq_lcm_inquiry_code (inquiryCode),
       INDEX idx_lcm_inquiry_requester (requesterAccountId, status, updatedAt),
       INDEX idx_lcm_inquiry_brand (brandProfileId, status, updatedAt)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lcm_brand_contacts (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      contactCode VARCHAR(32) NOT NULL,
+      productId INT NOT NULL,
+      brandProfileId INT NOT NULL,
+      requesterAccountId INT NOT NULL,
+      subject VARCHAR(120) NOT NULL,
+      status ENUM('open','replied','closed') NOT NULL DEFAULT 'open',
+      lastMessageAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_lcm_brand_contact_code (contactCode),
+      INDEX idx_lcm_brand_contact_requester (requesterAccountId, lastMessageAt),
+      INDEX idx_lcm_brand_contact_brand (brandProfileId, status, lastMessageAt),
+      INDEX idx_lcm_brand_contact_product (productId, lastMessageAt)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lcm_brand_contact_messages (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      contactId BIGINT NOT NULL,
+      senderAccountId INT NOT NULL,
+      senderRole ENUM('requester','brand') NOT NULL,
+      body TEXT NOT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_lcm_brand_contact_message_thread (contactId, id),
+      INDEX idx_lcm_brand_contact_message_sender (senderAccountId, createdAt)
     )
   `);
   await pool.query(`

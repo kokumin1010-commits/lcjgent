@@ -13,6 +13,7 @@ import {
   ExternalLink,
   Heart,
   LockKeyhole,
+  MessageCircle,
   PackageCheck,
   RadioTower,
   Send,
@@ -131,8 +132,10 @@ export default function LcmProduct() {
   ].filter(([, url]) => url);
   const samplePath = `/lcm/manage?sample=${product.id}`;
   const wholesalePath = `/lcm/manage?wholesale=${product.id}`;
+  const contactPath = `/lcm/manage?contact=${product.id}`;
   const sampleHref = accessQuery.data ? samplePath : buildFestivalLoginUrl(samplePath);
   const wholesaleHref = accessQuery.data ? wholesalePath : buildFestivalLoginUrl(wholesalePath);
+  const contactHref = accessQuery.data ? contactPath : buildFestivalLoginUrl(contactPath);
   const productReturnHref = buildFestivalLoginUrl(`/lcm/products/${product.slug}`);
   const memberProduct = memberProductQuery.data;
   const hasWholesaleTerms = memberProduct?.wholesalePrice != null;
@@ -158,7 +161,6 @@ export default function LcmProduct() {
               <div>
                 <div className="relative aspect-square overflow-hidden border border-black/10 bg-white">
                   <LcmProductImage src={activeImage} alt={`${product.name}の商品写真`} loading="eager" className="h-full w-full object-contain p-3 md:p-6" />
-                  {product.sampleAvailable && <span className="absolute left-3 top-3 bg-[#dff5ea] px-3 py-2 text-xs font-black text-[#126445]">サンプル対応</span>}
                 </div>
                 {galleryImages.length > 1 && <div className="mt-3 grid grid-cols-5 gap-2 sm:grid-cols-6">{galleryImages.slice(0, 10).map((url, index) => <button key={url} type="button" onClick={() => setActiveImage(url)} aria-label={`${product.name}の商品写真${index + 1}を表示`} aria-pressed={activeImage === url} className={`aspect-square overflow-hidden border bg-white p-1 transition ${activeImage === url ? "border-black ring-2 ring-[#f7cc35]" : "border-black/15 hover:border-black"}`}><LcmProductImage src={url} alt="" className="h-full w-full object-contain" /></button>)}</div>}
               </div>
@@ -185,10 +187,15 @@ export default function LcmProduct() {
 
                 <div className="mt-7 flex flex-wrap gap-2">{links.map(([label, url]) => <a key={label} href={url!} target="_blank" rel="noreferrer" className="inline-flex items-center border border-black bg-white px-4 py-3 text-xs font-black transition hover:bg-black hover:text-white">{label}<ExternalLink className="ml-2 h-4 w-4" /></a>)}</div>
 
-                <div className="mt-8 grid grid-cols-2 gap-2">
+                <Link href={contactHref} className="mt-8 inline-flex min-h-16 w-full items-center justify-center gap-3 bg-[#bd480d] px-5 py-4 text-base font-black text-white shadow-[0_14px_35px_rgba(189,72,13,.22)] transition-transform active:scale-[0.99]">
+                  <MessageCircle className="h-5 w-5" />ブランドさんに連絡<ArrowRight className="h-5 w-5" />
+                </Link>
+                <p className="mt-2 text-center text-[11px] font-bold leading-5 text-black/45">LCMマイページに履歴を保存し、連携済みのブランド担当者へメール通知します。担当者未連携時はLCM運営が受け付けます。</p>
+
+                <div className="mt-4 grid grid-cols-2 gap-2">
                   {accessQuery.data ? <button type="button" onClick={() => interestMutation.mutate({ productId: product.id })} disabled={interestMutation.isPending} aria-pressed={engagement?.interested || false} className={`inline-flex min-h-12 items-center justify-center border px-3 text-xs font-black sm:text-sm ${engagement?.interested ? "border-[#b42f26] bg-[#fff0ee] text-[#b42f26]" : "border-black/15 bg-white"}`}><Heart className={`mr-2 h-4 w-4 ${engagement?.interested ? "fill-current" : ""}`} />{engagement?.interested ? "興味あり登録済み" : "興味あり"}</button> : <Link href={productReturnHref} className="inline-flex min-h-12 items-center justify-center border border-black/15 bg-white px-3 text-xs font-black sm:text-sm"><Heart className="mr-2 h-4 w-4" />興味あり</Link>}
-                  {product.sampleAvailable ? accessQuery.data ? <button type="button" onClick={() => sampleCartMutation.mutate({ productId: product.id })} disabled={sampleCartMutation.isPending} aria-pressed={engagement?.inSampleCart || false} className={`inline-flex min-h-12 items-center justify-center px-3 text-xs font-black sm:text-sm ${engagement?.inSampleCart ? "bg-[#16805b] text-white" : "bg-[#171714] text-white"}`}><ShoppingCart className="mr-2 h-4 w-4" />{engagement?.inSampleCart ? "カート追加済み" : "サンプルカート"}</button> : <Link href={productReturnHref} className="inline-flex min-h-12 items-center justify-center bg-[#171714] px-3 text-xs font-black text-white sm:text-sm"><ShoppingCart className="mr-2 h-4 w-4" />サンプルカート</Link> : <div className="flex min-h-12 items-center justify-center border border-black/15 bg-white px-3 text-xs font-bold text-black/45">サンプル受付なし</div>}
-                  {product.sampleAvailable ? <Link href={sampleHref} className="inline-flex min-h-12 items-center justify-center bg-[#16805b] px-3 text-xs font-black text-white sm:text-sm">すぐにサンプル申請<Send className="ml-2 h-4 w-4" /></Link> : <Link href={`/lcm/brands/${product.brandSlug}`} className="inline-flex min-h-12 items-center justify-center bg-[#f1eee6] px-3 text-xs font-black sm:text-sm">ブランドを見る<ArrowRight className="ml-2 h-4 w-4" /></Link>}
+                  {product.sampleAvailable && (accessQuery.data ? <button type="button" onClick={() => sampleCartMutation.mutate({ productId: product.id })} disabled={sampleCartMutation.isPending} aria-pressed={engagement?.inSampleCart || false} className={`inline-flex min-h-12 items-center justify-center px-3 text-xs font-black sm:text-sm ${engagement?.inSampleCart ? "bg-[#16805b] text-white" : "bg-[#171714] text-white"}`}><ShoppingCart className="mr-2 h-4 w-4" />{engagement?.inSampleCart ? "カート追加済み" : "サンプルカート"}</button> : <Link href={productReturnHref} className="inline-flex min-h-12 items-center justify-center bg-[#171714] px-3 text-xs font-black text-white sm:text-sm"><ShoppingCart className="mr-2 h-4 w-4" />サンプルカート</Link>)}
+                  {product.sampleAvailable && <Link href={sampleHref} className="inline-flex min-h-12 items-center justify-center bg-[#16805b] px-3 text-xs font-black text-white sm:text-sm">すぐにサンプル申請<Send className="ml-2 h-4 w-4" /></Link>}
                   <Link href={wholesaleHref} className="inline-flex min-h-12 items-center justify-center bg-[#f7cc35] px-3 text-xs font-black text-black sm:text-sm">取引条件を見る<LockKeyhole className="ml-2 h-4 w-4" /></Link>
                 </div>
                 {accessQuery.data && (engagement?.sampleCartCount || 0) > 0 && <Link href="/lcm/sample-cart" className="mt-3 inline-flex items-center text-xs font-black underline"><ShoppingCart className="mr-1.5 h-4 w-4" />サンプルカートを見る（{engagement?.sampleCartCount}商品）</Link>}
@@ -200,12 +207,12 @@ export default function LcmProduct() {
 
         <section className="mx-auto max-w-[1400px] px-5 py-10 md:px-8 md:py-14">
           <div className="grid gap-4 lg:grid-cols-2">
-            <article className="border border-black/10 bg-white p-6 md:p-8">
+            {product.sampleAvailable && <article className="border border-black/10 bg-white p-6 md:p-8">
               <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black tracking-[0.16em] text-[#16805b]">SAMPLE</p><h2 className="mt-2 text-2xl font-black">試してから、配信を考える。</h2></div><PackageCheck className="h-8 w-8 shrink-0 text-[#16805b]" /></div>
-              {product.sampleAvailable ? <><p className="mt-5 text-sm leading-7 text-black/60">この商品はサンプル相談に対応しています。具体的な提供条件と月間受付状況は会員画面で確認できます。</p>{approved && memberProduct?.sampleInstructions && <div className="mt-4 border-l-4 border-[#16805b] bg-[#eff8f3] p-4 text-sm font-bold leading-7">{memberProduct.sampleInstructions}</div>}<Link href={sampleHref} className="mt-6 inline-flex items-center bg-[#16805b] px-5 py-3 text-sm font-black text-white">{approved ? "サンプル申請へ" : "ログインして申請条件を見る"}<Send className="ml-2 h-4 w-4" /></Link></> : <p className="mt-5 text-sm font-bold text-black/45">現在、この商品のサンプル申請は受け付けていません。</p>}
-            </article>
+              <p className="mt-5 text-sm leading-7 text-black/60">具体的な提供条件と月間受付状況は会員画面で確認できます。</p>{approved && memberProduct?.sampleInstructions && <div className="mt-4 border-l-4 border-[#16805b] bg-[#eff8f3] p-4 text-sm font-bold leading-7">{memberProduct.sampleInstructions}</div>}<Link href={sampleHref} className="mt-6 inline-flex items-center bg-[#16805b] px-5 py-3 text-sm font-black text-white">{approved ? "サンプル申請へ" : "ログインして申請条件を見る"}<Send className="ml-2 h-4 w-4" /></Link>
+            </article>}
 
-            <article className="border border-black/10 bg-[#171714] p-6 text-white md:p-8">
+            <article className={`border border-black/10 bg-[#171714] p-6 text-white md:p-8 ${product.sampleAvailable ? "" : "lg:col-span-2"}`}>
               <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black tracking-[0.16em] text-[#f7cc35]">B2B TERMS</p><h2 className="mt-2 text-2xl font-black">会員限定の取引条件</h2></div><LockKeyhole className="h-8 w-8 shrink-0 text-[#f7cc35]" /></div>
               {approved && hasWholesaleTerms ? <div className="mt-5"><p className="text-xs font-bold text-white/50">卸価格</p><p className="mt-1 text-4xl font-black">{formatPrice(memberProduct?.wholesalePrice)}</p><dl className="mt-5 grid gap-3 text-sm"><div className="flex justify-between gap-4 border-t border-white/15 pt-3"><dt className="text-white/55">最小発注数</dt><dd className="text-right font-black">{memberProduct?.wholesaleMinQuantity}点</dd></div><div className="border-t border-white/15 pt-3"><dt className="text-white/55">送料条件</dt><dd className="mt-1 font-bold">{memberProduct?.wholesaleShippingTerms}</dd></div><div className="border-t border-white/15 pt-3"><dt className="text-white/55">支払条件</dt><dd className="mt-1 font-bold">{memberProduct?.wholesalePaymentTerms}</dd></div>{memberProduct?.commissionRate && <div className="flex justify-between gap-4 border-t border-white/15 pt-3"><dt className="text-white/55">参考コミッション</dt><dd className="text-right font-black text-[#f7cc35]">{memberProduct.commissionRate}</dd></div>}</dl><Link href={wholesalePath} className="mt-6 inline-flex items-center bg-[#f7cc35] px-5 py-3 text-sm font-black text-black">卸商談を申し込む<Truck className="ml-2 h-4 w-4" /></Link></div> : approved ? <div className="mt-5"><p className="text-sm leading-7 text-white/60">この商品は公開中ですが、定型の卸条件はまだ登録されていません。ブランドへ個別相談できます。</p><Link href={wholesalePath} className="mt-6 inline-flex items-center border border-white/30 px-5 py-3 text-sm font-black">ブランドへ相談する<ArrowRight className="ml-2 h-4 w-4" /></Link></div> : <div className="mt-5"><p className="text-sm leading-7 text-white/60">卸価格、最小発注数、送料、支払条件、コミッションは、承認済みLCM会員だけが確認できます。</p><div className="mt-5 grid grid-cols-2 gap-px bg-white/15 text-center text-[11px] font-bold text-white/55"><span className="bg-[#171714] p-3">卸価格</span><span className="bg-[#171714] p-3">最低発注数</span><span className="bg-[#171714] p-3">送料・支払</span><span className="bg-[#171714] p-3">報酬条件</span></div><Link href={wholesaleHref} className="mt-6 inline-flex items-center bg-[#f7cc35] px-5 py-3 text-sm font-black text-black">ログインして取引条件を見る<ArrowRight className="ml-2 h-4 w-4" /></Link></div>}
             </article>

@@ -7,7 +7,7 @@ const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.ur
 describe("LCM marketplace foundation", () => {
   it("defines separate auditable marketplace tables without modifying legacy application tables", () => {
     const schema = read("drizzle/lcmSchema.ts");
-    for (const table of ["lcm_memberships", "lcm_brand_profiles", "lcm_brand_members", "lcm_products", "lcm_campaigns", "lcm_campaign_products", "lcm_creator_profiles", "lcm_sample_requests", "lcm_wholesale_inquiries", "lcm_product_interests", "lcm_sample_cart_items", "lcm_brand_event_participations", "lcm_product_reviews", "lcm_review_reports", "lcm_audit_logs"]) {
+    for (const table of ["lcm_memberships", "lcm_brand_profiles", "lcm_brand_members", "lcm_products", "lcm_campaigns", "lcm_campaign_products", "lcm_creator_profiles", "lcm_sample_requests", "lcm_wholesale_inquiries", "lcm_brand_contacts", "lcm_brand_contact_messages", "lcm_product_interests", "lcm_sample_cart_items", "lcm_brand_event_participations", "lcm_product_reviews", "lcm_review_reports", "lcm_audit_logs"]) {
       expect(schema).toContain(`"${table}"`);
     }
     expect(schema).toContain('wholesalePrice: decimal("wholesalePrice"');
@@ -30,8 +30,8 @@ describe("LCM marketplace foundation", () => {
     expect(upgrade).toContain("RELEASE_LOCK");
     expect(upgrade).toContain("CREATE TABLE IF NOT EXISTS");
     expect(upgrade).toContain("runVerifiedBackup");
-    expect(upgrade).toContain("pre-lcm-marketplace-v4-campaign-pages");
-    expect(upgrade).toContain("post-lcm-marketplace-v4-campaign-pages");
+    expect(upgrade).toContain("pre-lcm-marketplace-v5-brand-contacts");
+    expect(upgrade).toContain("post-lcm-marketplace-v5-brand-contacts");
     expect(upgrade).toContain("beforeCounts");
     expect(upgrade).toContain("afterCounts");
     expect(upgrade).toContain("ensureProductLiveCommerceColumns");
@@ -99,6 +99,11 @@ describe("LCM marketplace foundation", () => {
     const product = read("client/src/pages/LcmProduct.tsx");
     expect(product).toContain('buildFestivalLoginUrl(samplePath)');
     expect(product).toContain('buildFestivalLoginUrl(wholesalePath)');
+    expect(product).toContain('buildFestivalLoginUrl(contactPath)');
+    expect(product).toContain("ブランドさんに連絡");
+    expect(product).toContain("LCMマイページに履歴を保存し、連携済みのブランド担当者へメール通知します。担当者未連携時はLCM運営が受け付けます");
+    expect(product).not.toContain("サンプル受付なし");
+    expect(product).not.toContain(">サンプル対応</span>");
     expect(product).toContain("定価・参考小売価格");
     expect(product).toContain("会員限定の取引条件");
     expect(product).toContain("commissionRate");
@@ -282,6 +287,8 @@ describe("LCM marketplace foundation", () => {
     expect(router).toContain("【LCM】既存ブランドの管理権限を確認しました");
     expect(router).toContain("【LCM】ブランド公開状態を変更しました");
     expect(router).toContain("【LCM】商品公開状態を変更しました");
+    expect(router).toContain("【LCM】ブランドへの連絡を受け付けました");
+    expect(router).toContain("【LCM】ブランド連絡に新しい返信");
     expect(router).toContain("resendMembershipApprovalEmail: lcmAdminProcedure");
     expect(router).toContain("approval_email_resent");
     expect(read("client/src/pages/LcmAdmin.tsx")).toContain("対象者へメール通知しました");

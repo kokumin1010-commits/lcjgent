@@ -3860,3 +3860,9 @@ feature SHA `f617126c993ad2f44e1475ffddf1c05f67b6f77d`はGitHub CI success、Rai
 LCF申込関連7 test files・66 tests、production build、変更component bundle、diff／secret監査に成功。全体TypeScript既存baseline 1,163 diagnosticsに対し変更2fileは0件。独立read-only reviewは**GO（P0/P1 0件）**で、P2 contrastとP3完了branch testもrelease前に補強した。
 
 feature SHA `4ac1fecdd5a12187d4cd46a62fb949a23307bf0a`はGitHub CI success、Railwayも同一SHAでproduction success。本番`/lcf/apply/liver?edition=2`はHTTP 200、配信`FestivalApplyLiver-DZDNJAdE.js`に「参加者LINEオープンチャット」「LINEオープンチャットに参加する」、既存公式OpenChat URL、入場QR／mypage login文言をGET-only確認した。本番申込を発生させるmutationは行っていない。
+
+## 2026-09-25｜LCF第2回ページ仕上げ・TOP導線整理・LCMブランド連絡（本番反映前）
+`/2nd`は、運営修正指示をまとめて反映した。「見る展示会から、配信して売る展示会へ。」を主見出しとし、説明直後に提供された第1回ライブ販売実景写真を配置した。LCM紹介には実際の公開商品探索画面を使い、不要指定のConcept、COMMON SIGN、最終黄色CTAを削除した。初心者supportには文脈内のライブコマーサー申込buttonを残し、全体の固定申込barとも両立させた。浜松町館は外観写真、住所、会場面積、天井高、無柱空間、フローリングを整理し、第1回実績5cardはvalue／label／noteの基準線を揃えた。完成予想2画像は明示labelを維持し、実寸2176×1632を`width`／`height`へ設定した。
+LCF TOP headerからは指定どおり「LCJ公式」buttonだけを削除した。LCFロゴ、マイページ、LCM、第1回実績などの既存導線とfooterの「LCJ公式サイト」は維持している。
+LCM商品詳細は、サンプル受付の「あり／なし」status表示を外し、公開商品すべてに最優先の「ブランドさんに連絡」buttonを追加した。連絡はLCM内の専用threadへ保存され、問い合わせ者とブランド双方のmypageで返信できる。連携済みの有効なbrand ownerだけへemail通知し、担当者未連携時はLCM運営受付へfallbackする。email addressは相手に公開しない。新規連絡は10分5件のaccount単位atomic limiter、self-brand拒否、商品／brand公開状態、approved membership、brand active membership、transaction内message・thread・audit保存を通過してから通知する。thread一覧は`lastMessageAt + id`、thread内messageは`id`のkeyset cursorで「さらに表示」でき、固定上限を設けない。
+最終検証はLCF／LCM関連43 test files・306 tests成功、exact production build成功、変更module bundle成功、`git diff --check`／secret-like追加監査成功。全体TypeScriptは既存baseline 1,163 diagnosticsだが、今回変更fileは0件。1440px／390pxの実画面確認で第2回初心者sectionのinline CTAとfixed barが重ならず操作できること、既存LCM contact visual fixtureで商品CTA、送信form、thread、返信欄がdesktop／mobileとも横溢れしないことを確認した。実送信、申込、production DB書込みは行っていない。
