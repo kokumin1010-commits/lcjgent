@@ -3910,3 +3910,9 @@ feature SHA `5f4986f88ef9d05fc58328df78f6c7166e4172b6`はGitHub CI success、Rai
 生产安全开关仍默认关闭。只有Railway同时具备专用TikTok令牌、唯一广告主ID及精确`TIKTOK_BUSINESS_WRITE_ENABLED=true`时，操作按钮才可执行；本次没有把任何令牌写入仓库，也没有调用TikTok写入API。
 
 验证：TikTok/店铺/广告/菜单专项24文件206测试全部通过；生产构建成功；全项目测试共4,583项通过、45项跳过，48个既有数据库/外部环境依赖测试文件失败，TikTok测试零失败；全量TypeScript仍有既有基线诊断，本次TikTok路径诊断为0。桌面与手机视觉QA通过，Campaign固定操作列和二次确认弹窗可访问。独立安全复审后修复了慢请求并发租约、旧权限写入扩张、CBO未统一拒绝、终态重放误报、审计可见性和schema漂移校验问题。
+
+## 2026-09-25｜LINE「自動フォロー設定ON」カードのクリック絞り込み
+
+`/master/line`のグループ返信確認上部にある青い「自動フォロー設定ON」集計カード全体を、キーボード操作と`aria-pressed`に対応したbuttonへ変更した。タップすると現在の返信確認一覧のうち自動follow-upがONのグループだけを専用tabへ表示し、選択中は青い枠・ring・説明文で状態を明示する。同じカードをもう一度タップすると通常のAI返信推奨一覧へ戻る。検索中は検索条件を維持したままON対象だけを絞り込み、対象0件時は専用empty stateを表示する。自動送信条件、群設定、API、scheduler、DB、実際の送信動作には変更を加えていない。
+
+LINE関連39 files・428 tests、対象2 files・20 tests、production build、対象frontend bundle、`git diff --check`がすべて成功した。全量TypeScriptは既存1,163件のbaseline診断を維持し、本変更2 filesの診断は0件。feature commit `28502586f24cf1574a34b704f914bd5ccdc1ef00`はRailway deployment `6657060139`でproduction successとなり、その後のdescendant commit `8b9b7cdbdcaa87b64503699ae5dd0324d386ad52`のdeployment `6657754959`もsuccess。本番`/`、`/master/line`、LINE lifecycle healthはHTTP 200で、配信中の`LineGroupReplyReviewQueue-BInyL7Sz.js`にカードbutton、`aria-pressed`、`auto-followup`専用view、「タップしてONのグループを表示」「もう一度タップで戻る」の各文言を確認した。実LINE送信やproduction業務dataのmutationは行っていない。
