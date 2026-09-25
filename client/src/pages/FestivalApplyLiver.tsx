@@ -5,7 +5,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, Mic2, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Send, PartyPopper, Sparkles, Undo2 } from 'lucide-react';
+import { ArrowLeft, Mic2, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, MessageCircle, Send, PartyPopper, Sparkles, Undo2 } from 'lucide-react';
 import { Link } from 'wouter';
 import { parseLcfApplicationFormError } from '@/lib/lcfApplicationFormErrors';
 import { trpc } from '@/lib/trpc';
@@ -82,6 +82,7 @@ function createSteps(event: LcfEventDefinition, existingMemberFlow: ExistingMemb
 }
 
 const MAINTENANCE_MODE = false;
+const LCF_OPEN_CHAT_URL = 'https://line.me/ti/g2/KsS3Ma1HW3okfwI2OowM6Ubk0UHKOHmb3nZFhA?utm_source=invitation&utm_medium=link_copy&utm_campaign=default';
 
 export default function FestivalApplyLiver() {
   if (MAINTENANCE_MODE) {
@@ -385,7 +386,7 @@ export default function FestivalApplyLiver() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-amber-50 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-amber-50 flex items-start justify-center px-4 py-8 sm:py-12">
         <div className="text-center max-w-md">
           <div className="relative inline-block mb-6">
             <PartyPopper className="w-16 h-16 text-purple-500 mx-auto" />
@@ -432,6 +433,22 @@ export default function FestivalApplyLiver() {
               <p className="mt-2 text-sm leading-6 text-gray-600">同じメールアドレスで以前に登録した方は、既存のID・パスワードでマイページへログインしてください。第1回の履歴とQRは変更されません。</p>
             </div>
           )}
+          <div className="mb-6 rounded-2xl border-2 border-[#06C755]/30 bg-white p-5 text-left shadow-lg">
+            <p className="flex items-center gap-2 font-bold text-gray-900">
+              <MessageCircle className="h-5 w-5 text-[#06C755]" />
+              参加者LINEオープンチャット
+            </p>
+            <p className="mt-2 text-sm leading-6 text-gray-600">開催案内や参加者向けのお知らせを確認できます。お申し込み完了後、そのままご参加ください。</p>
+            <a
+              href={LCF_OPEN_CHAT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#007A34] px-6 py-3 font-bold text-white shadow-lg transition-all hover:bg-[#00652B] hover:shadow-xl active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#00652B]"
+            >
+              <MessageCircle className="h-5 w-5" />
+              LINEオープンチャットに参加する
+            </a>
+          </div>
           <div className="flex flex-col gap-3">
             {accountInfo && (
               <Link href="/lcf/login" className="inline-flex items-center justify-center gap-2 bg-purple-500 text-white font-bold px-6 py-3 rounded-xl hover:bg-purple-400 transition-all shadow-lg hover:shadow-xl hover:scale-[1.02]">

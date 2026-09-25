@@ -166,6 +166,22 @@ describe("LCF second-edition official page", () => {
     expect(server).toContain("ライブコマース初心者、未経験、これから始めたい方も申込対象です");
   });
 
+  it("links the live-commercer completion screen to the official LINE OpenChat", () => {
+    const submittedStart = liverForm.indexOf("if (submitted)");
+    const submittedEnd = liverForm.indexOf("const currentStepData", submittedStart);
+    const submittedCompletion = liverForm.slice(submittedStart, submittedEnd);
+    expect(liverForm).toContain("const LCF_OPEN_CHAT_URL = 'https://line.me/ti/g2/KsS3Ma1HW3okfwI2OowM6Ubk0UHKOHmb3nZFhA");
+    expect(liverForm.slice(0, submittedStart)).not.toContain("LINEオープンチャットに参加する");
+    expect(submittedCompletion).toContain("参加者LINEオープンチャット");
+    expect(submittedCompletion).toContain("LINEオープンチャットに参加する");
+    expect(submittedCompletion).toContain("href={LCF_OPEN_CHAT_URL}");
+    expect(submittedCompletion).toContain('target="_blank"');
+    expect(submittedCompletion).toContain('rel="noopener noreferrer"');
+    expect(submittedCompletion).toContain("min-h-12 w-full");
+    expect(submittedCompletion).toContain("bg-[#007A34]");
+    expect(liverForm.slice(submittedEnd)).not.toContain("LINEオープンチャットに参加する");
+  });
+
   it("invites brands and live commercers into the always-on LCM market", () => {
     expect(page).toContain("メーカー事前マッチングはこちらから");
     expect(page).toContain("LCF開催前に、出展メーカーの商品情報を確認し、ライブ配信したい商品を探すことができます");
