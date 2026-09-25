@@ -3,8 +3,21 @@
  * Design: Japanese editorial event archive — matte black, warm ivory, signal gold, real documentary photography.
  * Purpose: lead with proven impact, preserve every edition, and create a stable doorway for future LCF events.
  */
-import { useEffect } from "react";
-import { ArrowUpRight, BookOpen, Building2, Radio, UserRound, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  ArrowUpRight,
+  BookOpen,
+  Building2,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  CirclePlay,
+  Radio,
+  ShoppingBag,
+  Sparkles,
+  UserRound,
+  Users,
+} from "lucide-react";
 import { lcf2026ExhibitorCatalogPages } from "@/data/lcf2026ExhibitorCatalog";
 import {
   lcf2026Coverage,
@@ -15,35 +28,51 @@ import {
   lcfEditions,
 } from "@/data/lcfEditions";
 import { applyPageSeo } from "@/lib/pageSeo";
+import { LCF_EVENT_DEFINITIONS } from "@shared/lcfEventDefinitions";
 
 const hero = lcf2026PhotoById["D1-104"];
 const mosaicPhotos = lcf2026HomepagePhotoIds.slice(1, 7).map((id) => lcf2026PhotoById[id]);
 const exhibitorCatalogPreviewPages = [2, 26, 27, 29].map((page) => lcf2026ExhibitorCatalogPages[page - 1]);
 const lcjOfficialSite = "https://livecommercejapan.jp/";
+const lcfOfficialTiktok = "https://www.tiktok.com/@livecommercefestival";
+const secondEdition = LCF_EVENT_DEFINITIONS[2];
+const topHeroSlides = [
+  {
+    id: "second-edition",
+    image: lcf2026PhotoById["D1-094"],
+    eyebrow: "第2回｜お申し込み受付中",
+    title: "見る展示会から、\n売る展示会へ。",
+    copy: "2026年12月8日・9日｜東京都立産業貿易センター浜松町館 2階展示室",
+    href: "/2nd",
+    cta: "第2回開催ページを見る",
+  },
+  {
+    id: "first-edition-report",
+    image: hero,
+    eyebrow: "第1回｜開催レポート公開",
+    title: "熱狂と成果を、\n次の開催へ。",
+    copy: "750名超の来場ライバー、50社の企業、GMV8,000万円。第1回の実績を写真とともに公開中。",
+    href: "/livecommercefestival/2026/report",
+    cta: "第1回開催レポートを見る",
+  },
+] as const;
 
 function BrandHeader() {
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-[#090909]/95 text-white backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-[1500px] items-center justify-between px-5 md:h-20 md:px-10">
+    <header className="sticky top-0 z-50 border-b border-black/10 bg-[#f6f3ec]/95 text-[#101010] backdrop-blur-xl">
+      <div className="mx-auto flex h-16 max-w-[1500px] items-center justify-between px-4 md:h-20 md:px-8">
         <a href="/" className="group flex items-center gap-3" aria-label="LIVE COMMERCE FESTIVAL ホーム">
-          <span className="grid h-10 w-10 place-items-center bg-[#f2cb3c] text-sm font-black tracking-[-0.08em] text-black transition-transform duration-200 group-hover:-rotate-3">LCF</span>
-          <span className="hidden text-[11px] font-semibold leading-tight tracking-[0.24em] text-white/90 sm:block">
+          <span className="grid h-10 w-12 place-items-center rounded-sm bg-[#f2cb3c] text-sm font-black tracking-[-0.08em] text-black transition-transform duration-200 group-hover:-rotate-2 md:h-11 md:w-14">LCF</span>
+          <span className="hidden text-[11px] font-black leading-tight tracking-[0.2em] text-black/75 sm:block">
             LIVE COMMERCE<br />FESTIVAL
           </span>
         </a>
-        <nav className="flex items-center gap-2 text-xs font-bold tracking-[0.04em] md:gap-4" aria-label="メインナビゲーション">
-          <a href="#about" className="hidden text-white/65 transition-colors hover:text-white md:block">ABOUT</a>
-          <a href="#archive" className="hidden text-white/65 transition-colors hover:text-white md:block">ARCHIVE</a>
-          <a href="/lcm" className="hidden text-[#f2cb3c] transition-colors hover:text-white lg:block">LCM MARKET</a>
-          <a href="#media" className="hidden text-white/65 transition-colors hover:text-white md:block">MEDIA</a>
-          <a href={lcjOfficialSite} target="_blank" rel="noopener noreferrer" className="hidden text-white/65 transition-colors hover:text-white xl:inline-flex xl:items-center xl:gap-1.5">
+        <nav className="flex items-center gap-2 text-xs font-black tracking-[0.03em] sm:gap-3" aria-label="メインナビゲーション">
+          <a href={lcjOfficialSite} target="_blank" rel="noopener noreferrer" className="hidden items-center gap-1.5 px-3 py-2 text-black/55 transition-colors hover:text-black md:inline-flex">
             LCJ公式 <ArrowUpRight size={13} />
           </a>
-          <a href="/2nd" className="inline-flex items-center gap-1.5 border border-[#f2cb3c] px-3 py-2.5 text-[10px] text-[#f2cb3c] transition-colors hover:bg-[#f2cb3c] hover:text-black sm:text-xs md:px-5">
-            第2回開催ページ <ArrowUpRight size={14} />
-          </a>
-          <a href="/lcf/mypage" className="inline-flex items-center gap-1.5 bg-[#7c3aed] px-3 py-2.5 text-[10px] text-white transition-colors hover:bg-[#8b5cf6] sm:text-xs md:px-5">
-            <UserRound size={14} /> マイページ
+          <a href="/lcf/mypage" className="inline-flex min-h-10 items-center gap-2 rounded-full bg-[#101010] px-4 py-2.5 text-[11px] text-white transition-colors hover:bg-[#7c3aed] sm:px-5 sm:text-xs">
+            <UserRound size={15} /> マイページ
           </a>
         </nav>
       </div>
@@ -52,51 +81,151 @@ function BrandHeader() {
 }
 
 function HeroSection() {
-  return (
-    <section className="relative isolate min-h-[760px] overflow-hidden bg-black text-white md:min-h-[850px]">
-      <img
-        src={hero.src}
-        alt={hero.alt}
-        width={hero.width}
-        height={hero.height}
-        fetchPriority="high"
-        className="absolute inset-0 h-full w-full object-cover object-center"
-      />
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,.94)_0%,rgba(0,0,0,.72)_43%,rgba(0,0,0,.18)_78%,rgba(0,0,0,.55)_100%)]" />
-      <div className="absolute inset-x-0 bottom-0 h-52 bg-gradient-to-t from-black to-transparent" />
+  const [activeSlide, setActiveSlide] = useState(0);
+  const slide = topHeroSlides[activeSlide];
+  const moveSlide = (direction: -1 | 1) => {
+    setActiveSlide((current) => (current + direction + topHeroSlides.length) % topHeroSlides.length);
+  };
 
-      <div className="relative mx-auto grid min-h-[760px] max-w-[1500px] content-end gap-12 px-5 pb-16 pt-28 md:min-h-[850px] md:grid-cols-[1fr_280px] md:px-10 md:pb-24">
-        <div className="max-w-5xl">
-          <p className="mb-7 flex items-center gap-3 text-xs font-bold tracking-[0.3em] text-[#f2cb3c] md:text-sm">
-            <span className="h-px w-12 bg-[#f2cb3c]" />
-            JAPAN / LIVE COMMERCE / COMMUNITY
-          </p>
-          <h1 className="max-w-5xl text-[clamp(3.4rem,9vw,9.6rem)] font-black uppercase leading-[0.79] tracking-[-0.07em]">
-            Commerce<br />Moves<br /><span className="text-[#f2cb3c]">People.</span>
-          </h1>
-          <p className="mt-8 max-w-2xl text-base font-medium leading-8 text-white/78 md:text-xl md:leading-9">
-            企業とライバーが出会い、商品が語られ、熱量が売上へ変わる。<br className="hidden md:block" />
-            LIVE COMMERCE FESTIVALは、ライブコマースの未来を現場からつくる祭典です。
-          </p>
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <a href="/2nd" className="inline-flex items-center justify-center gap-3 bg-[#f2cb3c] px-7 py-4 text-sm font-black tracking-[0.04em] text-black transition-transform duration-150 active:scale-[0.97]">
-              第2回開催情報を見る <ArrowUpRight size={18} />
-            </a>
-            <a href="/livecommercefestival/2026/report" className="inline-flex items-center justify-center gap-3 border border-white/45 bg-black/35 px-7 py-4 text-sm font-bold tracking-[0.04em] text-white backdrop-blur transition-colors hover:border-white">
-              第1回開催レポート <ArrowUpRight size={18} />
-            </a>
+  return (
+    <section className="bg-[#f6f3ec] px-3 pb-5 pt-3 text-white sm:px-5 sm:pb-7 sm:pt-5 md:px-8">
+      <div className="relative mx-auto max-w-[1500px] overflow-hidden rounded-[1.4rem] border border-black/10 bg-black shadow-[0_24px_80px_rgba(20,16,8,.18)] sm:rounded-[2rem]">
+        <a href={slide.href} className="group block" aria-label={slide.cta}>
+          <div className="relative min-h-[470px] sm:min-h-[560px] lg:min-h-[650px]">
+            <img
+              key={slide.id}
+              src={slide.image.src}
+              alt={slide.image.alt}
+              width={slide.image.width}
+              height={slide.image.height}
+              fetchPriority={activeSlide === 0 ? "high" : "auto"}
+              className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.015]"
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,.88)_0%,rgba(0,0,0,.64)_46%,rgba(0,0,0,.12)_82%),linear-gradient(0deg,rgba(0,0,0,.72)_0%,transparent_54%)]" />
+            <div className="absolute inset-x-0 bottom-0 px-7 pb-12 pt-32 sm:px-12 sm:pb-14 lg:px-20 lg:pb-20">
+              <p className="inline-flex items-center rounded-full border border-[#f2cb3c]/70 bg-black/40 px-4 py-2 text-[10px] font-black tracking-[0.18em] text-[#f2cb3c] backdrop-blur sm:text-xs">{slide.eyebrow}</p>
+              <h1 className="mt-5 max-w-4xl whitespace-pre-line text-[clamp(2.15rem,6vw,6.4rem)] font-black leading-[0.96] tracking-[-0.055em] sm:leading-[0.9] sm:tracking-[-0.06em]">{slide.title}</h1>
+              <p className="mt-5 max-w-2xl text-sm font-bold leading-7 text-white/78 sm:text-base md:text-lg md:leading-8">{slide.copy}</p>
+              <div className="mt-7 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+                <span className="inline-flex min-h-12 items-center gap-3 rounded-full bg-white px-5 py-3 text-sm font-black text-black">{slide.cta}<ArrowUpRight size={17} /></span>
+                <span className="text-xs font-bold tracking-[0.12em] text-white/55">LIVE COMMERCE FESTIVAL</span>
+              </div>
+            </div>
           </div>
-          <a href="/2026" className="mt-5 inline-flex items-center gap-2 text-xs font-bold tracking-[0.08em] text-white/65 transition-colors hover:text-white">
-            第1回イベントページを見る <ArrowUpRight size={16} />
-          </a>
+        </a>
+
+        <button type="button" onClick={() => moveSlide(-1)} aria-label="前のイベントバナー" className="absolute left-3 top-4 z-20 grid h-11 w-11 place-items-center rounded-full border border-white/45 bg-black/45 text-white backdrop-blur transition-colors hover:bg-white hover:text-black sm:left-5 sm:top-1/2 sm:h-13 sm:w-13 sm:-translate-y-1/2"><ChevronLeft size={23} /></button>
+        <button type="button" onClick={() => moveSlide(1)} aria-label="次のイベントバナー" className="absolute right-3 top-4 z-20 grid h-11 w-11 place-items-center rounded-full border border-white/45 bg-black/45 text-white backdrop-blur transition-colors hover:bg-white hover:text-black sm:right-5 sm:top-1/2 sm:h-13 sm:w-13 sm:-translate-y-1/2"><ChevronRight size={23} /></button>
+
+        <div className="absolute bottom-4 right-5 z-20 flex items-center gap-2 sm:bottom-6 sm:right-8" aria-label="イベントバナー選択">
+          {topHeroSlides.map((item, index) => (
+            <button key={item.id} type="button" aria-label={`${index + 1}枚目のイベントバナーを表示`} aria-pressed={index === activeSlide} onClick={() => setActiveSlide(index)} className="group grid min-h-8 min-w-8 place-items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+              <span className={`h-1.5 rounded-full transition-all ${index === activeSlide ? "w-8 bg-[#f2cb3c]" : "w-4 bg-white/45 group-hover:bg-white"}`} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mx-auto mt-4 flex max-w-[1500px] flex-col gap-3 sm:flex-row sm:items-center">
+        <a href="/2nd" className="inline-flex flex-1 items-center justify-between gap-4 rounded-xl bg-[#f2cb3c] px-5 py-4 text-sm font-black text-black shadow-[0_10px_30px_rgba(210,170,25,.2)] transition-transform duration-150 active:scale-[0.99]">
+          第2回開催情報を見る <ArrowUpRight size={18} />
+        </a>
+        <a href="/livecommercefestival/2026/report" className="inline-flex items-center justify-center gap-3 rounded-xl border border-black/20 bg-white px-5 py-4 text-sm font-black text-black transition-colors hover:border-black">
+          第1回開催レポート <ArrowUpRight size={18} />
+        </a>
+      </div>
+      <div className="mx-auto max-w-[1500px]">
+        <a href="/2026" className="mt-5 inline-flex items-center gap-2 text-xs font-bold tracking-[0.08em] text-black/55 transition-colors hover:text-black">
+          第1回イベントページを見る <ArrowUpRight size={16} />
+        </a>
+      </div>
+    </section>
+  );
+}
+
+function TopPortalSection() {
+  const featuredNews = lcf2026Coverage.slice(0, 3);
+  return (
+    <section className="bg-[#f6f3ec] px-3 pb-20 text-[#101010] sm:px-5 md:px-8 md:pb-28">
+      <div className="mx-auto grid max-w-[1500px] gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start xl:gap-7">
+        <div className="min-w-0 space-y-5">
+          <section className="overflow-hidden rounded-2xl border border-[#ddbd35] bg-[#f2cb3c] p-5 shadow-[0_16px_45px_rgba(134,102,0,.12)] sm:p-7" aria-labelledby="second-application-heading">
+            <div className="grid gap-5 xl:grid-cols-[1fr_auto] xl:items-center">
+              <div>
+                <p className="text-[10px] font-black tracking-[0.2em] text-black/55">2ND EDITION / APPLICATION OPEN</p>
+                <h2 id="second-application-heading" className="mt-2 text-2xl font-black tracking-[-0.04em] sm:text-3xl">第2回 お申し込み受付中</h2>
+                <p className="mt-2 flex items-center gap-2 text-sm font-bold text-black/65"><CalendarDays size={16} />{secondEdition.dateText}｜浜松町館</p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <a href={secondEdition.applicationCompanyPath} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-black px-5 py-3 text-xs font-black text-white transition-transform active:scale-[0.98]"><Building2 size={17} />企業・ブランド申込</a>
+                <a href={secondEdition.applicationLiverPath} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border-2 border-black bg-white px-5 py-3 text-xs font-black text-black transition-transform active:scale-[0.98]"><Radio size={17} />ライブコマーサー申込</a>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-black/10 bg-white p-5 shadow-[0_14px_40px_rgba(20,16,8,.06)] sm:p-7" aria-labelledby="latest-news-heading">
+            <div className="flex items-center justify-between gap-4 border-b border-black/10 pb-4">
+              <div>
+                <p className="text-[10px] font-black tracking-[0.2em] text-[#b58a00]">LATEST NEWS</p>
+                <h2 id="latest-news-heading" className="mt-1 text-2xl font-black tracking-[-0.04em]">新着ニュース</h2>
+              </div>
+              <a href="#media" className="text-xs font-black text-black/55 hover:text-black">一覧を見る</a>
+            </div>
+            <div>
+              {featuredNews.map((item) => (
+                <a key={`${item.date}-${item.title}`} href={item.href} target="_blank" rel="noreferrer" className="group grid gap-2 border-b border-black/10 py-4 last:border-b-0 sm:grid-cols-[96px_1fr_auto] sm:items-center">
+                  <span className="text-xs font-bold tabular-nums text-black/42">{item.date}</span>
+                  <span className="min-w-0 text-sm font-bold leading-6 text-black/72 transition-colors group-hover:text-black"><span className="mr-2 text-[10px] font-black text-[#b58a00]">{item.category}</span>{item.title}</span>
+                  <ArrowUpRight className="hidden h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 sm:block" />
+                </a>
+              ))}
+            </div>
+          </section>
+
+          <div className="grid gap-5 md:grid-cols-2">
+            <article className="flex min-h-[320px] flex-col justify-between rounded-2xl bg-[#151515] p-6 text-white shadow-[0_18px_50px_rgba(0,0,0,.14)] sm:p-8">
+              <div>
+                <p className="flex items-center gap-2 text-[10px] font-black tracking-[0.2em] text-[#f2cb3c]"><Building2 size={16} />FOR EXHIBITORS</p>
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">出展企業のメリット</h2>
+                <ul className="mt-6 space-y-3 text-sm font-medium leading-6 text-white/68">
+                  <li>・ライブコマーサーと商品を前に直接商談</li>
+                  <li>・会場から配信・販売へつなげられる</li>
+                  <li>・イベント後もLCMで継続して商品を紹介</li>
+                </ul>
+              </div>
+              <a href={secondEdition.applicationCompanyPath} className="mt-7 inline-flex items-center justify-between border-t border-white/20 pt-5 text-sm font-black text-[#f2cb3c]">企業・ブランドとして申し込む<ArrowUpRight size={18} /></a>
+            </article>
+
+            <article className="flex min-h-[320px] flex-col justify-between rounded-2xl border border-black/10 bg-white p-6 shadow-[0_18px_50px_rgba(20,16,8,.07)] sm:p-8">
+              <div>
+                <p className="flex items-center gap-2 text-[10px] font-black tracking-[0.2em] text-[#7c3aed]"><Sparkles size={16} />FOR LIVE COMMERCERS</p>
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">ライブコマーサーのメリット</h2>
+                <ul className="mt-6 space-y-3 text-sm font-medium leading-6 text-black/58">
+                  <li>・配信したいブランドや商品と出会える</li>
+                  <li>・初心者講習と当日の配信準備をサポート</li>
+                  <li>・サンプルや配信条件を事前に相談できる</li>
+                </ul>
+              </div>
+              <a href={secondEdition.applicationLiverPath} className="mt-7 inline-flex items-center justify-between border-t border-black/10 pt-5 text-sm font-black text-[#6d28d9]">ライブコマーサーとして申し込む<ArrowUpRight size={18} /></a>
+            </article>
+          </div>
         </div>
 
-        <aside className="border-l border-white/30 pl-6 md:self-end">
-          <p className="text-xs font-bold tracking-[0.28em] text-white/55">LATEST EDITION</p>
-          <p className="mt-4 text-6xl font-black tracking-[-0.08em]">01</p>
-          <p className="mt-2 text-xl font-bold">LCF 2026</p>
-          <p className="mt-2 text-sm leading-6 text-white/65">2026.09.08 — 09.09<br />八芳園｜東京・白金台</p>
-          <span className="mt-5 inline-flex border border-[#f2cb3c]/70 px-3 py-1.5 text-[11px] font-bold tracking-[0.16em] text-[#f2cb3c]">大盛況のうちに閉幕</span>
+        <aside className="grid gap-3 sm:grid-cols-2 lg:sticky lg:top-24 lg:grid-cols-1" aria-label="LCF関連リンク">
+          <a href={lcfOfficialTiktok} target="_blank" rel="noreferrer" className="group flex min-h-28 items-center justify-between rounded-2xl bg-[#111] p-5 text-white transition-transform hover:-translate-y-0.5">
+            <div><p className="text-[10px] font-black tracking-[0.18em] text-white/45">OFFICIAL CHANNEL</p><p className="mt-2 text-lg font-black">LCF公式TikTok</p><p className="mt-1 text-xs text-white/55">最新動画・開催情報</p></div><Radio className="h-7 w-7 text-[#f2cb3c]" />
+          </a>
+          <a href="/2nd#official-movie" className="group relative min-h-36 overflow-hidden rounded-2xl bg-black text-white">
+            <img src={lcf2026PhotoById["D1-056"].src} alt="第1回LCFライブ配信風景" width={lcf2026PhotoById["D1-056"].width} height={lcf2026PhotoById["D1-056"].height} loading="lazy" className="absolute inset-0 h-full w-full object-cover opacity-55 transition-transform duration-500 group-hover:scale-[1.03]" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent" />
+            <div className="relative flex min-h-36 items-end justify-between p-5"><div><p className="text-[10px] font-black tracking-[0.16em] text-[#f2cb3c]">EDITION 01</p><p className="mt-1 text-lg font-black">第1回 公式動画</p></div><CirclePlay className="h-8 w-8" /></div>
+          </a>
+          <a href="/livecommercefestival/2026/report" className="group flex min-h-28 items-center justify-between rounded-2xl border border-black/10 bg-white p-5 text-black transition-transform hover:-translate-y-0.5">
+            <div><p className="text-[10px] font-black tracking-[0.18em] text-black/35">EVENT REPORT</p><p className="mt-2 text-lg font-black">第1回 開催レポート</p><p className="mt-1 text-xs text-black/45">写真・実績・会場の記録</p></div><BookOpen className="h-7 w-7 text-[#b58a00]" />
+          </a>
+          <a href="/lcm" className="group flex min-h-28 items-center justify-between rounded-2xl bg-[#f2cb3c] p-5 text-black transition-transform hover:-translate-y-0.5">
+            <div><p className="text-[10px] font-black tracking-[0.18em] text-black/45">LIVE COMMERCE MARKET</p><p className="mt-2 text-lg font-black">LCMで商品を探す</p><p className="mt-1 text-xs text-black/55">商品発見・サンプル・商談</p></div><ShoppingBag className="h-7 w-7" />
+          </a>
         </aside>
       </div>
     </section>
@@ -329,6 +458,7 @@ export default function LiveCommerceFestivalTop() {
       <BrandHeader />
       <main>
         <HeroSection />
+        <TopPortalSection />
         <ImpactSection />
         <PhotoMosaic />
         <ExhibitorArchiveSection />
