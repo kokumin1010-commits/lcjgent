@@ -71,6 +71,10 @@ import { runTikTokCompetitorDailyUpgradeSetup } from "../tiktokCompetitorDailyUp
 import { runInfluencerBdUpgradeSetup } from "../influencerBdUpgrade";
 import { getInfluencerCreatorDedupeHealth } from "../influencerBdRouter";
 import { startStoreBusinessUpgradeSetup } from "../storeBusinessUpgrade";
+import {
+  getTikTokAdsOperationsUpgradeHealth,
+  startTikTokAdsOperationsUpgradeSetup,
+} from "../tiktokAdsOperationsUpgrade";
 import { startLcjBrainProjectUpgrade } from "../lcjBrainProjectUpgrade";
 import {
   ensureLcfFirstEditionProjectSeed,
@@ -482,6 +486,20 @@ async function startServer() {
         markerStatus: "unavailable",
         productCount: 0,
         failureCode: "DRKOZU_LCM_HEALTH_CHECK_FAILED",
+      });
+    }
+  });
+
+  app.get("/api/health/tiktok-ads-operations", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    try {
+      const health = await getTikTokAdsOperationsUpgradeHealth();
+      return res.status(health.healthy ? 200 : 503).json({ ok: health.healthy, ...health });
+    } catch {
+      return res.status(503).json({
+        ok: false,
+        recoveryKey: "tiktok-ads-command-center-operations-v1",
+        errorCode: "TIKTOK_ADS_OPERATION_HEALTH_UNAVAILABLE",
       });
     }
   });
@@ -4377,6 +4395,14 @@ async function startServer() {
   // Railway's health check. Related routes await the same singleton promise.
   startStoreBusinessUpgradeSetup().catch(error => {
     console.error("[StoreBusinessUpgrade] background setup failed", error);
+  });
+
+  // TikTok mutation routes await this same singleton. Warm the additive,
+  // backup-gated audit schema without extending Railway's listen deadline.
+  startTikTokAdsOperationsUpgradeSetup().catch(error => {
+    console.error("[TikTokAdsOperationsUpgrade] background setup failed", {
+      errorCode: error instanceof Error ? error.message.split(":", 1)[0] : "TIKTOK_ADS_OPERATION_UPGRADE_FAILED",
+    });
   });
 
   // Lark source snapshots, field-level audits and recovery ledgers must exist before

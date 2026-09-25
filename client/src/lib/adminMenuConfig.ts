@@ -456,8 +456,8 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
       {
         icon: Video,
         path: "/master/tiktok-ads",
-        labelZh: "TikTok广告连携",
-        labelJa: "TikTok広告連携",
+        labelZh: "TikTok广告司令塔",
+        labelJa: "TikTok広告司令塔",
       },
     ],
   },

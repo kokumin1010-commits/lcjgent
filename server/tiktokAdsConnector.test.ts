@@ -1,8 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getTikTokAdsDashboard, resetTikTokAdsConnectorCacheForTests } from "./tiktokAdsConnector";
+import {
+  getTikTokAdsDashboard,
+  getTikTokAdsWriteReadiness,
+  requestTikTokAuthenticated,
+  resetTikTokAdsConnectorCacheForTests,
+  TikTokApiOperationError,
+} from "./tiktokAdsConnector";
 
 const originalToken = process.env.TIKTOK_BUSINESS_ACCESS_TOKEN;
 const originalAdvertiserId = process.env.TIKTOK_BUSINESS_ADVERTISER_ID;
+const originalWriteEnabled = process.env.TIKTOK_BUSINESS_WRITE_ENABLED;
 
 function response(data: unknown, code = 0) {
   return Promise.resolve(new Response(JSON.stringify({ code, message: code === 0 ? "OK" : "FAILED", data }), {
@@ -56,6 +63,7 @@ beforeEach(() => {
   resetTikTokAdsConnectorCacheForTests();
   delete process.env.TIKTOK_BUSINESS_ACCESS_TOKEN;
   delete process.env.TIKTOK_BUSINESS_ADVERTISER_ID;
+  delete process.env.TIKTOK_BUSINESS_WRITE_ENABLED;
   vi.restoreAllMocks();
 });
 
@@ -64,6 +72,8 @@ afterEach(() => {
   else process.env.TIKTOK_BUSINESS_ACCESS_TOKEN = originalToken;
   if (originalAdvertiserId === undefined) delete process.env.TIKTOK_BUSINESS_ADVERTISER_ID;
   else process.env.TIKTOK_BUSINESS_ADVERTISER_ID = originalAdvertiserId;
+  if (originalWriteEnabled === undefined) delete process.env.TIKTOK_BUSINESS_WRITE_ENABLED;
+  else process.env.TIKTOK_BUSINESS_WRITE_ENABLED = originalWriteEnabled;
   vi.unstubAllGlobals();
 });
 
@@ -207,5 +217,46 @@ describe("TikTok Ads connector", () => {
 
     expect(dashboard.source).toBe("snapshot");
     expect(dashboard.liveErrorCode).toBe("TIKTOK_REPORT_PAGINATION_EXCEEDED");
+  });
+
+  it("enables writes only with both credentials and the explicit production switch", () => {
+    process.env.TIKTOK_BUSINESS_ACCESS_TOKEN = "private-write-token";
+    process.env.TIKTOK_BUSINESS_ADVERTISER_ID = "123456789";
+    expect(getTikTokAdsWriteReadiness()).toEqual({ liveConfigured: true, writeEnabled: false });
+    process.env.TIKTOK_BUSINESS_WRITE_ENABLED = "true";
+    expect(getTikTokAdsWriteReadiness()).toEqual({ liveConfigured: true, writeEnabled: true });
+  });
+
+  it("rejects cross-advertiser writes before any network request", async () => {
+    process.env.TIKTOK_BUSINESS_ACCESS_TOKEN = "private-write-token";
+    process.env.TIKTOK_BUSINESS_ADVERTISER_ID = "123456789";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(requestTikTokAuthenticated({
+      method: "POST",
+      path: "campaign/status/update/",
+      body: { advertiser_id: "987654321", campaign_ids: ["111111"], operation_status: "DISABLE" },
+    })).rejects.toMatchObject({ safeCode: "TIKTOK_ADVERTISER_SCOPE_MISMATCH" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("marks service errors as outcome-unknown without exposing the token", async () => {
+    process.env.TIKTOK_BUSINESS_ACCESS_TOKEN = "never-return-this-token";
+    process.env.TIKTOK_BUSINESS_ADVERTISER_ID = "123456789";
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify({
+      code: 50001,
+      message: "service error with never-return-this-token",
+      request_id: "req-safe-1",
+    }), { status: 200 }))));
+
+    const error = await requestTikTokAuthenticated({
+      method: "POST",
+      path: "campaign/status/update/",
+      body: { advertiser_id: "123456789", campaign_ids: ["111111"], operation_status: "DISABLE" },
+    }).catch(value => value as TikTokApiOperationError);
+
+    expect(error).toMatchObject({ safeCode: "TIKTOK_API_50001", requestId: "req-safe-1", outcomeUnknown: true });
+    expect(JSON.stringify(error)).not.toContain("never-return-this-token");
   });
 });

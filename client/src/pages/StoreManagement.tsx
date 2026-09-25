@@ -135,7 +135,7 @@ export default function StoreManagement() {
           </div>
           <div className="flex w-full items-center gap-2 sm:w-auto">
             <Button variant="outline" onClick={() => setLocation('/master/tiktok-ads')} className="flex-1 border-slate-300 bg-slate-950 text-white hover:bg-slate-800 hover:text-white sm:flex-none">
-              <Megaphone className="h-4 w-4 mr-1" /> TikTok广告连携
+              <Megaphone className="h-4 w-4 mr-1" /> TikTok广告司令塔
             </Button>
             <Button onClick={() => setShowCreateDialog(true)} className="flex-1 bg-orange-500 hover:bg-orange-600 sm:flex-none">
               <Plus className="h-4 w-4 mr-1" /> 添加店铺

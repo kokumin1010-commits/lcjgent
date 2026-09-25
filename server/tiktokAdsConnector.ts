@@ -14,6 +14,25 @@ type TikTokApiEnvelope<T> = {
   data?: T;
 };
 
+export type TikTokApiWriteResult<T = Record<string, unknown>> = {
+  data: T | null;
+  requestId: string | null;
+};
+
+export class TikTokApiOperationError extends Error {
+  readonly safeCode: string;
+  readonly requestId: string | null;
+  readonly outcomeUnknown: boolean;
+
+  constructor(safeCode: string, options?: { requestId?: string | null; outcomeUnknown?: boolean }) {
+    super(safeCode);
+    this.name = "TikTokApiOperationError";
+    this.safeCode = safeCode;
+    this.requestId = options?.requestId ?? null;
+    this.outcomeUnknown = options?.outcomeUnknown === true;
+  }
+}
+
 type PageResponse<T> = {
   list: T[];
   page_info?: {
@@ -92,6 +111,92 @@ async function requestTikTok<T>(
       throw new Error(`API_${String(payload.code)}`);
     }
     return payload.data;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function requireTikTokCredentials() {
+  const token = process.env.TIKTOK_BUSINESS_ACCESS_TOKEN?.trim();
+  const advertiserId = process.env.TIKTOK_BUSINESS_ADVERTISER_ID?.trim();
+  if (!token || !advertiserId) {
+    throw new TikTokApiOperationError("TIKTOK_WRITE_CREDENTIALS_MISSING");
+  }
+  return { token, advertiserId };
+}
+
+export function getTikTokAdsWriteReadiness() {
+  const liveConfigured = Boolean(
+    process.env.TIKTOK_BUSINESS_ACCESS_TOKEN?.trim() &&
+    process.env.TIKTOK_BUSINESS_ADVERTISER_ID?.trim()
+  );
+  return {
+    liveConfigured,
+    writeEnabled: liveConfigured && process.env.TIKTOK_BUSINESS_WRITE_ENABLED === "true",
+  };
+}
+
+export async function requestTikTokAuthenticated<T>(input: {
+  method: "GET" | "POST";
+  path: string;
+  query?: Record<string, unknown>;
+  body?: Record<string, unknown>;
+}): Promise<TikTokApiWriteResult<T>> {
+  const { token, advertiserId } = requireTikTokCredentials();
+  const query = { ...input.query };
+  const body = { ...input.body };
+  const advertiserIds = Array.isArray(query.advertiser_ids)
+    ? query.advertiser_ids.map(value => String(value))
+    : [];
+  const suppliedAdvertiser = query.advertiser_id ?? body.advertiser_id;
+  if (
+    (suppliedAdvertiser !== undefined && String(suppliedAdvertiser) !== advertiserId) ||
+    (advertiserIds.length > 0 && (advertiserIds.length !== 1 || advertiserIds[0] !== advertiserId))
+  ) {
+    throw new TikTokApiOperationError("TIKTOK_ADVERTISER_SCOPE_MISMATCH");
+  }
+  if (suppliedAdvertiser === undefined && advertiserIds.length === 0) {
+    throw new TikTokApiOperationError("TIKTOK_ADVERTISER_SCOPE_REQUIRED");
+  }
+
+  const url = new URL(`/open_api/${TIKTOK_API_VERSION}/${input.path}`, TIKTOK_API_ORIGIN);
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== null) {
+      url.searchParams.set(key, stringifyQueryValue(value));
+    }
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      method: input.method,
+      headers: {
+        "Access-Token": token,
+        Accept: "application/json",
+        ...(input.method === "POST" ? { "Content-Type": "application/json" } : {}),
+      },
+      body: input.method === "POST" ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new TikTokApiOperationError(`TIKTOK_HTTP_${response.status}`, {
+        outcomeUnknown: response.status >= 500,
+      });
+    }
+    const payload = (await response.json()) as TikTokApiEnvelope<T>;
+    if (payload.code !== 0) {
+      throw new TikTokApiOperationError(`TIKTOK_API_${String(payload.code)}`, {
+        requestId: payload.request_id ?? null,
+        outcomeUnknown: payload.code >= 50000,
+      });
+    }
+    return { data: payload.data ?? null, requestId: payload.request_id ?? null };
+  } catch (error) {
+    if (error instanceof TikTokApiOperationError) throw error;
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new TikTokApiOperationError("TIKTOK_API_TIMEOUT", { outcomeUnknown: true });
+    }
+    throw new TikTokApiOperationError("TIKTOK_API_NETWORK_ERROR", { outcomeUnknown: true });
   } finally {
     clearTimeout(timeout);
   }
@@ -417,5 +522,9 @@ export async function getTikTokAdsDashboard(options?: { forceLive?: boolean }): 
 }
 
 export function resetTikTokAdsConnectorCacheForTests() {
+  cachedLiveDashboard = null;
+}
+
+export function invalidateTikTokAdsConnectorCache() {
   cachedLiveDashboard = null;
 }

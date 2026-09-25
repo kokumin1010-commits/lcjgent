@@ -9,6 +9,8 @@ const storeSource = readFileSync("client/src/pages/StoreManagement.tsx", "utf8")
 const routerSource = readFileSync("server/tiktokAdsRouter.ts", "utf8");
 const connectorSource = readFileSync("server/tiktokAdsConnector.ts", "utf8");
 const snapshotSource = readFileSync("server/tiktokAdsSnapshot.ts", "utf8");
+const operationsSource = readFileSync("server/tiktokAdsOperations.ts", "utf8");
+const upgradeSource = readFileSync("server/tiktokAdsOperationsUpgrade.ts", "utf8");
 
 describe("TikTok Ads independent integration page", () => {
   it("registers a dedicated page instead of replacing the existing ad dashboard", () => {
@@ -16,18 +18,22 @@ describe("TikTok Ads independent integration page", () => {
     expect(appSource).toContain('<TikTokAdsIntegration />');
     expect(appSource).toContain('path="/master/ad-dashboard"');
     expect(menuSource).toContain('path: "/master/tiktok-ads"');
-    expect(menuSource).toContain('labelZh: "TikTok广告连携"');
+    expect(menuSource).toContain('labelZh: "TikTok广告司令塔"');
     expect(storeSource).toContain("setLocation('/master/tiktok-ads')");
   });
 
-  it("keeps the initial API surface read-only and authenticated", () => {
+  it("keeps reads authenticated and gates every mutation behind operate access plus storage readiness", () => {
     expect(routerSource).toContain("protectedProcedure.query");
     expect(routerSource).toContain("requireTikTokAdsPageAccess(ctx.user)");
-    expect(routerSource).not.toContain(".mutation(");
+    expect(routerSource).toContain("requireTikTokAdsOperateAccess(ctx.user)");
+    expect(routerSource).toContain("ensureTikTokAdsOperationsReady()");
+    expect(routerSource).toContain("previewOperation: protectedProcedure");
+    expect(routerSource).toContain("executeOperation: protectedProcedure");
     expect(pageSource).toContain('path: "/master/tiktok-ads"');
-    expect(pageSource).toContain("enabled: canViewPage");
-    expect(pageSource).toContain("只读安全模式");
-    expect(pageSource).toContain("写入会直接影响预算和广告投放");
+    expect(pageSource).toContain("TikTok广告司令塔");
+    expect(pageSource).toContain("生成确认预览");
+    expect(pageSource).toContain("执行并实时复核");
+    expect(pageSource).toContain("操作记录");
   });
 
   it("never exposes the token and uses the official server-side API origin", () => {
@@ -37,6 +43,20 @@ describe("TikTok Ads independent integration page", () => {
     expect(pageSource).not.toContain("dashboard.error?.message");
     expect(snapshotSource).not.toMatch(/access[_-]?token/i);
     expect(snapshotSource).not.toMatch(/app[_-]?secret/i);
+  });
+
+  it("implements signed confirmation, single-target leases, durable audit and post-write verification", () => {
+    expect(operationsSource).toContain('const CONFIRMATION_TEXT = "确认执行"');
+    expect(operationsSource).toContain('createHmac("sha256"');
+    expect(operationsSource).toContain("timingSafeEqual");
+    expect(operationsSource).toContain("TIKTOK_PREFLIGHT_CHANGED");
+    expect(operationsSource).toContain("TIKTOK_POST_WRITE_VERIFICATION_FAILED");
+    expect(operationsSource).not.toContain("uk_tiktok_ads_operation_lease");
+    expect(upgradeSource).toContain("uk_tiktok_ads_operation_lease");
+    expect(upgradeSource).toContain("tiktok_ads_operation_events");
+    expect(upgradeSource).toContain("runDatabaseBackup");
+    expect(operationsSource).not.toContain('operation_status: "DELETE"');
+    expect(pageSource).toContain("删除永不提供");
   });
 
   it("contains every verified LCJ-01 object in the bootstrap snapshot", () => {

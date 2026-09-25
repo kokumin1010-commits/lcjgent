@@ -3894,3 +3894,19 @@ LCM共通headerは、指定どおり「商品を探す」と「ライブコマ�
 キャンペーンは共通flag `LCM_CAMPAIGNS_ENABLED=false`で一時非公開にした。client route、footer、商品一覧、ブランド公開page、brand mypage、LCM管理者tab／件数／操作panelを非表示にし、直接URLは404＋noindex＋no-store、robotsはDisallow、sitemapから除外した。public APIは空配列またはNOT_FOUND、会員用detail／作成／編集／公開／非公開と管理者の再公開／停止mutationはDB参照前に拒否する。brand管理APIとadmin overviewもcampaign rowを取得・返却しない。既存schema、保存済みdata、実装sourceは削除せず、後日flagを戻せる形で保全した。
 upstream `2ec4c302`統合後の全LCF／LCM回帰は43 files・308 tests成功。exact production build、変更module bundle、`git diff --check`も成功した。全体TypeScriptは既存baseline 1,163 diagnosticsだが、今回LCM scopeは0件。1440×1200と390×1000のlocal実画面で、2項目header、削除対象の非表示、desktop／mobileの非重複と横溢れなしを確認した。独立read-only reviewはadmin経路も含めて**GO（P0/P1 0件）**。production data、キャンペーン、連絡、sample、卸取引への書込みは行っていない。
 feature SHA `5f4986f88ef9d05fc58328df78f6c7166e4172b6`はGitHub CI success、Railway deployment `6656828492`も同一SHAでproduction success。本番`/lcm`はHTTP 200、`/lcm/campaigns`はHTTP 404＋noindex／no-store、公開campaign APIは空配列、robotsに`Disallow: /lcm/campaigns`を確認した。配信chunkで2項目header、指定削除文言の不在、「あなたが管理してるブランド」を確認し、admin chunkからcampaign公開停止panelも除外されている。本番desktop／mobile再撮影でも非重複・横溢れなし。acceptanceはGET／DOM read-onlyのみで、campaignやその他LCM dataのmutationは実施していない。
+
+## 2026-09-25｜TikTok广告司令塔：受控真实操作、双重确认与持久审计
+
+按用户要求，将既有`/master/tiktok-ads`从只读广告连携页升级为独立“TikTok广告司令塔”，保留原`/master/ad-dashboard`通用广告司令塔，不替换店铺管理或历史CSV/PDF流程。页面继续展示LCJ-01广告账户、Campaign、广告组、广告/素材及绩效数据，并新增单对象受控操作与操作记录。
+
+本次开放范围严格限定为：Campaign、广告组、广告的单对象启用/暂停；Campaign与广告组的Lifetime Budget修改。没有开放删除、创建、批量操作、日预算、定向、出价、素材或文案修改。Smart+/自动化、iOS Dedicated/SKAN、所有CBO层级、已删除对象、审核未通过对象、父级关系异常对象均失败关闭；Campaign CBO字段缺失或异常也视为不可操作。预算限制为JPY 1,000～10,000,000，必须为Lifetime Budget且不得低于累计花费的105%；广告组预算在广告主时区23:55～00:00锁定。
+
+服务器将查看权限与真实操作权限分离：管理员可操作；普通员工只有显式获得`/master/tiktok-ads`的`canEdit`权限才能操作。旧`/master/ad-dashboard`权限仅继承查看，不继承写入。详细操作审计也仅管理员或TikTok操作员可查看，普通查看者不会请求或渲染缓存审计数据。
+
+每次写入必须先生成5分钟有效的服务器签名预览，再输入精确确认短语。执行时重新读取广告账户、目标、父级、审核、累计花费与TikTok修改时间；预览后任何状态变化都会拒绝。每个目标使用数据库唯一持久租约，真实POST前再次续租并验证所有权；超时、网络结果不确定或复核不一致时保留目标锁并标记`needs_reconciliation`，不会自动重试或允许第二个写入。只有TikTok实时复核与预期完全一致才标记成功并释放锁。失败/待核对操作重放不会伪装成功。
+
+新增可恢复升级负责`tiktok_ads_operations`与`tiktok_ads_operation_events`表：建表前执行现有数据库备份、使用GET_LOCK单例锁、记录升级marker，并校验表、索引、所有运行时列的数据类型/可空性/枚举。新增`/api/health/tiktok-ads-operations`只读健康端点。令牌只由服务器读取；前端、日志、审计、测试与WORK_LOG均不写入Access Token。
+
+生产安全开关仍默认关闭。只有Railway同时具备专用TikTok令牌、唯一广告主ID及精确`TIKTOK_BUSINESS_WRITE_ENABLED=true`时，操作按钮才可执行；本次没有把任何令牌写入仓库，也没有调用TikTok写入API。
+
+验证：TikTok/店铺/广告/菜单专项24文件206测试全部通过；生产构建成功；全项目测试共4,583项通过、45项跳过，48个既有数据库/外部环境依赖测试文件失败，TikTok测试零失败；全量TypeScript仍有既有基线诊断，本次TikTok路径诊断为0。桌面与手机视觉QA通过，Campaign固定操作列和二次确认弹窗可访问。独立安全复审后修复了慢请求并发租约、旧权限写入扩张、CBO未统一拒绝、终态重放误报、审计可见性和schema漂移校验问题。
