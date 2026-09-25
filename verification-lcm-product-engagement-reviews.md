@@ -61,8 +61,9 @@ LCMの商品カード縮小、興味あり、サンプルカート、開催回�
 
 公開レビューは`published`だけを集計し、表示名を返さず、実利用確認ラベルと会員種別だけを表示する。第1回出展実績、ブランド正式連携、サンプル受取確認、取引確認はサーバー側の実データから派生し、ブランド自由入力では作成できない。第1回アーカイブ商品には現在申請可能と誤認させるCTAを出さない。
 
-## 公開商品からのブランド連絡thread（2026-09-25追加／本番反映前）
+## 公開商品からのブランド連絡thread（2026-09-25追加／本番反映済み）
 商品詳細の最優先actionとして、sample可否に依存しない「ブランドさんに連絡」を追加した。従来の「サンプル受付なし」などのnegative status表示は外したが、sample申請、sample cart、興味あり、取引条件の既存actionとstate machineは変更していない。
 連絡は`lcm_brand_contacts`と`lcm_brand_contact_messages`へ保存する。両tableと索引は既存dataを更新しない加算的runtime upgrade `v5-brand-contacts`で作成し、named lock、required-table確認、件数検証、upgrade auditを既存setupへ接続した。問い合わせ者は自分のaccountに限定された一覧を、brand側はactive brand membershipを持つbrandの受信箱だけを参照・返信できる。self-brand問い合わせは禁止した。thread一覧は`lastMessageAt + id`、message履歴はimmutable `id`のkeyset cursorで継続取得し、固定ページ上限を置いていない。
 初回送信と返信はtransaction内でmessage、thread更新、entity auditを保存してからemail通知を行う。送信者ごとの10分5件制限はmembership rowの`FOR UPDATE` lockで並行送信にも原子的に適用する。brand通知先はactive owner roleだけに限定し、owner未連携時はLCM運営受付へfallbackする。このfallbackは送信前案内と送信後toastの双方に明示する。email addressはAPI response、UI、audit metadataへ含めず、通知subjectはcontrol文字を除去する。返信失敗時はdraftを保持する。
 関連回帰はLCM contact／marketplace focused 2 files・26 tests、および全LCF／LCM 43 files・306 testsに成功した。exact production build、変更server／UI bundle、diff／secret監査も成功。全体TypeScript既存1,163 diagnosticsに対し今回変更fileは0件。desktop／mobileの実build CSS fixtureで商品CTA、連絡form、thread、reply、load-moreの読みやすさと非重複を確認した。実email送信、production DB書込み、sample／卸取引mutationは行っていない。
+feature SHA `8874fd41b15d96a599796b9f27d61a19fdcc2c1d`はGitHub CI success、Railway deployment `6655961479`も同一SHAでproduction success。本番`/lcm`と`/lcm/products/drkozu-cell-peel-crystal`はHTTP 200。配信`LcmProduct-gQwXhH2t.js`に「ブランドさんに連絡」とowner未連携fallback、`LcmManage-2GFDmGQp.js`に双方の履歴画面とthread／messageの追加読込を確認した。「サンプル受付なし」は配信商品chunkにも実DOMにも存在しない。本番商品詳細をdesktop／mobileで再撮影し、contact CTAが補助actionより優先され、通知案内を含めて横溢れ・重なりがないことを確認した。acceptanceはGET／DOM read-onlyだけで、連絡作成、email、返信、sample、卸取引のmutationは行っていない。
