@@ -3705,7 +3705,7 @@ async function startServer() {
     const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
     res.setHeader("Content-Type", "text/plain");
     if ((req.get("host") || "").includes("livecommercefestival")) {
-      return res.send(`User-agent: *\nAllow: /\nAllow: /2nd\nAllow: /livecommercefestival/2nd\nAllow: /2026\nAllow: /livecommercefestival/2026/report\nAllow: /livecommercefestival/2026/exhibitors\nAllow: /lcf/guidance\nAllow: /lcm\nAllow: /lcm/brands/\nAllow: /lcm/products/\nDisallow: /lcf/admin\nDisallow: /lcf/login\nDisallow: /lcf/mypage\nDisallow: /lcm/manage\nDisallow: /lcm/admin\nDisallow: /lcm/sample-cart\nDisallow: /api/\n\nSitemap: ${baseUrl}/sitemap.xml`);
+      return res.send(`User-agent: *\nAllow: /\nAllow: /2nd\nAllow: /livecommercefestival/2nd\nAllow: /2026\nAllow: /livecommercefestival/2026/report\nAllow: /livecommercefestival/2026/exhibitors\nAllow: /lcf/guidance\nAllow: /lcm\nAllow: /lcm/brands/\nAllow: /lcm/products/\nDisallow: /lcf/admin\nDisallow: /lcf/login\nDisallow: /lcf/mypage\nDisallow: /lcm/manage\nDisallow: /lcm/admin\nDisallow: /lcm/sample-cart\nDisallow: /lcm/campaigns\nDisallow: /api/\n\nSitemap: ${baseUrl}/sitemap.xml`);
     }
     res.send(`User-agent: *\nAllow: /\nAllow: /blog/\nAllow: /mall/\nAllow: /brands/\nAllow: /reviews/\nDisallow: /master/\nDisallow: /api/\nDisallow: /settings/\n\nSitemap: ${baseUrl}/sitemap.xml`);
   });

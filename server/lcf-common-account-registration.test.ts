@@ -64,11 +64,12 @@ describe("LCF / LCM common account registration and routing", () => {
     expect(login).toContain("searchParams.get('mode') === 'register'");
   });
 
-  it("shows login before authentication and mypage after authentication", () => {
+  it("keeps common login and mypage reachable outside the streamlined LCM header", () => {
     const secondEdition = read("client/src/pages/LcfSecondEdition.tsx");
     const layout = read("client/src/components/lcm/LcmPublicLayout.tsx");
     expect(secondEdition).toContain('const memberLabel = me.data ? "マイページ" : "ログイン"');
-    expect(layout).toContain('<LogIn className="mr-1.5 h-4 w-4" />ログイン');
+    expect(layout).toContain('{me.data ? "マイページ" : "ログイン"}');
+    expect(layout).not.toContain("<LogIn");
   });
 
   it("redirects protected pages directly to the common login", () => {

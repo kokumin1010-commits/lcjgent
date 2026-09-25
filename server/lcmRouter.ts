@@ -31,6 +31,7 @@ import {
   normalizeLcmCatalogName,
 } from "../shared/lcmCatalogDirectory";
 import { isOfficialTikTokUrl, normalizeLcmTikTokUrl } from "../shared/lcmSocialUrls";
+import { LCM_CAMPAIGNS_ENABLED } from "../shared/lcmFeatureFlags";
 import { publicProcedure, router, t } from "./_core/trpc";
 import { getDb } from "./db";
 import { sendEmail } from "./emailService";
@@ -38,6 +39,12 @@ import { verifyFestivalAdminRequest, verifyFestivalUserRequest } from "./festiva
 import { storagePut } from "./storage";
 
 const LCM_TERMS_VERSION = "2026-09-13-v1";
+
+function assertLcmCampaignsEnabled() {
+  if (!LCM_CAMPAIGNS_ENABLED) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "キャンペーン機能は現在非公開です" });
+  }
+}
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_BRANDS_PER_ACCOUNT = 50;
@@ -971,6 +978,7 @@ export const lcmRouter = router({
   listPublicCampaigns: publicProcedure
     .input(z.object({ query: z.string().trim().max(200).optional(), brandId: z.number().int().positive().optional(), limit: z.number().int().min(1).max(100).default(60) }).optional())
     .query(async ({ input }) => {
+      if (!LCM_CAMPAIGNS_ENABLED) return [];
       const db = await requireDb();
       const conditions: any[] = [
         eq(lcmCampaigns.status, "published"),
@@ -1002,6 +1010,7 @@ export const lcmRouter = router({
     }),
 
   getPublicCampaign: publicProcedure.input(z.object({ slug: z.string().min(1).max(220) })).query(async ({ input }) => {
+    assertLcmCampaignsEnabled();
     const db = await requireDb();
     const [campaign] = await db.select(publicCampaignFields).from(lcmCampaigns)
       .innerJoin(lcmBrandProfiles, eq(lcmCampaigns.brandProfileId, lcmBrandProfiles.id))
@@ -1013,6 +1022,7 @@ export const lcmRouter = router({
   }),
 
   getMemberCampaign: lcmMemberProcedure.input(z.object({ campaignId: z.number().int().positive() })).query(async ({ input }) => {
+    assertLcmCampaignsEnabled();
     const db = await requireDb();
     const [campaign] = await db.select().from(lcmCampaigns).where(and(eq(lcmCampaigns.id, input.campaignId), eq(lcmCampaigns.status, "published"))).limit(1);
     if (!campaign) throw new TRPCError({ code: "NOT_FOUND", message: "キャンペーンが見つかりません" });
@@ -1061,10 +1071,12 @@ export const lcmRouter = router({
       enrichPublicProducts(db, products),
       getEventBadgesByBrand(db, [brand.id]),
       db.select({ id: lcmBrandMembers.id }).from(lcmBrandMembers).where(and(eq(lcmBrandMembers.brandProfileId, brand.id), eq(lcmBrandMembers.status, "active"))).limit(1),
-      db.select(publicCampaignFields).from(lcmCampaigns)
-        .innerJoin(lcmBrandProfiles, eq(lcmCampaigns.brandProfileId, lcmBrandProfiles.id))
-        .where(and(eq(lcmCampaigns.brandProfileId, brand.id), eq(lcmCampaigns.status, "published")))
-        .orderBy(desc(lcmCampaigns.publishedAt)),
+      LCM_CAMPAIGNS_ENABLED
+        ? db.select(publicCampaignFields).from(lcmCampaigns)
+          .innerJoin(lcmBrandProfiles, eq(lcmCampaigns.brandProfileId, lcmBrandProfiles.id))
+          .where(and(eq(lcmCampaigns.brandProfileId, brand.id), eq(lcmCampaigns.status, "published")))
+          .orderBy(desc(lcmCampaigns.publishedAt))
+        : Promise.resolve([]),
     ]);
     const visibleCampaignIds = campaigns.length && products.length
       ? new Set((await db.select({ campaignId: lcmCampaignProducts.campaignId }).from(lcmCampaignProducts)
@@ -1558,7 +1570,9 @@ export const lcmRouter = router({
     const [brand] = await db.select().from(lcmBrandProfiles).where(eq(lcmBrandProfiles.id, input.brandId)).limit(1);
     if (!brand) throw new TRPCError({ code: "NOT_FOUND", message: "ブランドが見つかりません" });
     const products = await db.select().from(lcmProducts).where(eq(lcmProducts.brandProfileId, input.brandId)).orderBy(desc(lcmProducts.updatedAt));
-    const campaigns = await db.select().from(lcmCampaigns).where(eq(lcmCampaigns.brandProfileId, input.brandId)).orderBy(desc(lcmCampaigns.updatedAt));
+    const campaigns = LCM_CAMPAIGNS_ENABLED
+      ? await db.select().from(lcmCampaigns).where(eq(lcmCampaigns.brandProfileId, input.brandId)).orderBy(desc(lcmCampaigns.updatedAt))
+      : [];
     const campaignIds = campaigns.map((campaign: any) => Number(campaign.id));
     const campaignProducts = campaignIds.length
       ? await db.select({ campaignId: lcmCampaignProducts.campaignId, productId: lcmCampaignProducts.productId, displayOrder: lcmCampaignProducts.displayOrder })
@@ -1574,6 +1588,7 @@ export const lcmRouter = router({
   }),
 
   createCampaign: lcmMemberProcedure.input(z.object({ brandId: z.number().int().positive(), data: campaignInput }).strict()).mutation(async ({ ctx, input }) => {
+    assertLcmCampaignsEnabled();
     await requireActiveBrandMember(ctx.lcmAccount.accountId, input.brandId);
     const db = await requireDb();
     const [campaignCount] = await db.select({ count: sql<number>`count(*)` }).from(lcmCampaigns).where(and(
@@ -1598,6 +1613,7 @@ export const lcmRouter = router({
   }),
 
   updateCampaign: lcmMemberProcedure.input(z.object({ campaignId: z.number().int().positive(), data: campaignInput }).strict()).mutation(async ({ ctx, input }) => {
+    assertLcmCampaignsEnabled();
     const db = await requireDb();
     const [before] = await db.select().from(lcmCampaigns).where(eq(lcmCampaigns.id, input.campaignId)).limit(1);
     if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "キャンペーンが見つかりません" });
@@ -1617,6 +1633,7 @@ export const lcmRouter = router({
   }),
 
   publishCampaign: lcmMemberProcedure.input(z.object({ campaignId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    assertLcmCampaignsEnabled();
     const db = await requireDb();
     const [campaign] = await db.select().from(lcmCampaigns).where(eq(lcmCampaigns.id, input.campaignId)).limit(1);
     if (!campaign) throw new TRPCError({ code: "NOT_FOUND", message: "キャンペーンが見つかりません" });
@@ -1639,6 +1656,7 @@ export const lcmRouter = router({
   }),
 
   unpublishCampaign: lcmMemberProcedure.input(z.object({ campaignId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    assertLcmCampaignsEnabled();
     const db = await requireDb();
     const [campaign] = await db.select().from(lcmCampaigns).where(eq(lcmCampaigns.id, input.campaignId)).limit(1);
     if (!campaign) throw new TRPCError({ code: "NOT_FOUND", message: "キャンペーンが見つかりません" });
@@ -2154,7 +2172,9 @@ export const lcmRouter = router({
       .innerJoin(festivalAccounts, eq(lcmBrandMembers.festivalAccountId, festivalAccounts.id))
       .orderBy(desc(lcmBrandMembers.updatedAt));
     const products = await db.select().from(lcmProducts).orderBy(desc(lcmProducts.updatedAt));
-    const campaigns = await db.select().from(lcmCampaigns).orderBy(desc(lcmCampaigns.updatedAt));
+    const campaigns = LCM_CAMPAIGNS_ENABLED
+      ? await db.select().from(lcmCampaigns).orderBy(desc(lcmCampaigns.updatedAt))
+      : [];
     const creators = await db.select().from(lcmCreatorProfiles).orderBy(desc(lcmCreatorProfiles.updatedAt));
     const samples = await db.select().from(lcmSampleRequests).orderBy(desc(lcmSampleRequests.updatedAt));
     const wholesale = await db.select().from(lcmWholesaleInquiries).orderBy(desc(lcmWholesaleInquiries.updatedAt));
@@ -2496,6 +2516,7 @@ export const lcmRouter = router({
   }),
 
   reviewCampaign: lcmAdminProcedure.input(z.object({ id: z.number().int().positive(), status: z.enum(["published", "suspended"]), reason: nullableText(5000) }).strict()).mutation(async ({ ctx, input }) => {
+    assertLcmCampaignsEnabled();
     const db = await requireDb();
     const [before] = await db.select().from(lcmCampaigns).where(eq(lcmCampaigns.id, input.id)).limit(1);
     if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "キャンペーンが見つかりません" });

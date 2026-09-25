@@ -3887,3 +3887,9 @@ AI模式新增最近会话阶段判定，只在最新相关消息明确完成决
 安全层复用并强化原有follow-up基础设施：群组生命周期和每组授权、静默天数、营业时间、提醒冲突、conversationRevision、发送前设置与活动复查、确定性LINE retry key、不可变外发审计和一次性周期全部保留。人工群组发送强制携带已审核会话版本；人工pending外发与自动follow-up互斥；人工“已回复”只更新`incoming + needsResponse`记录，不再污染outgoing审计。升级前旧retry key可安全对账；pending重试只允许在23小时安全窗口内，截止在父群锁内紧贴发送前复查，超窗或旧文案冲突会条件终态化为cancelled，绝不继续自动重放。
 
 发布前验证为LINE相关39个测试文件、428项全部通过；其中关键安全回归9文件、147项通过。production build与目标模块bundle成功，`git diff --check`和敏感信息扫描通过。全量TypeScript仍有仓库既有1,163条baseline诊断，本次修改行诊断0。feature commit `b92a8e5c`的Railway production deployment `6656492639`状态为success；`https://lcjmall.com/`、`/master/line`、`/api/health/line-group-lifecycle`均HTTP 200。线上`LineManagement-Ca3Qk19I.js`与本地最终构建hash一致，队列chunk `LineGroupReplyReviewQueue-BsFd1Kd9.js`也一致，并确认包含“决定后のみ”“自動フォロー設定ON”“全予約数ではありません”等新文案。验证过程未向任何真实LINE群组发送消息，也未进行生产业务数据写入。
+
+## 2026-09-25｜LCM導線簡素化・ブランド検索整理・キャンペーン一時非公開（本番反映前）
+LCM共通headerは、指定どおり「商品を探す」と「ライブコマーサーを探す」の2項目だけに整理した。LCF／LCM共通アカウントの大きなメニュー枠はLCM layoutから外した。商品一覧の上部では、「商品写真と定価は誰でも閲覧できます」から始まる説明と、「定価を公開」「サンプル対応」「取引条件は会員限定」の3表示を削除した。検索、公開商品／第1回特集／公開ブランドの実数表示、カテゴリ、商品card、`START WITH YOUR ROLE`は維持している。
+ブランド検索画面では、`START WITH YOUR BRAND`と「あなたのブランドは、すでにLCMにありますか？」を含む説明枠だけを削除し、実際の会社名／ブランド名／商品名検索は残した。管理中brandの見出しは運営指定の「あなたが管理してるブランド」へ変更した。
+キャンペーンは共通flag `LCM_CAMPAIGNS_ENABLED=false`で一時非公開にした。client route、footer、商品一覧、ブランド公開page、brand mypage、LCM管理者tab／件数／操作panelを非表示にし、直接URLは404＋noindex＋no-store、robotsはDisallow、sitemapから除外した。public APIは空配列またはNOT_FOUND、会員用detail／作成／編集／公開／非公開と管理者の再公開／停止mutationはDB参照前に拒否する。brand管理APIとadmin overviewもcampaign rowを取得・返却しない。既存schema、保存済みdata、実装sourceは削除せず、後日flagを戻せる形で保全した。
+upstream `2ec4c302`統合後の全LCF／LCM回帰は43 files・308 tests成功。exact production build、変更module bundle、`git diff --check`も成功した。全体TypeScriptは既存baseline 1,163 diagnosticsだが、今回LCM scopeは0件。1440×1200と390×1000のlocal実画面で、2項目header、削除対象の非表示、desktop／mobileの非重複と横溢れなしを確認した。独立read-only reviewはadmin経路も含めて**GO（P0/P1 0件）**。production data、キャンペーン、連絡、sample、卸取引への書込みは行っていない。

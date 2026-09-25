@@ -100,9 +100,31 @@ describe("LCF / LCM common login and role workspaces", () => {
     expect(lcmLayout).toContain("ログイン");
     expect(lcmLayout).not.toContain("マイLCM");
     expect(lcmLayout).not.toContain("共通マイページ");
-    expect(lcmLayout).toContain('me.data.portal?.defaultPath || "/lcf/mypage"');
-    expect(lcmLayout).toContain('const loginReturn = requestedWorkspace ? `/lcm/manage?workspace=${requestedWorkspace}` : "/lcm/manage"');
+    expect(lcmLayout).toContain('me.data?.portal?.defaultPath || (me.data ? "/lcf/mypage" : loginUrl)');
+    expect(lcmLayout).toContain('const loginReturn = "/lcm/manage"');
     expect(lcmLayout).toContain("buildFestivalLoginUrl(loginReturn)");
+  });
+
+  it("shows only product and creator discovery in the LCM header and removes the common-account panel", () => {
+    const lcmLayout = read("client/src/components/lcm/LcmPublicLayout.tsx");
+    const navStart = lcmLayout.indexOf('<nav className="grid w-full grid-cols-[2fr_3fr]');
+    const navEnd = lcmLayout.indexOf("</nav>", navStart);
+    const headerNav = lcmLayout.slice(navStart, navEnd);
+    expect(navStart).toBeGreaterThan(-1);
+    expect(navEnd).toBeGreaterThan(navStart);
+    expect(headerNav).toContain('href="/lcm"');
+    expect(headerNav).toContain("商品を探す");
+    expect(headerNav).toContain('href="/lcm/creators"');
+    expect(headerNav).toContain("ライブコマーサーを探す");
+    expect(headerNav).toContain("whitespace-nowrap");
+    expect((headerNav.match(/<Link\b/g) || [])).toHaveLength(2);
+    expect(headerNav).not.toContain("キャンペーン");
+    expect(headerNav).not.toContain("出展アーカイブ");
+    expect(headerNav).not.toContain("サンプル");
+    expect(headerNav).not.toContain("マイページ");
+    expect(headerNav).not.toContain("ログイン");
+    expect(lcmLayout).not.toContain("FestivalWorkspaceNav");
+    expect(lcmLayout).not.toContain("マイページメニュー");
   });
 
   it("keeps login mutation labels structurally stable when browser translation wraps text nodes", () => {

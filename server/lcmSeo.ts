@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { lcmBrandProfiles, lcmCampaigns, lcmCreatorProfiles, lcmProducts } from "../drizzle/lcmSchema";
 import { lcf2026ExhibitorCatalogPages } from "../client/src/data/lcf2026ExhibitorCatalog";
+import { LCM_CAMPAIGNS_ENABLED } from "../shared/lcmFeatureFlags";
 import { getDb } from "./db";
 
 const ORIGIN = "https://www.livecommercefestival.com";
@@ -42,6 +43,14 @@ async function serveSpaWithMeta(res: Response, next: NextFunction, meta: { title
 }
 
 export function registerLcmSeoRoutes(app: Express) {
+  if (!LCM_CAMPAIGNS_ENABLED) {
+    app.get(["/lcm/campaigns", "/lcm/campaigns/:slug"], (_req: Request, res: Response) => {
+      res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(404).type("text/plain").send("Not Found");
+    });
+  }
+
   app.get(["/lcm/manage", "/lcm/admin", "/lcm/sample-cart"], async (req: Request, res: Response, next: NextFunction) => {
     const isAdmin = req.path === "/lcm/admin";
     const isCart = req.path === "/lcm/sample-cart";
@@ -57,7 +66,9 @@ export function registerLcmSeoRoutes(app: Express) {
     });
   });
 
-  app.get(["/lcm", "/lcm/brands/:slug", "/lcm/products/:slug", "/lcm/campaigns", "/lcm/campaigns/:slug", "/lcm/creators", "/lcm/creators/:slug"], async (req: Request, res: Response, next: NextFunction) => {
+  const publicLcmRoutes = ["/lcm", "/lcm/brands/:slug", "/lcm/products/:slug", "/lcm/creators", "/lcm/creators/:slug"];
+  if (LCM_CAMPAIGNS_ENABLED) publicLcmRoutes.push("/lcm/campaigns", "/lcm/campaigns/:slug");
+  app.get(publicLcmRoutes, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const db = await getDb();
       const brandSlug = req.path.startsWith("/lcm/brands/") ? req.params.slug : null;
@@ -161,7 +172,7 @@ export async function getLcmSitemapEntries(baseUrl: string, lastmod: string): Pr
   const entries = [
     `  <url>\n    <loc>${baseUrl}/lcm</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n    <image:image><image:loc>${FALLBACK_IMAGE}</image:loc><image:title>LCM ライブコマースマーケット</image:title></image:image>\n  </url>`,
     `  <url>\n    <loc>${baseUrl}/lcm/creators</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.8</priority>\n  </url>`,
-    `  <url>\n    <loc>${baseUrl}/lcm/campaigns</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>`,
+    ...(LCM_CAMPAIGNS_ENABLED ? [`  <url>\n    <loc>${baseUrl}/lcm/campaigns</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>`] : []),
     ...lcf2026ExhibitorCatalogPages.filter((page) => page.pageType === "出展企業紹介").map((page) => `  <url>\n    <loc>${baseUrl}/lcm/brands/catalog-${page.page}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.7</priority>\n    <image:image><image:loc>${escapeHtml(page.imageUrl)}</image:loc><image:title>${escapeHtml(page.name)}</image:title></image:image>\n  </url>`),
   ];
   try {
@@ -169,10 +180,12 @@ export async function getLcmSitemapEntries(baseUrl: string, lastmod: string): Pr
     if (!db) return entries;
     const brands = await db.select({ slug: lcmBrandProfiles.slug, name: lcmBrandProfiles.displayName, image: lcmBrandProfiles.coverUrl, updatedAt: lcmBrandProfiles.updatedAt }).from(lcmBrandProfiles).where(eq(lcmBrandProfiles.status, "published")).orderBy(desc(lcmBrandProfiles.updatedAt)).limit(500);
     const products = await db.select({ slug: lcmProducts.slug, name: lcmProducts.name, image: lcmProducts.primaryImageUrl, updatedAt: lcmProducts.updatedAt }).from(lcmProducts).where(eq(lcmProducts.status, "published")).orderBy(desc(lcmProducts.updatedAt)).limit(1000);
-    const campaigns = await db.select({ slug: lcmCampaigns.slug, name: lcmCampaigns.title, image: lcmCampaigns.heroImageUrl, updatedAt: lcmCampaigns.updatedAt }).from(lcmCampaigns)
-      .innerJoin(lcmBrandProfiles, eq(lcmCampaigns.brandProfileId, lcmBrandProfiles.id))
-      .where(and(eq(lcmCampaigns.status, "published"), eq(lcmBrandProfiles.status, "published")))
-      .orderBy(desc(lcmCampaigns.updatedAt)).limit(1000);
+    const campaigns = LCM_CAMPAIGNS_ENABLED
+      ? await db.select({ slug: lcmCampaigns.slug, name: lcmCampaigns.title, image: lcmCampaigns.heroImageUrl, updatedAt: lcmCampaigns.updatedAt }).from(lcmCampaigns)
+        .innerJoin(lcmBrandProfiles, eq(lcmCampaigns.brandProfileId, lcmBrandProfiles.id))
+        .where(and(eq(lcmCampaigns.status, "published"), eq(lcmBrandProfiles.status, "published")))
+        .orderBy(desc(lcmCampaigns.updatedAt)).limit(1000)
+      : [];
     const creators = await db.select({ slug: lcmCreatorProfiles.slug, name: lcmCreatorProfiles.displayName, image: lcmCreatorProfiles.profileImageUrl, updatedAt: lcmCreatorProfiles.updatedAt }).from(lcmCreatorProfiles).where(and(eq(lcmCreatorProfiles.status, "published"), isNotNull(lcmCreatorProfiles.publicConsentAt))).orderBy(desc(lcmCreatorProfiles.updatedAt)).limit(1000);
     for (const brand of brands) entries.push(`  <url>\n    <loc>${baseUrl}/lcm/brands/${encodeURIComponent(brand.slug)}</loc>\n    <lastmod>${new Date(brand.updatedAt || lastmod).toISOString().split("T")[0]}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>${brand.image ? `\n    <image:image><image:loc>${escapeHtml(brand.image)}</image:loc><image:title>${escapeHtml(brand.name)}</image:title></image:image>` : ""}\n  </url>`);
     for (const product of products) entries.push(`  <url>\n    <loc>${baseUrl}/lcm/products/${encodeURIComponent(product.slug)}</loc>\n    <lastmod>${new Date(product.updatedAt || lastmod).toISOString().split("T")[0]}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>${product.image ? `\n    <image:image><image:loc>${escapeHtml(product.image)}</image:loc><image:title>${escapeHtml(product.name)}</image:title></image:image>` : ""}\n  </url>`);

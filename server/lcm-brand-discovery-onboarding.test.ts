@@ -6,9 +6,13 @@ const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.ur
 describe("LCM brand discovery onboarding", () => {
   it("asks users to search before registering and routes confirmed brands to product creation", () => {
     const page = read("client/src/pages/LcmManage.tsx");
-    expect(page).toContain("あなたのブランドは、<br className=\"hidden sm:block\" />すでにLCMにありますか？");
+    expect(page).not.toContain("あなたのブランドは、");
+    expect(page).not.toContain("重複登録を防ぐ入口です");
+    expect(page).not.toContain("START WITH YOUR BRAND");
+    expect(page).toContain('aria-label="ブランド検索"');
     expect(page).toContain("会社名・ブランド名・商品名で検索");
-    expect(page).toContain("管理権限確認済みのブランド");
+    expect(page).toContain("あなたが管理してるブランド");
+    expect(page).not.toContain("管理権限確認済みのブランド");
     expect(page).toContain('entry.member.status === "active"');
     expect(page).toContain("このブランドに商品を追加");
     expect(page).toContain("onAddProduct: (brandId: number) => void");

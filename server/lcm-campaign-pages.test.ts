@@ -55,10 +55,14 @@ describe("LCM brand campaign pages", () => {
 
   it("keeps exact rates and settlement details out of anonymous public fields", () => {
     const router = read("server/lcmRouter.ts");
+    const featureFlags = read("shared/lcmFeatureFlags.ts");
     const publicFields = router.slice(router.indexOf("const publicCampaignFields"), router.indexOf("async function getPublicCampaignProducts"));
+    expect(featureFlags).toContain("LCM_CAMPAIGNS_ENABLED = false");
     expect(router).toContain("listPublicCampaigns: publicProcedure");
     expect(router).toContain("getPublicCampaign: publicProcedure");
     expect(router).toContain("getMemberCampaign: lcmMemberProcedure");
+    expect(router).toContain("const campaigns = LCM_CAMPAIGNS_ENABLED");
+    expect(router).toContain("? await db.select().from(lcmCampaigns)");
     expect(router).toContain("EXISTS (SELECT 1 FROM lcm_campaign_products cp INNER JOIN lcm_products p");
     expect(publicFields).toContain("startsAt: lcmCampaigns.startsAt");
     expect(__lcmCampaignTestUtils.campaignPublicFieldNames).toEqual([
@@ -104,12 +108,15 @@ describe("LCM brand campaign pages", () => {
     expect(router).toContain("commissionRateMin: campaign.commissionRateMin");
   });
 
-  it("self-publishes complete campaigns while preserving administrator suspension", () => {
+  it("preserves dormant moderation code while the OFF switch hides and blocks administrator campaign access", () => {
     const router = read("server/lcmRouter.ts");
     const admin = read("client/src/pages/LcmAdmin.tsx");
     expect(router).toContain('action: "self_published"');
     expect(router).toContain('action: "self_unpublished"');
     expect(router).toContain('reviewCampaign: lcmAdminProcedure');
+    const reviewCampaign = router.slice(router.indexOf("reviewCampaign:"), router.indexOf("reviewCompanyBrandClaims:"));
+    expect(reviewCampaign).toContain("assertLcmCampaignsEnabled()");
+    expect(router).toContain("const campaigns = LCM_CAMPAIGNS_ENABLED");
     expect(router).toContain("公開停止理由を入力してください");
     expect(router).toContain("運営により停止されたキャンペーンは、運営が再開するまで公開できません");
     expect(router).toContain("suspendedCampaignCount");
@@ -126,14 +133,23 @@ describe("LCM brand campaign pages", () => {
     expect(router).toContain('eq(lcmBrandMembers.status, "pending")');
     expect(router).toContain("affectedRows(selectedResult) !== 1");
     expect(router).toContain("ブランド管理申請の状態が変更されました。画面を更新して確認してください");
-    expect(admin).toContain('key: "campaigns"');
+    expect(admin).toContain('...(LCM_CAMPAIGNS_ENABLED ? [{ key: "campaigns" as Tab');
+    expect(admin).toContain('{LCM_CAMPAIGNS_ENABLED && tab === "campaigns"');
     expect(admin).toContain("キャンペーン公開・停止管理");
   });
 
-  it("provides a five-step brand editor and a creator selection page without claiming automated payout", () => {
+  it("keeps the campaign implementation behind the temporary privacy switch", () => {
     const manage = read("client/src/pages/LcmManage.tsx");
+    const market = read("client/src/pages/LcmMarket.tsx");
+    const brand = read("client/src/pages/LcmBrand.tsx");
+    const layout = read("client/src/components/lcm/LcmPublicLayout.tsx");
     const directory = read("client/src/pages/LcmCampaigns.tsx");
     const detail = read("client/src/pages/LcmCampaign.tsx");
+    expect(manage).toContain("{LCM_CAMPAIGNS_ENABLED && <>");
+    expect(market).toContain("enabled: LCM_CAMPAIGNS_ENABLED");
+    expect(market).toContain("{LCM_CAMPAIGNS_ENABLED && (liveCampaigns.data || [])");
+    expect(brand).toContain("{LCM_CAMPAIGNS_ENABLED && (brand.campaigns || [])");
+    expect(layout).not.toContain('<Link href="/lcm/campaigns">キャンペーンを探す</Link>');
     expect(manage).toContain('const steps = ["概要・期間", "報酬・割引", "計測・対象", "配信ガイド", "対象商品"]');
     expect(manage).toContain("キャンペーンを作成");
     expect(manage).toContain("すべて公開中である必要があります");
@@ -145,7 +161,7 @@ describe("LCM brand campaign pages", () => {
     expect(detail).toContain("閲覧や商品選択だけで成果報酬・割引・サンプル提供が確定することはありません");
   });
 
-  it("ships campaign storage, migration fallback, SEO, and sitemap routes", () => {
+  it("keeps campaign storage while returning 404 and removing campaign URLs from the active sitemap", () => {
     const schema = read("drizzle/lcmSchema.ts");
     const migration = read("drizzle/0152_lcm_campaign_pages.sql");
     const migrations = read("run-migrations.mjs");
@@ -157,10 +173,13 @@ describe("LCM brand campaign pages", () => {
     expect(migration).toContain("CREATE TABLE IF NOT EXISTS `lcm_campaigns`");
     expect(migrations).toContain("0152_lcm_campaign_pages.sql");
     expect(upgrade).toContain("CREATE TABLE IF NOT EXISTS lcm_campaigns");
-    expect(seo).toContain('"/lcm/campaigns/:slug"');
+    expect(seo).toContain('app.get(["/lcm/campaigns", "/lcm/campaigns/:slug"]');
+    expect(seo).toContain('return res.status(404).type("text/plain").send("Not Found")');
+    expect(seo).toContain('if (LCM_CAMPAIGNS_ENABLED) publicLcmRoutes.push("/lcm/campaigns", "/lcm/campaigns/:slug")');
+    expect(seo).toContain("...(LCM_CAMPAIGNS_ENABLED ? [");
     expect(seo).toContain('"@type": "Event"');
     expect(seo).toContain("/lcm/campaigns/${encodeURIComponent(campaign.slug)}");
-    expect(app).toContain('<Route path="/lcm/campaigns/:slug" component={LcmCampaign} />');
-    expect(app).toContain('<Route path="/lcm/campaigns" component={LcmCampaigns} />');
+    expect(app).toContain('{LCM_CAMPAIGNS_ENABLED && <Route path="/lcm/campaigns/:slug" component={LcmCampaign} />}');
+    expect(app).toContain('{LCM_CAMPAIGNS_ENABLED && <Route path="/lcm/campaigns" component={LcmCampaigns} />}');
   });
 });

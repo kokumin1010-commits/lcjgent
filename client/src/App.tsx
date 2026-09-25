@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
 import ProtectedLiverRoute from "./components/ProtectedLiverRoute";
 import { lazy, Suspense, useEffect } from "react";
+import { LCM_CAMPAIGNS_ENABLED } from "@shared/lcmFeatureFlags";
 
 // 即時ロードが必要なコンポーネント（最初に表示される可能性が高いもの）
 import MallHome from "./pages/MallHome";
@@ -695,8 +696,8 @@ function Router() {
         <Route path="/livecommercefestival/2026/exhibitors" component={Lcf2026Exhibitors} />
         <Route path="/livecommercefestival/2026/report" component={Lcf2026Report} />
         <Route path="/lcm/products/:slug" component={LcmProduct} />
-        <Route path="/lcm/campaigns/:slug" component={LcmCampaign} />
-        <Route path="/lcm/campaigns" component={LcmCampaigns} />
+        {LCM_CAMPAIGNS_ENABLED && <Route path="/lcm/campaigns/:slug" component={LcmCampaign} />}
+        {LCM_CAMPAIGNS_ENABLED && <Route path="/lcm/campaigns" component={LcmCampaigns} />}
         <Route path="/lcm/sample-cart" component={LcmSampleCart} />
         <Route path="/lcm/brands/:slug" component={LcmBrand} />
         <Route path="/lcm/creators/:slug" component={LcmCreatorProfile} />

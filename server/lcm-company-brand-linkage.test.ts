@@ -69,7 +69,8 @@ describe("LCM company, brand and product linkage", () => {
     }
     expect(router).toContain('["rejected", "revoked"].includes(current.status)');
     expect(router).toContain("このブランドの管理申請は運営判断により利用できません");
-    expect(manage).toContain("管理権限確認済みのブランド");
+    expect(manage).toContain("あなたが管理してるブランド");
+    expect(manage).not.toContain("管理権限確認済みのブランド");
     expect(manage).toContain("運営確認中・操作不可");
     expect(manage).toContain("承認後に操作できます");
     expect(manage).not.toContain("仮連携中・下書き編集可");

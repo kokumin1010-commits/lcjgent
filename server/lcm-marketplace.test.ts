@@ -68,10 +68,14 @@ describe("LCM marketplace foundation", () => {
   it("presents public list prices in a shopping-style catalogue without fake commerce signals", () => {
     const market = read("client/src/pages/LcmMarket.tsx");
     const brand = read("client/src/pages/LcmBrand.tsx");
-    expect(market).toContain("商品写真と定価は誰でも閲覧できます");
+    const heroCopy = market.slice(market.indexOf("LIVE COMMERCE MARKET"), market.indexOf('label htmlFor="lcm-search"'));
+    expect(heroCopy).not.toContain("商品写真と定価は誰でも閲覧できます");
+    expect(heroCopy).not.toContain("定価を公開");
+    expect(heroCopy).not.toContain("サンプル対応");
+    expect(heroCopy).not.toContain("取引条件は会員限定");
+    expect(market).toContain(">サンプル対応</span>");
     expect(market).toContain("grid grid-cols-2");
     expect(market).toContain("formatListPrice(item.listPrice, item.taxMode)");
-    expect(market).toContain("取引条件は会員限定");
     expect(market).toContain("NEW_PRODUCT_WINDOW_DAYS = 60");
     expect(market).toContain("配信情報あり");
     expect(market).toContain("isNewProduct(item.publishedAt)");
@@ -304,11 +308,13 @@ describe("LCM marketplace foundation", () => {
     expect(server).toContain("Disallow: /lcm/manage");
     expect(server).toContain("Disallow: /lcm/admin");
     expect(server).toContain("Disallow: /lcm/sample-cart");
+    expect(server).toContain("Disallow: /lcm/campaigns");
     expect(server).toContain("req.path.startsWith('/lcm/manage')");
     expect(seo).toContain('app.get(["/lcm/manage", "/lcm/admin", "/lcm/sample-cart"]');
+    expect(seo).toContain('app.get(["/lcm/campaigns", "/lcm/campaigns/:slug"]');
     expect(seo).toContain('"X-Robots-Tag", "noindex, nofollow, noarchive"');
     expect(seo).toContain('robots: "noindex, nofollow, noarchive"');
-    expect(seo.indexOf('app.get(["/lcm/manage", "/lcm/admin", "/lcm/sample-cart"]')).toBeLessThan(seo.indexOf('app.get(["/lcm", "/lcm/brands/:slug", "/lcm/products/:slug", "/lcm/campaigns", "/lcm/campaigns/:slug", "/lcm/creators", "/lcm/creators/:slug"]'));
+    expect(seo.indexOf('app.get(["/lcm/manage", "/lcm/admin", "/lcm/sample-cart"]')).toBeLessThan(seo.indexOf("app.get(publicLcmRoutes"));
     expect(seo).toContain("CollectionPage");
     expect(seo).toContain("BreadcrumbList");
     expect(seo).toContain("@type\": \"Product");
