@@ -3916,3 +3916,12 @@ feature SHA `5f4986f88ef9d05fc58328df78f6c7166e4172b6`はGitHub CI success、Rai
 `/master/line`のグループ返信確認上部にある青い「自動フォロー設定ON」集計カード全体を、キーボード操作と`aria-pressed`に対応したbuttonへ変更した。タップすると現在の返信確認一覧のうち自動follow-upがONのグループだけを専用tabへ表示し、選択中は青い枠・ring・説明文で状態を明示する。同じカードをもう一度タップすると通常のAI返信推奨一覧へ戻る。検索中は検索条件を維持したままON対象だけを絞り込み、対象0件時は専用empty stateを表示する。自動送信条件、群設定、API、scheduler、DB、実際の送信動作には変更を加えていない。
 
 LINE関連39 files・428 tests、対象2 files・20 tests、production build、対象frontend bundle、`git diff --check`がすべて成功した。全量TypeScriptは既存1,163件のbaseline診断を維持し、本変更2 filesの診断は0件。feature commit `28502586f24cf1574a34b704f914bd5ccdc1ef00`はRailway deployment `6657060139`でproduction successとなり、その後のdescendant commit `8b9b7cdbdcaa87b64503699ae5dd0324d386ad52`のdeployment `6657754959`もsuccess。本番`/`、`/master/line`、LINE lifecycle healthはHTTP 200で、配信中の`LineGroupReplyReviewQueue-BInyL7Sz.js`にカードbutton、`aria-pressed`、`auto-followup`専用view、「タップしてONのグループを表示」「もう一度タップで戻る」の各文言を確認した。実LINE送信やproduction業務dataのmutationは行っていない。
+
+## 2026-09-25｜第2回LPの写真背景・3申込導線・LCMブランド連絡tap修正（本番反映前）
+`/2nd`の`SELLING EXPERIENCE`は、指定文言「見る展示会から、配信して売る展示会へ。」と説明文を維持し、ユーザー提供の第1回ライブ販売実景写真（1920×1280）を独立画像ではなく見出し背景へ変更した。左から黒いgradientを重ね、desktop／mobileで白文字の可読性を確保した。背景画像は装飾扱いとし、同じ内容の説明をscreen reader用textとして残した。
+
+header logoは、共有されたGigaFile一式のカラーLCFロゴ04を余白crop・Web用縮小した1200×739 PNGへ変更した。第2回ページ上部とfixed申込barは、出展申込を既存の第2回企業問い合わせ／申込pageへ、ライブコマーサー申込と一般来場申込を既存公式LCF OpenChatへ接続する3導線にした。外部OpenChatは新tabと`noopener noreferrer`を使用する。LCM枠は「事前マッチングはこちらから」だけを残し、「LCMとは？」を削除した。
+
+`/lcm/products/:slug`の「ブランドさんに連絡」は、Wouterのclient navigationからnative anchorへ変更した。既存の認証済み`/lcm/manage?contact=<productId>`または共通loginの安全なreturn pathを維持し、`touch-manipulation`、明示的なstacking、brand名を含む`aria-label`を追加した。連絡作成、email通知、DB書込みは検証では実行していない。
+
+検証はLCF／LCM関連43 files・309 tests、focused 5 files・61 tests、production build、変更component bundle、`git diff --check`に成功した。全体TypeScriptは既存1,163 diagnosticsで、今回4変更fileは0件。1440×1900と390×1800のlocal実画面で、カラーlogo、上部3導線、写真背景、LCM単一button、fixed 3導線に重なり・横溢れがないことを確認した。独立read-only reviewは**GO（P0/P1/P2 0件）**。

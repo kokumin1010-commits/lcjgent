@@ -86,3 +86,12 @@ feature SHA `f617126c993ad2f44e1475ffddf1c05f67b6f77d`のGitHub CIとRailway pro
 LCF TOPではheaderの「LCJ公式」buttonのみ削除し、footerのLCJ公式サイトlinkは維持した。TOPと第2回のtitle、description、canonical、Event／WebSite／Organization JSON-LD、既存routeは変更していない。
 LCF／LCM関連43 files・306 tests、production build、変更component bundle、diff／secret監査に成功した。全体TypeScript既存1,163 diagnosticsに対し今回変更fileは0件。独立read-only LCF reviewは**GO（P0/P1/P2 0件）**。1440×1100と390×1100のlocal実画面で初心者sectionをprogrammatic scrollして確認し、inline申込CTAがfixed barの上で操作可能で、横溢れや重なりがないことを確認した。本番の申込・送信操作は実施していない。
 feature SHA `8874fd41b15d96a599796b9f27d61a19fdcc2c1d`はGitHub CIとRailway production deployment `6655961479`がsuccess。本番rootと`/2nd`はHTTP 200で、配信`LiveCommerceFestivalTop-CV2Mw7RZ.js`と`LcfSecondEdition-DrU7oYs5.js`に修正文言、初心者CTA、完成予想labelを確認した。TOPの実DOMはheaderにLCJ公式buttonがなく、footerのLCJ公式サイトlinkを維持する。本番TOP desktopと第2回初心者section mobileを再撮影し、CTA、header、fixed barに見切れ・重なり・横溢れがないことを確認した。本番acceptanceでは申込mutationを行っていない。
+
+## 第2回ページの実景背景・カラーLCFロゴ・3申込導線（2026-09-25追加／本番反映前）
+第2回ページの`SELLING EXPERIENCE`背景には、ユーザー提供の第1回ライブ販売実景写真を使用した。原画はJPEG 1920×1280で、配信用CDNも`image/jpeg`、HTTP 200を確認した。画像には左から`black/92 → black/72 → black/42`のgradientを重ね、見出しと指定本文を画像上で読めるようにした。背景画像自体は空altと`aria-hidden`を持ち、写真内容は同じcontainer内のscreen reader用textで説明する。
+
+headerは、[共有GigaFile](https://29.gigafile.nu/1025-d7f0941d7f83ac58209869c697efd74f)の`LCF_ロゴ_LP_ロゴ-04.png`を採用した。原画の透明余白をcropして1200×739に縮小し、PNGとして配信する。配信用CDNは`image/png`、HTTP 200を確認した。旧yearless SVGは第2回headerから削除した。
+
+上部とfixed申込barは3導線にした。出展申込は既存`/lcf/apply/company?edition=2`へ遷移する。ライブコマーサー申込と一般来場申込は既存の公式LCF OpenChatへ遷移し、外部linkには`target="_blank"`と`rel="noopener noreferrer"`を付けた。LCM案内は`/lcm`へ進む「事前マッチングはこちらから」だけを残し、「LCMとは？」を削除した。
+
+1440×1900と390×1800のlocal実画面で、カラーlogo、3つの申込button、写真背景、指定copy、LCM単一button、fixed 3導線を確認した。desktop／mobileとも文字の重なり、横溢れ、固定barによる主導線の遮蔽はない。LCF／LCM関連43 files・309 tests、production build、変更file型診断0件、独立review GOを確認した。申込送信やOpenChat投稿は行っていない。

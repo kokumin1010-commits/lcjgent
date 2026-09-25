@@ -26,6 +26,11 @@ describe("LCM brand contact threads", () => {
   it("exposes a prominent contact CTA for every product without negative sample availability labels", () => {
     expect(product).toContain('const contactPath = `/lcm/manage?contact=${product.id}`');
     expect(product).toContain('buildFestivalLoginUrl(contactPath)');
+    expect(product).toContain('<a href={contactHref}');
+    expect(product).not.toContain('<Link href={contactHref}');
+    expect(product).toContain("touch-manipulation");
+    expect(product).toContain("relative z-10");
+    expect(product).toContain('aria-label={`${product.brandName}へ商品について連絡する`}');
     expect(product).toContain("ブランドさんに連絡");
     expect(product).toContain("連携済みのブランド担当者へメール通知します。担当者未連携時はLCM運営が受け付けます");
     expect(product).toContain('bg-[#bd480d]');

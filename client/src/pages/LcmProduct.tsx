@@ -187,9 +187,9 @@ export default function LcmProduct() {
 
                 <div className="mt-7 flex flex-wrap gap-2">{links.map(([label, url]) => <a key={label} href={url!} target="_blank" rel="noreferrer" className="inline-flex items-center border border-black bg-white px-4 py-3 text-xs font-black transition hover:bg-black hover:text-white">{label}<ExternalLink className="ml-2 h-4 w-4" /></a>)}</div>
 
-                <Link href={contactHref} className="mt-8 inline-flex min-h-16 w-full items-center justify-center gap-3 bg-[#bd480d] px-5 py-4 text-base font-black text-white shadow-[0_14px_35px_rgba(189,72,13,.22)] transition-transform active:scale-[0.99]">
+                <a href={contactHref} aria-label={`${product.brandName}へ商品について連絡する`} className="relative z-10 mt-8 inline-flex min-h-16 w-full touch-manipulation items-center justify-center gap-3 bg-[#bd480d] px-5 py-4 text-base font-black text-white shadow-[0_14px_35px_rgba(189,72,13,.22)] transition-transform active:scale-[0.99]">
                   <MessageCircle className="h-5 w-5" />ブランドさんに連絡<ArrowRight className="h-5 w-5" />
-                </Link>
+                </a>
                 <p className="mt-2 text-center text-[11px] font-bold leading-5 text-black/45">LCMマイページに履歴を保存し、連携済みのブランド担当者へメール通知します。担当者未連携時はLCM運営が受け付けます。</p>
 
                 <div className="mt-4 grid grid-cols-2 gap-2">

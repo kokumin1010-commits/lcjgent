@@ -49,33 +49,42 @@ describe("LCF second-edition official page", () => {
     expect(page).not.toMatch(/70ブース|70 BOOTHS|1,500㎡/);
   });
 
-  it("places the supplied first-edition live-selling photo beneath the revised event introduction", () => {
-    const headingIndex = page.indexOf("見る展示会から、配信して売る展示会へ。");
-    const bodyIndex = page.indexOf("商品と出会い、実際に試し、学び、販売につなげる。");
-    const photoIndex = page.indexOf("src={SELLING_EXPERIENCE_PHOTO.src}");
-    const officialMovieIndex = page.indexOf("function OfficialMovie");
+  it("uses the supplied first-edition live-selling photo behind the revised event introduction", () => {
+    const hero = page.slice(page.indexOf("function Hero()"), page.indexOf("function OfficialMovie()"));
+    const headingIndex = hero.indexOf("見る展示会から、配信して売る展示会へ。");
+    const bodyIndex = hero.indexOf("商品と出会い、実際に試し、学び、販売につなげる。");
+    const photoIndex = hero.indexOf("src={SELLING_EXPERIENCE_PHOTO.src}");
+    const lcmBannerIndex = hero.indexOf("<LcmHeroBanner />");
     expect(page).toContain('const SELLING_EXPERIENCE_PHOTO = {');
-    expect(page).toContain("MuEkHqRECZbGKrzB.webp");
-    expect(page).toContain("width: 2048");
-    expect(page).toContain("height: 1365");
-    expect(page).toContain("第1回LIVE COMMERCE FESTIVALでライブコマーサーが商品を手に取り紹介している実景");
+    expect(page).toContain("moLmsSukFIiBkAmV.jpg");
+    expect(page).toContain("width: 1920");
+    expect(page).toContain("height: 1280");
+    expect(page).toContain("第1回LIVE COMMERCE FESTIVALで3名のライブコマーサーが商品を紹介している実景");
     expect(page).toContain("src={SELLING_EXPERIENCE_PHOTO.src}");
     expect(page).toContain("width={SELLING_EXPERIENCE_PHOTO.width}");
     expect(page).toContain("height={SELLING_EXPERIENCE_PHOTO.height}");
-    expect(page).toContain('loading="lazy"');
-    expect(page).toContain("商品との出会いを、その場の配信と販売へ。");
-    expect(page).toContain("EDITION 01 / LIVE SELLING PROOF");
-    expect(page).toContain("md:col-span-2");
+    expect(hero).toContain('alt=""');
+    expect(hero).toContain('aria-hidden="true"');
+    expect(hero).toContain("absolute inset-0 -z-20 h-full w-full object-cover object-center");
+    expect(hero).toContain("bg-gradient-to-r from-black/92 via-black/72 to-black/42");
+    expect(hero).toContain("<span className=\"sr-only\">{SELLING_EXPERIENCE_PHOTO.alt}</span>");
+    expect(hero).toContain('loading="eager"');
+    expect(hero).toContain('fetchPriority="high"');
     expect(page).toContain("見る展示会から、配信して売る展示会へ。企業とライブコマーサーの直接マッチング");
-    expect(headingIndex).toBeGreaterThan(-1);
+    expect(photoIndex).toBeGreaterThan(-1);
+    expect(photoIndex).toBeLessThan(headingIndex);
     expect(headingIndex).toBeLessThan(bodyIndex);
-    expect(bodyIndex).toBeLessThan(photoIndex);
-    expect(photoIndex).toBeLessThan(officialMovieIndex);
+    expect(bodyIndex).toBeLessThan(lcmBannerIndex);
   });
 
   it("keeps the header focused and the application actions visible while scrolling", () => {
     const header = page.slice(page.indexOf("function Header()"), page.indexOf("function ApplicationButtons"));
-    expect(header).toContain("src={YEARLESS_LOGO_SVG}");
+    expect(page).toContain('const LCF_COLOR_LOGO = {');
+    expect(page).toContain("NqiAbWVvlJsEtygb.png");
+    expect(header).toContain("src={LCF_COLOR_LOGO.src}");
+    expect(header).toContain("width={LCF_COLOR_LOGO.width}");
+    expect(header).toContain("height={LCF_COLOR_LOGO.height}");
+    expect(header).not.toContain("YEARLESS_LOGO_SVG");
     expect(header).toContain('href="/lcm"');
     expect(header).toContain(">LCM</a>");
     expect(header).toContain("第1回実績");
@@ -85,8 +94,29 @@ describe("LCF second-edition official page", () => {
     expect(header).not.toContain('href="#venue"');
     expect(page).toContain("function StickyApplicationBar()");
     expect(page).toContain("fixed inset-x-0 bottom-0 z-[60]");
-    expect(page).toContain("企業・ブランドとして申し込む");
+    expect(page).toContain("出展申込");
+    expect(page).toContain("お問い合わせページへ");
+    expect(page).toContain("ライブコマーサー申込");
+    expect(page).toContain("一般来場申込");
+    expect(page).toContain("チャットへ");
     expect(page).toContain("ライブコマーサーとして申し込む");
+  });
+
+  it("routes exhibitor inquiries internally and live/general applications to the official OpenChat", () => {
+    const buttons = page.slice(page.indexOf("function ApplicationButtons"), page.indexOf("function LcmHeroBanner"));
+    const sticky = page.slice(page.indexOf("function StickyApplicationBar"), page.indexOf("export default function"));
+    expect(page).toContain("const LCF_OPEN_CHAT_URL = \"https://line.me/ti/g2/KsS3Ma1HW3okfwI2OowM6Ubk0UHKOHmb3nZFhA");
+    expect(buttons).toContain("sm:grid-cols-3");
+    expect(buttons).toContain("href={event.applicationCompanyPath}");
+    expect(buttons).toContain("出展申込");
+    expect(buttons).toContain("お問い合わせページへ");
+    expect(buttons.match(/href=\{LCF_OPEN_CHAT_URL\}/g)?.length).toBe(4);
+    expect(buttons).toContain("ライブコマーサー申込");
+    expect(buttons).toContain("一般来場申込");
+    expect(buttons).toContain('target="_blank"');
+    expect(buttons).toContain('rel="noopener noreferrer"');
+    expect(sticky).toContain("grid-cols-3");
+    expect(sticky).toContain("一般申込");
   });
 
   it("shows the supplied finished key visual without its duplicate top band and keeps real site CTAs", () => {
@@ -246,7 +276,7 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("sivJnwYjdZtRGkJL.webp");
     expect(page).toContain("LCMで公開商品やブランドを探せる実際の商品探索画面");
     expect(page).toContain("事前マッチングはこちらから");
-    expect(page).toContain("LCMとは？");
+    expect(page).not.toContain("LCMとは？");
     expect(page).not.toContain(">商品を探す<");
     expect(page).not.toContain(">事前マッチングについて<");
     expect(page).toContain('id="lcm"');

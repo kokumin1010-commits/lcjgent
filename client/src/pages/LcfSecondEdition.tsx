@@ -28,6 +28,7 @@ import { trpc } from "@/lib/trpc";
 import { LCF_EVENT_DEFINITIONS } from "@shared/lcfEventDefinitions";
 
 const event = LCF_EVENT_DEFINITIONS[2];
+const LCF_OPEN_CHAT_URL = "https://line.me/ti/g2/KsS3Ma1HW3okfwI2OowM6Ubk0UHKOHmb3nZFhA?utm_source=invitation&utm_medium=link_copy&utm_campaign=default";
 const HERO_IMAGE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/AnPNzcemGiRReCxl.webp";
 const OFFICIAL_MOVIE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/QHYaTbQAzawNOpYI.mp4";
 const LIVE_IMAGE = {
@@ -42,12 +43,17 @@ const MATCHING_IMAGE = {
   height: 1632,
   alt: "第2回LCFで企業とライブコマーサーが商品を囲んで商談する完成予想イメージ",
 } as const;
-const YEARLESS_LOGO_SVG = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/eOoAsIvNqBsDDHvx.svg";
+const LCF_COLOR_LOGO = {
+  src: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/NqiAbWVvlJsEtygb.png",
+  width: 1200,
+  height: 739,
+  alt: "LCF LIVE COMMERCE FESTIVAL",
+} as const;
 const SELLING_EXPERIENCE_PHOTO = {
-  src: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/MuEkHqRECZbGKrzB.webp",
-  width: 2048,
-  height: 1365,
-  alt: "第1回LIVE COMMERCE FESTIVALでライブコマーサーが商品を手に取り紹介している実景",
+  src: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/moLmsSukFIiBkAmV.jpg",
+  width: 1920,
+  height: 1280,
+  alt: "第1回LIVE COMMERCE FESTIVALで3名のライブコマーサーが商品を紹介している実景",
 } as const;
 const LCM_PUBLIC_MARKET_SCREEN = {
   src: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/sivJnwYjdZtRGkJL.webp",
@@ -138,7 +144,7 @@ function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#090909]/95 text-white backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-[1540px] items-center justify-between px-4 md:h-20 md:px-10">
-        <a href="/" aria-label="LIVE COMMERCE FESTIVAL TOP" className="inline-flex bg-[#f5cf31] px-2 py-1.5"><img src={YEARLESS_LOGO_SVG} alt="LIVE COMMERCE FESTIVAL" width={1800} height={600} className="h-9 w-auto md:h-11" /></a>
+        <a href="/" aria-label="LIVE COMMERCE FESTIVAL TOP" className="inline-flex shrink-0"><img src={LCF_COLOR_LOGO.src} alt={LCF_COLOR_LOGO.alt} width={LCF_COLOR_LOGO.width} height={LCF_COLOR_LOGO.height} className="h-10 w-auto md:h-12" /></a>
         <nav className="flex items-center gap-2 text-[10px] font-black tracking-[0.04em] sm:text-xs md:gap-4" aria-label="第2回ページナビゲーション">
           <a href="/lcm" className="inline-flex border border-[#f5cf31]/70 px-2.5 py-2.5 text-[#f5cf31] transition-colors hover:bg-[#f5cf31] hover:text-black md:px-4">LCM</a>
           <a href="/2026" className="inline-flex border border-white/25 px-3 py-2.5 text-white transition-colors hover:border-white md:px-4">第1回実績</a>
@@ -152,18 +158,28 @@ function Header() {
 function ApplicationButtons({ dark = false, hero = false }: { dark?: boolean; hero?: boolean }) {
   if (hero) {
     return (
-      <div className="grid w-full gap-2 sm:grid-cols-2">
+      <div className="grid w-full gap-2 sm:grid-cols-3">
         <a
           href={event.applicationCompanyPath}
-          className="inline-flex min-h-14 items-center justify-center gap-3 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-5 py-3 text-sm font-black text-white shadow-[0_10px_30px_rgba(238,48,116,.2)] transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.97]"
+          className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-4 py-3 text-center text-sm font-black text-white shadow-[0_10px_30px_rgba(238,48,116,.2)] transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.97]"
         >
-          <Building2 size={19} />企業・ブランドとして申し込む<ArrowUpRight size={17} />
+          <Building2 size={19} className="shrink-0" /><span>出展申込<small className="mt-0.5 block text-[10px] font-bold">お問い合わせページへ</small></span><ArrowUpRight size={17} className="shrink-0" />
         </a>
         <a
-          href={event.applicationLiverPath}
-          className="inline-flex min-h-14 items-center justify-center gap-3 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-5 py-3 text-sm font-black text-white shadow-[0_10px_30px_rgba(238,48,116,.2)] transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.97]"
+          href={LCF_OPEN_CHAT_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-4 py-3 text-center text-sm font-black text-white shadow-[0_10px_30px_rgba(238,48,116,.2)] transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.97]"
         >
-          <Handshake size={19} />ライブコマーサーとして申し込む<ArrowUpRight size={17} />
+          <Handshake size={19} className="shrink-0" /><span>ライブコマーサー申込<small className="mt-0.5 block text-[10px] font-bold">チャットへ</small></span><ArrowUpRight size={17} className="shrink-0" />
+        </a>
+        <a
+          href={LCF_OPEN_CHAT_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-4 py-3 text-center text-sm font-black text-white shadow-[0_10px_30px_rgba(238,48,116,.2)] transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.97]"
+        >
+          <Users size={19} className="shrink-0" /><span>一般来場申込<small className="mt-0.5 block text-[10px] font-bold">チャットへ</small></span><ArrowUpRight size={17} className="shrink-0" />
         </a>
       </div>
     );
@@ -171,10 +187,13 @@ function ApplicationButtons({ dark = false, hero = false }: { dark?: boolean; he
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
       <a href={event.applicationCompanyPath} className="inline-flex min-h-14 items-center justify-center gap-3 bg-[#f5cf31] px-6 py-4 text-sm font-black text-black transition-transform duration-150 active:scale-[0.97]">
-        <Building2 size={19} />企業・ブランドとして申し込む<ArrowUpRight size={17} />
+        <Building2 size={19} />出展申込・お問い合わせページへ<ArrowUpRight size={17} />
       </a>
-      <a href={event.applicationLiverPath} className={`inline-flex min-h-14 items-center justify-center gap-3 border px-6 py-4 text-sm font-black transition-colors ${dark ? "border-white/45 bg-black/30 text-white hover:border-white" : "border-black/35 text-black hover:bg-black hover:text-white"}`}>
-        <Camera size={19} />ライブコマーサーとして申し込む<ArrowUpRight size={17} />
+      <a href={LCF_OPEN_CHAT_URL} target="_blank" rel="noopener noreferrer" className={`inline-flex min-h-14 items-center justify-center gap-3 border px-6 py-4 text-sm font-black transition-colors ${dark ? "border-white/45 bg-black/30 text-white hover:border-white" : "border-black/35 text-black hover:bg-black hover:text-white"}`}>
+        <Camera size={19} />ライブコマーサー申込・チャットへ<ArrowUpRight size={17} />
+      </a>
+      <a href={LCF_OPEN_CHAT_URL} target="_blank" rel="noopener noreferrer" className={`inline-flex min-h-14 items-center justify-center gap-3 border px-6 py-4 text-sm font-black transition-colors ${dark ? "border-white/45 bg-black/30 text-white hover:border-white" : "border-black/35 text-black hover:bg-black hover:text-white"}`}>
+        <Users size={19} />一般来場申込・チャットへ<ArrowUpRight size={17} />
       </a>
     </div>
   );
@@ -192,9 +211,8 @@ function LcmHeroBanner() {
           <p className="mt-1 text-lg font-black tracking-[-0.02em] text-white md:text-xl">メーカー事前マッチングはこちらから</p>
           <p className="mt-1 text-xs font-medium leading-6 text-white/75 md:text-sm">LCF開催前に、出展メーカーの商品情報を確認し、ライブ配信したい商品を探すことができます。イベント当日までにメーカー担当者と連絡を取り、サンプルや配信条件について相談できます。</p>
         </div>
-        <div className="flex flex-wrap gap-2 sm:max-w-52 sm:justify-end">
+        <div className="flex flex-wrap gap-2 sm:max-w-64 sm:justify-end">
           <a href="/lcm" className="inline-flex min-h-11 items-center justify-center bg-[#f5cf31] px-4 py-3 text-center text-xs font-black text-black transition-transform duration-150 active:scale-[0.97]">事前マッチングはこちらから<ArrowUpRight className="ml-2 h-4 w-4 shrink-0" /></a>
-          <a href="#lcm" className="inline-flex min-h-11 items-center justify-center border border-white/50 bg-black/45 px-4 py-3 text-xs font-black text-white transition-colors hover:border-white">LCMとは？</a>
         </div>
       </div>
     </aside>
@@ -236,9 +254,25 @@ function Hero() {
 
           <div className="grid gap-7 bg-[#111] px-5 py-7 text-white md:grid-cols-[1fr_340px] md:px-8 md:py-9">
             <div>
-              <p className="flex items-center gap-3 text-[10px] font-black tracking-[0.24em] text-[#f5cf31] md:text-xs"><span className="h-px w-10 bg-[#f5cf31]" />2ND EDITION / SELLING EXPERIENCE</p>
-              <h2 className="mt-4 text-3xl font-black leading-tight tracking-[-0.045em] md:text-5xl">見る展示会から、配信して売る展示会へ。</h2>
-              <p className="mt-4 max-w-3xl text-sm font-medium leading-7 text-white/68 md:text-base">商品と出会い、実際に試し、学び、販売につなげる。企業とライブコマーサーの出会いを、商談だけで終わらせず、実際の販売へとつなげる2日間です。</p>
+              <div className="relative isolate min-h-[330px] overflow-hidden border border-white/15 bg-black px-5 py-8 sm:min-h-[380px] md:px-8 md:py-12">
+                <img
+                  src={SELLING_EXPERIENCE_PHOTO.src}
+                  alt=""
+                  width={SELLING_EXPERIENCE_PHOTO.width}
+                  height={SELLING_EXPERIENCE_PHOTO.height}
+                  loading="eager"
+                  fetchPriority="high"
+                  aria-hidden="true"
+                  className="absolute inset-0 -z-20 h-full w-full object-cover object-center"
+                />
+                <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/92 via-black/72 to-black/42" />
+                <div className="relative z-10 max-w-3xl">
+                  <p className="flex items-center gap-3 text-[10px] font-black tracking-[0.24em] text-[#f5cf31] md:text-xs"><span className="h-px w-10 bg-[#f5cf31]" />2ND EDITION / SELLING EXPERIENCE</p>
+                  <h2 className="mt-5 text-3xl font-black leading-tight tracking-[-0.045em] md:text-5xl">見る展示会から、配信して売る展示会へ。</h2>
+                  <p className="mt-5 max-w-2xl text-sm font-medium leading-7 text-white/82 md:text-base">商品と出会い、実際に試し、学び、販売につなげる。企業とライブコマーサーの出会いを、商談だけで終わらせず、実際の販売へとつなげる2日間です。</p>
+                  <span className="sr-only">{SELLING_EXPERIENCE_PHOTO.alt}</span>
+                </div>
+              </div>
               <LcmHeroBanner />
               <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs font-bold">
                 <a href="#official-movie" className="inline-flex items-center gap-2 text-[#f5cf31] hover:text-white">第1回公式映像を見る<ArrowDownRight size={16} /></a>
@@ -253,20 +287,6 @@ function Hero() {
               </div>
               <VenueMiniMap />
             </aside>
-            <figure className="w-full max-w-5xl justify-self-center overflow-hidden border border-white/15 bg-black md:col-span-2">
-              <img
-                src={SELLING_EXPERIENCE_PHOTO.src}
-                alt={SELLING_EXPERIENCE_PHOTO.alt}
-                width={SELLING_EXPERIENCE_PHOTO.width}
-                height={SELLING_EXPERIENCE_PHOTO.height}
-                loading="lazy"
-                className="block h-auto w-full"
-              />
-              <figcaption className="flex flex-col gap-1 border-t border-white/15 px-4 py-3 text-left sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-xs font-black text-white">商品との出会いを、その場の配信と販売へ。</span>
-                <span className="text-[10px] font-black tracking-[0.18em] text-[#f5cf31]">EDITION 01 / LIVE SELLING PROOF</span>
-              </figcaption>
-            </figure>
           </div>
         </div>
       </div>
@@ -510,9 +530,10 @@ function Proof() {
 function StickyApplicationBar() {
   return (
     <aside className="fixed inset-x-0 bottom-0 z-[60] border-t border-white/15 bg-[#090909]/95 px-3 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 text-white shadow-[0_-12px_40px_rgba(0,0,0,.35)] backdrop-blur-xl" aria-label="第2回LCF申込メニュー">
-      <div className="mx-auto grid max-w-4xl grid-cols-2 gap-2">
-        <a href={event.applicationCompanyPath} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-3 py-2.5 text-center text-[11px] font-black leading-4 text-white transition-transform duration-150 active:scale-[0.97] sm:text-sm"><Building2 className="h-4 w-4 shrink-0" /><span><span className="sm:hidden">企業・ブランド申込</span><span className="hidden sm:inline">企業・ブランドとして申し込む</span></span></a>
-        <a href={event.applicationLiverPath} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-3 py-2.5 text-center text-[11px] font-black leading-4 text-white transition-transform duration-150 active:scale-[0.97] sm:text-sm"><Handshake className="h-4 w-4 shrink-0" /><span><span className="sm:hidden">ライブコマーサー申込</span><span className="hidden sm:inline">ライブコマーサーとして申し込む</span></span></a>
+      <div className="mx-auto grid max-w-5xl grid-cols-3 gap-2">
+        <a href={event.applicationCompanyPath} className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-2 py-2.5 text-center text-[10px] font-black leading-4 text-white transition-transform duration-150 active:scale-[0.97] sm:gap-2 sm:px-3 sm:text-sm"><Building2 className="hidden h-4 w-4 shrink-0 sm:block" /><span><span className="sm:hidden">出展申込</span><span className="hidden sm:inline">出展申込・お問い合わせ</span></span></a>
+        <a href={LCF_OPEN_CHAT_URL} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-2 py-2.5 text-center text-[10px] font-black leading-4 text-white transition-transform duration-150 active:scale-[0.97] sm:gap-2 sm:px-3 sm:text-sm"><Handshake className="hidden h-4 w-4 shrink-0 sm:block" /><span><span className="sm:hidden">ライバー申込</span><span className="hidden sm:inline">ライブコマーサー申込・チャット</span></span></a>
+        <a href={LCF_OPEN_CHAT_URL} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-2 py-2.5 text-center text-[10px] font-black leading-4 text-white transition-transform duration-150 active:scale-[0.97] sm:gap-2 sm:px-3 sm:text-sm"><Users className="hidden h-4 w-4 shrink-0 sm:block" /><span><span className="sm:hidden">一般申込</span><span className="hidden sm:inline">一般来場申込・チャット</span></span></a>
       </div>
     </aside>
   );
