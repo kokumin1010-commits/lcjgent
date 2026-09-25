@@ -192,6 +192,14 @@ describe("LINE group management regression contracts", () => {
     expect(groupReplyReviewUiSource).toContain("返信不要候補");
     expect(groupReplyReviewUiSource).toContain("AIおすすめ返信（未送信）");
     expect(groupReplyReviewUiSource).toContain("文案を確認して返信");
+    expect(groupReplyReviewUiSource).toContain("STEP 1・今確認");
+    expect(groupReplyReviewUiSource).toContain("STEP 2・");
+    expect(groupReplyReviewUiSource).toContain("配信準備を1回だけ自動フォロー");
+    expect(groupReplyReviewUiSource).toContain("途中で会話があれば延期・中止します");
+    expect(groupReplyReviewUiSource).toContain("最新会話から決定済みと判断できた場合のみ");
+    expect(groupReplyReviewUiSource).toContain("自動フォロー設定ON");
+    expect(groupReplyReviewUiSource).toContain("表示中の返信確認グループでON");
+    expect(groupReplyReviewUiSource).toContain('className="grid gap-4"');
     expect(groupReplyReviewUiSource).toContain("個別LINEの履歴・未応答はここには入りません");
     expect(uiSource).toContain("setGroupAiDraftPendingReview(Boolean(prefill))");
     expect(uiSource).toContain("groupAiDraftPendingReview && !groupAiDraftReviewed");
@@ -205,6 +213,10 @@ describe("LINE group management regression contracts", () => {
     expect(uiSource).toContain("内容を確認しました");
     expect(uiSource).toContain("expectedGroupConversationRevision: groupReplyExpectedRevision ?? undefined");
     expect(routerSource).toContain("LINE_GROUP_CONVERSATION_CHANGED");
+    expect(routerSource).toContain("LINE_GROUP_CONVERSATION_REVISION_REQUIRED");
+    expect(uiSource).toContain("const currentConversationRevision = Number(selectedGroup?.conversationRevision)");
+    expect(uiSource).toContain("[selectedGroup?.lineGroupId, selectedGroup?.conversationRevision]");
+    expect(routerSource).toContain("SET conversationRevision = conversationRevision + 1");
     expect(dbSource).toContain("expectedGroupConversationRevision");
     expect(groupReplyReviewUiSource).toContain("送信処理中");
     expect(groupReplyReviewUiSource).toContain("判断に使うグループ会話");
@@ -217,6 +229,9 @@ describe("LINE group management regression contracts", () => {
     expect(groupReplyReviewSource).toContain("contextSender.userType");
     expect(groupReplyReviewSource).toContain("previousOutgoingSender.userType = 'staff'");
     expect(groupReplyReviewSource).toContain("outgoingSender.userType = 'staff'");
+    expect(groupReplyReviewSource).toContain("settings.proactiveAiEnabled");
+    expect(groupReplyReviewSource).toContain("g.autoFollowUpEnabled");
+    expect(groupReplyReviewSource).toContain("g.autoFollowUpDays");
     expect(groupReplyReviewSource).toContain("isConversationResponseContextMessage");
     expect(groupReplyReviewSource).toContain("responseAt === receivedAt.getTime() && message.id > incomingMessageDbId");
     expect(groupReplyReviewUiSource).not.toContain("sendMessage.mutate");

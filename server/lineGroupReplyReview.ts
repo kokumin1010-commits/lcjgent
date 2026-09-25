@@ -54,6 +54,9 @@ export type LineGroupReplyReviewItem = {
   suggestedReply: string | null;
   analysisEnabled: boolean;
   autoReplyEnabled: boolean;
+  proactiveAiEnabled: boolean;
+  autoFollowUpEnabled: boolean;
+  autoFollowUpDays: number;
 };
 
 type QueueRow = {
@@ -73,6 +76,9 @@ type QueueRow = {
   createdAt?: unknown;
   analysisEnabled?: unknown;
   autoReplyEnabled?: unknown;
+  proactiveAiEnabled?: unknown;
+  autoFollowUpEnabled?: unknown;
+  autoFollowUpDays?: unknown;
 };
 
 type ContextRow = {
@@ -105,6 +111,11 @@ function finiteBoolean(value: unknown, fallback = true): boolean {
   if (["1", "true", "yes", "on"].includes(normalized)) return true;
   if (["0", "false", "no", "off"].includes(normalized)) return false;
   return fallback;
+}
+
+function normalizeFollowUpDays(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.min(30, Math.max(1, Math.round(parsed))) : 2;
 }
 
 function sanitizePreview(value: unknown, maxLength: number): string {
@@ -449,7 +460,10 @@ export async function getLineGroupReplyReviewQueue(): Promise<LineGroupReplyRevi
       incoming.lineTimestamp,
       incoming.createdAt,
       COALESCE(settings.analysisEnabled, TRUE) AS analysisEnabled,
-      COALESCE(settings.autoReplyEnabled, TRUE) AS autoReplyEnabled
+      COALESCE(settings.autoReplyEnabled, TRUE) AS autoReplyEnabled,
+      COALESCE(settings.proactiveAiEnabled, TRUE) AS proactiveAiEnabled,
+      COALESCE(g.autoFollowUpEnabled, TRUE) AS autoFollowUpEnabled,
+      COALESCE(g.autoFollowUpDays, 2) AS autoFollowUpDays
     FROM line_groups g
     INNER JOIN line_group_lifecycle_states lifecycle
       ON lifecycle.lineGroupId = g.lineGroupId
@@ -561,6 +575,9 @@ export async function getLineGroupReplyReviewQueue(): Promise<LineGroupReplyRevi
       ...classification,
       analysisEnabled: finiteBoolean(row.analysisEnabled),
       autoReplyEnabled: finiteBoolean(row.autoReplyEnabled),
+      proactiveAiEnabled: finiteBoolean(row.proactiveAiEnabled),
+      autoFollowUpEnabled: finiteBoolean(row.autoFollowUpEnabled),
+      autoFollowUpDays: normalizeFollowUpDays(row.autoFollowUpDays),
     }];
   }).sort((left, right) => {
     if (left.shouldReply !== right.shouldReply) return left.shouldReply ? -1 : 1;

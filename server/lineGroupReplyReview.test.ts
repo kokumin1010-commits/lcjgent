@@ -154,6 +154,9 @@ describe("LINE group reply review queue", () => {
       expect(text).toContain("COALESCE(previousOutgoingSender.isBlocked, FALSE) = FALSE");
       expect(text).toContain("outgoingSender.userType = 'staff'");
       expect(text).toContain("COALESCE(outgoingSender.isBlocked, FALSE) = FALSE");
+      expect(text).toContain("settings.proactiveAiEnabled");
+      expect(text).toContain("g.autoFollowUpEnabled");
+      expect(text).toContain("g.autoFollowUpDays");
       return [[{
         lineGroupId: "C123456789",
         groupName: "テストブランド LCJ",
@@ -171,6 +174,9 @@ describe("LINE group reply review queue", () => {
         createdAt: new Date(),
         analysisEnabled: 1,
         autoReplyEnabled: 1,
+        proactiveAiEnabled: 1,
+        autoFollowUpEnabled: 1,
+        autoFollowUpDays: 2,
       }], []];
     });
 
@@ -187,6 +193,9 @@ describe("LINE group reply review queue", () => {
       deliveryPending: true,
       analysisEnabled: true,
       autoReplyEnabled: true,
+      proactiveAiEnabled: true,
+      autoFollowUpEnabled: true,
+      autoFollowUpDays: 2,
     });
     expect(result[0].suggestedReply).toContain("サンプル提供の可否をブランド側へ確認します");
     expect(result[0].suggestedReply).toContain("個人情報はグループに書かず");
@@ -254,6 +263,9 @@ describe("LINE group reply review queue", () => {
         createdAt: new Date(baseTime),
         analysisEnabled: 1,
         autoReplyEnabled: 1,
+        proactiveAiEnabled: 1,
+        autoFollowUpEnabled: 1,
+        autoFollowUpDays: 2,
       }], []];
     });
 

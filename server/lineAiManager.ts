@@ -21,6 +21,10 @@ import {
 } from "./db";
 import { pushMessage } from "./line";
 import { createLineRetryKey } from "./lineRetryKey";
+import {
+  classifyLineGroupFollowUpStage,
+  type LineGroupFollowUpStage,
+} from "./lineGroupFollowUpStage";
 import { LINE_PUBLIC_CONTACT_NAME, stripLinePublicSignature } from "../shared/linePublicIdentity";
 
 const AI_MANAGER_MODEL = "gpt-5-mini";
@@ -117,6 +121,7 @@ type AiManagerIngressOptions = {
 type GroupConversationContext = {
   groupName: string;
   transcript: string;
+  followUpStageTranscript: string;
   participantNames: string[];
   messageCount: number;
   latestMessageAt: string | null;
@@ -139,6 +144,7 @@ export type LineGroupAiInsight = {
   risks: string[];
   suggestedNextAction: string;
   suggestedMessage: string;
+  followUpStage?: LineGroupFollowUpStage;
   confidence: "low" | "medium" | "high";
   messageCount: number;
   latestMessageAt: string | null;
@@ -283,7 +289,7 @@ async function getGroupConversationContext(
 
   const { group, storedMessages } = await db.transaction(async tx => {
     const groupResult = await tx.execute(sql`
-      SELECT groupName, conversationRevision, updatedAt, isActive
+      SELECT groupName, conversationRevision, lastAutoFollowUpAt, updatedAt, isActive
       FROM line_groups
       WHERE lineGroupId = ${lineGroupId}
       LIMIT 1
@@ -292,7 +298,13 @@ async function getGroupConversationContext(
     const lockedGroup = firstExecuteRow(groupResult);
     if (!lockedGroup) throw new Error("LINE_GROUP_AI_DRAFT_GROUP_INACTIVE");
     const messages = await tx.select().from(lineMessages)
-      .where(eq(lineMessages.lineGroupId, lineGroupId))
+      .where(and(
+        eq(lineMessages.lineGroupId, lineGroupId),
+        or(
+          ne(lineMessages.direction, "outgoing"),
+          eq(lineMessages.responseStatus, "responded"),
+        ),
+      ))
       .orderBy(
         desc(sql`COALESCE(${lineMessages.lineTimestamp}, UNIX_TIMESTAMP(${lineMessages.createdAt}) * 1000)`),
         desc(lineMessages.createdAt),
@@ -302,13 +314,29 @@ async function getGroupConversationContext(
     return { group: lockedGroup, storedMessages: messages };
   });
 
+  const getConversationMessageAt = (message: typeof storedMessages[number]): number => {
+    const lineTimestamp = Number(message.lineTimestamp || 0);
+    const createdAt = message.createdAt instanceof Date
+      ? message.createdAt.getTime()
+      : new Date(message.createdAt).getTime();
+    const respondedAt = message.direction === "outgoing" && message.respondedAt
+      ? message.respondedAt instanceof Date
+        ? message.respondedAt.getTime()
+        : new Date(message.respondedAt).getTime()
+      : 0;
+    if (message.direction === "outgoing" && Number.isFinite(respondedAt) && respondedAt > 0) {
+      return respondedAt;
+    }
+    return Math.max(
+      Number.isFinite(lineTimestamp) ? lineTimestamp : 0,
+      Number.isFinite(createdAt) ? createdAt : 0,
+    );
+  };
   const messages = storedMessages
     .filter(message => message.messageType === "text")
     .filter(message => message.content && message.content !== "[送信取消済み]")
     .sort((left, right) => {
-      const leftAt = left.lineTimestamp || (left.createdAt instanceof Date ? left.createdAt.getTime() : new Date(left.createdAt).getTime());
-      const rightAt = right.lineTimestamp || (right.createdAt instanceof Date ? right.createdAt.getTime() : new Date(right.createdAt).getTime());
-      return Number(leftAt) - Number(rightAt);
+      return getConversationMessageAt(left) - getConversationMessageAt(right);
     });
 
   const participantNames = Array.from(new Set(messages
@@ -322,7 +350,7 @@ async function getGroupConversationContext(
   const participantAliases = new Map<string, string>();
   let nextParticipantNumber = 1;
 
-  const transcript = messages.map(message => {
+  const transcriptLines = messages.map(message => {
     const participantKey = String(message.lineUserId || message.senderName || "unknown");
     if (message.direction === "incoming" && !participantAliases.has(participantKey)) {
       participantAliases.set(participantKey, `参加者${nextParticipantNumber++}`);
@@ -332,23 +360,31 @@ async function getGroupConversationContext(
       : participantAliases.get(participantKey) || "参加者";
     const content = sanitizeGroupMessageForAi(message.content, sensitiveIdentifiers, 420)
       .replace(/[@＠](?:LCJ|714isnih)\b/gi, "").trim();
-    return `${sender}: ${content}`;
-  }).filter(line => !line.endsWith(": ")).join("\n");
+    return { message, line: `${sender}: ${content}` };
+  }).filter(entry => !entry.line.endsWith(": "));
+  const transcript = transcriptLines.map(entry => entry.line).join("\n");
+  const lastAutoFollowUpAt = group?.lastAutoFollowUpAt
+    ? new Date(group.lastAutoFollowUpAt as string | number | Date).getTime()
+    : Number.NaN;
+  const followUpStageTranscript = transcriptLines
+    .filter(({ message }) => {
+      if (String(message.messageId || "").startsWith("auto_followup_")) return false;
+      if (!Number.isFinite(lastAutoFollowUpAt)) return true;
+      return getConversationMessageAt(message) > lastAutoFollowUpAt;
+    })
+    .map(entry => entry.line)
+    .join("\n");
 
   const latest = messages[messages.length - 1];
-  const latestTimestamp = latest?.lineTimestamp || latest?.createdAt;
-  const latestDate = latestTimestamp instanceof Date
-    ? latestTimestamp
-    : latestTimestamp
-      ? new Date(latestTimestamp)
-      : null;
+  const latestMessageAt = latest ? getConversationMessageAt(latest) : Number.NaN;
 
   return {
     groupName: sanitizeForAi(group?.groupName || "LINEグループ", 120),
     transcript: transcript || "（分析できるグループ会話はまだありません）",
+    followUpStageTranscript,
     participantNames: sensitiveIdentifiers,
     messageCount: messages.length,
-    latestMessageAt: latestDate && !Number.isNaN(latestDate.getTime()) ? latestDate.toISOString() : null,
+    latestMessageAt: Number.isFinite(latestMessageAt) ? new Date(latestMessageAt).toISOString() : null,
     conversationRevision: Number(group?.conversationRevision || 0),
     groupUpdatedAt: group?.updatedAt
       ? new Date(group.updatedAt as string | number | Date).toISOString()
@@ -799,6 +835,7 @@ function isLineGroupInsightCurrent(
 ): boolean {
   return Boolean(
     insight &&
+    ["post_decision_support", "planning", "discovery"].includes(String(insight.followUpStage || "")) &&
     insight.latestMessageAt === groupContext.latestMessageAt &&
     insight.conversationRevision === groupContext.conversationRevision,
   );
@@ -890,6 +927,7 @@ export async function getLineGroupProactiveSuggestion(lineGroupId: string): Prom
     const currentConversation = await getGroupConversationContext(lineGroupId);
     if (
       !insight.suggestedMessage ||
+      insight.followUpStage !== "post_decision_support" ||
       insight.latestMessageAt !== currentConversation.latestMessageAt ||
       insight.conversationRevision !== currentConversation.conversationRevision
     ) {
@@ -1472,6 +1510,7 @@ export async function analyzeLineGroupConversation(
 
   try {
   const transcript = groupContext.transcript.toLowerCase();
+  const followUpStage = classifyLineGroupFollowUpStage(groupContext.followUpStageTranscript);
   const signalDefinitions = [
     { label: "配信日程", need: "配信予定の確認", pattern: /(?:日程|予定|日時|いつ|スケジュール)/ },
     { label: "配信準備", need: "配信準備の整理", pattern: /(?:準備|設定|段取り|アカウント|接続)/ },
@@ -1480,8 +1519,14 @@ export async function analyzeLineGroupConversation(
     { label: "配信後の振り返り", need: "配信後の振り返り", pattern: /(?:振り返り|反省|改善|結果|配信後)/ },
   ] as const;
   const detectedSignals = signalDefinitions.filter(signal => signal.pattern.test(transcript));
-  const topics = detectedSignals.map(signal => signal.label).slice(0, 8);
-  const explicitNeeds = detectedSignals.map(signal => signal.need).slice(0, 8);
+  const topics = Array.from(new Set([
+    ...(followUpStage === "post_decision_support" ? ["決定後の配信サポート"] : []),
+    ...detectedSignals.map(signal => signal.label),
+  ])).slice(0, 8);
+  const explicitNeeds = Array.from(new Set([
+    ...(followUpStage === "post_decision_support" ? ["決定済み内容の実行支援"] : []),
+    ...detectedSignals.map(signal => signal.need),
+  ])).slice(0, 8);
   const categorySignals = [
     { pattern: /(?:美容|コスメ|化粧|スキン|ヘア|肌|髪)/, tokens: ["美容", "コスメ", "化粧", "スキン", "ヘア", "肌", "髪"] },
     { pattern: /(?:食品|飲料|グルメ|お菓子|サプリ|健康食品)/, tokens: ["食品", "飲料", "グルメ", "菓子", "サプリ", "健康"] },
@@ -1501,14 +1546,18 @@ export async function analyzeLineGroupConversation(
     timing: detectedSignals.some(signal => signal.label === "商品選定") ? "商品候補を確認する段階" : "次回の配信準備時",
   }));
   const primarySignal = detectedSignals[0];
-  const suggestedNextAction = primarySignal?.label === "配信日程" ? "次回の配信予定を確認する" :
-    primarySignal?.label === "実演・伝え方" ? "実演方法・伝え方で困っている点を確認する" :
-      primarySignal?.label === "商品選定" ? "紹介したいカテゴリと配信条件を確認する" :
-        primarySignal?.label === "配信後の振り返り" ? "良かった点と次回改善したい点を1つずつ確認する" :
-          "配信準備で困っていることを1つ確認する";
-  const suggestedMessage = primarySignal?.label === "配信日程" ?
-    "いつもありがとうございます。次回の配信予定が決まっていましたら、無理のない範囲で教えてください。" :
-    "いつもありがとうございます。配信準備で困っていることがあれば、こちらで一緒に整理します。";
+  const suggestedNextAction = followUpStage === "post_decision_support"
+    ? "決定済みの内容を実行できるよう、配信準備を具体的にサポートする"
+    : primarySignal?.label === "配信日程" ? "次回の配信予定を確認する" :
+      primarySignal?.label === "実演・伝え方" ? "実演方法・伝え方で困っている点を確認する" :
+        primarySignal?.label === "商品選定" ? "紹介したいカテゴリと配信条件を確認する" :
+          primarySignal?.label === "配信後の振り返り" ? "良かった点と次回改善したい点を1つずつ確認する" :
+            "配信準備で困っていることを1つ確認する";
+  const suggestedMessage = followUpStage === "post_decision_support"
+    ? "いつもありがとうございます。決まった内容での配信準備はいかがでしょうか？商品選び・台本・見せ方・当日の進行など、必要なところをこちらでサポートします。"
+    : primarySignal?.label === "配信日程"
+      ? "いつもありがとうございます。次回の配信予定が決まっていましたら、無理のない範囲で教えてください。"
+      : "いつもありがとうございます。配信準備で困っていることがあれば、こちらで一緒に整理します。";
   const insight: LineGroupAiInsight = {
     groupName: groupContext.groupName,
     summary: topics.length > 0
@@ -1523,6 +1572,7 @@ export async function analyzeLineGroupConversation(
       : [],
     suggestedNextAction,
     suggestedMessage,
+    followUpStage,
     confidence: detectedSignals.length >= 2 && groupContext.messageCount >= 6
       ? "high"
       : detectedSignals.length >= 1 ? "medium" : "low",

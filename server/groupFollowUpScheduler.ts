@@ -6,22 +6,29 @@
  */
 
 import {
-  finalizeLineOutgoingAudit,
+  cancelPendingLineOutgoingAudit,
   getGroupsNeedingFollowUp,
-  reserveLineOutgoingAudit,
+  getLineOutgoingAuditState,
+  reserveLineGroupFollowUpAudit,
   withLineGroupFollowUpClaim,
 } from "./db";
 import { pushMessage } from "./line";
 import { createLineRetryKey } from "./lineRetryKey";
 import { LINE_PUBLIC_CONTACT_NAME, stripLinePublicSignature } from "../shared/linePublicIdentity";
 
-// Default follow-up message template
-const DEFAULT_FOLLOW_UP_MESSAGE = `お世話になっております。
-本グループの内容につきまして、
-お時間のある際にご確認いただけましたら幸いです。
+// Default follow-up message template. Group defaults are two inactive days.
+const DEFAULT_FOLLOW_UP_MESSAGE = `いつもありがとうございます。
+その後の配信準備はいかがでしょうか？
+日程・商品選び・見せ方など、必要でしたらこちらでサポートします。
 
-どうぞよろしくお願いいたします。`;
+困っていることがあれば、いつでもこのグループでご相談ください。`;
 const LINE_TEXT_MAX_CHARS = 5_000;
+const LINE_RETRY_SAFE_WINDOW_MS = 23 * 60 * 60 * 1000;
+
+function followUpErrorCode(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /^LINE_[A-Z0-9_]+$/.test(message) ? message : "LINE_GROUP_FOLLOW_UP_FAILED";
+}
 
 export function normalizeGroupFollowUpMessage(text: string): string {
   const withoutSignature = stripLinePublicSignature(text);
@@ -37,8 +44,7 @@ const BUSINESS_HOURS = {
 /**
  * Get current JST date info
  */
-function getJSTDateInfo(): { hour: number; dayOfWeek: number } {
-  const now = new Date();
+function getJSTDateInfo(now = new Date()): { hour: number; dayOfWeek: number } {
   const jstOffset = 9 * 60; // JST is UTC+9
   const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
   const jstMinutes = utcMinutes + jstOffset;
@@ -57,8 +63,8 @@ function getJSTDateInfo(): { hour: number; dayOfWeek: number } {
  * Business hours: Monday-Friday 9:00-18:00 JST
  * No messages on weekends (Saturday/Sunday)
  */
-function isWithinBusinessHours(): boolean {
-  const { hour, dayOfWeek } = getJSTDateInfo();
+function isWithinBusinessHours(now = new Date()): boolean {
+  const { hour, dayOfWeek } = getJSTDateInfo(now);
   
   // Check if weekend (Saturday = 6, Sunday = 0)
   if (dayOfWeek === 0 || dayOfWeek === 6) {
@@ -132,77 +138,145 @@ export async function checkAndSendGroupFollowUps(): Promise<{
         if (requiresAiSuggestion && !aiSuggestion) {
           stats.skippedAwaitingAi++;
           console.warn(
-            `[Group Follow-Up] Skipping ${group.groupName || group.lineGroupId}: current AI suggestion is unavailable`,
+            "[Group Follow-Up] Skipping candidate: current AI suggestion is unavailable",
           );
           continue;
         }
-        const claim = await withLineGroupFollowUpClaim({
+        const expectedConversationRevision = Number(group.conversationRevision || 0);
+        const candidateRawMessage = expectedMode === "ai"
+          ? aiSuggestion!
+          : group.autoFollowUpMessage || DEFAULT_FOLLOW_UP_MESSAGE;
+        let message = normalizeGroupFollowUpMessage(candidateRawMessage);
+        const senderName = LINE_PUBLIC_CONTACT_NAME;
+        const legacyRetryKey = createLineRetryKey([
+          "group-auto-followup",
+          group.lineGroupId,
+          group.followUpActivityAt.toISOString(),
+        ].join(":"));
+        const currentRetryKey = createLineRetryKey([
+          "group-auto-followup",
+          group.lineGroupId,
+          group.followUpActivityAt.toISOString(),
+          String(expectedConversationRevision),
+        ].join(":"));
+        const legacyAuditMessageId = `auto_followup_${legacyRetryKey}`;
+        const legacyAudit = await getLineOutgoingAuditState(legacyAuditMessageId);
+        const useLegacyAudit = Boolean(
+          legacyAudit &&
+          legacyAudit.lineGroupId === group.lineGroupId &&
+          (legacyAudit.status === "pending" || legacyAudit.status === "responded"),
+        );
+        if (
+          useLegacyAudit &&
+          legacyAudit!.status === "pending" &&
+          normalizeGroupFollowUpMessage(legacyAudit!.content || "") !== message
+        ) {
+          await cancelPendingLineOutgoingAudit(
+            legacyAuditMessageId,
+            "升级前自动跟进文案与当前设置不一致，已停止自动重放",
+          );
+          throw new Error("LINE_GROUP_FOLLOW_UP_LEGACY_INTENT_CONFLICT");
+        }
+        if (useLegacyAudit) {
+          message = normalizeGroupFollowUpMessage(legacyAudit!.content || message);
+        }
+        const retryKey = useLegacyAudit ? legacyRetryKey : currentRetryKey;
+        const auditMessageId = useLegacyAudit
+          ? legacyAuditMessageId
+          : `auto_followup_${currentRetryKey}`;
+        const responseSummary = expectedMode === "ai"
+          ? "グループ会話分析に基づくAI自動フォロー"
+          : "設定済み文面による自動フォロー";
+        const reservation = await reserveLineGroupFollowUpAudit({
+          messageId: auditMessageId,
+          sourceType: "group",
           lineGroupId: group.lineGroupId,
-          expectedLastActivityAt: group.followUpActivityAt,
-          expectedMode,
-        }, async current => {
-          const rawMessage = current.mode === "ai"
-            ? aiSuggestion!
-            : current.autoFollowUpMessage || DEFAULT_FOLLOW_UP_MESSAGE;
-          const message = normalizeGroupFollowUpMessage(rawMessage);
-          const senderName = LINE_PUBLIC_CONTACT_NAME;
-          const retryKey = createLineRetryKey([
-            "group-auto-followup",
-            current.lineGroupId,
-            current.lastActivityAt.toISOString(),
-          ].join(":"));
-          const auditMessageId = `auto_followup_${retryKey}`;
-          const responseSummary = current.mode === "ai"
-            ? "グループ会話分析に基づくAI自動フォロー"
-            : "設定済み文面による自動フォロー";
-          const reservation = await reserveLineOutgoingAudit({
-            messageId: auditMessageId,
-            sourceType: "group",
-            lineGroupId: current.lineGroupId,
-            senderName,
-            content: message,
-            lineTimestamp: Date.now(),
-            pendingSummary: `${responseSummary}（送信準備中）`,
-          });
-          if (reservation.status === "responded") {
-            return { reconciled: true };
-          }
-          if (reservation.status !== "pending") {
-            throw new Error(`LINE_OUTBOUND_AUDIT_TERMINAL_${reservation.status.toUpperCase()}`);
-          }
-
-          console.log(`[Group Follow-Up] Sending follow-up to group: ${current.groupName || current.lineGroupId} (inactive for ${current.daysSinceLastMessage} days)`);
-          const success = await pushMessage(current.lineGroupId, [
-            { type: "text", text: message },
-          ], retryKey);
-          if (!success) {
-            throw new Error("LINE_GROUP_FOLLOW_UP_DELIVERY_UNCONFIRMED");
-          }
-          // Finalize the durable audit before recording the suppression timestamp.
-          await finalizeLineOutgoingAudit(auditMessageId, responseSummary);
-          return { reconciled: false };
+          senderName,
+          content: message,
+          lineTimestamp: Date.now(),
+          pendingSummary: `${responseSummary}（送信準備中）`,
+          expectedGroupConversationRevision: expectedConversationRevision,
         });
+        if (reservation.status !== "pending" && reservation.status !== "responded") {
+          throw new Error(`LINE_OUTBOUND_AUDIT_TERMINAL_${reservation.status.toUpperCase()}`);
+        }
+        const retryDeadlineAt = !reservation.created && reservation.status === "pending"
+          ? reservation.firstAttemptAt
+            ? new Date(reservation.firstAttemptAt.getTime() + LINE_RETRY_SAFE_WINDOW_MS)
+            : new Date(0)
+          : undefined;
+
+        let deliveryAttempted = false;
+        let claim;
+        try {
+          claim = await withLineGroupFollowUpClaim({
+            lineGroupId: group.lineGroupId,
+            expectedLastActivityAt: group.followUpActivityAt,
+            expectedConversationRevision,
+            expectedMode,
+            currentAuditMessageId: auditMessageId,
+            retryDeadlineAt,
+          }, async current => {
+            if (reservation.status === "responded") {
+              return { reconciled: true };
+            }
+            const lockedRawMessage = current.mode === "ai"
+              ? aiSuggestion!
+              : current.autoFollowUpMessage || DEFAULT_FOLLOW_UP_MESSAGE;
+            if (normalizeGroupFollowUpMessage(lockedRawMessage) !== message) {
+              throw new Error("LINE_GROUP_FOLLOW_UP_CONTENT_CHANGED");
+            }
+            console.log(`[Group Follow-Up] Sending eligible follow-up (inactive for ${current.daysSinceLastMessage} days)`);
+            deliveryAttempted = true;
+            const success = await pushMessage(current.lineGroupId, [
+              { type: "text", text: message },
+            ], retryKey);
+            if (!success) {
+              throw new Error("LINE_GROUP_FOLLOW_UP_DELIVERY_UNCONFIRMED");
+            }
+            await current.finalizeOutgoingAudit(auditMessageId, responseSummary);
+            return { reconciled: false };
+          });
+        } catch (error) {
+          if (!deliveryAttempted && reservation.status === "pending") {
+            await cancelPendingLineOutgoingAudit(
+              auditMessageId,
+              "送信前の会話・設定変更により自動フォローを中止",
+            );
+          }
+          throw error;
+        }
 
         if (!claim.claimed) {
+          if (reservation.status === "pending") {
+            await cancelPendingLineOutgoingAudit(
+              auditMessageId,
+              "送信前の会話・設定変更により自動フォローを中止",
+            );
+          }
           stats.skippedEligibilityChanged++;
           console.log(
-            `[Group Follow-Up] Skipped stale candidate ${group.groupName || group.lineGroupId}: ${claim.reason}`,
+            `[Group Follow-Up] Skipped stale candidate: ${claim.reason}`,
           );
           continue;
         }
         stats.sent++;
         console.log(
           claim.result.reconciled
-            ? `[Group Follow-Up] Reconciled completed follow-up: ${group.groupName || group.lineGroupId}`
-            : `[Group Follow-Up] Successfully sent follow-up to: ${group.groupName || group.lineGroupId}`,
+            ? "[Group Follow-Up] Reconciled completed follow-up"
+            : "[Group Follow-Up] Successfully sent follow-up",
         );
       } catch (error) {
         stats.errors++;
-        console.error(`[Group Follow-Up] Error processing group ${group.lineGroupId}:`, error);
+        console.error("[Group Follow-Up] Error processing candidate", {
+          code: followUpErrorCode(error),
+        });
       }
     }
   } catch (error) {
-    console.error("[Group Follow-Up] Error checking groups:", error);
+    console.error("[Group Follow-Up] Error checking groups", {
+      code: followUpErrorCode(error),
+    });
   }
   
   console.log(`[Group Follow-Up] Completed. Checked: ${stats.checked}, Sent: ${stats.sent}, Awaiting AI: ${stats.skippedAwaitingAi}, Eligibility changed: ${stats.skippedEligibilityChanged}, Errors: ${stats.errors}`);
@@ -244,3 +318,7 @@ export function stopGroupFollowUpScheduler() {
     console.log("[Group Follow-Up Scheduler] Stopped");
   }
 }
+
+export const __groupFollowUpSchedulerTestUtils = {
+  isWithinBusinessHours,
+};

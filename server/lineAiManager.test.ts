@@ -353,6 +353,7 @@ describe("LCJ LINE AI manager", () => {
     const insight = {
       latestMessageAt: "2026-09-21T00:00:00.000Z",
       conversationRevision: 5,
+      followUpStage: "planning",
     } as any;
     expect(isLineGroupInsightCurrent(insight, {
       latestMessageAt: "2026-09-21T00:00:00.000Z",
@@ -361,6 +362,10 @@ describe("LCJ LINE AI manager", () => {
     expect(isLineGroupInsightCurrent(insight, {
       latestMessageAt: "2026-09-21T00:00:00.000Z",
       conversationRevision: 6,
+    })).toBe(false);
+    expect(isLineGroupInsightCurrent({ ...insight, followUpStage: undefined }, {
+      latestMessageAt: "2026-09-21T00:00:00.000Z",
+      conversationRevision: 5,
     })).toBe(false);
   });
 

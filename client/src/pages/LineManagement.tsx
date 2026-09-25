@@ -283,9 +283,16 @@ export default function LineManagement() {
     setGroupMessageText(prefill);
     setGroupAiDraftPendingReview(Boolean(prefill));
     setGroupAiDraftReviewed(false);
-    setGroupReplyExpectedRevision(matchedPrefill?.conversationRevision ?? null);
+    const currentConversationRevision = Number(selectedGroup?.conversationRevision);
+    setGroupReplyExpectedRevision(
+      matchedPrefill?.conversationRevision ?? (
+        Number.isSafeInteger(currentConversationRevision) && currentConversationRevision >= 0
+          ? currentConversationRevision
+          : null
+      ),
+    );
     groupMessageRequestIdRef.current = null;
-  }, [selectedGroup?.lineGroupId]);
+  }, [selectedGroup?.lineGroupId, selectedGroup?.conversationRevision]);
 
   useEffect(() => {
     setMessageText("");
@@ -315,7 +322,10 @@ export default function LineManagement() {
       const errorCode = error.data?.code;
       const fallback = language === "ja" ? "送信に失敗しました" : "发送失败";
       toast.error(`${error.message || fallback}${errorCode ? ` (${errorCode})` : ""}`);
-      if (error.message?.includes("LINE_GROUP_CONVERSATION_CHANGED")) {
+      if (
+        error.message?.includes("LINE_GROUP_CONVERSATION_CHANGED") ||
+        error.message?.includes("LINE_GROUP_CONVERSATION_REVISION_REQUIRED")
+      ) {
         setShowGroupDetailDialog(false);
         setSelectedGroup(null);
         setGroupMessageText("");
@@ -2026,8 +2036,8 @@ export default function LineManagement() {
                     <span>{language === "ja" ? "分析したAI提案を自動追いに使用" : "将AI分析建议用于自动跟进"}</span>
                     <span className="text-xs text-muted-foreground font-normal">
                       {language === "ja"
-                        ? "既定ON。下の自動追いもONの時だけ、営業時間内・無活動日数後に送信"
-                        : "默认开启；仅在下方自动跟进也开启时，于营业时间内发送"}
+                        ? "既定ON。下の自動追いもONで、最新会話から決定済みと判断できた時だけ送信"
+                        : "默认开启；仅在下方自动跟进也开启、且最新群聊可判断为已决定时发送"}
                     </span>
                   </Label>
                   <Switch
@@ -2044,11 +2054,11 @@ export default function LineManagement() {
             <div className="border-t" />
             <div className="flex items-center justify-between">
               <Label htmlFor="auto-followup-enabled" className="flex flex-col gap-1">
-                <span>{language === "ja" ? "自動追いメッセージを有効にする" : "启用自动跟进"}</span>
+                <span>{language === "ja" ? "配信サポートの自動フォローを有効にする" : "启用直播支持自动跟进"}</span>
                 <span className="text-xs text-muted-foreground font-normal">
-                  {language === "ja" 
-                    ? "指定日数話がない場合に自動でメッセージを送信" 
-                    : "指定天数无消息时自动发送"}
+                  {language === "ja"
+                    ? "AI提案ON時は決定後のみ、OFF時は設定文面を、指定日数新しい会話がなければ1回送信"
+                    : "AI建议开启时仅在事项确定后发送；关闭时使用固定文案。指定天数无新对话后只发送一次"}
                 </span>
               </Label>
               <Switch
@@ -2064,7 +2074,7 @@ export default function LineManagement() {
             {autoFollowUpEnabled && (
               <>
                 <div className="space-y-2">
-                  <Label>{language === "ja" ? "無活動日数" : "无活动天数"}</Label>
+                  <Label>{language === "ja" ? "サポート連絡までの日数" : "发送支持消息前等待天数"}</Label>
                   <Select value={autoFollowUpDays} onValueChange={setAutoFollowUpDays}>
                     <SelectTrigger>
                       <SelectValue />
@@ -2076,12 +2086,13 @@ export default function LineManagement() {
                       <SelectItem value="5">5{language === "ja" ? "日" : "天"}</SelectItem>
                       <SelectItem value="7">7{language === "ja" ? "日" : "天"}</SelectItem>
                       <SelectItem value="14">14{language === "ja" ? "日" : "天"}</SelectItem>
+                      <SelectItem value="30">30{language === "ja" ? "日" : "天"}</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    {language === "ja" 
-                      ? "グループ内で誰もメッセージを送信しない日数" 
-                      : "群组内无人发送消息的天数"}
+                    {language === "ja"
+                      ? "グループで新しい会話があれば日数を数え直し、重複送信しません。推奨は1〜2日です。"
+                      : "群内出现新对话会重新计时，不会重复发送；建议设为1～2天。"}
                   </p>
                 </div>
 
@@ -2094,8 +2105,8 @@ export default function LineManagement() {
                     onChange={(e) => setAutoFollowUpMessage(e.target.value)}
                     disabled={proactiveAiEnabled}
                     placeholder={language === "ja" 
-                      ? "AIフォローON時は、最新の会話分析から毎回生成します"
-                      : "AI跟进开启时，会根据最新群聊分析生成"}
+                      ? "AIフォローON時は、決定事項と最新会話に合わせて配信サポート文案を生成します"
+                      : "AI跟进开启时，会根据决定事项和最新群聊生成直播支持文案"}
                     rows={4}
                   />
                   <p className="text-xs text-muted-foreground">
@@ -2205,6 +2216,11 @@ export default function LineManagement() {
                     ? "連携状態に関係なく保存済みグループ会話を分析。DM・売上・内部メモは使用しません。"
                     : "无论是否已关联，均分析已保存群聊；不会使用私聊、销售额或内部备注。"}
                 </p>
+                <p className="mt-1 text-xs font-medium text-violet-700 dark:text-violet-300">
+                  {language === "ja"
+                    ? "実際に送った返信と、その後の会話を次回判断の文脈に使うため、グループごとの秘書判断が継続的に具体化します。"
+                    : "系统会把实际发送的回复及后续对话用于下一次判断，因此每个群的AI秘书会持续变得更贴合实际。"}
+                </p>
               </div>
               <Button
                 size="sm"
@@ -2255,7 +2271,14 @@ export default function LineManagement() {
                     )}
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground">{language === "ja" ? "推奨する次の一歩" : "建议下一步"}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs font-medium text-muted-foreground">{language === "ja" ? "推奨する次の一歩" : "建议下一步"}</p>
+                      {selectedGroup.groupInsight.followUpStage === "post_decision_support" && (
+                        <Badge className="bg-sky-600 text-white hover:bg-sky-600">
+                          {language === "ja" ? "決定済み → 配信支援" : "已确定 → 直播支持"}
+                        </Badge>
+                      )}
+                    </div>
                     <p className="mt-1 text-sm">{selectedGroup.groupInsight.suggestedNextAction}</p>
                   </div>
                 </div>

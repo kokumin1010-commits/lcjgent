@@ -80,12 +80,28 @@ describe("LINE management manual send reliability", () => {
     expect(state.pushMessage).not.toHaveBeenCalled();
   });
 
+  it("requires a reviewed conversation revision for every group delivery", async () => {
+    const caller = appRouter.createCaller(createAdminContext());
+
+    await expect(caller.line.sendMessage({
+      to: groupId,
+      message: "会話版なし",
+      requestId,
+    })).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: expect.stringContaining("LINE_GROUP_CONVERSATION_REVISION_REQUIRED"),
+    });
+    expect(state.reserveLineOutgoingAudit).not.toHaveBeenCalled();
+    expect(state.pushMessage).not.toHaveBeenCalled();
+  });
+
   it("reserves the exact target and body before LINE delivery, then finalizes history", async () => {
     const caller = appRouter.createCaller(createAdminContext());
     const result = await caller.line.sendMessage({
       to: groupId,
       message: "配信準備で困っている点はありますか？",
       requestId,
+      expectedGroupConversationRevision: 42,
     });
 
     expect(result).toEqual({ success: true, deduplicated: false });
@@ -143,6 +159,7 @@ describe("LINE management manual send reliability", () => {
       to: groupId,
       message: "サンプルの可否を確認します。\n\n— 高橋 悠真",
       requestId,
+      expectedGroupConversationRevision: 42,
     });
 
     expect(state.reserveLineOutgoingAudit).toHaveBeenCalledWith(expect.objectContaining({
@@ -162,6 +179,7 @@ describe("LINE management manual send reliability", () => {
       to: groupId,
       message: "— 高橋 悠真",
       requestId,
+      expectedGroupConversationRevision: 42,
     })).rejects.toMatchObject({
       code: "BAD_REQUEST",
       message: expect.stringContaining("LINE_MESSAGE_EMPTY_AFTER_SIGNATURE_REMOVAL"),
@@ -180,6 +198,7 @@ describe("LINE management manual send reliability", () => {
       to: groupId,
       message: "変更された本文",
       requestId,
+      expectedGroupConversationRevision: 42,
     })).rejects.toMatchObject({
       code: "CONFLICT",
       message: expect.stringContaining("LINE_OUTBOUND_IDEMPOTENCY_CONFLICT"),
@@ -196,6 +215,7 @@ describe("LINE management manual send reliability", () => {
       to: groupId,
       message: "同じ本文",
       requestId,
+      expectedGroupConversationRevision: 42,
     })).resolves.toEqual({ success: true, deduplicated: true });
     expect(state.pushMessage).not.toHaveBeenCalled();
     expect(state.finalizeLineOutgoingAudit).not.toHaveBeenCalled();
@@ -209,6 +229,7 @@ describe("LINE management manual send reliability", () => {
       to: groupId,
       message: "同じ送信を安全に復旧",
       requestId,
+      expectedGroupConversationRevision: 42,
     };
 
     await expect(caller.line.sendMessage(payload)).rejects.toThrow("audit unavailable");
@@ -236,6 +257,7 @@ describe("LINE management manual send reliability", () => {
       to: groupId,
       message: "再送してはいけない本文",
       requestId,
+      expectedGroupConversationRevision: 42,
     })).rejects.toMatchObject({
       code: "CONFLICT",
       message: expect.stringContaining(`LINE_OUTBOUND_AUDIT_TERMINAL_${status.toUpperCase()}`),

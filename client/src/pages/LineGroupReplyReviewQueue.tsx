@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  ArrowRight,
+  CalendarClock,
   CheckCircle2,
   Clock3,
   Eye,
@@ -119,6 +121,47 @@ function ReviewCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        <div className="grid gap-2 rounded-xl border bg-background/80 p-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/20">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+              {language === "ja" ? "STEP 1・今確認" : "第1步・现在确认"}
+            </p>
+            <p className="mt-1 text-sm font-semibold">
+              {item.shouldReply
+                ? (language === "ja" ? "質問・決定事項へ返信" : "回复问题・确认决定事项")
+                : (language === "ja" ? "返信不要かを確認" : "确认是否无需回复")}
+            </p>
+          </div>
+          <ArrowRight className="mx-auto hidden h-4 w-4 text-muted-foreground sm:block" />
+          <div className={`rounded-lg border p-3 ${
+            item.autoFollowUpEnabled
+              ? "border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/20"
+              : "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/20"
+          }`}>
+            <p className={`flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide ${
+              item.autoFollowUpEnabled ? "text-sky-700 dark:text-sky-300" : "text-muted-foreground"
+            }`}>
+              <CalendarClock className="h-3.5 w-3.5" />
+              {language === "ja" ? `STEP 2・${item.autoFollowUpDays}日後` : `第2步・${item.autoFollowUpDays}天后`}
+            </p>
+            <p className="mt-1 text-sm font-semibold">
+              {item.autoFollowUpEnabled
+                ? (language === "ja" ? "配信準備を1回だけ自動フォロー" : "自动跟进一次直播准备")
+                : (language === "ja" ? "自動フォローはOFF" : "自动跟进已关闭")}
+            </p>
+            {item.autoFollowUpEnabled && (
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {language === "ja"
+                  ? item.proactiveAiEnabled
+                    ? "最新会話から決定済みと判断できた場合のみ、営業時間内にAI文案を送信。途中で会話があれば延期・中止します。"
+                    : "設定済み文案を営業時間内に送信。途中で会話があれば延期・中止します。"
+                  : item.proactiveAiEnabled
+                    ? "仅在最新群聊可明确判断为已决定时，于工作时间发送AI文案；期间有新对话会延期或取消。"
+                    : "在工作时间发送已设置文案；期间有新对话会延期或取消。"}
+              </p>
+            )}
+          </div>
+        </div>
         <div className="overflow-hidden rounded-xl border bg-slate-50/80 dark:bg-slate-950/30">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-background/80 px-3 py-2">
             <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
@@ -269,6 +312,7 @@ export default function LineGroupReplyReviewQueue({ language, onOpenGroup }: Pro
   }, [filter, queue.data]);
   const recommended = filtered.filter(item => item.shouldReply);
   const noReply = filtered.filter(item => !item.shouldReply);
+  const scheduledSupport = filtered.filter(item => item.autoFollowUpEnabled);
 
   const dismiss = (item: QueueItem) => dismissMutation.mutate({
     lineGroupId: item.lineGroupId,
@@ -327,6 +371,24 @@ export default function LineGroupReplyReviewQueue({ language, onOpenGroup }: Pro
         </div>
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/20">
+          <p className="text-xs font-medium text-amber-700 dark:text-amber-300">{language === "ja" ? "今すぐ確認" : "现在确认"}</p>
+          <p className="mt-1 text-2xl font-bold">{recommended.length}</p>
+          <p className="text-xs text-muted-foreground">{language === "ja" ? "質問・依頼・決定事項" : "问题・请求・决定事项"}</p>
+        </div>
+        <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 dark:border-sky-900 dark:bg-sky-950/20">
+          <p className="text-xs font-medium text-sky-700 dark:text-sky-300">{language === "ja" ? "自動フォロー設定ON" : "自动跟进设置ON"}</p>
+          <p className="mt-1 text-2xl font-bold">{scheduledSupport.length}</p>
+          <p className="text-xs text-muted-foreground">{language === "ja" ? "表示中の返信確認グループでON（全予約数ではありません）" : "当前回复确认列表中已开启，并非全部未来任务"}</p>
+        </div>
+        <div className="rounded-xl border bg-background p-3">
+          <p className="text-xs font-medium text-muted-foreground">{language === "ja" ? "返信不要候補" : "可能无需回复"}</p>
+          <p className="mt-1 text-2xl font-bold">{noReply.length}</p>
+          <p className="text-xs text-muted-foreground">{language === "ja" ? "確認・お礼のみ" : "仅确认・致谢"}</p>
+        </div>
+      </div>
+
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -354,7 +416,7 @@ export default function LineGroupReplyReviewQueue({ language, onOpenGroup }: Pro
               <p className="mt-1 text-sm text-muted-foreground">{language === "ja" ? "現在、優先して確認するグループ質問はありません。" : "目前没有需要优先确认的群组问题。"}</p>
             </CardContent></Card>
           ) : (
-            <div className="grid gap-4 xl:grid-cols-2">
+            <div className="grid gap-4">
               {recommended.map(item => <ReviewCard key={item.incomingMessageId} item={item} language={language} onOpenGroup={onOpenGroup} onDismiss={dismiss} dismissing={dismissMutation.isPending && dismissMutation.variables?.incomingMessageId === item.incomingMessageId} />)}
             </div>
           )}
@@ -365,7 +427,7 @@ export default function LineGroupReplyReviewQueue({ language, onOpenGroup }: Pro
               {language === "ja" ? "返信不要候補はありません。" : "暂无可能无需回复的项目。"}
             </CardContent></Card>
           ) : (
-            <div className="grid gap-4 xl:grid-cols-2">
+            <div className="grid gap-4">
               {noReply.map(item => <ReviewCard key={item.incomingMessageId} item={item} language={language} onOpenGroup={onOpenGroup} onDismiss={dismiss} dismissing={dismissMutation.isPending && dismissMutation.variables?.incomingMessageId === item.incomingMessageId} />)}
             </div>
           )}

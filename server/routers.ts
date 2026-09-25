@@ -13704,6 +13704,12 @@ ${conversationText}
         assertLineManagementAdmin(ctx.user);
         const isGroup = input.to.startsWith("C");
         if (isGroup) {
+          if (input.expectedGroupConversationRevision === undefined) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "会話状態を再読み込みしてから送信してください。[LINE_GROUP_CONVERSATION_REVISION_REQUIRED]",
+            });
+          }
           const group = await getLineGroupByLineId(input.to);
           if (!group?.isActive) {
             throw new TRPCError({
@@ -13744,7 +13750,6 @@ ${conversationText}
             console.info("[LINE Management] Review snapshot became stale", {
               code: "LINE_GROUP_CONVERSATION_CHANGED",
               requestId,
-              lineGroupId: input.to,
             });
             throw new TRPCError({
               code: "CONFLICT",
@@ -14103,6 +14108,11 @@ ${conversationText}
               `);
             }
           }
+          await tx.execute(sql`
+            UPDATE line_groups
+            SET conversationRevision = conversationRevision + 1
+            WHERE lineGroupId = ${input.lineGroupId}
+          `);
         });
         return { success: true };
       }),

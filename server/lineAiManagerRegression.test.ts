@@ -266,7 +266,7 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(groupFollowUp).toContain("requiresAiSuggestion && !aiSuggestion");
     expect(groupFollowUp).toContain("skippedAwaitingAi");
     expect(groupFollowUp).toContain("withLineGroupFollowUpClaim");
-    expect(groupFollowUp).toContain("const message = normalizeGroupFollowUpMessage(rawMessage)");
+    expect(groupFollowUp).toContain("let message = normalizeGroupFollowUpMessage(candidateRawMessage)");
     expect(groupFollowUp).not.toContain("LCJの${LINE_PUBLIC_CONTACT_NAME}です");
     expect(groupFollowUp).toContain('expectedMode = requiresAiSuggestion ? "ai" as const : "fixed" as const');
     expect(groupFollowUp).toContain("const senderName = LINE_PUBLIC_CONTACT_NAME");
@@ -274,8 +274,8 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(manager).toContain("!settings.analysisEnabled || !settings.proactiveAiEnabled");
     expect(manager).toContain("LINE_GROUP_AI_SETTINGS_UNAVAILABLE");
     expect(manager).not.toContain("`).catch(() => null);\n  const row = result ? firstExecuteRow(result) : null;");
-    expect(groupFollowUp).toContain("reserveLineOutgoingAudit");
-    expect(groupFollowUp).toContain("finalizeLineOutgoingAudit");
+    expect(groupFollowUp).toContain("reserveLineGroupFollowUpAudit");
+    expect(groupFollowUp).toContain("current.finalizeOutgoingAudit");
     expect(groupFollowUp).toContain('reservation.status !== "pending"');
     expect(groupFollowUp).toContain("LINE_OUTBOUND_AUDIT_TERMINAL_");
     expect(db).toContain("withLineGroupFollowUpClaimUsingDb");
@@ -285,6 +285,8 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(db).toContain("LINE_GROUP_FOLLOW_UP_TARGET_UNAVAILABLE");
     expect(db).toContain("FOR UPDATE");
     expect(db).toContain('reason: "group_activity_changed"');
+    expect(db).toContain('reason: "group_conversation_changed"');
+    expect(db).toContain('reason: "outbound_delivery_pending"');
     expect(db).toContain('reason: "follow_up_mode_changed"');
     expect(schema).toContain('autoFollowUpEnabled: boolean("autoFollowUpEnabled").default(true)');
     expect(schema).toContain('lineGroupAutomationStates = mysqlTable("line_group_automation_states"');
@@ -292,7 +294,15 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(db).toContain("autoFollowUpEnabled: true");
     expect(db).toContain("getLineGroupFollowUpActivityAt(group)");
     expect(db).toContain("followUpActivityAt: eligibility.lastActivityAt");
+    expect(db).toContain("WHEN activity.direction = 'outgoing' THEN COALESCE(");
+    expect(db).toContain("activity.respondedAt,");
     expect(groupFollowUp).toContain("expectedLastActivityAt: group.followUpActivityAt");
+    expect(groupFollowUp).toContain("const expectedConversationRevision = Number(group.conversationRevision || 0)");
+    expect(groupFollowUp).toContain("expectedConversationRevision,");
+    expect(groupFollowUp).toContain("currentAuditMessageId: auditMessageId");
+    expect(groupFollowUp).toContain("retryDeadlineAt,");
+    expect(db).toContain('reason: "retry_window_expired"');
+    expect(db).toContain("cancelPendingLineOutgoingAuditWithDb");
     expect(manager).toContain('LINE_GROUP_AUTOMATION_DEFAULTS_ROLLOUT = "all_active_groups_auto_on_v1"');
     expect(manager).toContain("INSERT IGNORE INTO line_group_automation_rollouts");
     expect(manager).toContain("for (const lineGroupId of activeGroupIds)");
@@ -390,7 +400,7 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(manager).toContain("LINE_GROUP_AI_DRAFT_PRODUCT_CHANGED");
     expect(manager).toContain("const initialConversationRevision = groupContext.conversationRevision");
     expect(manager).toContain("Number(currentGroup.conversationRevision) !== initialConversationRevision");
-    expect(manager).toContain("SELECT groupName, conversationRevision, updatedAt, isActive");
+    expect(manager).toContain("SELECT groupName, conversationRevision, lastAutoFollowUpAt, updatedAt, isActive");
     expect(manager).toContain("FOR UPDATE");
     expect(db).toContain("lockLineGroupConversationUsingExecutor(executor, data.lineGroupId)");
     expect(db).toContain("lockLineGroupConversationUsingExecutor(tx, reservation.lineGroupId)");
@@ -566,6 +576,12 @@ describe("LCJ official LINE AI manager regression contracts", () => {
     expect(router).toContain("reserveLineOutgoingAudit");
     expect(db).toContain("LINE_OUTBOUND_IDEMPOTENCY_CONFLICT");
     expect(db).toContain('eq(lineMessages.responseStatus, "pending")');
+    const markRespondedBlock = db.slice(
+      db.indexOf("export async function markMessageResponded"),
+      db.indexOf("// Get pending response messages"),
+    );
+    expect(markRespondedBlock).toContain('eq(lineMessages.direction, "incoming")');
+    expect(markRespondedBlock).toContain('eq(lineMessages.needsResponse, true)');
     expect(db).toContain("LINE_OUTBOUND_AUDIT_FINALIZE_CONFLICT");
     expect(router).toContain("LINE_OUTBOUND_AUDIT_TERMINAL_");
     expect(router).toContain("LINE_GROUP_SETTINGS_DB_UNAVAILABLE");

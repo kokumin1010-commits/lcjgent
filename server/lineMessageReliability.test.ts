@@ -80,6 +80,32 @@ describe("LINE group automatic follow-up grace period", () => {
       lastMessageAt: "2026-09-22T00:00:00.000Z",
       autoFollowUpEnabledAt: "2026-09-21T08:00:00.000Z",
     }).toISOString()).toBe("2026-09-22T00:00:00.000Z");
+
+    expect(__lineDbTestUtils.getLineGroupFollowUpActivityAt({
+      createdAt: "2026-09-01T00:00:00.000Z",
+      lastMessageAt: "2026-09-18T00:00:00.000Z",
+      lastConversationActivityAt: "2026-09-23T00:00:00.000Z",
+      autoFollowUpEnabledAt: "2026-09-21T08:00:00.000Z",
+    }).toISOString()).toBe("2026-09-23T00:00:00.000Z");
+  });
+
+  it("waits the full period after a successful reviewed reply", () => {
+    const group = {
+      createdAt: "2026-08-01T00:00:00.000Z",
+      lastMessageAt: "2026-09-18T00:00:00.000Z",
+      lastConversationActivityAt: "2026-09-23T08:00:00.000Z",
+      autoFollowUpEnabledAt: "2026-09-01T00:00:00.000Z",
+      autoFollowUpDays: 2,
+      lastAutoFollowUpAt: null,
+    };
+    expect(__lineDbTestUtils.getLineGroupFollowUpEligibility(
+      group,
+      new Date("2026-09-25T07:59:59.999Z"),
+    ).eligible).toBe(false);
+    expect(__lineDbTestUtils.getLineGroupFollowUpEligibility(
+      group,
+      new Date("2026-09-25T08:00:00.000Z"),
+    ).eligible).toBe(true);
   });
 
   it("waits the full configured period after automatic enablement before becoming eligible", () => {
@@ -183,6 +209,18 @@ describe("LINE outbound audit reliability", () => {
       expectedGroupConversationRevision: 42,
     })).resolves.toEqual({ created: true, status: "pending" });
     expect(fake.values).toHaveBeenCalledTimes(1);
+  });
+
+  it("can reserve a follow-up intent without advancing the conversation revision", async () => {
+    const fake = createAuditDb({ conversationRevision: 42 });
+
+    await expect(__lineDbTestUtils.reserveLineOutgoingAuditWithDb(fake.db, {
+      ...reservation,
+      messageId: "auto_followup_00000000-0000-4000-8000-000000000001",
+      expectedGroupConversationRevision: 42,
+    }, { incrementConversationRevision: false })).resolves.toEqual({ created: true, status: "pending" });
+    expect(fake.execute.mock.calls.map(call => queryText(call[0])).join("\n"))
+      .not.toContain("conversationRevision = conversationRevision + 1");
   });
 
   it("rejects a stale reviewed group reply before creating an outbound audit", async () => {
@@ -367,15 +405,25 @@ describe("LINE group follow-up pre-delivery claim", () => {
     lastAutoFollowUpAt: null,
     lastMessageAt: "2026-09-18T00:00:00.000Z",
     createdAt: "2026-09-01T00:00:00.000Z",
+    conversationRevision: 7,
   };
 
   function claimDb(responses: unknown[]) {
     const execute = vi.fn(async () => responses.shift() ?? [[]]);
+    const limit = vi.fn(async () => []);
+    const whereSelect = vi.fn(() => ({ limit }));
+    const from = vi.fn(() => ({ where: whereSelect }));
+    const select = vi.fn(() => ({ from }));
+    const values = vi.fn(async () => [{ insertId: 88 }]);
+    const insert = vi.fn(() => ({ values }));
+    const whereUpdate = vi.fn(async () => [{ affectedRows: 1 }]);
+    const set = vi.fn(() => ({ where: whereUpdate }));
+    const update = vi.fn(() => ({ set }));
     let inTransaction = false;
     const transaction = vi.fn(async callback => {
       inTransaction = true;
       try {
-        return await callback({ execute });
+        return await callback({ execute, select, insert, update });
       } finally {
         inTransaction = false;
       }
@@ -384,28 +432,35 @@ describe("LINE group follow-up pre-delivery claim", () => {
       execute,
       db: {
         transaction,
-        execute,
       } as any,
+      transaction,
       isInTransaction: () => inTransaction,
+      insert,
+      update,
+      set,
     };
   }
 
-  it("locks and rechecks the candidate, commits, then delivers outside the transaction", async () => {
+  it("locks, delivers, finalizes, and suppresses inside one transaction", async () => {
     const fake = claimDb([
       [[baseGroup]],
+      [[]],
       [[]],
       [[{ analysisEnabled: 0, proactiveAiEnabled: 0 }]],
       [{ affectedRows: 1 }],
     ]);
-    const deliver = vi.fn(async () => {
-      expect(fake.isInTransaction()).toBe(false);
+    const deliver = vi.fn(async context => {
+      expect(fake.isInTransaction()).toBe(true);
+      await context.finalizeOutgoingAudit("auto_followup_test", "送信済み");
       return "delivered";
     });
 
     await expect(__lineDbTestUtils.withLineGroupFollowUpClaimUsingDb(fake.db, {
       lineGroupId: baseGroup.lineGroupId,
       expectedLastActivityAt: baseGroup.lastMessageAt,
+      expectedConversationRevision: baseGroup.conversationRevision,
       expectedMode: "fixed",
+      currentAuditMessageId: "auto_followup_test",
       now: new Date("2026-09-21T01:00:00.000Z"),
     }, deliver)).resolves.toEqual({ claimed: true, result: "delivered" });
 
@@ -413,8 +468,10 @@ describe("LINE group follow-up pre-delivery claim", () => {
       lineGroupId: baseGroup.lineGroupId,
       mode: "fixed",
       daysSinceLastMessage: 3,
+      conversationRevision: baseGroup.conversationRevision,
     }));
-    expect(fake.execute).toHaveBeenCalledTimes(4);
+    expect(fake.update).toHaveBeenCalledTimes(1);
+    expect(fake.execute).toHaveBeenCalledTimes(5);
   });
 
   it.each([
@@ -422,13 +479,15 @@ describe("LINE group follow-up pre-delivery claim", () => {
     ["group_activity_changed", { ...baseGroup, lastMessageAt: "2026-09-20T00:00:00.000Z" }, []],
     ["active_reminder_exists", baseGroup, [[{ id: 99 }]]],
   ])("rejects %s without running delivery", async (reason, group, reminderRows) => {
-    const fake = claimDb([[[group]], reminderRows]);
+    const fake = claimDb([[[group]], [[]], reminderRows]);
     const deliver = vi.fn();
 
     const result = await __lineDbTestUtils.withLineGroupFollowUpClaimUsingDb(fake.db, {
       lineGroupId: baseGroup.lineGroupId,
       expectedLastActivityAt: baseGroup.lastMessageAt,
+      expectedConversationRevision: baseGroup.conversationRevision,
       expectedMode: "fixed",
+      currentAuditMessageId: "auto_followup_test",
       now: new Date("2026-09-21T01:00:00.000Z"),
     }, deliver);
 
@@ -436,9 +495,70 @@ describe("LINE group follow-up pre-delivery claim", () => {
     expect(deliver).not.toHaveBeenCalled();
   });
 
+  it("rejects a stale conversation revision before delivery", async () => {
+    const fake = claimDb([[[{ ...baseGroup, conversationRevision: 8 }]]]);
+    const deliver = vi.fn();
+
+    await expect(__lineDbTestUtils.withLineGroupFollowUpClaimUsingDb(fake.db, {
+      lineGroupId: baseGroup.lineGroupId,
+      expectedLastActivityAt: baseGroup.lastMessageAt,
+      expectedConversationRevision: baseGroup.conversationRevision,
+      expectedMode: "fixed",
+      currentAuditMessageId: "auto_followup_test",
+      now: new Date("2026-09-21T01:00:00.000Z"),
+    }, deliver)).resolves.toEqual({ claimed: false, reason: "group_conversation_changed" });
+    expect(deliver).not.toHaveBeenCalled();
+  });
+
+  it("rejects while another group outbound delivery is pending", async () => {
+    const fake = claimDb([
+      [[baseGroup]],
+      [[{ messageId: "manual:pending" }]],
+    ]);
+    const deliver = vi.fn();
+
+    await expect(__lineDbTestUtils.withLineGroupFollowUpClaimUsingDb(fake.db, {
+      lineGroupId: baseGroup.lineGroupId,
+      expectedLastActivityAt: baseGroup.lastMessageAt,
+      expectedConversationRevision: baseGroup.conversationRevision,
+      expectedMode: "fixed",
+      currentAuditMessageId: "auto_followup_test",
+      now: new Date("2026-09-21T01:00:00.000Z"),
+    }, deliver)).resolves.toEqual({ claimed: false, reason: "outbound_delivery_pending" });
+    expect(deliver).not.toHaveBeenCalled();
+  });
+
+  it("cancels the current pending audit at the retry deadline while holding the group lock", async () => {
+    const deadline = new Date("2026-09-21T01:00:00.000Z");
+    const fake = claimDb([
+      [[baseGroup]],
+      [[]],
+      [[]],
+      [[{ analysisEnabled: 0, proactiveAiEnabled: 0 }]],
+    ]);
+    const deliver = vi.fn();
+
+    await expect(__lineDbTestUtils.withLineGroupFollowUpClaimUsingDb(fake.db, {
+      lineGroupId: baseGroup.lineGroupId,
+      expectedLastActivityAt: baseGroup.lastMessageAt,
+      expectedConversationRevision: baseGroup.conversationRevision,
+      expectedMode: "fixed",
+      currentAuditMessageId: "auto_followup_test",
+      retryDeadlineAt: deadline,
+      now: deadline,
+    }, deliver)).resolves.toEqual({ claimed: false, reason: "retry_window_expired" });
+    expect(fake.transaction).toHaveBeenCalledTimes(1);
+    expect(fake.update).toHaveBeenCalledTimes(1);
+    expect(fake.set).toHaveBeenCalledWith(expect.objectContaining({
+      responseStatus: "cancelled",
+    }));
+    expect(deliver).not.toHaveBeenCalled();
+  });
+
   it("rejects a fixed-message fallback when the locked AI opt-in mode changed", async () => {
     const fake = claimDb([
       [[baseGroup]],
+      [[]],
       [[]],
       [[{ analysisEnabled: 1, proactiveAiEnabled: 1 }]],
     ]);
@@ -447,7 +567,9 @@ describe("LINE group follow-up pre-delivery claim", () => {
     await expect(__lineDbTestUtils.withLineGroupFollowUpClaimUsingDb(fake.db, {
       lineGroupId: baseGroup.lineGroupId,
       expectedLastActivityAt: baseGroup.lastMessageAt,
+      expectedConversationRevision: baseGroup.conversationRevision,
       expectedMode: "fixed",
+      currentAuditMessageId: "auto_followup_test",
       now: new Date("2026-09-21T01:00:00.000Z"),
     }, deliver)).resolves.toEqual({ claimed: false, reason: "follow_up_mode_changed" });
     expect(deliver).not.toHaveBeenCalled();
