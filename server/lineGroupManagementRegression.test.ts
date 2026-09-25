@@ -198,7 +198,13 @@ describe("LINE group management regression contracts", () => {
     expect(groupReplyReviewUiSource).toContain("途中で会話があれば延期・中止します");
     expect(groupReplyReviewUiSource).toContain("最新会話から決定済みと判断できた場合のみ");
     expect(groupReplyReviewUiSource).toContain("自動フォロー設定ON");
-    expect(groupReplyReviewUiSource).toContain("表示中の返信確認グループでON");
+    expect(groupReplyReviewUiSource).toContain("タップしてONのグループを表示");
+    expect(groupReplyReviewUiSource).toContain('type QueueView = "recommended" | "auto-followup" | "no-reply"');
+    expect(groupReplyReviewUiSource).toContain('aria-pressed={activeView === "auto-followup"}');
+    expect(groupReplyReviewUiSource).toContain('current === "auto-followup" ? "recommended" : "auto-followup"');
+    expect(groupReplyReviewUiSource).toContain('TabsTrigger value="auto-followup"');
+    expect(groupReplyReviewUiSource).toContain('TabsContent value="auto-followup"');
+    expect(groupReplyReviewUiSource).toContain("ONのグループを表示中・もう一度タップで戻る");
     expect(groupReplyReviewUiSource).toContain('className="grid gap-4"');
     expect(groupReplyReviewUiSource).toContain("個別LINEの履歴・未応答はここには入りません");
     expect(uiSource).toContain("setGroupAiDraftPendingReview(Boolean(prefill))");

@@ -24,6 +24,7 @@ import { toast } from "sonner";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type QueueItem = RouterOutputs["line"]["getGroupReplyReviewQueue"][number];
+type QueueView = "recommended" | "auto-followup" | "no-reply";
 
 type Props = {
   language: string;
@@ -287,6 +288,7 @@ function ReviewCard({
 
 export default function LineGroupReplyReviewQueue({ language, onOpenGroup }: Props) {
   const [filter, setFilter] = useState("");
+  const [activeView, setActiveView] = useState<QueueView>("recommended");
   const utils = trpc.useUtils();
   const queue = trpc.line.getGroupReplyReviewQueue.useQuery(undefined, {
     refetchInterval: 60_000,
@@ -377,11 +379,28 @@ export default function LineGroupReplyReviewQueue({ language, onOpenGroup }: Pro
           <p className="mt-1 text-2xl font-bold">{recommended.length}</p>
           <p className="text-xs text-muted-foreground">{language === "ja" ? "質問・依頼・決定事項" : "问题・请求・决定事项"}</p>
         </div>
-        <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 dark:border-sky-900 dark:bg-sky-950/20">
+        <button
+          type="button"
+          aria-pressed={activeView === "auto-followup"}
+          onClick={() => setActiveView(current => current === "auto-followup" ? "recommended" : "auto-followup")}
+          className={`rounded-xl border p-3 text-left transition-[transform,box-shadow,border-color] duration-150 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:bg-sky-950/20 ${
+            activeView === "auto-followup"
+              ? "border-sky-500 bg-sky-100 shadow-sm ring-2 ring-sky-200 dark:border-sky-500 dark:bg-sky-950/40 dark:ring-sky-900"
+              : "border-sky-200 bg-sky-50 hover:border-sky-400 hover:shadow-sm dark:border-sky-900"
+          }`}
+        >
           <p className="text-xs font-medium text-sky-700 dark:text-sky-300">{language === "ja" ? "自動フォロー設定ON" : "自动跟进设置ON"}</p>
           <p className="mt-1 text-2xl font-bold">{scheduledSupport.length}</p>
-          <p className="text-xs text-muted-foreground">{language === "ja" ? "表示中の返信確認グループでON（全予約数ではありません）" : "当前回复确认列表中已开启，并非全部未来任务"}</p>
-        </div>
+          <p className="text-xs text-muted-foreground">
+            {language === "ja"
+              ? activeView === "auto-followup"
+                ? "ONのグループを表示中・もう一度タップで戻る"
+                : "タップしてONのグループを表示（全予約数ではありません）"
+              : activeView === "auto-followup"
+                ? "正在显示已开启的群组・再次点击返回"
+                : "点击查看已开启的群组（并非全部未来任务）"}
+          </p>
+        </button>
         <div className="rounded-xl border bg-background p-3">
           <p className="text-xs font-medium text-muted-foreground">{language === "ja" ? "返信不要候補" : "可能无需回复"}</p>
           <p className="mt-1 text-2xl font-bold">{noReply.length}</p>
@@ -399,10 +418,13 @@ export default function LineGroupReplyReviewQueue({ language, onOpenGroup }: Pro
         />
       </div>
 
-      <Tabs defaultValue="recommended" className="space-y-4">
+      <Tabs value={activeView} onValueChange={value => setActiveView(value as QueueView)} className="space-y-4">
         <TabsList>
           <TabsTrigger value="recommended">
             {language === "ja" ? `AI返信推奨 ${recommended.length}` : `AI建议回复 ${recommended.length}`}
+          </TabsTrigger>
+          <TabsTrigger value="auto-followup">
+            {language === "ja" ? `自動フォローON ${scheduledSupport.length}` : `自动跟进ON ${scheduledSupport.length}`}
           </TabsTrigger>
           <TabsTrigger value="no-reply">
             {language === "ja" ? `返信不要候補 ${noReply.length}` : `可能无需回复 ${noReply.length}`}
@@ -418,6 +440,19 @@ export default function LineGroupReplyReviewQueue({ language, onOpenGroup }: Pro
           ) : (
             <div className="grid gap-4">
               {recommended.map(item => <ReviewCard key={item.incomingMessageId} item={item} language={language} onOpenGroup={onOpenGroup} onDismiss={dismiss} dismissing={dismissMutation.isPending && dismissMutation.variables?.incomingMessageId === item.incomingMessageId} />)}
+            </div>
+          )}
+        </TabsContent>
+        <TabsContent value="auto-followup" className="space-y-4">
+          {scheduledSupport.length === 0 ? (
+            <Card><CardContent className="flex flex-col items-center py-12 text-center">
+              <CalendarClock className="mb-3 h-10 w-10 text-sky-500" />
+              <p className="font-medium">{language === "ja" ? "自動フォローONのグループはありません" : "暂无已开启自动跟进的群组"}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{language === "ja" ? "現在の検索条件に一致する返信確認グループには、設定ONの対象がありません。" : "当前搜索条件下的回复确认群组中，没有已开启自动跟进的对象。"}</p>
+            </CardContent></Card>
+          ) : (
+            <div className="grid gap-4">
+              {scheduledSupport.map(item => <ReviewCard key={item.incomingMessageId} item={item} language={language} onOpenGroup={onOpenGroup} onDismiss={dismiss} dismissing={dismissMutation.isPending && dismissMutation.variables?.incomingMessageId === item.incomingMessageId} />)}
             </div>
           )}
         </TabsContent>
