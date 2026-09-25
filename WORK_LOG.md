@@ -3854,7 +3854,9 @@ banner直下はdesktopで左main＋右sidebar、mobileで1列stackにした。�
 
 feature SHA `f617126c993ad2f44e1475ffddf1c05f67b6f77d`はGitHub CI success、Railwayも同一SHAでproduction success。本番`https://www.livecommercefestival.com/`はHTTP 200で、配信`LiveCommerceFestivalTop-0iSfXAAB.js`に申込、news、両メリット、公式TikTok、第1回動画の全markerを確認し、server HTMLの既存SEO titleも維持された。本番を1440×1900／390×760で再撮影し、desktopの左右portal、mobile stack、banner、arrow、CTAに見切れ・重なり・横溢れがないことを目視確認した。
 
-## 2026-09-25｜ライブコマーサー申込完了画面にLINEオープンチャット導線（本番反映前）
+## 2026-09-25｜ライブコマーサー申込完了画面にLINEオープンチャット導線（本番反映済み）
 `/lcf/apply/liver`の申込成功後だけ表示される完了画面に、repository内で既存利用されている公式LINE OpenChat URLへの「LINEオープンチャットに参加する」buttonを追加した。入場QR、ticket ID、メール送信状態、account情報、mypage login、開催ページへ戻る導線、申込質問・payloadは変更していない。外部linkは新tab＋`noopener noreferrer`で、joinを自動実行せず利用者の明示tapだけで開く。
 完了内容が長くなってもmobile上端を見失わないよう画面をtop-align＋縦paddingへ変更。CTAは全幅48px以上、focus表示付き。LINE系の濃緑`#007A34`／hover`#00652B`と白文字はそれぞれ5.478:1／7.250:1でWCAG AAを満たす。390×1500の実build CSS visual QAでQR、account card、OpenChat card、mypage buttonの縦stackと非重複を確認した。
 LCF申込関連7 test files・66 tests、production build、変更component bundle、diff／secret監査に成功。全体TypeScript既存baseline 1,163 diagnosticsに対し変更2fileは0件。独立read-only reviewは**GO（P0/P1 0件）**で、P2 contrastとP3完了branch testもrelease前に補強した。
+
+feature SHA `4ac1fecdd5a12187d4cd46a62fb949a23307bf0a`はGitHub CI success、Railwayも同一SHAでproduction success。本番`/lcf/apply/liver?edition=2`はHTTP 200、配信`FestivalApplyLiver-DZDNJAdE.js`に「参加者LINEオープンチャット」「LINEオープンチャットに参加する」、既存公式OpenChat URL、入場QR／mypage login文言をGET-only確認した。本番申込を発生させるmutationは行っていない。
