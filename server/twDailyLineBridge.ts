@@ -28,6 +28,30 @@ const LINE_RETRY_SAFETY_WINDOW_MS = 23 * 60 * 60_000;
 const DEFAULT_TARGET_GROUP_NAME = "卡雅仕台灣總部本部TW KYOGOKU";
 const TARGET_GROUP_VERIFICATION_ATTEMPTS = 3;
 
+type TargetGroupRolloutOutcome =
+  | "not_attempted"
+  | "already_applied"
+  | "candidate_cardinality_invalid"
+  | "official_name_mismatch"
+  | "verification_unavailable"
+  | "concurrent_candidate_change"
+  | "applied";
+
+let targetGroupRolloutDiagnostic: {
+  outcome: TargetGroupRolloutOutcome;
+  lastAttemptAt: string | null;
+} = {
+  outcome: "not_attempted",
+  lastAttemptAt: null,
+};
+
+function recordTargetGroupRolloutOutcome(outcome: TargetGroupRolloutOutcome) {
+  targetGroupRolloutDiagnostic = {
+    outcome,
+    lastAttemptAt: new Date().toISOString(),
+  };
+}
+
 export function normalizeTwDailyLineTargetGroupName(value: string): string {
   return String(value || "")
     .normalize("NFKC")
@@ -310,6 +334,7 @@ export async function applyTwDailyLineTargetGroupRollout(): Promise<{
     ? existingRolloutResult[0]
     : existingRolloutResult;
   if (Array.isArray(existingRolloutRows) && existingRolloutRows.length > 0) {
+    recordTargetGroupRolloutOutcome("already_applied");
     return { applied: false, alreadyApplied: true, matchCount: 1 };
   }
 
@@ -326,6 +351,7 @@ export async function applyTwDailyLineTargetGroupRollout(): Promise<{
     row => normalizeTwDailyLineTargetGroupName(String(row.groupName || "")) === normalizedTargetGroupName,
   );
   if (matches.length !== 1) {
+    recordTargetGroupRolloutOutcome("candidate_cardinality_invalid");
     return { applied: false, alreadyApplied: false, matchCount: matches.length };
   }
 
@@ -333,15 +359,22 @@ export async function applyTwDailyLineTargetGroupRollout(): Promise<{
   if (!/^C[A-Za-z0-9_-]{8,63}$/.test(lineGroupId)) {
     throw new Error("TW_DAILY_LINE_TARGET_GROUP_ID_INVALID");
   }
-  const verifiedSummary = await verifyTwDailyLineTargetGroup(
-    lineGroupId,
-    normalizedTargetGroupName,
-  );
+  let verifiedSummary;
+  try {
+    verifiedSummary = await verifyTwDailyLineTargetGroup(
+      lineGroupId,
+      normalizedTargetGroupName,
+    );
+  } catch (error) {
+    recordTargetGroupRolloutOutcome("verification_unavailable");
+    throw error;
+  }
   if (!verifiedSummary) {
+    recordTargetGroupRolloutOutcome("official_name_mismatch");
     return { applied: false, alreadyApplied: false, matchCount: 0 };
   }
 
-  return db.transaction(async tx => {
+  const transactionResult = await db.transaction(async tx => {
     const existingResult: any = await tx.execute(sql`
       SELECT rollout_key
       FROM tw_daily_line_rollouts
@@ -399,41 +432,103 @@ export async function applyTwDailyLineTargetGroupRollout(): Promise<{
     `);
     return { applied: true, alreadyApplied: false, matchCount: 1 };
   });
+  recordTargetGroupRolloutOutcome(
+    transactionResult.applied
+      ? "applied"
+      : transactionResult.alreadyApplied
+        ? "already_applied"
+        : "concurrent_candidate_change",
+  );
+  return transactionResult;
 }
 
 export async function getTwDailyLineBridgeStatus() {
   await ensureTwDailyLineStorage();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result: any = await db.execute(sql`
-    SELECT
-      (SELECT COUNT(*)
-       FROM line_groups AS g
-       INNER JOIN line_group_settings AS settings
-         ON settings.lineGroupId = g.lineGroupId
-       WHERE g.isActive = true AND settings.dailyReportEnabled = true) AS activeTargetCount,
-      (SELECT COUNT(*)
-       FROM tw_daily_line_rollouts
-       WHERE rollout_key = 'target-group-v1') AS rolloutCount,
-      (SELECT COUNT(*) FROM tw_daily_line_outbox
-       WHERE status IN ('pending', 'processing')) AS pendingOutboxCount,
-      (SELECT COUNT(*) FROM tw_daily_line_outbox
-       WHERE status IN ('failed', 'manual_review')) AS failedOutboxCount,
-      (SELECT TIMESTAMPDIFF(SECOND, MIN(created_at), NOW())
-       FROM tw_daily_line_outbox
-       WHERE status IN ('pending', 'processing', 'failed', 'manual_review')) AS oldestUnsentAgeSeconds
-  `);
+  const [result, candidateResult, rolloutTargetResult]: any[] = await Promise.all([
+    db.execute(sql`
+      SELECT
+        (SELECT COUNT(*)
+         FROM line_groups AS g
+         INNER JOIN line_group_settings AS settings
+           ON settings.lineGroupId = g.lineGroupId
+         WHERE g.isActive = true AND settings.dailyReportEnabled = true) AS activeTargetCount,
+        (SELECT COUNT(*)
+         FROM tw_daily_line_rollouts
+         WHERE rollout_key = 'target-group-v1') AS rolloutCount,
+        (SELECT COUNT(*) FROM tw_daily_line_outbox
+         WHERE status IN ('pending', 'processing')) AS pendingOutboxCount,
+        (SELECT COUNT(*) FROM tw_daily_line_outbox
+         WHERE status IN ('failed', 'manual_review')) AS failedOutboxCount,
+        (SELECT TIMESTAMPDIFF(SECOND, MIN(created_at), NOW())
+         FROM tw_daily_line_outbox
+         WHERE status IN ('pending', 'processing', 'failed', 'manual_review')) AS oldestUnsentAgeSeconds
+    `),
+    db.execute(sql`
+      SELECT groupName, isActive
+      FROM line_groups
+      WHERE groupName IS NOT NULL AND groupName <> ''
+    `),
+    db.execute(sql`
+      SELECT g.groupName, g.isActive, settings.dailyReportEnabled
+      FROM tw_daily_line_rollouts AS rollout
+      INNER JOIN line_groups AS g
+        ON g.lineGroupId = rollout.target_group_id
+      INNER JOIN line_group_settings AS settings
+        ON settings.lineGroupId = g.lineGroupId
+      WHERE rollout.rollout_key = 'target-group-v1'
+    `),
+  ]);
   const rows = Array.isArray(result?.[0]) ? result[0] : result;
   const row = Array.isArray(rows) ? rows[0] : null;
+  const candidateRows = Array.isArray(candidateResult?.[0])
+    ? candidateResult[0]
+    : candidateResult;
+  const rolloutTargetRows = Array.isArray(rolloutTargetResult?.[0])
+    ? rolloutTargetResult[0]
+    : rolloutTargetResult;
+  const groups = Array.isArray(candidateRows) ? candidateRows : [];
+  const normalizedTargetGroupName = normalizeTwDailyLineTargetGroupName(
+    process.env.TW_DAILY_LINE_TARGET_GROUP_NAME || DEFAULT_TARGET_GROUP_NAME,
+  );
+  const nameMatches = groups.filter(
+    group =>
+      normalizeTwDailyLineTargetGroupName(String(group.groupName || "")) ===
+      normalizedTargetGroupName,
+  );
   const activeTargetCount = Number(row?.activeTargetCount || 0);
   const failedOutboxCount = Number(row?.failedOutboxCount || 0);
+  const rolloutApplied = Number(row?.rolloutCount || 0) === 1;
+  const activeConfiguredNameMatchCount = nameMatches.filter(
+    group => Boolean(group.isActive),
+  ).length;
+  const eligibleRolloutTargetCount = (Array.isArray(rolloutTargetRows)
+    ? rolloutTargetRows
+    : []).filter(
+    group =>
+      Boolean(group.isActive) &&
+      Boolean(group.dailyReportEnabled) &&
+      normalizeTwDailyLineTargetGroupName(String(group.groupName || "")) ===
+        normalizedTargetGroupName,
+  ).length;
   return {
-    ok: activeTargetCount === 1 && failedOutboxCount === 0,
+    ok:
+      activeTargetCount === 1 &&
+      rolloutApplied &&
+      eligibleRolloutTargetCount === 1 &&
+      failedOutboxCount === 0,
     deliveryMode: "daily_batch" as const,
     activeTargetCount,
-    rolloutApplied: Number(row?.rolloutCount || 0) === 1,
+    rolloutApplied,
     pendingOutboxCount: Number(row?.pendingOutboxCount || 0),
     failedOutboxCount,
+    configuredNameMatchCount: nameMatches.length,
+    activeConfiguredNameMatchCount,
+    eligibleRolloutTargetCount,
+    activeGroupCount: groups.filter(group => Boolean(group.isActive)).length,
+    lastRolloutOutcome: targetGroupRolloutDiagnostic.outcome,
+    lastRolloutAttemptAt: targetGroupRolloutDiagnostic.lastAttemptAt,
     oldestUnsentAgeSeconds: row?.oldestUnsentAgeSeconds === null
       ? null
       : Number(row?.oldestUnsentAgeSeconds || 0),
@@ -447,21 +542,29 @@ async function getDailyReportGroupId(): Promise<string> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const result: any = await db.execute(sql`
-    SELECT g.lineGroupId
+    SELECT g.lineGroupId, g.groupName
     FROM line_groups AS g
     INNER JOIN line_group_settings AS settings
       ON settings.lineGroupId = g.lineGroupId
+    INNER JOIN tw_daily_line_rollouts AS rollout
+      ON rollout.target_group_id = g.lineGroupId
+     AND rollout.rollout_key = 'target-group-v1'
     WHERE g.isActive = true
       AND settings.dailyReportEnabled = true
     ORDER BY g.id
     LIMIT 2
   `);
   const rows = Array.isArray(result?.[0]) ? result[0] : result;
-  const groupIds = (Array.isArray(rows) ? rows : [])
-    .map(row => String(row.lineGroupId || ""))
-    .filter(groupId => /^C[A-Za-z0-9_-]{8,63}$/.test(groupId));
-  if (groupIds.length !== 1) throw new Error("LINE_DAILY_TARGET_GROUP_CARDINALITY_INVALID");
-  return groupIds[0];
+  const groups = (Array.isArray(rows) ? rows : []).filter(row => {
+    const lineGroupId = String(row.lineGroupId || "");
+    if (!/^C[A-Za-z0-9_-]{8,63}$/.test(lineGroupId)) return false;
+    return normalizeTwDailyLineTargetGroupName(String(row.groupName || "")) ===
+      normalizeTwDailyLineTargetGroupName(
+        process.env.TW_DAILY_LINE_TARGET_GROUP_NAME || DEFAULT_TARGET_GROUP_NAME,
+      );
+  });
+  if (groups.length !== 1) throw new Error("LINE_DAILY_TARGET_GROUP_CARDINALITY_INVALID");
+  return String(groups[0].lineGroupId);
 }
 
 async function assertDailyReportDeliveryQuota(groupId: string): Promise<number> {
