@@ -79,6 +79,10 @@ function safeJson(value: unknown, fallback: any = null) {
   }
 }
 
+function escapeInfluencerSearchLike(value: string) {
+  return value.replace(/[!%_]/g, character => `!${character}`);
+}
+
 function auditSnapshot(value: any) {
   if (!value) return null;
   const result = { ...value };
@@ -833,9 +837,12 @@ export const influencerBdRouter = router({
       const where = ["c.deletedAt IS NULL", access.sql];
       const params: any[] = [...access.params];
       if (input.search?.trim()) {
-        const term = `%${input.search.trim()}%`;
-        where.push("(c.displayName LIKE ? OR c.handle LIKE ? OR c.category LIKE ? OR c.profileUrl LIKE ?)");
-        params.push(term, term, term, term);
+        const rawSearch = input.search.trim().normalize("NFKC");
+        const accountIdSearch = normalizeInfluencerCreatorAccountId(rawSearch) || rawSearch.toLocaleLowerCase();
+        const textTerm = `%${escapeInfluencerSearchLike(rawSearch)}%`;
+        const accountIdTerm = `%${escapeInfluencerSearchLike(accountIdSearch)}%`;
+        where.push("(c.displayName LIKE ? ESCAPE '!' OR c.handle LIKE ? ESCAPE '!' OR c.normalizedHandle LIKE ? ESCAPE '!')");
+        params.push(textTerm, accountIdTerm, accountIdTerm);
       }
       if (input.status) { where.push("c.status=?"); params.push(input.status); }
       if (scope.isAdmin && input.ownerStaffId) { where.push("c.ownerStaffId=?"); params.push(input.ownerStaffId); }

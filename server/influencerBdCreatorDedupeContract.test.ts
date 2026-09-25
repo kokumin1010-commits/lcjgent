@@ -64,6 +64,26 @@ describe("influencer creator dedupe and delete contracts", () => {
     expect(pageSource).toContain("请输入待移除数量");
   });
 
+  it("provides an independent creator-library search by name or account ID", () => {
+    expect(pageSource).toContain('const [outreachSearch, setOutreachSearch] = useState("")');
+    expect(pageSource).toContain('const [creatorSearch, setCreatorSearch] = useState("")');
+    expect(pageSource).toContain('const [creatorSearchQuery, setCreatorSearchQuery] = useState("")');
+    expect(pageSource).toContain('setCreatorSearchQuery(creatorSearch.trim()), 250');
+    expect(pageSource).toContain('search: creatorSearchQuery || undefined');
+    expect(pageSource).toContain('value={creatorSearch}');
+    expect(pageSource).toContain('setCreatorSearchQuery("")');
+    expect(pageSource).toContain("输入达人名称或账号ID搜索达人");
+    expect(pageSource).toContain("支持达人名称、@账号ID或不带@的账号ID");
+    expect(pageSource).toContain("正在搜索达人…");
+    expect(pageSource).toContain("显示前300位达人，请缩小搜索范围");
+    expect(pageSource).toContain('role="status" aria-live="polite"');
+    expect(pageSource).toContain("达人搜索失败");
+    expect(pageSource).toContain("creators.refetch()");
+    expect(routerSource).toContain('const accountIdSearch = normalizeInfluencerCreatorAccountId(rawSearch)');
+    expect(routerSource).toContain("c.normalizedHandle LIKE ?");
+    expect(routerSource).toContain("escapeInfluencerSearchLike");
+  });
+
   it("exposes only aggregate counts for production before-and-after verification", () => {
     const start = routerSource.indexOf("export async function getInfluencerCreatorDedupeHealth");
     const block = routerSource.slice(start);

@@ -42,6 +42,47 @@ beforeEach(() => {
 });
 
 describe("influencer creator dedupe router", () => {
+  it("searches creators by display name or a normalized account ID with an optional at-sign", async () => {
+    mocks.pool.query.mockImplementation(async (sql: string) => {
+      if (sql.includes("SELECT id,name FROM staff")) return [[], []];
+      if (sql.includes("FROM influencer_bd_creators c") && sql.includes("ORDER BY COALESCE")) {
+        return [[{ id: 77, displayName: "Creator", handle: "creator.one", normalizedHandle: "creator.one" }], []];
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    });
+
+    const caller = influencerBdRouter.createCaller(adminContext);
+    await expect(caller.listCreators({ search: " ＠Creator.ONE ", limit: 300, offset: 0 })).resolves.toHaveLength(1);
+
+    const listQuery = mocks.pool.query.mock.calls.find(call => String(call[0]).includes("FROM influencer_bd_creators c") && String(call[0]).includes("ORDER BY COALESCE"));
+    expect(String(listQuery?.[0])).toContain("c.displayName LIKE ? ESCAPE '!' OR c.handle LIKE ? ESCAPE '!' OR c.normalizedHandle LIKE ? ESCAPE '!'");
+    expect(String(listQuery?.[0])).toContain("c.deletedAt IS NULL");
+    expect(listQuery?.[1]).toEqual(["%@Creator.ONE%", "%creator.one%", "%creator.one%", 300, 0]);
+
+    mocks.pool.query.mockClear();
+    await expect(caller.listCreators({ search: "name_100%", limit: 300, offset: 0 })).resolves.toHaveLength(1);
+    const wildcardQuery = mocks.pool.query.mock.calls.find(call => String(call[0]).includes("FROM influencer_bd_creators c") && String(call[0]).includes("ORDER BY COALESCE"));
+    expect(wildcardQuery?.[1]).toEqual(["%name!_100!%%", "%name!_100!%%", "%name!_100!%%", 300, 0]);
+  });
+
+  it("keeps creator searches inside the authenticated staff scope and excludes soft-deleted rows", async () => {
+    mocks.pool.query.mockImplementation(async (sql: string) => {
+      if (sql.includes("SELECT id,name FROM staff")) return [[{ id: 22, name: "Staff" }], []];
+      if (sql.includes("FROM influencer_bd_creators c") && sql.includes("ORDER BY COALESCE")) return [[], []];
+      throw new Error(`Unexpected SQL: ${sql}`);
+    });
+
+    const caller = influencerBdRouter.createCaller({
+      user: { id: 9, name: "Staff", email: "staff@example.invalid", role: "user" },
+    } as any);
+    await expect(caller.listCreators({ search: "ペリ", limit: 100, offset: 0 })).resolves.toEqual([]);
+
+    const listQuery = mocks.pool.query.mock.calls.find(call => String(call[0]).includes("FROM influencer_bd_creators c") && String(call[0]).includes("ORDER BY COALESCE"));
+    expect(String(listQuery?.[0])).toContain("c.deletedAt IS NULL");
+    expect(String(listQuery?.[0])).toContain("(c.ownerStaffId=? OR (c.ownerStaffId IS NULL AND c.createdById=?))");
+    expect(listQuery?.[1]).toEqual([22, 9, "%ペリ%", "%ペリ%", "%ペリ%", 100, 0]);
+  });
+
   it("stores a canonical account ID for manual creator creation", async () => {
     const connection = {
       query: vi.fn(),

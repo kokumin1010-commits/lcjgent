@@ -205,7 +205,9 @@ export default function InfluencerBd() {
   const [periodEnd, setPeriodEnd] = useState(today);
   const [staffFilter, setStaffFilter] = useState("all");
   const [campaignFilter, setCampaignFilter] = useState("all");
-  const [search, setSearch] = useState("");
+  const [outreachSearch, setOutreachSearch] = useState("");
+  const [creatorSearch, setCreatorSearch] = useState("");
+  const [creatorSearchQuery, setCreatorSearchQuery] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
   const [creatorDialogOpen, setCreatorDialogOpen] = useState(false);
   const [creatorEditingId, setCreatorEditingId] = useState<number | undefined>();
@@ -241,10 +243,10 @@ export default function InfluencerBd() {
     ...(isAdmin && staffFilter !== "all" ? { staffId: Number(staffFilter) } : {}),
     ...(campaignFilter !== "all" ? { campaignId: Number(campaignFilter) } : {}),
     ...(stageFilter !== "all" ? { stage: stageFilter as any } : {}),
-    ...(search.trim() ? { search: search.trim() } : {}),
+    ...(outreachSearch.trim() ? { search: outreachSearch.trim() } : {}),
     limit: 300,
     offset: 0,
-  }), [periodStart, periodEnd, isAdmin, staffFilter, campaignFilter, stageFilter, search]);
+  }), [periodStart, periodEnd, isAdmin, staffFilter, campaignFilter, stageFilter, outreachSearch]);
 
   const dashboard = trpc.influencerBd.dashboard.useQuery({
     periodStart,
@@ -253,7 +255,7 @@ export default function InfluencerBd() {
     ...(campaignFilter !== "all" ? { campaignId: Number(campaignFilter) } : {}),
   });
   const outreach = trpc.influencerBd.listOutreach.useQuery(listInput);
-  const creators = trpc.influencerBd.listCreators.useQuery({ search: search.trim() || undefined, ownerStaffId: isAdmin && staffFilter !== "all" ? Number(staffFilter) : undefined, limit: 300, offset: 0 });
+  const creators = trpc.influencerBd.listCreators.useQuery({ search: creatorSearchQuery || undefined, ownerStaffId: isAdmin && staffFilter !== "all" ? Number(staffFilter) : undefined, limit: 300, offset: 0 });
   const campaigns = trpc.influencerBd.listCampaigns.useQuery({ includeArchived: false });
   const analyses = trpc.influencerBd.listAnalyses.useQuery({ periodStart, periodEnd, campaignId: campaignFilter !== "all" ? Number(campaignFilter) : undefined, limit: 50 });
   const outreachDetail = trpc.influencerBd.getOutreach.useQuery({ id: selectedOutreachId || 0 }, { enabled: Boolean(selectedOutreachId) });
@@ -271,6 +273,11 @@ export default function InfluencerBd() {
         selectedCampaignStoreBrandIds.includes(Number(brand.id)),
       )
     : (bootstrap.data?.brands || []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setCreatorSearchQuery(creatorSearch.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [creatorSearch]);
 
   useEffect(() => {
     const settings = dashboard.data?.settings;
@@ -732,13 +739,54 @@ export default function InfluencerBd() {
 
           <TabsContent value="today" className="space-y-4">
             <Card className="border-slate-200 shadow-sm"><CardHeader className="gap-4 lg:flex-row lg:items-center lg:justify-between"><div><CardTitle>{L("BD进度记录", "BD進捗記録")}</CardTitle><CardDescription>{L("每一条记录都保留话术、问题、下一步和聊天证据。", "各記録にトーク、課題、次アクション、チャット証拠を保存します。")}</CardDescription></div><Button onClick={() => openOutreach()}><Plus className="mr-2 h-4 w-4" />{L("新增进度", "進捗を追加")}</Button></CardHeader><CardContent>
-              <div className="mb-4 grid gap-3 md:grid-cols-[1fr_220px]"><div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input className="pl-9" value={search} onChange={e => setSearch(e.target.value)} placeholder={L("搜索达人、员工、问题或下一步", "クリエイター・担当者・課題・次アクションを検索")} /></div><Select value={stageFilter} onValueChange={setStageFilter}><SelectTrigger><Filter className="mr-2 h-4 w-4" /><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{L("全部阶段", "全ステージ")}</SelectItem>{Object.entries(STAGE_LABELS).map(([key, label]) => <SelectItem key={key} value={key}>{isZh ? label.zh : label.ja}</SelectItem>)}</SelectContent></Select></div>
+              <div className="mb-4 grid gap-3 md:grid-cols-[1fr_220px]"><div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input className="pl-9" value={outreachSearch} onChange={e => setOutreachSearch(e.target.value)} placeholder={L("搜索达人、员工、问题或下一步", "クリエイター・担当者・課題・次アクションを検索")} /></div><Select value={stageFilter} onValueChange={setStageFilter}><SelectTrigger><Filter className="mr-2 h-4 w-4" /><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{L("全部阶段", "全ステージ")}</SelectItem>{Object.entries(STAGE_LABELS).map(([key, label]) => <SelectItem key={key} value={key}>{isZh ? label.zh : label.ja}</SelectItem>)}</SelectContent></Select></div>
               {isLoading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-indigo-600" /></div> : !outreach.data?.length ? <EmptyState icon={ClipboardList} title={L("所选期间还没有真实BD进度", "選択期間に実際のBD進捗はありません")} description={L("点击“新增进度”登记，不会自动生成演示数据。", "「進捗を追加」から登録してください。デモデータは自動生成しません。")}/> : <div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-sm"><thead><tr className="border-b text-left text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-3">{L("日期", "日付")}</th><th className="px-3 py-3">{L("达人", "クリエイター")}</th><th className="px-3 py-3">{L("BD员工", "担当者")}</th><th className="px-3 py-3">{L("方案", "施策")}</th><th className="px-3 py-3">{L("阶段", "ステージ")}</th><th className="px-3 py-3">{L("回复", "返信")}</th><th className="px-3 py-3">{L("问题与下一步", "課題と次アクション")}</th><th className="px-3 py-3">{L("证据", "証拠")}</th><th className="px-3 py-3"></th></tr></thead><tbody>{outreach.data.map((row: any) => <tr key={row.id} className="border-b border-slate-100 align-top hover:bg-slate-50"><td className="px-3 py-4 text-slate-500">{displayDate(row.activityDate)}</td><td className="px-3 py-4"><button className="text-left font-semibold text-slate-950 hover:text-indigo-600" onClick={() => setSelectedOutreachId(Number(row.id))}>{row.creatorName}</button><div className="text-xs text-slate-500">{row.platform}{row.handle ? ` · @${row.handle}` : ""}</div></td><td className="px-3 py-4">{row.staffName || "—"}</td><td className="px-3 py-4 max-w-[180px] truncate">{row.campaignName || L("未指定", "未指定")}</td><td className="px-3 py-4"><Badge variant="outline" className={statusTone(row.stage)}>{isZh ? STAGE_LABELS[row.stage]?.zh : STAGE_LABELS[row.stage]?.ja}</Badge></td><td className="px-3 py-4"><span className={row.positiveReply ? "font-semibold text-emerald-600" : row.replyReceived ? "text-sky-600" : "text-slate-500"}>{isZh ? RESPONSE_LABELS[row.responseType]?.zh : RESPONSE_LABELS[row.responseType]?.ja}</span></td><td className="max-w-[300px] px-3 py-4"><div className="line-clamp-2 text-slate-700">{row.issues || L("未登记问题", "課題未登録")}</div><div className="mt-1 line-clamp-1 text-xs text-indigo-600">{row.nextAction || L("未登记下一步", "次アクション未登録")}</div></td><td className="px-3 py-4"><Badge variant="secondary"><FileImage className="mr-1 h-3 w-3" />{Number(row.attachmentCount || 0)}</Badge></td><td className="px-3 py-4"><Button variant="ghost" size="sm" onClick={() => openOutreach(row)}><Pencil className="h-4 w-4" /></Button></td></tr>)}</tbody></table></div>}
             </CardContent></Card>
           </TabsContent>
 
           <TabsContent value="creators" className="space-y-4">
-            <Card className="border-slate-200 shadow-sm"><CardHeader className="gap-4 lg:flex-row lg:items-center lg:justify-between"><div><CardTitle>{L("达人资料库", "クリエイターデータベース")}</CardTitle><CardDescription>{L("负责人、平台、粉丝量、类目和最近联络统一管理。", "担当者、プラットフォーム、フォロワー、カテゴリ、最終連絡を一元管理します。")}</CardDescription></div><div className="flex flex-wrap gap-2">{isAdmin && <Button variant="outline" onClick={() => setCreatorDedupeDialogOpen(true)}><ScanSearch className="mr-2 h-4 w-4" />{L("账号ID查重", "アカウントID重複確認")}</Button>}<label className={`inline-flex h-10 cursor-pointer items-center justify-center rounded-md border border-indigo-200 bg-indigo-50 px-4 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100 ${recognizingCreatorFile ? "pointer-events-none opacity-60" : ""}`}>{recognizingCreatorFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}{recognizingCreatorFile ? L("正在识别…", "認識中…") : L("AI识别 / 表格导入", "AI認識 / 表取込")}<input className="hidden" type="file" accept="image/jpeg,image/png,image/webp,.xlsx,.xls,.csv,text/csv" onChange={e => { const file = e.currentTarget.files?.[0]; e.currentTarget.value = ""; if (file) void recognizeCreatorFile(file); }} /></label><Button onClick={() => openCreator()}><Plus className="mr-2 h-4 w-4" />{L("新增达人", "クリエイター追加")}</Button></div></CardHeader><CardContent>{!creators.data?.length ? <EmptyState icon={UserRoundSearch} title={L("尚未登记达人", "クリエイター未登録")} description={L("请从实际BD名单开始登记，不会填充虚假达人。", "実際のBDリストから登録してください。架空データは追加しません。")}/> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{creators.data.map((creator: any) => <div key={creator.id} className="rounded-2xl border border-slate-200 bg-white p-4 transition-shadow hover:shadow-md"><div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-slate-950">{creator.displayName}</div><div className="text-xs text-slate-500">{PLATFORM_LABELS[creator.platform]}{creator.handle ? ` · @${creator.handle}` : ""}</div></div><Badge variant="outline">{isZh ? CREATOR_STATUS_LABELS[creator.status]?.zh : CREATOR_STATUS_LABELS[creator.status]?.ja}</Badge></div><div className="mt-4 grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg bg-slate-50 p-2"><span className="text-slate-500">{L("粉丝", "フォロワー")}</span><div className="mt-1 font-semibold">{creator.followerCount == null ? "—" : numberText(creator.followerCount)}</div></div><div className="rounded-lg bg-slate-50 p-2"><span className="text-slate-500">{L("进度记录", "進捗記録")}</span><div className="mt-1 font-semibold">{numberText(creator.outreachCount)}</div></div></div><div className="mt-3 text-sm text-slate-600">{creator.category || L("类目未登记", "カテゴリ未登録")}</div><div className="mt-1 text-xs text-slate-500">{L("负责人", "担当")}: {creator.ownerStaffName || "—"} · {L("最近联络", "最終連絡")}: {displayDate(creator.lastContactAt)}</div><div className="mt-4 flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => openCreator(creator)}><Pencil className="mr-1 h-3.5 w-3.5" />{L("编辑", "編集")}</Button>{creator.profileUrl && <Button size="sm" variant="ghost" asChild><a href={creator.profileUrl} target="_blank" rel="noreferrer"><ExternalLink className="mr-1 h-3.5 w-3.5" />Profile</a></Button>}{isAdmin && <Button size="sm" variant="ghost" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => setCreatorDeleteTarget(creator)}><Trash2 className="mr-1 h-3.5 w-3.5" />{L("删除", "削除")}</Button>}</div></div>)}</div>}</CardContent></Card>
+            <Card className="border-slate-200 shadow-sm"><CardHeader className="gap-4 lg:flex-row lg:items-center lg:justify-between"><div><CardTitle>{L("达人资料库", "クリエイターデータベース")}</CardTitle><CardDescription>{L("负责人、平台、粉丝量、类目和最近联络统一管理。", "担当者、プラットフォーム、フォロワー、カテゴリ、最終連絡を一元管理します。")}</CardDescription></div><div className="flex flex-wrap gap-2">{isAdmin && <Button variant="outline" onClick={() => setCreatorDedupeDialogOpen(true)}><ScanSearch className="mr-2 h-4 w-4" />{L("账号ID查重", "アカウントID重複確認")}</Button>}<label className={`inline-flex h-10 cursor-pointer items-center justify-center rounded-md border border-indigo-200 bg-indigo-50 px-4 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100 ${recognizingCreatorFile ? "pointer-events-none opacity-60" : ""}`}>{recognizingCreatorFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}{recognizingCreatorFile ? L("正在识别…", "認識中…") : L("AI识别 / 表格导入", "AI認識 / 表取込")}<input className="hidden" type="file" accept="image/jpeg,image/png,image/webp,.xlsx,.xls,.csv,text/csv" onChange={e => { const file = e.currentTarget.files?.[0]; e.currentTarget.value = ""; if (file) void recognizeCreatorFile(file); }} /></label><Button onClick={() => openCreator()}><Plus className="mr-2 h-4 w-4" />{L("新增达人", "クリエイター追加")}</Button></div></CardHeader><CardContent>
+              <div className="mb-4">
+                <div className="relative max-w-2xl">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    type="search"
+                    value={creatorSearch}
+                    onChange={event => setCreatorSearch(event.target.value)}
+                    placeholder={L("输入达人名称或账号ID搜索达人", "クリエイター名またはアカウントIDで検索")}
+                    aria-label={L("搜索达人", "クリエイター検索")}
+                    className="h-11 pl-9 pr-10"
+                  />
+                  {creatorSearch && (
+                    <button
+                      type="button"
+                      aria-label={L("清除达人搜索", "検索をクリア")}
+                      onClick={() => {
+                        setCreatorSearch("");
+                        setCreatorSearchQuery("");
+                      }}
+                      className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                <div className="mt-2 flex min-h-5 items-center gap-2 text-xs text-slate-500" role="status" aria-live="polite">
+                  {(creators.isFetching || creatorSearch.trim() !== creatorSearchQuery) && <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-600" />}
+                  <span>
+                    {creators.isError
+                      ? L("达人搜索失败", "クリエイター検索に失敗しました")
+                      : creators.isFetching || creatorSearch.trim() !== creatorSearchQuery
+                      ? L("正在搜索达人…", "クリエイターを検索中…")
+                      : creatorSearch.trim()
+                      ? creators.data?.length === 300
+                        ? L("显示前300位达人，请缩小搜索范围", "先頭300名を表示しています。検索条件を絞ってください")
+                        : L(`显示 ${numberText(creators.data?.length)} 位达人`, `${numberText(creators.data?.length)}名を表示`)
+                      : L("支持达人名称、@账号ID或不带@的账号ID", "クリエイター名、@付き／なしのアカウントIDに対応")}
+                  </span>
+                </div>
+              </div>
+              {creators.isLoading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-indigo-600" /></div> : creators.isError ? <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>{L("达人搜索失败", "クリエイター検索に失敗しました")}</AlertTitle><AlertDescription className="flex flex-wrap items-center justify-between gap-3"><span>{L("未能读取达人资料，请稍后重试。", "クリエイター情報を取得できませんでした。しばらくしてから再試行してください。")}</span><Button type="button" size="sm" variant="outline" onClick={() => creators.refetch()}><RefreshCw className="mr-1.5 h-3.5 w-3.5" />{L("重新加载", "再読み込み")}</Button></AlertDescription></Alert> : !creators.data?.length ? <EmptyState icon={UserRoundSearch} title={creatorSearch.trim() ? L("未找到匹配达人", "一致するクリエイターが見つかりません") : L("尚未登记达人", "クリエイター未登録")} description={creatorSearch.trim() ? L("请检查达人名称或账号ID的拼写；输入有无@都可以搜索。", "クリエイター名またはアカウントIDを確認してください。@の有無どちらでも検索できます。") : L("请从实际BD名单开始登记，不会填充虚假达人。", "実際のBDリストから登録してください。架空データは追加しません。")}/> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{creators.data.map((creator: any) => <div key={creator.id} className="rounded-2xl border border-slate-200 bg-white p-4 transition-shadow hover:shadow-md"><div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-slate-950">{creator.displayName}</div><div className="text-xs text-slate-500">{PLATFORM_LABELS[creator.platform]}{creator.handle ? ` · @${creator.handle}` : ""}</div></div><Badge variant="outline">{isZh ? CREATOR_STATUS_LABELS[creator.status]?.zh : CREATOR_STATUS_LABELS[creator.status]?.ja}</Badge></div><div className="mt-4 grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg bg-slate-50 p-2"><span className="text-slate-500">{L("粉丝", "フォロワー")}</span><div className="mt-1 font-semibold">{creator.followerCount == null ? "—" : numberText(creator.followerCount)}</div></div><div className="rounded-lg bg-slate-50 p-2"><span className="text-slate-500">{L("进度记录", "進捗記録")}</span><div className="mt-1 font-semibold">{numberText(creator.outreachCount)}</div></div></div><div className="mt-3 text-sm text-slate-600">{creator.category || L("类目未登记", "カテゴリ未登録")}</div><div className="mt-1 text-xs text-slate-500">{L("负责人", "担当")}: {creator.ownerStaffName || "—"} · {L("最近联络", "最終連絡")}: {displayDate(creator.lastContactAt)}</div><div className="mt-4 flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => openCreator(creator)}><Pencil className="mr-1 h-3.5 w-3.5" />{L("编辑", "編集")}</Button>{creator.profileUrl && <Button size="sm" variant="ghost" asChild><a href={creator.profileUrl} target="_blank" rel="noreferrer"><ExternalLink className="mr-1 h-3.5 w-3.5" />Profile</a></Button>}{isAdmin && <Button size="sm" variant="ghost" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => setCreatorDeleteTarget(creator)}><Trash2 className="mr-1 h-3.5 w-3.5" />{L("删除", "削除")}</Button>}</div></div>)}</div>}</CardContent></Card>
           </TabsContent>
 
           <TabsContent value="campaigns" className="space-y-4">
