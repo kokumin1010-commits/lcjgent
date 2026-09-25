@@ -3927,3 +3927,11 @@ header logoは、共有されたGigaFile一式のカラーLCFロゴ04を余白cr
 検証はLCF／LCM関連43 files・309 tests、focused 5 files・61 tests、production build、変更component bundle、`git diff --check`に成功した。全体TypeScriptは既存1,163 diagnosticsで、今回4変更fileは0件。1440×1900と390×1800のlocal実画面で、カラーlogo、上部3導線、写真背景、LCM単一button、fixed 3導線に重なり・横溢れがないことを確認した。独立read-only reviewは**GO（P0/P1/P2 0件）**。
 
 feature SHA `ded1ea6101fd0ace7d1a97bc50c1e6f16ca9e4a9`はGitHub CI run `36133091871`がsuccess、Railway production deployment `6660311604`も同一SHAでsuccess。本番`/2nd`と`/lcm/products/drkozu-cell-peel-crystal`はHTTP 200で、配信`LcfSecondEdition-B30WuGO3.js`に新写真・カラーlogo・一般来場申込・事前マッチング単一button、`LcmProduct-BI2x6x1h.js`にnative contact anchorのmarkerを確認した。本番をdesktop 1440×1900とmobile 390×1800で再撮影し、指定配置と非重複を確認した。さらにmobile 390pxでCTA中央を実tapし、350×64px、`pointer-events:auto`のnative anchorから`/lcf/login?return=/lcm/manage?contact=6`へ遷移することを確認した。申込、OpenChat投稿、ブランド連絡作成、email、production DB mutationは行っていない。
+
+## 2026-09-25｜达人资料库名称／账号ID独立搜索
+
+`/master/influencer-bd`的「达人库」tab新增独立搜索框，可输入达人名称、带`@`账号ID、不带`@`账号ID或全角`＠`账号ID进行查询；不再与「今日进度」的员工／问题／下一步搜索共用状态。输入采用250ms防抖并显示搜索中状态，提供一键清除、结果数、无匹配提示、请求失败重试、`aria-live`状态播报；达到当前API上限时明确提示只显示前300位并要求缩小范围。
+
+服务端继续沿用既有`listCreators`权限边界和`deletedAt IS NULL`软删除过滤，仅在达人名称、原始账号ID、规范化账号ID三列中参数化查询。账号搜索复用NFKC、去`@`、小写规范化逻辑，可兼容历史账号格式和主页URL输入；`%`、`_`、`!`按LIKE字面量转义，不会扩大搜索范围。未新增数据库表、环境变量或写入流程。
+
+验证：达人BD相关7 files・49 tests全部通过；修改前后端均通过esbuild，production build成功，`git diff --check`成功。全量TypeScript仍存在项目既有诊断，本次新增搜索行与后端／测试文件无新增诊断。独立只读复审无blocker，并根据建议补齐错误重试、加载优先、读屏状态、非管理员scope／软删除条件、特殊通配符和300条提示。feature SHA `8fa7e9d3201977f35db86111d400e63f7e89e5ac`对应Railway production deployment `6660522905`成功；本番`/`、`/master/influencer-bd`、`/api/health/influencer-creator-dedupe`均HTTP 200，配信`InfluencerBd-Db8Fy89u.js`已确认包含中文／日文搜索、加载、无结果、失败重试和上限提示。未修改或输出production达人数据。
