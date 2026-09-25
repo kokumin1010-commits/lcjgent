@@ -3877,3 +3877,13 @@ feature SHA `8874fd41b15d96a599796b9f27d61a19fdcc2c1d`はGitHub CI success、Rai
 访问边界复用现有RBAC：技术管理员、层级超级管理员、显式`/master/tiktok-ads`权限或既有`/master/ad-dashboard`查看权限可访问；其他登录用户由前后端双重拒绝。投放状态按Campaign→广告组→广告父子层级计算，已启用的子项若上层暂停则显示“上层已暂停”，不计入有效投放。当前快照16个Campaign全部暂停，因此有效投放为0，不再把19个广告错误显示为投放中。
 
 验证：TikTok、店铺、广告、导航专项25文件224/224件通过；核心安全测试5文件25/25件通过，覆盖权限拒绝、既有广告权限继承、令牌不泄露、API错误脱敏、对象与三类报表分页缺失／多页／总数不一致回退、Campaign指标一一对应及父级暂停状态。production build成功，桌面1440px、手机390px、Campaign表、广告素材卡和店铺管理手机入口均完成实际构建视觉QA。全量TypeScript仍有仓库既有1163条诊断，本次TikTok、店铺管理和菜单文件诊断0；全量Vitest既有48文件223项失败均来自未配置数据库等基线，本次新增和专项测试无失败。独立安全审查最终结论GO。尚未在生产执行广告创建、启停、预算调整或任何TikTok写入。
+
+## 2026-09-25｜LINE群组AI秘书两阶段回复与安全配信支持follow-up
+
+`/master/line`的群组运营改为更清晰的两阶段流程：即时问题与决定事项继续进入人工确认队列，只有管理员确认后才发送；每组另行开启“配信支持自动follow-up”后，可在指定1–30天（页面建议1–2天）没有新会话时，于JST工作日09:00–18:00发送一次日程、选品、演示等准备支持。队列卡片显示当前群组的自动follow-up开关和天数，并明确统计仅限当前回复确认列表，不代表全量未来任务。
+
+AI模式新增最近会话阶段判定，只在最新相关消息明确完成决定时生成自动配信支持候选。未定、取消、延期、普通问句、提议、日中条件句均失败关闭；分析上下文只读取真实入站与已成功外发内容，并以实际respondedAt作为已发送外发的时间。系统会利用持久化的群聊和人工实际发送结果改善下一次建议，但不宣称模型会脱离这些记录自主训练。
+
+安全层复用并强化原有follow-up基础设施：群组生命周期和每组授权、静默天数、营业时间、提醒冲突、conversationRevision、发送前设置与活动复查、确定性LINE retry key、不可变外发审计和一次性周期全部保留。人工群组发送强制携带已审核会话版本；人工pending外发与自动follow-up互斥；人工“已回复”只更新`incoming + needsResponse`记录，不再污染outgoing审计。升级前旧retry key可安全对账；pending重试只允许在23小时安全窗口内，截止在父群锁内紧贴发送前复查，超窗或旧文案冲突会条件终态化为cancelled，绝不继续自动重放。
+
+发布前验证为LINE相关39个测试文件、428项全部通过；其中关键安全回归9文件、147项通过。production build与目标模块bundle成功，`git diff --check`和敏感信息扫描通过。全量TypeScript仍有仓库既有1,163条baseline诊断，本次修改行诊断0。feature commit `b92a8e5c`的Railway production deployment `6656492639`状态为success；`https://lcjmall.com/`、`/master/line`、`/api/health/line-group-lifecycle`均HTTP 200。线上`LineManagement-Ca3Qk19I.js`与本地最终构建hash一致，队列chunk `LineGroupReplyReviewQueue-BsFd1Kd9.js`也一致，并确认包含“决定后のみ”“自動フォロー設定ON”“全予約数ではありません”等新文案。验证过程未向任何真实LINE群组发送消息，也未进行生产业务数据写入。
