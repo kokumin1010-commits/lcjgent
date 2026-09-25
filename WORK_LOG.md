@@ -3847,7 +3847,9 @@ feature commit `3447dc0b46fb8db6ed3382c72fa59836e642a9b2`はGitHub CI success、
 
 在最新`main`（包含LINE目标群安全选择与群组回复上下文）上，日报创建、身份/权限、AI队列恢复、截图幂等、剪贴板、图片解码、LINE日报桥接、群组回复与启动迁移共14个测试文件95项全部通过；完整production build通过（仅保留既有`receiptMaskingService.ts` sharp warning）。全量TypeScript仍为仓库既有1163项/85文件，本次修改文件及修改行无新增诊断。最终独立只读复审确认0161可能被跳过的启动迁移链P1已关闭，代码P0/P1为0；聊天生成日报仍按用户要求保持不变。仅保留后续可补真实MySQL/TiDB并发迁移及刷新后待传图片Blob恢复集成测试的非阻断P2建议。
 
-## 2026-09-25｜LCF TOPをイベントbanner＋portal型レイアウトへ再配置（本番反映前）
+## 2026-09-25｜LCF TOPをイベントbanner＋portal型レイアウトへ再配置（本番反映済み）
 `https://www.livecommercefestival.com/`の上部を、手描き指定に合わせて再構成した。headerは左にLCF、右にLCJ公式／マイページを残して簡潔化し、first viewは第2回と第1回レポートを切り替えられる大きなイベントbannerへ変更した。前後buttonは明示label付き、下部indicatorは32px以上のtouch targetと`aria-pressed`を持ち、desktop／mobileとも見出しやCTAと重ならない。
 banner直下はdesktopで左main＋右sidebar、mobileで1列stackにした。左mainには「第2回 お申し込み受付中」と既存の企業・ブランド／ライブコマーサー申込path、新着ニュース3件、出展企業のメリット、ライブコマーサーのメリットを配置。右sidebarにはLCF公式TikTok、第1回公式動画、第1回開催レポート、LCMを4つの独立cardとして配置した。第1回実績、写真mosaic、出展企業archive、LCFの説明、開催archive、media coverage、SEO title／description／canonical／JSON-LDは削除せず下層に維持した。
 1440×1900 desktopと390×760 mobileのVite実画面screenshotで、左右portal、mobile stack、carousel操作、見出し、CTA、申込buttonに重なり・横溢れがないことを確認した。最新`origin/main` `af75914b`のLINE日報信頼性修正2commitをstash／fast-forward／再適用で保全し、統合後にLCF／LCM関連7 files・64 tests成功、production build成功、変更component bundle成功、diff／secret監査成功。全体TypeScriptは既存baseline 1,163 diagnosticsだが、今回の2変更fileは0件。独立read-only UX reviewは**GO（P0/P1 0件）**で、P2のcarousel indicator touch target／選択semanticsとP3の申込path・外部link・responsive契約testもrelease前に補強した。
+
+feature SHA `f617126c993ad2f44e1475ffddf1c05f67b6f77d`はGitHub CI success、Railwayも同一SHAでproduction success。本番`https://www.livecommercefestival.com/`はHTTP 200で、配信`LiveCommerceFestivalTop-0iSfXAAB.js`に申込、news、両メリット、公式TikTok、第1回動画の全markerを確認し、server HTMLの既存SEO titleも維持された。本番を1440×1900／390×760で再撮影し、desktopの左右portal、mobile stack、banner、arrow、CTAに見切れ・重なり・横溢れがないことを目視確認した。

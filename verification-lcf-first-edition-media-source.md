@@ -70,10 +70,12 @@ PC DOM計測では、配信写真3枚は全て`complete: true`、自然寸法156
 
 本番をPC幅1280×900とモバイル幅390×844で再撮影した。PCでは配信写真が390×260pxの3列、集合写真が1152×768.953pxで表示された。モバイルでは配信写真が348×232pxの縦3列、集合写真が350×233.625pxで表示され、ドキュメント横幅390px・横スクロールなしだった。実画像の人物・商品・スマートフォン・右下LCFロゴ、集合写真の全員とキャプション、黄色シャドウに見切れや重なりは確認されなかった。
 
-## TOPページのイベントbanner・portal再配置（2026-09-25追加／本番反映前）
+## TOPページのイベントbanner・portal再配置（2026-09-25追加／本番反映済み）
 
 LCF TOP上部を、大きな2slideイベントbannerと、その下の左main／右sidebar portalへ更新した。mainには第2回申込、最新ニュース、出展企業とライブコマーサーのメリット、sidebarには公式TikTok、第1回公式動画、第1回開催レポート、LCMを配置する。申込は既存の第2回定義`/lcf/apply/company?edition=2`と`/lcf/apply/liver?edition=2`を参照し、公式動画は既存`/2nd#official-movie`、第1回レポート、LCM、マイページも既存routeを維持する。外部TikTokとnewsは別tab＋`rel="noreferrer"`、LCJ公式は`noopener noreferrer`のままにした。
 
 既存SEOのtitle、description、canonical `/`、OGP image、WebSite／Organization JSON-LDは変更していない。第1回の実績数値、公式写真mosaic、全32ページの出展企業archive、media coverage、開催archiveも削除せずbanner／portalの下に残す。carousel前後buttonは44px以上かつ日本語`aria-label`付き、indicatorは32px touch target、focus表示、`aria-pressed`選択状態を持つ。
 
 Vite実画面を1440×1900と390×760で確認し、desktopのmain／sidebar、mobileの縦stack、header、banner、arrow、CTA、申込領域に重なり・横溢れがないことを確認した。最新main `af75914b`統合後、LCF／LCM関連7 test files・64 tests、production build、変更component bundle、diff／secret監査に成功。全体TypeScriptの既存1,163 diagnosticsに対し変更2fileは0件。独立read-only UX reviewは**GO（P0/P1 0件）**で、reviewの非阻断P2／P3もtouch target／ARIAとdestination／responsive回帰testへ反映した。
+
+feature SHA `f617126c993ad2f44e1475ffddf1c05f67b6f77d`のGitHub CIとRailway production deploymentはsuccess。本番rootはHTTP 200、server HTMLに既存SEO title、配信entry `index-KLmYFpjK.js`から参照される`LiveCommerceFestivalTop-0iSfXAAB.js`に「第2回 お申し込み受付中」「新着ニュース」「出展企業のメリット」「ライブコマーサーのメリット」「LCF公式TikTok」「第1回 公式動画」を確認した。本番をdesktop 1440×1900とmobile 390×760で再撮影し、指定portal配置・縦stack・carousel操作・申込CTAに見切れ、重なり、横溢れがないことを目視確認した。
