@@ -3943,7 +3943,9 @@ feature SHA `ded1ea6101fd0ace7d1a97bc50c1e6f16ca9e4a9`はGitHub CI run `36133091
 
 本次不修改任何服务器上传端点、AI识别逻辑、达人数据、权限、审核或存储流程。合并并行的达人姓名/账号ID搜索后，专项9个文件60项测试全部通过，新增Ctrl+V与共享剪贴板15项测试全部通过，生产构建成功。全量Vitest中4,587项通过、45项跳过；既有48个数据库/外部环境依赖测试文件失败，本次达人测试零失败。全量TypeScript与未修改latest-main基线均为1,163项既有诊断，本次新增组件和测试没有新增诊断。使用只读本地mock在桌面1440px和手机390px实际模拟了达人截图1张与聊天截图2张的ClipboardEvent，AI预览、追加文件名、成功提示和响应式布局均通过；没有连接或修改生产数据库。
 
-## 2026-09-25｜第2回LP・スマホ上部3申込ボタンをコンパクト化（本番反映前）
+## 2026-09-25｜第2回LP・スマホ上部3申込ボタンをコンパクト化（本番反映済み）
 `/2nd`の上部3申込ボタンがスマホで縦3段となり大きく見えていたため、スマホでは横3列・最小48px高・10px表示文字へ変更した。表示は「出展申込」「ライバー申込」「一般申込」に短縮し、iconと矢印は640px未満で非表示にした。各linkには完全な`aria-label`を残し、640px以上では従来のicon・矢印・補足文を含む詳細表示を維持する。下部fixed申込barと遷移先は変更していない。
 
 390×900のlocal実画面で、3ボタンが1行に収まり、文字切れ・重なり・横溢れがないことを確認した。focused 3 files・35 tests、全LCF 33 files・231 tests、production build、変更component bundle、`git diff --check`に成功した。全体TypeScriptは既存1,163 diagnosticsで、今回2変更fileは0件。独立read-only reviewは**GO（P0/P1/P2 0件）**。申込送信やOpenChat投稿は行っていない。
+
+feature SHA `500030220fdc1cc9c214c3720153da99d159ac15`はGitHub CI run `36138669546`がsuccess、Railway production deployment `6661391106`も同一SHAでsuccess。本番`/2nd`はHTTP 200で、entry `index-BMZL3diX.js`が`LcfSecondEdition-tr246KR1.js`を参照し、compact 3列、短縮label、完全な`aria-label`を配信している。390px本番DOMでは3buttonはいずれも約115.3×48px、左右16px内に収まり、実画面でも文字切れ・重なり・横溢れがないことを確認した。申込送信やOpenChat投稿は行っていない。
