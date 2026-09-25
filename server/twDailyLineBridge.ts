@@ -7,6 +7,7 @@ import {
   reserveLineOutgoingAudit,
 } from "./db";
 import {
+  getBotInfo,
   getGroupSummary,
   getLineGroupMemberCount,
   getLineMessageQuotaStatus,
@@ -26,7 +27,37 @@ const OUTBOX_MAX_BACKOFF_SECONDS = 3_600;
 const OUTBOX_WORKER_INTERVAL_MS = 60_000;
 const LINE_RETRY_SAFETY_WINDOW_MS = 23 * 60 * 60_000;
 const DEFAULT_TARGET_GROUP_NAME = "卡雅仕台灣總部本部TW KYOGOKU";
+const DEFAULT_EXPECTED_BOT_DISPLAY_NAME = "KG卡雅仕專業染護｜日本毛髮保養專家";
 const TARGET_GROUP_VERIFICATION_ATTEMPTS = 3;
+const BOT_IDENTITY_CACHE_MS = 10 * 60_000;
+
+let botIdentityDiagnosticCache: {
+  available: boolean;
+  matchesExpected: boolean;
+  expiresAt: number;
+} | null = null;
+
+async function getBotIdentityDiagnostic(): Promise<{
+  available: boolean;
+  matchesExpected: boolean;
+}> {
+  if (botIdentityDiagnosticCache && botIdentityDiagnosticCache.expiresAt > Date.now()) {
+    return botIdentityDiagnosticCache;
+  }
+  const botInfo = await getBotInfo();
+  const expectedDisplayName = String(
+    process.env.TW_DAILY_LINE_EXPECTED_BOT_DISPLAY_NAME ||
+      DEFAULT_EXPECTED_BOT_DISPLAY_NAME,
+  ).normalize("NFKC").trim();
+  const result = {
+    available: Boolean(botInfo?.displayName),
+    matchesExpected:
+      String(botInfo?.displayName || "").normalize("NFKC").trim() === expectedDisplayName,
+    expiresAt: Date.now() + BOT_IDENTITY_CACHE_MS,
+  };
+  botIdentityDiagnosticCache = result;
+  return result;
+}
 
 type TargetGroupRolloutOutcome =
   | "not_attempted"
@@ -446,7 +477,7 @@ export async function getTwDailyLineBridgeStatus() {
   await ensureTwDailyLineStorage();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const [result, candidateResult, rolloutTargetResult]: any[] = await Promise.all([
+  const [result, candidateResult, rolloutTargetResult, botIdentity]: any[] = await Promise.all([
     db.execute(sql`
       SELECT
         (SELECT COUNT(*)
@@ -479,6 +510,7 @@ export async function getTwDailyLineBridgeStatus() {
         ON settings.lineGroupId = g.lineGroupId
       WHERE rollout.rollout_key = 'target-group-v1'
     `),
+    getBotIdentityDiagnostic(),
   ]);
   const rows = Array.isArray(result?.[0]) ? result[0] : result;
   const row = Array.isArray(rows) ? rows[0] : null;
@@ -527,6 +559,8 @@ export async function getTwDailyLineBridgeStatus() {
     activeConfiguredNameMatchCount,
     eligibleRolloutTargetCount,
     activeGroupCount: groups.filter(group => Boolean(group.isActive)).length,
+    botIdentityAvailable: Boolean(botIdentity?.available),
+    botIdentityMatchesExpected: Boolean(botIdentity?.matchesExpected),
     lastRolloutOutcome: targetGroupRolloutDiagnostic.outcome,
     lastRolloutAttemptAt: targetGroupRolloutDiagnostic.lastAttemptAt,
     oldestUnsentAgeSeconds: row?.oldestUnsentAgeSeconds === null

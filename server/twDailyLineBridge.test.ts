@@ -184,6 +184,10 @@ describe("SalesDash daily report LINE receiver", () => {
     expect(bridgeSource).toContain("rolloutApplied &&");
     expect(bridgeSource).toContain("eligibleRolloutTargetCount === 1");
     expect(bridgeSource).toContain("eligibleRolloutTargetCount,");
+    expect(bridgeSource).toContain("botIdentityAvailable: Boolean(botIdentity?.available)");
+    expect(bridgeSource).toContain("botIdentityMatchesExpected: Boolean(botIdentity?.matchesExpected)");
+    expect(bridgeSource).not.toContain("botDisplayName:");
+    expect(bridgeSource).not.toContain("botBasicId:");
     expect(bridgeSource).toContain("INNER JOIN tw_daily_line_rollouts AS rollout");
     expect(bridgeSource).toContain("rollout.target_group_id = g.lineGroupId");
     expect(serverSource).not.toContain("const dailyLineRollout = await applyTwDailyLineTargetGroupRollout()");
