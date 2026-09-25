@@ -106,7 +106,14 @@ describe("LCF second-edition official page", () => {
     const buttons = page.slice(page.indexOf("function ApplicationButtons"), page.indexOf("function LcmHeroBanner"));
     const sticky = page.slice(page.indexOf("function StickyApplicationBar"), page.indexOf("export default function"));
     expect(page).toContain("const LCF_OPEN_CHAT_URL = \"https://line.me/ti/g2/KsS3Ma1HW3okfwI2OowM6Ubk0UHKOHmb3nZFhA");
-    expect(buttons).toContain("sm:grid-cols-3");
+    expect(buttons).toContain("grid-cols-3 gap-1.5 sm:gap-2");
+    expect(buttons.match(/min-h-12/g)?.length).toBe(3);
+    expect(buttons.match(/sm:min-h-14/g)?.length).toBe(3);
+    expect(buttons).toContain('<span className="sm:hidden">ライバー申込</span>');
+    expect(buttons).toContain('<span className="sm:hidden">一般申込</span>');
+    expect(buttons).toContain('aria-label="出展申込・お問い合わせページへ"');
+    expect(buttons).toContain('aria-label="ライブコマーサー申込・チャットへ"');
+    expect(buttons).toContain('aria-label="一般来場申込・チャットへ"');
     expect(buttons).toContain("href={event.applicationCompanyPath}");
     expect(buttons).toContain("出展申込");
     expect(buttons).toContain("お問い合わせページへ");

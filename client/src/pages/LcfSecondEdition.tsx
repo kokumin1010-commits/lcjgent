@@ -158,28 +158,31 @@ function Header() {
 function ApplicationButtons({ dark = false, hero = false }: { dark?: boolean; hero?: boolean }) {
   if (hero) {
     return (
-      <div className="grid w-full gap-2 sm:grid-cols-3">
+      <div className="grid w-full grid-cols-3 gap-1.5 sm:gap-2">
         <a
           href={event.applicationCompanyPath}
-          className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-4 py-3 text-center text-sm font-black text-white shadow-[0_10px_30px_rgba(238,48,116,.2)] transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.97]"
+          aria-label="出展申込・お問い合わせページへ"
+          className="inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-1.5 py-2 text-center text-[10px] font-black leading-4 text-white shadow-[0_10px_30px_rgba(238,48,116,.2)] transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.97] sm:min-h-14 sm:gap-2 sm:px-4 sm:py-3 sm:text-sm"
         >
-          <Building2 size={19} className="shrink-0" /><span>出展申込<small className="mt-0.5 block text-[10px] font-bold">お問い合わせページへ</small></span><ArrowUpRight size={17} className="shrink-0" />
+          <Building2 size={19} className="hidden shrink-0 sm:block" /><span><span className="sm:hidden">出展申込</span><span className="hidden sm:inline">出展申込<small className="mt-0.5 block text-[10px] font-bold">お問い合わせページへ</small></span></span><ArrowUpRight size={17} className="hidden shrink-0 sm:block" />
         </a>
         <a
           href={LCF_OPEN_CHAT_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-4 py-3 text-center text-sm font-black text-white shadow-[0_10px_30px_rgba(238,48,116,.2)] transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.97]"
+          aria-label="ライブコマーサー申込・チャットへ"
+          className="inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-1.5 py-2 text-center text-[10px] font-black leading-4 text-white shadow-[0_10px_30px_rgba(238,48,116,.2)] transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.97] sm:min-h-14 sm:gap-2 sm:px-4 sm:py-3 sm:text-sm"
         >
-          <Handshake size={19} className="shrink-0" /><span>ライブコマーサー申込<small className="mt-0.5 block text-[10px] font-bold">チャットへ</small></span><ArrowUpRight size={17} className="shrink-0" />
+          <Handshake size={19} className="hidden shrink-0 sm:block" /><span><span className="sm:hidden">ライバー申込</span><span className="hidden sm:inline">ライブコマーサー申込<small className="mt-0.5 block text-[10px] font-bold">チャットへ</small></span></span><ArrowUpRight size={17} className="hidden shrink-0 sm:block" />
         </a>
         <a
           href={LCF_OPEN_CHAT_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-4 py-3 text-center text-sm font-black text-white shadow-[0_10px_30px_rgba(238,48,116,.2)] transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.97]"
+          aria-label="一般来場申込・チャットへ"
+          className="inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-1.5 py-2 text-center text-[10px] font-black leading-4 text-white shadow-[0_10px_30px_rgba(238,48,116,.2)] transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.97] sm:min-h-14 sm:gap-2 sm:px-4 sm:py-3 sm:text-sm"
         >
-          <Users size={19} className="shrink-0" /><span>一般来場申込<small className="mt-0.5 block text-[10px] font-bold">チャットへ</small></span><ArrowUpRight size={17} className="shrink-0" />
+          <Users size={19} className="hidden shrink-0 sm:block" /><span><span className="sm:hidden">一般申込</span><span className="hidden sm:inline">一般来場申込<small className="mt-0.5 block text-[10px] font-bold">チャットへ</small></span></span><ArrowUpRight size={17} className="hidden shrink-0 sm:block" />
         </a>
       </div>
     );

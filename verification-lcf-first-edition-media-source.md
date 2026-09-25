@@ -97,3 +97,8 @@ headerは、[共有GigaFile](https://29.gigafile.nu/1025-d7f0941d7f83ac58209869c
 1440×1900と390×1800のlocal実画面で、カラーlogo、3つの申込button、写真背景、指定copy、LCM単一button、fixed 3導線を確認した。desktop／mobileとも文字の重なり、横溢れ、固定barによる主導線の遮蔽はない。LCF／LCM関連43 files・309 tests、production build、変更file型診断0件、独立review GOを確認した。申込送信やOpenChat投稿は行っていない。
 
 feature SHA `ded1ea6101fd0ace7d1a97bc50c1e6f16ca9e4a9`はGitHub CI run `36133091871`とRailway production deployment `6660311604`がsuccess。本番`/2nd`はHTTP 200で、entry `index-DuFbB8c-.js`が`LcfSecondEdition-B30WuGO3.js`を参照し、新しい背景写真、カラーlogo、3申込導線、「事前マッチングはこちらから」を配信している。「LCMとは？」は同chunkにない。本番desktop／mobileを再撮影し、写真上の指定文言、上部3button、LCM単一button、fixed 3buttonに重なりや横溢れがないことを確認した。本番確認はGET／DOM read-onlyのみで、申込・OpenChat投稿は行っていない。
+
+## 第2回ページ・スマホ上部申込ボタンのコンパクト化（2026-09-25追加／本番反映前）
+上部の3申込導線は、スマホで縦3段にせず`grid-cols-3`の1行表示へ変更した。各buttonは最小48px高を維持し、表示名を「出展申込」「ライバー申込」「一般申込」に短縮する。完全な用途は`aria-label`に保持し、640px以上では従来のicon、矢印、補足文を再表示する。出展申込は既存の内部問い合わせpage、ライブコマーサー申込と一般来場申込は公式LCF OpenChatへ進む。外部linkの`target="_blank"`と`rel="noopener noreferrer"`は維持した。
+
+390×900のlocal実画面で3buttonが約115px幅ずつの1行に収まり、文字切れ、重なり、横溢れがないことを確認した。下部fixed申込barは変更していない。focused 35 tests、全LCF 231 tests、production build、変更file型診断0件、独立review GOを確認した。申込送信・OpenChat投稿は行っていない。
