@@ -75,7 +75,9 @@ LCM headerは「商品を探す」「ライブコマーサーを探す」だけ�
 関連回帰は全LCF／LCM 43 files・308 tests成功、production build成功、変更module bundle成功、diff整合性監査成功。全体TypeScript既存1,163 diagnosticsに対し今回LCM scopeは0件。独立review最終結論は**GO（P0/P1 0件）**。本番書込みを伴う操作は行っていない。
 feature SHA `5f4986f88ef9d05fc58328df78f6c7166e4172b6`はGitHub CI success、Railway deployment `6656828492`も同一SHAでproduction success。本番`/lcm`はHTTP 200。`/lcm/campaigns`はHTTP 404で、`X-Robots-Tag: noindex, nofollow, noarchive`と`Cache-Control: no-store`を返す。公開campaign APIのresponseは空配列、robotsはcampaign pathをDisallow。本番assetsでもheaderは2項目だけで、共通アカウント枠、指定hero説明／3表示、brand検索intro、admin campaign管理panelは配信されていない。本番desktop 1440pxとmobile 390pxの再撮影でも、headerとheroに重なり・横溢れはない。確認はGET／DOM read-onlyだけで、campaign、商品、brand、連絡、sample、卸取引の書込みは行っていない。
 
-## 商品詳細「ブランドさんに連絡」のmobile tap修正（2026-09-25追加／本番反映前）
+## 商品詳細「ブランドさんに連絡」のmobile tap修正（2026-09-25追加／本番反映済み）
 商品詳細の最優先CTA「ブランドさんに連絡」を、Wouterのclient navigationからnative `<a href>`へ変更した。未login時は既存の共通login URLへ進み、encoded return pathとして`/lcm/manage?contact=<productId>`を保持する。login済み時は同じcontact formへ直接進む。CTAには`touch-manipulation`、明示的な`z-index`、64px以上の高さ、brand名を含む`aria-label`を追加し、mobileでtapを確実に受ける構造へした。
 
 問い合わせthread、履歴、brand owner通知、担当者未連携時のLCM運営fallback、rate limit、認可境界は変更していない。focused contact／marketplace 2 files・26 tests、全LCF／LCM 43 files・309 tests、production build、変更component bundleに成功した。全体TypeScript既存1,163 diagnosticsに対し今回変更fileは0件。独立read-only reviewはGOで、検証中に連絡作成、email通知、返信、production DB書込みは実行していない。
+
+feature SHA `ded1ea6101fd0ace7d1a97bc50c1e6f16ca9e4a9`はGitHub CI run `36133091871`とRailway production deployment `6660311604`がsuccess。本番商品詳細はHTTP 200で、entry `index-DuFbB8c-.js`が`LcmProduct-BI2x6x1h.js`を参照している。390px mobile実画面でCTAは350×64px、`pointer-events:auto`、`z-index:10`のnative anchorとして表示された。CTA中央を実tapすると、`https://www.livecommercefestival.com/lcf/login?return=%2Flcm%2Fmanage%3Fcontact%3D6`へ遷移し、商品6のcontact formへのreturn pathが保持された。検証はlogin画面への遷移までで、連絡送信・email・DB書込みは行っていない。
