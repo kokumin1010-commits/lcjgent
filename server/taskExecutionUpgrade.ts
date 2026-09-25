@@ -131,12 +131,13 @@ export async function ensureTaskExecutionTables(): Promise<void> {
           }
         }
       }
-
       setUpgradeState("running", "report_attachments");
       await db.execute(sql`
         CREATE TABLE IF NOT EXISTS report_attachments (
           id INT AUTO_INCREMENT PRIMARY KEY,
           reportId INT NOT NULL,
+          uploadId VARCHAR(64) NULL,
+          contentHash VARCHAR(64) NULL,
           imageUrl TEXT NOT NULL,
           label VARCHAR(50) NOT NULL,
           filename VARCHAR(255),
@@ -144,10 +145,13 @@ export async function ensureTaskExecutionTables(): Promise<void> {
           archivedBy INT NULL,
           archiveReason TEXT NULL,
           createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          INDEX idx_report_id (reportId)
+          INDEX idx_report_id (reportId),
+          UNIQUE KEY uq_report_attachments_upload (reportId, uploadId)
         )
       `);
       const attachmentColumns = [
+        ["uploadId", "ALTER TABLE report_attachments ADD COLUMN uploadId VARCHAR(64) NULL AFTER reportId"],
+        ["contentHash", "ALTER TABLE report_attachments ADD COLUMN contentHash VARCHAR(64) NULL AFTER uploadId"],
         ["archivedAt", "ALTER TABLE report_attachments ADD COLUMN archivedAt TIMESTAMP NULL AFTER filename"],
         ["archivedBy", "ALTER TABLE report_attachments ADD COLUMN archivedBy INT NULL AFTER archivedAt"],
         ["archiveReason", "ALTER TABLE report_attachments ADD COLUMN archiveReason TEXT NULL AFTER archivedBy"],
@@ -164,6 +168,19 @@ export async function ensureTaskExecutionTables(): Promise<void> {
           } catch (error) {
             if (!isDuplicateSchemaObject(error)) throw error;
           }
+        }
+      }
+      const attachmentUploadIndexes = rowsOf<any>(await db.execute(sql`
+        SHOW INDEX FROM report_attachments WHERE Key_name = 'uq_report_attachments_upload'
+      `));
+      if (attachmentUploadIndexes.length === 0) {
+        try {
+          await db.execute(sql`
+            CREATE UNIQUE INDEX uq_report_attachments_upload
+            ON report_attachments(reportId, uploadId)
+          `);
+        } catch (error) {
+          if (!isDuplicateSchemaObject(error)) throw error;
         }
       }
 

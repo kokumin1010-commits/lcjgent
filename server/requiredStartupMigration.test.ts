@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  REQUIRED_MIGRATION_TAGS,
   mysqlErrorCode,
   readDrizzleLedgerState,
   verifyRequiredSchema,
@@ -47,25 +48,20 @@ function requiredIndexRows() {
   };
   add("tw_daily_line_report_inbox", "PRIMARY", ["report_id"], true);
   add("tw_daily_line_report_inbox", "tw_daily_line_inbox_event_uq", ["latest_event_id"], true);
-  add(
-    "tw_daily_line_report_inbox",
-    "tw_daily_line_inbox_staff_date_uq",
-    ["report_date", "staff_name"],
-    true,
-  );
-  add(
-    "tw_daily_line_report_inbox",
-    "tw_daily_line_inbox_date_idx",
-    ["report_date", "staff_name", "report_id"],
-    false,
-  );
+  add("tw_daily_line_report_inbox", "tw_daily_line_inbox_staff_date_uq", ["report_date", "staff_name"], true);
+  add("tw_daily_line_report_inbox", "tw_daily_line_inbox_date_idx", ["report_date", "staff_name", "report_id"], false);
   add("tw_daily_line_rollouts", "PRIMARY", ["rollout_key"], true);
   add("tw_daily_line_outbox", "PRIMARY", ["id"], true);
   add("tw_daily_line_outbox", "tw_daily_line_outbox_event_uq", ["event_id"], true);
+  add("tw_daily_line_outbox", "tw_daily_line_outbox_due_idx", ["status", "next_attempt_at", "id"], false);
+  add("reports", "uq_reports_request_id", ["requestId"], true);
+  add("entity_revision_audits", "idx_entity_revision_entity", ["entityType", "entityId", "id"], false);
+  add("report_attachments", "uq_report_attachments_upload", ["reportId", "uploadId"], true);
+  add("report_followup_extraction_runs", "uq_followup_extraction_job", ["jobKey"], true);
   add(
-    "tw_daily_line_outbox",
-    "tw_daily_line_outbox_due_idx",
-    ["status", "next_attempt_at", "id"],
+    "report_followup_extraction_runs",
+    "idx_followup_runs_report_status",
+    ["reportId", "status", "id"],
     false,
   );
   return rows;
@@ -79,6 +75,13 @@ const descriptor = {
 };
 
 describe("required startup migration", () => {
+  it("runs the LINE report bridge before the reliable report submission migration", () => {
+    expect(REQUIRED_MIGRATION_TAGS).toEqual([
+      "0161_tw_daily_line_bridge",
+      "0162_daily_report_reliable_submission",
+    ]);
+  });
+
   it("reports fail-closed custom startup errors instead of UNKNOWN", () => {
     expect(mysqlErrorCode(new Error("STARTUP_MIGRATION_SCHEMA_VERIFICATION_FAILED"))).toBe(
       "STARTUP_MIGRATION_SCHEMA_VERIFICATION_FAILED",
@@ -169,7 +172,7 @@ describe("required startup migration", () => {
 
     const missingColumnConnection = {
       execute: async (sql: string): Promise<ExecuteResult> => {
-        if (sql.includes("line_retry_key")) throw new Error("ER_BAD_FIELD_ERROR");
+        if (sql.includes("contentHash")) throw new Error("ER_BAD_FIELD_ERROR");
         if (sql.includes("information_schema.STATISTICS")) {
           return [requiredIndexRows(), undefined];
         }
@@ -180,12 +183,25 @@ describe("required startup migration", () => {
       "STARTUP_MIGRATION_SCHEMA_VERIFICATION_FAILED",
     );
 
+    const missingBridgeColumnConnection = {
+      execute: async (sql: string): Promise<ExecuteResult> => {
+        if (sql.includes("dailyReportEnabled")) throw new Error("ER_BAD_FIELD_ERROR");
+        if (sql.includes("information_schema.STATISTICS")) {
+          return [requiredIndexRows(), undefined];
+        }
+        return [[], undefined];
+      },
+    };
+    await expect(verifyRequiredSchema(missingBridgeColumnConnection as never)).rejects.toThrow(
+      "STARTUP_MIGRATION_SCHEMA_VERIFICATION_FAILED",
+    );
+
     const missingUniqueKeyConnection = {
       execute: async (sql: string): Promise<ExecuteResult> => {
         if (sql.includes("information_schema.STATISTICS")) {
           return [
             requiredIndexRows().filter(
-              row => row.indexName !== "tw_daily_line_outbox_event_uq",
+              row => row.indexName !== "uq_report_attachments_upload",
             ),
             undefined,
           ];

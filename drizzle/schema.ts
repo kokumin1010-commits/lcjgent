@@ -442,13 +442,15 @@ export const reports = mysqlTable("reports", {
   issues: text("issues"), // 気付き・問題・理由
   remarks: text("remarks"), // 備考
   createdBy: int("createdBy").notNull(), // User ID who created the report
+  requestId: varchar("requestId", { length: 36 }), // Client submission idempotency key
   deletedAt: timestamp("deletedAt"),
   deletedBy: int("deletedBy"),
   deleteReason: text("deleteReason"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
-
+}, table => ({
+  requestIdUnique: uniqueIndex("uq_reports_request_id").on(table.requestId),
+}));
 export type Report = typeof reports.$inferSelect;
 export type InsertReport = typeof reports.$inferInsert;
 
@@ -8082,6 +8084,8 @@ export type InsertCompanyInvoice = typeof companyInvoices.$inferInsert;
 export const reportAttachments = mysqlTable("report_attachments", {
   id: int("id").autoincrement().primaryKey(),
   reportId: int("reportId").notNull(), // References reports.id
+  uploadId: varchar("uploadId", { length: 64 }), // Stable client idempotency key
+  contentHash: varchar("contentHash", { length: 64 }), // Validated decoded image SHA-256
   imageUrl: text("imageUrl").notNull(), // S3 storage URL
   label: varchar("label", { length: 50 }).notNull(), // "LINE截图" or "Lark截图"
   filename: varchar("filename", { length: 255 }), // Original filename
@@ -8089,7 +8093,9 @@ export const reportAttachments = mysqlTable("report_attachments", {
   archivedBy: int("archivedBy"),
   archiveReason: text("archiveReason"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, table => ({
+  reportUploadUnique: uniqueIndex("uq_report_attachments_upload").on(table.reportId, table.uploadId),
+}));
 export type ReportAttachment = typeof reportAttachments.$inferSelect;
 export type InsertReportAttachment = typeof reportAttachments.$inferInsert;
 

@@ -208,13 +208,15 @@ describe("SalesDash daily report LINE receiver", () => {
     expect(migrationRunnerSource).toContain("0161_tw_daily_line_bridge.sql");
     expect(migrationRunnerSource).toContain("GET_LOCK('lcjgent-required-0161-tw-daily-line'");
     expect(migrationRunnerSource).toContain("process.env.NODE_ENV !== 'production'");
-    expect(startupMigrationSource).toContain("REQUIRED_MIGRATION_APPLIED 0161");
+    expect(startupMigrationSource).toContain('"0161_tw_daily_line_bridge"');
+    expect(startupMigrationSource).toContain('"0162_daily_report_reliable_submission"');
+    expect(startupMigrationSource).toContain("REQUIRED_MIGRATIONS_APPLIED");
     expect(startupMigrationSource).toContain("SELECT GET_LOCK(?, 120) AS acquired");
     expect(startupMigrationSource).toContain("STARTUP_MIGRATION_PREREQUISITE_MISSING");
     expect(startupMigrationSource).toContain("STARTUP_MIGRATION_SCHEMA_VERIFICATION_FAILED");
     expect(startupMigrationSource).toContain("LEDGER_BEHIND_SCHEMA_VERIFIED");
     expect(startupMigrationSource).toContain("canRecordSafely");
-    expect(startupMigrationSource).toContain("dailyReportEnabled");
+    expect(startupMigrationSource).toContain("previousHash");
     expect(startupMigrationSource).not.toContain(
       'Number(latest.created_at || 0) < descriptor.previousFolderMillis',
     );

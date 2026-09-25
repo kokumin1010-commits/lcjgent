@@ -23,7 +23,7 @@ import {
 } from "../shared/brandMetrics";
 import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallProductVariants, InsertMallProductVariant, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation, tspContracts, InsertTspContract, tspInvoices, InsertTspInvoice, tiktokCapCreatorReports, InsertTiktokCapCreatorReport, tiktokCapProductReports, InsertTiktokCapProductReport, liveSuggestions, InsertLiveSuggestion, livestreamPromotions, InsertLivestreamPromotion, masterSetSuggestions, InsertMasterSetSuggestion, masterSetSuggestionItems, InsertMasterSetSuggestionItem, masterSetAdoptions, InsertMasterSetAdoption, masterSetFeedback, InsertMasterSetFeedback, masterSetReviews, InsertMasterSetReview, megaChannelSettings, InsertMegaChannelSetting, megaChannelQualifications, InsertMegaChannelQualification, megaChannelHistory, InsertMegaChannelHistoryRecord, featuredProducts, InsertFeaturedProduct, featuredProductTargets, InsertFeaturedProductTarget, featuredProductAcknowledgements, InsertFeaturedProductAcknowledgement, featuredProductProgress, InsertFeaturedProductProgress, featuredProductPenalties, InsertFeaturedProductPenalty, brandShortVideos, InsertBrandShortVideo, brandAdReports, InsertBrandAdReport, brandAdEmailRecipients, InsertBrandAdEmailRecipient, callLogs, InsertCallLog, salesActivities, InsertSalesActivity, brandAnalysisCache, InsertBrandAnalysisCache, leadCollectionHistory, InsertLeadCollectionHistory, salesEmailLogs, InsertSalesEmailLog, salesEmailReplies, InsertSalesEmailReply, festivalCompanyApplications, InsertFestivalCompanyApplication, festivalLiverApplications, InsertFestivalLiverApplication, festivalGeneralApplications, InsertFestivalGeneralApplication, referralBonusOffers, InsertReferralBonusOffer, reportAttachments, InsertReportAttachment } from "../drizzle/schema";
 
-import { lineGroupAutomationStates, lineGroupLifecycleStates } from "../drizzle/schema";
+import { lineGroupAutomationStates, lineGroupLifecycleStates, reportFollowupExtractionRuns } from "../drizzle/schema";
 import { taskExecutionFeedbacks, taskNotificationOutbox } from "../drizzle/schema";
 import { shouldApplyLineGroupLifecycleEvent } from "./lineGroupLifecycleOrder";
 
@@ -874,24 +874,112 @@ export async function getReportStaffByCountry(country: string) {
 }
 
 // Report management functions
+type ReportExtractionSource = Pick<
+  typeof reports.$inferSelect,
+  "id" | "reportStaffId" | "reportDate" | "workContent" | "issues" | "remarks" | "updatedAt"
+>;
+
+export function reportFollowupExtractionContentHash(report: ReportExtractionSource): string {
+  return createHash("sha256").update(JSON.stringify({
+    reportDate: new Date(report.reportDate).toISOString(),
+    reportStaffId: report.reportStaffId,
+    workContent: report.workContent || "",
+    issues: report.issues || "",
+    remarks: report.remarks || "",
+  })).digest("hex");
+}
+
+function reportMatchesCreationRequest(existing: typeof reports.$inferSelect, requested: InsertReport): boolean {
+  return existing.createdBy === requested.createdBy
+    && existing.reportStaffId === requested.reportStaffId
+    && new Date(existing.reportDate).getTime() === new Date(requested.reportDate).getTime()
+    && existing.workContent === requested.workContent
+    && (existing.issues || null) === (requested.issues || null)
+    && (existing.remarks || null) === (requested.remarks || null);
+}
+
+async function enqueueReportFollowupExtractionWithExecutor(
+  executor: Pick<NonNullable<Awaited<ReturnType<typeof getDb>>>, "insert" | "execute">,
+  report: ReportExtractionSource,
+  supersedePrevious = false
+) {
+  const contentHash = reportFollowupExtractionContentHash(report);
+  const jobKey = `${report.id}:${contentHash}`;
+  if (supersedePrevious) {
+    await executor.execute(sql`
+      UPDATE report_followup_extraction_runs
+      SET status = 'failed', errorCode = 'SUPERSEDED',
+          errorMessage = 'Superseded by a newer report version',
+          finishedAt = CURRENT_TIMESTAMP, nextAttemptAt = NULL,
+          leaseUntil = NULL, leaseToken = NULL, deadLetterAt = CURRENT_TIMESTAMP
+      WHERE reportId = ${report.id}
+        AND jobKey <> ${jobKey}
+        AND status <> 'succeeded'
+        AND deadLetterAt IS NULL
+    `);
+  }
+  try {
+    await executor.insert(reportFollowupExtractionRuns).values({
+      jobKey,
+      reportId: report.id,
+      reportUpdatedAt: report.updatedAt,
+      reportContentHash: contentHash,
+      status: "failed",
+      attempts: 0,
+      errorCode: "QUEUED",
+      nextAttemptAt: new Date(),
+    });
+  } catch (error) {
+    if (!isDuplicateEntryError(error)) throw error;
+    await executor.execute(sql`
+      UPDATE report_followup_extraction_runs
+      SET reportUpdatedAt = ${report.updatedAt},
+          reportContentHash = ${contentHash},
+          attempts = CASE WHEN status = 'failed' THEN 0 ELSE attempts END,
+          nextAttemptAt = CASE WHEN status = 'failed' THEN CURRENT_TIMESTAMP ELSE nextAttemptAt END,
+          deadLetterAt = CASE WHEN status = 'failed' THEN NULL ELSE deadLetterAt END,
+          errorCode = CASE WHEN status = 'failed' THEN 'QUEUED' ELSE errorCode END,
+          errorMessage = CASE WHEN status = 'failed' THEN NULL ELSE errorMessage END
+      WHERE jobKey = ${jobKey}
+    `);
+  }
+}
+
+export async function enqueueReportFollowupExtraction(report: ReportExtractionSource) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await enqueueReportFollowupExtractionWithExecutor(db, report);
+}
+
 export async function createReport(reportData: InsertReport) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.transaction(async transaction => {
-    const [insertedReport] = await transaction.insert(reports).values(reportData).$returningId();
-    if (!insertedReport?.id) return null;
-    const result = await transaction.select().from(reports).where(eq(reports.id, insertedReport.id)).limit(1);
-    const created = result[0] || null;
-    if (created) {
-      await transaction.execute(sql`
-        INSERT INTO entity_revision_audits
-          (entityType, entityId, action, actorUserId, beforeState, afterState)
-        VALUES ('report', ${insertedReport.id}, 'create', ${reportData.createdBy || null}, NULL,
-          ${JSON.stringify(created)})
-      `);
+  try {
+    return await db.transaction(async transaction => {
+      const [insertedReport] = await transaction.insert(reports).values(reportData).$returningId();
+      if (!insertedReport?.id) return { report: null, replayed: false as const };
+      const result = await transaction.select().from(reports).where(eq(reports.id, insertedReport.id)).limit(1);
+      const created = result[0] || null;
+      if (created) {
+        await transaction.execute(sql`
+          INSERT INTO entity_revision_audits
+            (entityType, entityId, action, actorUserId, beforeState, afterState)
+          VALUES ('report', ${insertedReport.id}, 'create', ${reportData.createdBy || null}, NULL,
+            ${JSON.stringify(created)})
+        `);
+        await enqueueReportFollowupExtractionWithExecutor(transaction, created);
+      }
+      return { report: created, replayed: false as const };
+    });
+  } catch (error) {
+    if (!reportData.requestId || !isDuplicateEntryError(error)) throw error;
+    const existing = (await db.select().from(reports)
+      .where(eq(reports.requestId, reportData.requestId)).limit(1))[0];
+    if (!existing || !reportMatchesCreationRequest(existing, reportData)) {
+      throw new Error("Report creation request conflicts with an existing submission");
     }
-    return created;
-  });
+    return { report: existing, replayed: true as const };
+  }
 }
 
 export type ReportVisibilityFilter = {
@@ -996,22 +1084,29 @@ export async function updateReport(
   id: number,
   reportData: Partial<InsertReport>,
   actorUserId: number | null = null,
-  action = "update"
+  action = "update",
+  enqueueFollowups = false
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   return await db.transaction(async transaction => {
     const before = (await transaction.select().from(reports).where(eq(reports.id, id)).limit(1).for("update"))[0];
     if (!before || before.deletedAt) return null;
-    const after = { ...before, ...reportData };
+    const updatedAt = new Date();
+    const persistedData = { ...reportData, updatedAt };
+    const after = { ...before, ...persistedData };
     await transaction.execute(sql`
       INSERT INTO entity_revision_audits
         (entityType, entityId, action, actorUserId, beforeState, afterState)
       VALUES ('report', ${id}, ${action}, ${actorUserId},
         ${JSON.stringify(before)}, ${JSON.stringify(after)})
     `);
-    return await transaction.update(reports).set(reportData)
+    const updated = await transaction.update(reports).set(persistedData)
       .where(and(eq(reports.id, id), isNull(reports.deletedAt)));
+    if (enqueueFollowups) {
+      await enqueueReportFollowupExtractionWithExecutor(transaction, after, true);
+    }
+    return updated;
   });
 }
 
@@ -29742,22 +29837,77 @@ export async function getStreamerAccountsByLiverId(liverId: number) {
 
 // ============ Report Attachments ============
 
+export async function getReportAttachmentByUploadId(reportId: number, uploadId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(reportAttachments).where(and(
+    eq(reportAttachments.reportId, reportId),
+    eq(reportAttachments.uploadId, uploadId)
+  )).limit(1);
+  return result[0] || null;
+}
+
 export async function createReportAttachment(data: InsertReportAttachment, actorUserId: number | null = null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.transaction(async transaction => {
-    const [inserted] = await transaction.insert(reportAttachments).values(data).$returningId();
-    if (!inserted?.id) return inserted;
-    const created = (await transaction.select().from(reportAttachments)
-      .where(eq(reportAttachments.id, inserted.id)).limit(1))[0];
-    await transaction.execute(sql`
-      INSERT INTO entity_revision_audits
-        (entityType, entityId, action, actorUserId, beforeState, afterState)
-      VALUES ('report_attachment', ${inserted.id}, 'create', ${actorUserId}, NULL,
-        ${JSON.stringify(created || { ...data, id: inserted.id })})
-    `);
-    return inserted;
-  });
+  const findExisting = async () => {
+    if (!data.uploadId) return null;
+    const existing = await db.select().from(reportAttachments).where(and(
+      eq(reportAttachments.reportId, data.reportId),
+      eq(reportAttachments.uploadId, data.uploadId)
+    )).limit(1);
+    return existing[0] || null;
+  };
+  try {
+    return await db.transaction(async transaction => {
+      const [inserted] = await transaction.insert(reportAttachments).values(data).$returningId();
+      if (!inserted?.id) return { attachment: null, replayed: false as const };
+      const created = (await transaction.select().from(reportAttachments)
+        .where(eq(reportAttachments.id, inserted.id)).limit(1))[0];
+      await transaction.execute(sql`
+        INSERT INTO entity_revision_audits
+          (entityType, entityId, action, actorUserId, beforeState, afterState)
+        VALUES ('report_attachment', ${inserted.id}, 'create', ${actorUserId}, NULL,
+          ${JSON.stringify(created || { ...data, id: inserted.id })})
+      `);
+      return { attachment: created || null, replayed: false as const };
+    });
+  } catch (error) {
+    if (!data.uploadId || !isDuplicateEntryError(error)) throw error;
+    const existing = await findExisting();
+    if (!existing) throw error;
+    if (existing.archivedAt) {
+      return await db.transaction(async transaction => {
+        const restored = {
+          ...existing,
+          imageUrl: data.imageUrl,
+          contentHash: data.contentHash,
+          label: data.label,
+          filename: data.filename,
+          archivedAt: null,
+          archivedBy: null,
+          archiveReason: null,
+        };
+        await transaction.execute(sql`
+          INSERT INTO entity_revision_audits
+            (entityType, entityId, action, actorUserId, beforeState, afterState)
+          VALUES ('report_attachment', ${existing.id}, 'restore', ${actorUserId},
+            ${JSON.stringify(existing)}, ${JSON.stringify(restored)})
+        `);
+        await transaction.update(reportAttachments).set({
+          imageUrl: data.imageUrl,
+          contentHash: data.contentHash,
+          label: data.label,
+          filename: data.filename,
+          archivedAt: null,
+          archivedBy: null,
+          archiveReason: null,
+        }).where(eq(reportAttachments.id, existing.id));
+        return { attachment: restored, replayed: true as const };
+      });
+    }
+    return { attachment: existing, replayed: true as const };
+  }
 }
 
 export async function getReportAttachments(reportId: number) {

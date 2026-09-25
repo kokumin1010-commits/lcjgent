@@ -31,10 +31,12 @@ describe("daily-report tasks in the master task list", () => {
     expect(database).toContain("buildReportVisibilityCondition(visibility)");
   });
 
-  it("reviews older tasks before extracting new tasks for every form, edit, chat and batch path", () => {
-    expect(routers.match(/await processDailyReportTaskLifecycle\(/g)).toHaveLength(5);
+  it("queues form submissions while retaining review lifecycle for retry, chat and batch paths", () => {
+    expect(database).toContain("await enqueueReportFollowupExtractionWithExecutor(transaction, created)");
+    expect(database).toContain("if (enqueueFollowups)");
+    expect(database).toContain("await enqueueReportFollowupExtractionWithExecutor(transaction, after, true)");
+    expect(routers).toContain('await updateReport(id, data, ctx.user.id, "update", true)');
     expect(routers).toContain("await processDailyReportTaskLifecycle(report)");
-    expect(routers).toContain("await processDailyReportTaskLifecycle(updated.report)");
     expect(routers).toContain("await processDailyReportTaskLifecycleBatch(");
     expect(lifecycle).toContain("sourceReport.reportDate <");
     expect(lifecycle).toContain("confidence >= 0.9");

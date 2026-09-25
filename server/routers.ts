@@ -33,6 +33,10 @@ import { z } from "zod";
 import { nanoid } from "nanoid";
 import { createHash } from "node:crypto";
 import { decodeValidatedImage } from "./uploadValidation";
+import {
+  reportAttachmentContentHash,
+  reportAttachmentUploadId,
+} from "./reportAttachmentIdempotency";
 import { storagePut } from "./storage";
 import { normalizeReceiptPurchaseDate, receiptPurchaseDateOrUndefined } from "../shared/receiptDate";
 import { DAILY_REPORT_REQUIRED_ANSWER_COUNT, getJstDayRange } from "../shared/dailyReportConversation";
@@ -850,6 +854,7 @@ import {
   unmarkReplyHandled,
   deleteLiver,
   createReportAttachment,
+  getReportAttachmentByUploadId,
   getReportAttachments,
   getReportAttachmentById,
   deleteReportAttachment,
@@ -4317,6 +4322,7 @@ export const appRouter = router({
     create: protectedProcedure
       .input(
         z.object({
+          requestId: z.string().uuid(),
           reportStaffId: z.number(),
           reportDate: z.string(), // ISO 8601 format
           workContent: z.string().min(1),
@@ -4327,7 +4333,8 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         const scope = await resolveReportVisibilityScope(ctx.user);
         assertCanCreateForReportStaff(scope, input.reportStaffId);
-        const report = await createReport({
+        const creation = await createReport({
+          requestId: input.requestId,
           reportStaffId: input.reportStaffId,
           reportDate: new Date(input.reportDate),
           workContent: input.workContent,
@@ -4335,19 +4342,39 @@ export const appRouter = router({
           remarks: input.remarks || null,
           createdBy: ctx.user.id,
         });
-        
-        // Record activity log
-        if (report && report.id) {
-          await createActivityLog({
-            userId: ctx.user.id,
-            actionType: "report_create",
-            actionLabel: "レポートを提出",
-            targetId: report.id,
-            targetName: input.workContent.substring(0, 50),
+        const report = creation.report;
+        if (!report) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "日报未能保存，请稍后重试 [REPORT-CREATE-NO-ROW]",
           });
-          await processDailyReportTaskLifecycle(report);
         }
         
+        // Record activity log without blocking a successful report submission.
+        if (!creation.replayed) {
+          try {
+            await createActivityLog({
+              userId: ctx.user.id,
+              actionType: "report_create",
+              actionLabel: "レポートを提出",
+              targetId: report.id,
+              targetName: input.workContent.substring(0, 50),
+            });
+          } catch (error) {
+            console.error("[DailyReportCreate] activity log failed", {
+              code: "REPORT-CREATE-ACTIVITY-LOG",
+              reportId: report.id,
+              actorId: ctx.user.id,
+              errorName: error instanceof Error ? error.name : "UnknownError",
+            });
+          }
+        }
+        console.info("[DailyReportCreate] saved", {
+          code: creation.replayed ? "REPORT-CREATE-REPLAY" : "REPORT-CREATE-SAVED",
+          reportId: report.id,
+          actorId: ctx.user.id,
+        });
+
         return report;
       }),
 
@@ -4430,11 +4457,7 @@ export const appRouter = router({
         if (updateData.reportDate) {
           data.reportDate = new Date(updateData.reportDate);
         }
-        await updateReport(id, data, ctx.user.id, "update");
-        const updated = await getReportById(id);
-        if (updated?.report) {
-          await processDailyReportTaskLifecycle(updated.report);
-        }
+        await updateReport(id, data, ctx.user.id, "update", true);
         return { success: true };
       }),
 
@@ -4452,6 +4475,7 @@ export const appRouter = router({
     uploadAttachment: protectedProcedure
       .input(z.object({
         reportId: z.number(),
+        uploadId: z.string().regex(/^[a-f0-9]{64}$/),
         base64: z.string(),
         filename: z.string().trim().min(1).max(255),
         mimeType: z.string(),
@@ -4461,38 +4485,52 @@ export const appRouter = router({
         const scope = await resolveReportVisibilityScope(ctx.user);
         const existing = await getReportById(input.reportId);
         assertCanWriteReport(scope, existing?.report);
-        // Auto-create table if not exists
-        try {
-          const { getDb } = await import("./db");
-          const db = await getDb();
-          if (db) {
-            await db.execute(sqlTag`
-              CREATE TABLE IF NOT EXISTS report_attachments (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                reportId INT NOT NULL,
-                imageUrl TEXT NOT NULL,
-                label VARCHAR(50) NOT NULL,
-                filename VARCHAR(255),
-                archivedAt TIMESTAMP NULL,
-                archivedBy INT NULL,
-                archiveReason TEXT NULL,
-                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_report_id (reportId)
-              )
-            `);
-          }
-        } catch (e) { /* table may already exist */ }
-
         const image = await decodeValidatedImage(input.base64, input.mimeType);
-        const key = `reports/${input.reportId}/${nanoid()}.${image.ext}`;
+        const rawImage = Buffer.from(input.base64.replace(/\s/g, ""), "base64");
+        const contentHash = reportAttachmentContentHash(rawImage);
+        const expectedUploadId = reportAttachmentUploadId(rawImage, input.label);
+        if (input.uploadId !== expectedUploadId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "截图上传ID校验失败 [REPORT-ATTACHMENT-ID]" });
+        }
+        const existingAttachment = await getReportAttachmentByUploadId(input.reportId, input.uploadId);
+        if (existingAttachment) {
+          if (existingAttachment.contentHash !== contentHash
+            || existingAttachment.label !== input.label) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "截图上传ID与既有内容不一致 [REPORT-ATTACHMENT-CONFLICT]",
+            });
+          }
+          if (!existingAttachment.archivedAt) {
+            return {
+              id: existingAttachment.id,
+              url: existingAttachment.imageUrl,
+              label: existingAttachment.label,
+            };
+          }
+        }
+        const key = `reports/${input.reportId}/${input.uploadId}-${contentHash}.${image.ext}`;
         const { url } = await storagePut(key, image.buffer, image.mimeType);
-        const attachment = await createReportAttachment({
+        const creation = await createReportAttachment({
           reportId: input.reportId,
+          uploadId: input.uploadId,
+          contentHash,
           imageUrl: url,
           label: input.label,
           filename: input.filename,
         }, ctx.user.id);
-        return { id: attachment?.id, url, label: input.label };
+        const attachment = creation.attachment;
+        if (!attachment) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "截图记录保存失败 [REPORT-ATTACHMENT-NO-ROW]" });
+        }
+        if (attachment.contentHash !== contentHash
+          || attachment.label !== input.label) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "截图上传ID与既有内容不一致 [REPORT-ATTACHMENT-CONFLICT]",
+          });
+        }
+        return { id: attachment.id, url: attachment.imageUrl, label: attachment.label };
       }),
 
     // Get attachments for a report

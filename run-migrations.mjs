@@ -84,7 +84,9 @@ async function main() {
   } catch (err) {
     console.error('[Migration] Error:', err.message);
     // Don't fail the build if migrations have issues (table/column may already exist)
-    if (err.message.includes('already exists') || err.message.includes('Duplicate column')) {
+    if (err.message.includes('already exists')
+      || err.message.includes('Duplicate column')
+      || err.message.includes('Duplicate key name')) {
       console.log('[Migration] Schema already up to date, continuing...');
     } else {
       console.error('[Migration] Full error:', err);

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 
 const { getDb, processDailyReportTaskLifecycle, safelyReviewPreviousTasksFromReport } = vi.hoisted(() => ({
   getDb: vi.fn(),
@@ -38,6 +39,11 @@ const baseRow = {
   reportContentHash: "hash",
   attempts: 1,
 };
+
+const schedulerSource = readFileSync(
+  new URL("./reportFollowupRetryScheduler.ts", import.meta.url),
+  "utf8"
+);
 
 describe("daily report extraction compensation", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -110,5 +116,11 @@ describe("daily report extraction compensation", () => {
     const failureSql = queryText(execute.mock.calls[2][0]);
     expect(failureSql).toContain("WHEN attempts >= 5 THEN CURRENT_TIMESTAMP");
     expect(failureSql).toContain("leaseToken");
+  });
+
+  it("also reclaims a worker run whose lease expired", () => {
+    expect(schedulerSource).toContain("run.status = 'failed'");
+    expect(schedulerSource).toContain("run.status = 'running'");
+    expect(schedulerSource).toContain("run.leaseUntil IS NULL OR run.leaseUntil <= CURRENT_TIMESTAMP");
   });
 });

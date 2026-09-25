@@ -1,6 +1,6 @@
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import {
   reportFollowupExtractionRuns,
   reportFollowups,
@@ -8,7 +8,11 @@ import {
   type Report,
 } from "../drizzle/schema";
 import { invokeLLM } from "./_core/llm";
-import { getDb, reportFollowupDedupeKey } from "./db";
+import {
+  getDb,
+  reportFollowupDedupeKey,
+  reportFollowupExtractionContentHash,
+} from "./db";
 import { ensureTaskExecutionTables } from "./taskExecutionUpgrade";
 
 const reportTaskCategorySchema = z.enum([
@@ -63,13 +67,7 @@ function isDuplicateEntryError(error: unknown): boolean {
 }
 
 export function reportExtractionContentHash(report: ReportInput): string {
-  return createHash("sha256").update(JSON.stringify({
-    reportDate: new Date(report.reportDate).toISOString(),
-    reportStaffId: report.reportStaffId,
-    workContent: report.workContent || "",
-    issues: report.issues || "",
-    remarks: report.remarks || "",
-  })).digest("hex");
+  return reportFollowupExtractionContentHash(report);
 }
 
 async function startRun(report: ReportInput, force = false) {
@@ -174,14 +172,13 @@ async function reconcileSuccessfulExtraction(
       .from(reports)
       .where(eq(reports.id, report.id))
       .for("update");
-    const latestRuns = await transaction.select({
+    const currentRun = await transaction.select({
       id: reportFollowupExtractionRuns.id,
       status: reportFollowupExtractionRuns.status,
       leaseToken: reportFollowupExtractionRuns.leaseToken,
     })
       .from(reportFollowupExtractionRuns)
-      .where(eq(reportFollowupExtractionRuns.reportId, report.id))
-      .orderBy(desc(reportFollowupExtractionRuns.id))
+      .where(eq(reportFollowupExtractionRuns.id, runId))
       .limit(1)
       .for("update");
     const currentVersion = currentReports[0]?.updatedAt?.getTime() || null;
@@ -192,9 +189,9 @@ async function reconcileSuccessfulExtraction(
     if (!currentReports[0]
       || currentVersion !== extractedVersion
       || currentHash !== reportExtractionContentHash(report)
-      || Number(latestRuns[0]?.id) !== runId
-      || latestRuns[0]?.status !== "running"
-      || latestRuns[0]?.leaseToken !== leaseToken) {
+      || Number(currentRun[0]?.id) !== runId
+      || currentRun[0]?.status !== "running"
+      || currentRun[0]?.leaseToken !== leaseToken) {
       throw new Error("Stale report extraction run superseded by a newer report version");
     }
     const existing = await transaction.select().from(reportFollowups).where(and(

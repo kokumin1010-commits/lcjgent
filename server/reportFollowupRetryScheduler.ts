@@ -29,13 +29,12 @@ export async function retryFailedReportFollowupExtractions(limit = 10) {
       INNER JOIN reports r ON r.id = run.reportId
         AND r.updatedAt = run.reportUpdatedAt
         AND r.deletedAt IS NULL
-      WHERE (
+      WHERE run.deadLetterAt IS NULL
+        AND (
           (run.status = 'failed' AND (run.nextAttemptAt IS NULL OR run.nextAttemptAt <= CURRENT_TIMESTAMP))
-          OR (run.status = 'running' AND run.errorCode = 'TASK_REVIEW_FAILED'
-            AND (run.leaseUntil IS NULL OR run.leaseUntil <= CURRENT_TIMESTAMP))
+          OR (run.status = 'running' AND (run.leaseUntil IS NULL OR run.leaseUntil <= CURRENT_TIMESTAMP))
         )
-        AND run.deadLetterAt IS NULL
-      ORDER BY run.nextAttemptAt ASC, run.id ASC
+      ORDER BY COALESCE(run.nextAttemptAt, run.leaseUntil, run.startedAt) ASC, run.id ASC
       LIMIT ${Math.max(1, Math.min(25, limit))}
     `);
     const pending = rowsOf<any>(result);

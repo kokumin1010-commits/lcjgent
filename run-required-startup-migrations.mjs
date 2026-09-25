@@ -6,8 +6,11 @@ import mysql from "mysql2/promise";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_FOLDER = path.join(__dirname, "drizzle");
-const MIGRATION_TAG = "0161_tw_daily_line_bridge";
-const LOCK_NAME = "lcjgent-required-0161-tw-daily-line";
+const REQUIRED_MIGRATION_TAGS = [
+  "0161_tw_daily_line_bridge",
+  "0162_daily_report_reliable_submission",
+];
+const LOCK_NAME = "lcjgent-required-0161-0162-daily-report";
 const MAX_CONNECT_ATTEMPTS = 5;
 
 function sleep(milliseconds) {
@@ -26,12 +29,13 @@ function mysqlErrorCode(error) {
   return "UNKNOWN";
 }
 
-function isDuplicateMysqlColumn(error) {
+function isDuplicateMysqlSchemaObject(error) {
   let current = error;
   for (let depth = 0; depth < 4 && current && typeof current === "object"; depth += 1) {
     const code = String(current.code || "");
     const message = String(current.message || "");
     if (code === "ER_DUP_FIELDNAME" || message.includes("Duplicate column")) return true;
+    if (code === "ER_DUP_KEYNAME" || message.includes("Duplicate key name")) return true;
     current = current.cause;
   }
   return false;
@@ -54,15 +58,15 @@ async function connectWithRetry(connectionString) {
   throw lastError;
 }
 
-async function readMigrationDescriptor() {
+async function readMigrationDescriptor(migrationTag) {
   const journalPath = path.join(MIGRATIONS_FOLDER, "meta", "_journal.json");
   const journal = JSON.parse(await fs.readFile(journalPath, "utf8"));
   const entries = Array.isArray(journal?.entries) ? journal.entries : [];
-  const targetIndex = entries.findIndex(entry => entry?.tag === MIGRATION_TAG);
+  const targetIndex = entries.findIndex(entry => entry?.tag === migrationTag);
   if (targetIndex <= 0) throw new Error("STARTUP_MIGRATION_JOURNAL_ENTRY_MISSING");
   const targetEntry = entries[targetIndex];
   const previousEntry = entries[targetIndex - 1];
-  const migrationPath = path.join(MIGRATIONS_FOLDER, `${MIGRATION_TAG}.sql`);
+  const migrationPath = path.join(MIGRATIONS_FOLDER, `${migrationTag}.sql`);
   const previousMigrationPath = path.join(
     MIGRATIONS_FOLDER,
     `${String(previousEntry.tag || "")}.sql`,
@@ -72,6 +76,7 @@ async function readMigrationDescriptor() {
     fs.readFile(previousMigrationPath, "utf8"),
   ]);
   return {
+    tag: migrationTag,
     folderMillis: Number(targetEntry.when),
     previousFolderMillis: Number(previousEntry.when),
     previousHash: createHash("sha256").update(previousMigrationSql).digest("hex"),
@@ -162,6 +167,18 @@ async function verifyRequiredSchema(connection) {
             line_retry_key, first_external_attempt_at, member_count, sent_at,
             last_error, created_at, updated_at
        FROM tw_daily_line_outbox LIMIT 0`,
+    "SELECT deletedAt, deletedBy, deleteReason, requestId FROM reports LIMIT 0",
+    `SELECT id, entityType, entityId, action, actorUserId,
+            beforeState, afterState, createdAt
+       FROM entity_revision_audits LIMIT 0`,
+    `SELECT id, reportId, uploadId, contentHash, imageUrl, label, filename,
+            archivedAt, archivedBy, archiveReason, createdAt
+       FROM report_attachments LIMIT 0`,
+    `SELECT id, jobKey, reportId, reportUpdatedAt, reportContentHash, status,
+            extractedCount, createdCount, updatedCount, archivedCount,
+            errorCode, errorMessage, attempts, nextAttemptAt, leaseUntil,
+            leaseToken, deadLetterAt, startedAt, finishedAt
+       FROM report_followup_extraction_runs LIMIT 0`,
   ];
   try {
     for (const query of readinessQueries) await connection.execute(query);
@@ -180,7 +197,11 @@ async function verifyRequiredSchema(connection) {
           AND TABLE_NAME IN (
             'tw_daily_line_report_inbox',
             'tw_daily_line_rollouts',
-            'tw_daily_line_outbox'
+            'tw_daily_line_outbox',
+            'reports',
+            'entity_revision_audits',
+            'report_attachments',
+            'report_followup_extraction_runs'
           )
         ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX`,
     );
@@ -197,6 +218,11 @@ async function verifyRequiredSchema(connection) {
     ["tw_daily_line_outbox", "PRIMARY", ["id"], true],
     ["tw_daily_line_outbox", "tw_daily_line_outbox_event_uq", ["event_id"], true],
     ["tw_daily_line_outbox", "tw_daily_line_outbox_due_idx", ["status", "next_attempt_at", "id"], false],
+    ["reports", "uq_reports_request_id", ["requestId"], true],
+    ["entity_revision_audits", "idx_entity_revision_entity", ["entityType", "entityId", "id"], false],
+    ["report_attachments", "uq_report_attachments_upload", ["reportId", "uploadId"], true],
+    ["report_followup_extraction_runs", "uq_followup_extraction_job", ["jobKey"], true],
+    ["report_followup_extraction_runs", "idx_followup_runs_report_status", ["reportId", "status", "id"], false],
   ];
   if (
     requiredIndexes.some(([tableName, indexName, columns, unique]) =>
@@ -211,7 +237,9 @@ async function main() {
   const connectionString = String(process.env.DATABASE_URL || "").trim();
   if (!connectionString) throw new Error("DATABASE_URL_REQUIRED");
 
-  const descriptor = await readMigrationDescriptor();
+  const descriptors = await Promise.all(
+    REQUIRED_MIGRATION_TAGS.map(tag => readMigrationDescriptor(tag)),
+  );
   const connection = await connectWithRetry(connectionString);
   let lockAcquired = false;
   try {
@@ -222,36 +250,45 @@ async function main() {
     lockAcquired = Number(lockRows?.[0]?.acquired || 0) === 1;
     if (!lockAcquired) throw new Error("STARTUP_MIGRATION_LOCK_TIMEOUT");
 
-    if (!(await tableExists(connection, "line_group_settings"))) {
+    if (!(await tableExists(connection, "line_group_settings"))
+      || !(await tableExists(connection, "reports"))) {
       throw new Error("STARTUP_MIGRATION_PREREQUISITE_MISSING");
     }
-    const ledgerState = await readDrizzleLedgerState(connection, descriptor);
 
-    for (const statement of descriptor.statements) {
-      try {
-        await connection.execute(statement);
-      } catch (error) {
-        if (!isDuplicateMysqlColumn(error)) throw error;
+    for (const descriptor of descriptors) {
+      await readDrizzleLedgerState(connection, descriptor);
+      for (const statement of descriptor.statements) {
+        try {
+          await connection.execute(statement);
+        } catch (error) {
+          if (!isDuplicateMysqlSchemaObject(error)) throw error;
+        }
       }
     }
 
     await verifyRequiredSchema(connection);
 
-    if (!ledgerState.alreadyRecorded && ledgerState.canRecordSafely) {
-      await connection.execute(
-        "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)",
-        [descriptor.hash, descriptor.folderMillis],
-      );
-    } else if (!ledgerState.alreadyRecorded) {
-      console.warn("[StartupMigration] LEDGER_BEHIND_SCHEMA_VERIFIED", {
-        code: ledgerState.ledgerAvailable
-          ? "STARTUP_MIGRATION_LEDGER_BEHIND"
-          : "STARTUP_MIGRATION_LEDGER_MISSING",
-      });
+    for (const descriptor of descriptors) {
+      const ledgerState = await readDrizzleLedgerState(connection, descriptor);
+      if (!ledgerState.alreadyRecorded && ledgerState.canRecordSafely) {
+        await connection.execute(
+          "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)",
+          [descriptor.hash, descriptor.folderMillis],
+        );
+      } else if (!ledgerState.alreadyRecorded) {
+        console.warn("[StartupMigration] LEDGER_BEHIND_SCHEMA_VERIFIED", {
+          code: ledgerState.ledgerAvailable
+            ? "STARTUP_MIGRATION_LEDGER_BEHIND"
+            : "STARTUP_MIGRATION_LEDGER_MISSING",
+          migration: descriptor.tag,
+        });
+      }
     }
 
     console.log(
-      `[StartupMigration] REQUIRED_MIGRATION_APPLIED 0161 (${descriptor.statements.length} statements)`,
+      `[StartupMigration] REQUIRED_MIGRATIONS_APPLIED ${descriptors
+        .map(descriptor => descriptor.tag)
+        .join(",")}`,
     );
   } finally {
     if (lockAcquired) {
@@ -262,6 +299,7 @@ async function main() {
 }
 
 export {
+  REQUIRED_MIGRATION_TAGS,
   mysqlErrorCode,
   readDrizzleLedgerState,
   verifyRequiredSchema,

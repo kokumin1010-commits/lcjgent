@@ -27,6 +27,7 @@ import {
 import { useLocation, useParams } from "wouter";
 import { toast } from "sonner";
 import { DAILY_REPORT_PLACEHOLDERS } from "./reportTemplate";
+import { useAuth } from "@/_core/hooks/useAuth";
 import {
   buildReportStaffOptions,
   isHistoricalReportStaffIdentity,
@@ -40,12 +41,105 @@ const IMAGE_LABELS = ["LINE截图", "Lark截图"] as const;
 type ImageLabel = (typeof IMAGE_LABELS)[number];
 
 interface PendingImage {
+  uploadId: string;
   file: File;
   preview: string;
   label: ImageLabel;
 }
 
+function createReportRequestId(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  const bytes = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, "0"));
+  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
+}
+
+const REPORT_CREATE_ATTEMPT_STORAGE_PREFIX = "lcj:daily-report:create-attempt:v1";
+
+type StoredReportCreateAttempt = {
+  actorId: number;
+  payloadKey: string;
+  requestId: string;
+};
+
+async function hashReportPayload(payload: string): Promise<string> {
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(payload));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function hashPendingImage(file: File, label: ImageLabel): Promise<string> {
+  const fileBytes = new Uint8Array(await file.arrayBuffer());
+  const labelBytes = new TextEncoder().encode(label);
+  const input = new Uint8Array(fileBytes.length + 1 + labelBytes.length);
+  input.set(fileBytes, 0);
+  input[fileBytes.length] = 0;
+  input.set(labelBytes, fileBytes.length + 1);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", input);
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function reportCreateAttemptStorageKey(actorId: number, payloadKey: string) {
+  return `${REPORT_CREATE_ATTEMPT_STORAGE_PREFIX}:${actorId}:${payloadKey}`;
+}
+
+function readStoredReportCreateAttempt(actorId: number, payloadKey: string): StoredReportCreateAttempt | null {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(reportCreateAttemptStorageKey(actorId, payloadKey)) || "null") as StoredReportCreateAttempt | null;
+    return parsed?.actorId === actorId && parsed.payloadKey === payloadKey ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeReportCreateAttempt(attempt: StoredReportCreateAttempt) {
+  try {
+    sessionStorage.setItem(reportCreateAttemptStorageKey(attempt.actorId, attempt.payloadKey), JSON.stringify(attempt));
+  } catch {
+    // The in-memory ref still protects retries while this page remains mounted.
+  }
+}
+
+function clearStoredReportCreateAttempt(attempt: StoredReportCreateAttempt) {
+  try {
+    sessionStorage.removeItem(reportCreateAttemptStorageKey(attempt.actorId, attempt.payloadKey));
+  } catch {
+    // Storage may be unavailable in restrictive mobile browser modes.
+  }
+}
+
+function reportMutationError(action: "作成" | "更新", error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error || "Unknown error");
+  if (/failed to fetch|networkerror|network request failed/i.test(message)) {
+    return `${action}结果未确认 [REPORT-NETWORK]：网络连接中断。请保持内容不变并再次点击，系统会避免重复创建。`;
+  }
+  return `${action}に失敗しました [REPORT-REQUEST]: ${message}`;
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("图片读取失败"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function canDecodeImage(dataUrl: string): Promise<boolean> {
+  return new Promise(resolve => {
+    const image = new Image();
+    image.onload = () => resolve(true);
+    image.onerror = () => resolve(false);
+    image.src = dataUrl;
+  });
+}
+
 export default function ReportForm() {
+  const { user } = useAuth();
   const [, setLocation] = useLocation();
   const params = useParams<{ id: string }>();
   const isEditMode = !!params.id;
@@ -63,6 +157,7 @@ export default function ReportForm() {
   const [currentLabel, setCurrentLabel] = useState<ImageLabel>("LINE截图");
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastCreateAttemptRef = useRef<StoredReportCreateAttempt | null>(null);
 
   const {
     data: reportVisibility,
@@ -178,13 +273,17 @@ export default function ReportForm() {
     onSuccess: async report => {
       // Upload pending images after report creation
       if (pendingImages.length > 0 && report?.id) {
-        await uploadPendingImages(report.id);
+        const imagesUploaded = await uploadPendingImages(report.id);
+        if (!imagesUploaded) return;
       }
+      const completedAttempt = lastCreateAttemptRef.current;
+      lastCreateAttemptRef.current = null;
+      if (completedAttempt) clearStoredReportCreateAttempt(completedAttempt);
       toast.success("レポートを作成しました");
       setLocation("/master/reports");
     },
     onError: error => {
-      toast.error(`作成に失敗しました: ${error.message}`);
+      toast.error(reportMutationError("作成", error));
     },
   });
 
@@ -192,13 +291,14 @@ export default function ReportForm() {
     onSuccess: async () => {
       // Upload pending images after report update
       if (pendingImages.length > 0 && params.id) {
-        await uploadPendingImages(parseInt(params.id));
+        const imagesUploaded = await uploadPendingImages(parseInt(params.id));
+        if (!imagesUploaded) return;
       }
       toast.success("レポートを更新しました");
       setLocation("/master/reports");
     },
     onError: error => {
-      toast.error(`更新に失敗しました: ${error.message}`);
+      toast.error(reportMutationError("更新", error));
     },
   });
 
@@ -209,61 +309,56 @@ export default function ReportForm() {
     },
   });
 
-  const uploadPendingImages = async (reportId: number) => {
+  const uploadPendingImages = async (reportId: number): Promise<boolean> => {
     setIsUploading(true);
     try {
-      for (const img of pendingImages) {
-        const base64 = await fileToBase64(img.file);
+      for (const img of [...pendingImages]) {
+        const base64 = img.preview.split(",")[1];
+        if (!base64) throw new Error("图片内容读取失败 [REPORT-IMAGE-READ]");
         await uploadAttachment.mutateAsync({
           reportId,
+          uploadId: img.uploadId,
           base64,
           filename: img.file.name,
           mimeType: img.file.type,
           label: img.label,
         });
+        setPendingImages(previous => previous.filter(item => item !== img));
       }
-      setPendingImages([]);
+      return true;
     } catch (error: any) {
-      toast.error(`画像アップロードに失敗: ${error.message}`);
+      toast.error(`日报正文已保存，但截图上传失败 [REPORT-IMAGE-UPLOAD]: ${error.message}。请保持页面并再次点击提交。`);
+      return false;
     } finally {
       setIsUploading(false);
     }
   };
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        // Remove data:image/xxx;base64, prefix
-        const base64 = result.split(",")[1];
-        resolve(base64);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  const preparePendingImage = async (file: File, label: ImageLabel): Promise<PendingImage | null> => {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      toast.error(`${file.name || "图片"} はJPEG・PNG・WEBP画像ではありません`);
+      return null;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error(`${file.name || "图片"} は5MBを超えています`);
+      return null;
+    }
+    const preview = await fileToDataUrl(file);
+    if (!await canDecodeImage(preview)) {
+      toast.error(`${file.name || "图片"} 无法读取 [REPORT-IMAGE-DECODE]，请转换为JPG、PNG或WEBP后重试`);
+      return null;
+    }
+    return { uploadId: await hashPendingImage(file, label), file, preview, label };
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
     const newImages: PendingImage[] = [];
     for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-        toast.error(`${file.name} はJPEG・PNG・WEBP画像ではありません`);
-        continue;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error(`${file.name} は5MBを超えています`);
-        continue;
-      }
-      newImages.push({
-        file,
-        preview: URL.createObjectURL(file),
-        label: currentLabel,
-      });
+      const pending = await preparePendingImage(files[i], currentLabel);
+      if (pending) newImages.push(pending);
     }
     setPendingImages(prev => [...prev, ...newImages]);
     // Reset file input
@@ -275,34 +370,28 @@ export default function ReportForm() {
   const removePendingImage = (index: number) => {
     setPendingImages(prev => {
       const updated = [...prev];
-      URL.revokeObjectURL(updated[index].preview);
       updated.splice(index, 1);
       return updated;
     });
   };
 
-  const handlePaste = (e: React.ClipboardEvent) => {
+  const handlePaste = async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items) return;
-    const newImages: PendingImage[] = [];
+    const imageFiles: File[] = [];
     for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (["image/jpeg", "image/png", "image/webp"].includes(item.type)) {
-        const file = item.getAsFile();
-        if (!file) continue;
-        if (file.size > 5 * 1024 * 1024) {
-          toast.error("粘贴的图片超过5MB");
-          continue;
-        }
-        newImages.push({
-          file,
-          preview: URL.createObjectURL(file),
-          label: currentLabel,
-        });
-      }
+      if (!["image/jpeg", "image/png", "image/webp"].includes(items[i].type)) continue;
+      const file = items[i].getAsFile();
+      if (file) imageFiles.push(file);
+    }
+    if (imageFiles.length === 0) return;
+    e.preventDefault();
+    const newImages: PendingImage[] = [];
+    for (const file of imageFiles) {
+      const pending = await preparePendingImage(file, currentLabel);
+      if (pending) newImages.push(pending);
     }
     if (newImages.length > 0) {
-      e.preventDefault();
       setPendingImages(prev => [...prev, ...newImages]);
       toast.success(`已粘贴 ${newImages.length} 张图片`);
     }
@@ -378,7 +467,26 @@ export default function ReportForm() {
           : {}),
       });
     } else {
-      createReport.mutate({ reportStaffId: submissionReportStaffId, ...data });
+      const payloadKey = await hashReportPayload(JSON.stringify({ reportStaffId: submissionReportStaffId, ...data }));
+      const actorId = Number(user?.id);
+      if (!Number.isInteger(actorId) || actorId <= 0) {
+        toast.error("登录信息未确认 [REPORT-ACTOR]，请刷新页面后重试");
+        return;
+      }
+      if (lastCreateAttemptRef.current?.payloadKey !== payloadKey
+        || lastCreateAttemptRef.current.actorId !== actorId) {
+        lastCreateAttemptRef.current = readStoredReportCreateAttempt(actorId, payloadKey) || {
+          actorId,
+          payloadKey,
+          requestId: createReportRequestId(),
+        };
+        storeReportCreateAttempt(lastCreateAttemptRef.current);
+      }
+      createReport.mutate({
+        requestId: lastCreateAttemptRef.current.requestId,
+        reportStaffId: submissionReportStaffId,
+        ...data,
+      });
     }
   };
 
@@ -680,7 +788,7 @@ export default function ReportForm() {
                   onChange={handleFileSelect}
                 />
                 <p className="text-xs text-muted-foreground">
-                  支持 JPG/PNG，最大10MB | 可直接 Ctrl+V 粘贴截图
+                  支持 JPG/PNG/WEBP，最大5MB | 可直接 Ctrl+V 粘贴截图
                 </p>
               </div>
 

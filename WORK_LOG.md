@@ -3806,7 +3806,6 @@ queueから「文案を確認して返信」を押すと既存グループ会話
 
 検証はfocused **67 tests**、広範LINE回帰 **13 files・169 tests**、production build、migration runner構文、diff／secret監査に成功。full TypeScript baselineには既存**1,163 diagnostics**が残るが、新規queue filesと変更したLINE UI review pathの新規診断は0件。独立最終reviewは**GO（P0/P1 0件）**。feature SHA `bc23a4872c1d7c03d82dd030bcc4d46fc2886c0a`はGitHub CI／Railwayともsuccess。本番`/api/health/line-ai-manager`はHTTP 200・storage／automation readyで、`/master/line`配信chunkに「グループAI返信確認」「AI返信推奨」「返信不要候補」「AIおすすめ返信（未送信）」「文案を確認して返信」「送信処理中」をGET/read-onlyで確認した。実LINE送信、group設定変更、group leave、本番DB直接操作は行っていない。
 
-
 ### 2026-09-23｜早会参会登记与语音转写完全分离・生产验收
 团队早会在原录音、可解码音频、音频流质量、时长/哈希和参会人员快照安全落库后即独立成立参会记录；Whisper/AI文字起こし与总结继续作为后台处理状态。转写处理中或失败时，既有参会名单不会取消、覆盖或要求重新录音，页面分别显示“参会已登记／转写中、可重试或失败”，并明确“转写失败不影响参会记录”。同一团队当天已有参会记录后不再允许因转写失败重复录制，转写仍可从已保存原音频单独重试。
 
@@ -3826,7 +3825,6 @@ queueから「文案を確認して返信」を押すと既存グループ会話
 日报复核失败复用既有`report_followup_extraction_runs`持久记录，不新增表、包或环境变量。`TASK_REVIEW_FAILED`由调度器走review-only路径，绝不重新运行已成功的任务提取/对账；使用条件更新claim、随机lease token、5分钟租约、1分钟心跳、事务提交前同token续租校验、指数退避和最多5次dead-letter，防止多副本重复模型调用或失去租约后继续写入。真实提取失败仍走原有完整生命周期重试。
 
 验证：任务/日报/权限/绩效专项23个测试文件共120项通过；最终重点安全测试覆盖canonical身份不一致与AI后身份重绑、非`LCJB-`前缀但真实关联的Brain任务、日报原文证据门槛、人工反馈优先、重复完成幂等、review-only不重跑提取、CAS竞争、第五次dead-letter、active多执行人聚合、本人专用完成权限和终态保护。生产构建成功。全仓TypeScript仍有历史基线诊断，但本次新增服务、调度器、任务feed、页面、新路由范围和DB跟进事务范围均为0条新增诊断。桌面与手机端本地视觉QA确认任务分组、说明文案与完成按钮无溢出。
-
 ## 2026-09-23｜LINEグループAI返信確認：上部整理・会話context・スタッフ対応境界
 `/master/line`の初期表示を、招待済みLINEグループ専用の**AI返信確認**へ変更した。上部メニューは従来の重なりやすい1本のtab列を廃止し、「グループ対応」「個別LINE」「管理・連携」の3領域へ分離した。320px級では各領域と各buttonを1列、`sm`以上では領域内を2列／3列、`2xl`以上で3領域を横並びにするため、AI返信件数badgeや`高橋 悠真`表示を含めても重ならない。実production CSSを使った320px／1600px screenshot QAで、mobile縦stack・desktop横並び・文字とbadgeの非重複を確認した。
 
@@ -3837,5 +3835,14 @@ queueから「文案を確認して返信」を押すと既存グループ会話
 queueは従来どおりLINE管理admin限定・`sourceType='group'`限定であり、LINE push／replyを直接呼ばない。おすすめ文案は未送信のまま既存group dialogへ渡し、人間の内容確認、conversation revision再照合、immutable outgoing audit、deterministic retry key、lifecycle／設定再検証を通った既存manual sendだけが送信できる。通常group返信の明示`@LCJ`／本人資格gate、限定onboarding、未連携参加者の限定明示質問以外を自動返信しない境界は変更していない。
 
 最終検証はupstream `011e261d`統合後に関連LINE **11 files・142 tests**成功、production build成功、変更moduleのbundle成功、diff／secret監査成功。build時の既存`sharp` import warning、chunk size warning、local DB不在によるmigration `ECONNREFUSED`からruntime initializerへの安全な委譲だけを確認した。full TypeScriptは既存baseline **1,163 diagnostics／85 files**でexit 2だが、今回の5変更fileは0件。独立read-only reviewはblocker修正前の指摘を閉じ、統合後も最終**GO（P0/P1 0件）**。検証中に実LINE送信、設定変更、group leave、本番DB直接操作は行っていない。
-
 feature commit `3447dc0b46fb8db6ed3382c72fa59836e642a9b2`はGitHub CI success、Railwayも同一SHAでsuccess後に本番反映された。その後の`inactive`表示は後続main `f1cf99ba305fe6cefdf867febf38c1bd4be2878f`への正常な置換であり、同後続SHAもCI／Railway successかつfeature commitを祖先に含む。現在本番のGET-only確認で`/api/health/line-ai-manager`と`/master/line`はHTTP 200、storage／group automation defaults／runtimeはいずれも`ready`、配信`LineManagement-D4hJZ4-3.js`と`LineGroupReplyReviewQueue-BRSJHYUl.js`に「グループ対応」「判断に使うグループ会話」「LCJスタッフ」「ユーザータイプ＝スタッフ」「AIおすすめ返信（未送信）」を確認した。queue chunkに`pushMessage`／`replyMessage`はなく、実LINE送信、group設定mutation、group leave、本番DB直接操作は行っていない。
+## 2026-09-23｜日报创建 Failed to fetch 与截图可靠性修复（本番反映前）
+修复`/master/reports/new`在移动端提交日报时显示“作成に失敗しました: Failed to fetch”的问题。根因是普通日报create/update请求在返回前同步等待外部AI跟进事项提取，弱网或移动端长请求容易在日报已保存但响应未返回时表现为网络失败。现将普通表单的新建/编辑改为：在同一数据库事务中提交日报、不可变实体审计与持久AI队列，然后立即响应；后台补偿器处理排队、失败和租约过期任务，更新内容时会把旧版本任务标记为`SUPERSEDED`，避免旧结果覆盖新日报。按用户要求，本次没有调整LCJ Brain聊天生成日报链路。
+
+新增客户端`requestId`幂等保护：以当前账号ID与日报内容SHA-256定位，仅保存哈希和UUID到`sessionStorage`，页面刷新或响应丢失后用相同内容重试会复用同一请求；只有日报正文和全部截图都成功后才清除。数据库增加唯一索引并校验同一`requestId`的创建者与完整载荷，防止重复日报或跨账号误复用。错误提示增加`REPORT-NETWORK`、`REPORT-REQUEST`、`REPORT-IMAGE-UPLOAD`等诊断码。
+
+截图预览改为移动端稳定的data URL并在提交前验证可解码性，前后端统一为JPEG/PNG/WEBP、5MB限制。每张图按原始字节+标签生成SHA-256 `uploadId`，服务端重算验证，`(reportId, uploadId)`唯一约束保证响应丢失、页面重载或重新选择同一截图时不会重复创建附件；数据库保存内容哈希并验证冲突，归档后重新上传可恢复原记录。确定性对象key可安全覆盖失败上传，不执行可能误删并发成功文件的清理。
+
+新增并登记`0162_daily_report_reliable_submission`正式迁移；Railway启动前使用同一把数据库锁按顺序执行并验证既有`0161_tw_daily_line_bridge`和新`0162`，确保远端刚上线的LINE日报闭环不会在旧库升级路径被跳过，同时保证`entity_revision_audits`、日报软删除/requestId字段与唯一索引、附件幂等字段/索引、AI队列表均已就绪后才启动服务。账本前置hash正确时按顺序记录0161、0162；账本缺失但Schema可修复时重复执行安全DDL并验证，不伪造不安全的历史记录。通用迁移器同时兼容已由启动迁移建立的重复索引。
+
+在最新`main`（包含LINE目标群安全选择与群组回复上下文）上，日报创建、身份/权限、AI队列恢复、截图幂等、剪贴板、图片解码、LINE日报桥接、群组回复与启动迁移共14个测试文件95项全部通过；完整production build通过（仅保留既有`receiptMaskingService.ts` sharp warning）。全量TypeScript仍为仓库既有1163项/85文件，本次修改文件及修改行无新增诊断。最终独立只读复审确认0161可能被跳过的启动迁移链P1已关闭，代码P0/P1为0；聊天生成日报仍按用户要求保持不变。仅保留后续可补真实MySQL/TiDB并发迁移及刷新后待传图片Blob恢复集成测试的非阻断P2建议。

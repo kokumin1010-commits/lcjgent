@@ -1,14 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { reportFollowupExtractionRuns, reportFollowups, reports } from "../drizzle/schema";
 
-const { invokeLLM, getDb, reportFollowupDedupeKey } = vi.hoisted(() => ({
+const { invokeLLM, getDb, reportFollowupDedupeKey, reportFollowupExtractionContentHash } = vi.hoisted(() => ({
   invokeLLM: vi.fn(),
   getDb: vi.fn(),
   reportFollowupDedupeKey: (value: string) => value.trim().toLowerCase(),
+  reportFollowupExtractionContentHash: vi.fn(() => "stable-report-content-hash"),
 }));
 
 vi.mock("./_core/llm", () => ({ invokeLLM }));
-vi.mock("./db", () => ({ getDb, reportFollowupDedupeKey }));
+vi.mock("./db", () => ({ getDb, reportFollowupDedupeKey, reportFollowupExtractionContentHash }));
 vi.mock("./taskExecutionUpgrade", () => ({ ensureTaskExecutionTables: vi.fn(async () => undefined) }));
 
 import {
@@ -88,11 +89,17 @@ function createDbMock(initialRows: any[] = [], options: { leaseOwned?: boolean }
                   remarks: report.remarks,
                 }] }
               : table === reportFollowupExtractionRuns
-                ? { orderBy: () => ({ limit: () => ({ for: async () => [{
-                    id: transactionRunId,
-                    status: "running",
-                    leaseToken: options.leaseOwned === false ? "stolen-lease" : runTokens.get(transactionRunId),
-                  }] }) }) }
+                ? (() => {
+                    const currentRun = [{
+                      id: transactionRunId,
+                      status: "running",
+                      leaseToken: options.leaseOwned === false ? "stolen-lease" : runTokens.get(transactionRunId),
+                    }];
+                    return {
+                      orderBy: () => ({ limit: () => ({ for: async () => currentRun }) }),
+                      limit: () => ({ for: async () => currentRun }),
+                    };
+                  })()
                 : Promise.resolve(rows.map(row => ({ ...row }))),
           }),
         }),
