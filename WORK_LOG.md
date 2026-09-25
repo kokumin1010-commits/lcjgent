@@ -3935,3 +3935,10 @@ feature SHA `ded1ea6101fd0ace7d1a97bc50c1e6f16ca9e4a9`はGitHub CI run `36133091
 服务端继续沿用既有`listCreators`权限边界和`deletedAt IS NULL`软删除过滤，仅在达人名称、原始账号ID、规范化账号ID三列中参数化查询。账号搜索复用NFKC、去`@`、小写规范化逻辑，可兼容历史账号格式和主页URL输入；`%`、`_`、`!`按LIKE字面量转义，不会扩大搜索范围。未新增数据库表、环境变量或写入流程。
 
 验证：达人BD相关7 files・49 tests全部通过；修改前后端均通过esbuild，production build成功，`git diff --check`成功。全量TypeScript仍存在项目既有诊断，本次新增搜索行与后端／测试文件无新增诊断。独立只读复审无blocker，并根据建议补齐错误重试、加载优先、读屏状态、非管理员scope／软删除条件、特殊通配符和300条提示。feature SHA `8fa7e9d3201977f35db86111d400e63f7e89e5ac`对应Railway production deployment `6660522905`成功；本番`/`、`/master/influencer-bd`、`/api/health/influencer-creator-dedupe`均HTTP 200，配信`InfluencerBd-Db8Fy89u.js`已确认包含中文／日文搜索、加载、无结果、失败重试和上限提示。未修改或输出production达人数据。
+## 2026-09-25｜达人BD全部图片入口支持Ctrl+V粘贴上传
+
+按用户要求，为`/master/influencer-bd`的全部现有图片上传入口补充Ctrl+V/⌘+V粘贴，同时保留原有点击选择文件流程。新增统一`InfluencerImagePastePicker`组件，覆盖达人新增弹窗的AI截图识别、达人库批量AI识别，以及BD进度弹窗的聊天截图；页面没有新增特殊入口或改变原有业务路由。
+
+粘贴图片仅接受JPEG、PNG、WEBP，并通过既有共享剪贴板工具生成与MIME一致的安全文件名。达人资料识别继续执行单文件、5MB限制；聊天截图继续执行单文件10MB、最多10张限制，粘贴多张时追加到待上传列表并显示文件名。文件格式、数量或大小不符合时仅提示并拒绝对应文件；表格仍可通过文件选择器进入原有逐行预览流程，不能通过剪贴板绕过。隐藏文件输入阻止点击冒泡，避免递归打开选择器；粘贴区域支持焦点、Enter/Space及明确的可访问名称。
+
+本次不修改任何服务器上传端点、AI识别逻辑、达人数据、权限、审核或存储流程。合并并行的达人姓名/账号ID搜索后，专项9个文件60项测试全部通过，新增Ctrl+V与共享剪贴板15项测试全部通过，生产构建成功。全量Vitest中4,587项通过、45项跳过；既有48个数据库/外部环境依赖测试文件失败，本次达人测试零失败。全量TypeScript与未修改latest-main基线均为1,163项既有诊断，本次新增组件和测试没有新增诊断。使用只读本地mock在桌面1440px和手机390px实际模拟了达人截图1张与聊天截图2张的ClipboardEvent，AI预览、追加文件名、成功提示和响应式布局均通过；没有连接或修改生产数据库。
