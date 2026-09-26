@@ -23,9 +23,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { LcmCreatorQuickViewDialog } from "@/components/lcm/LcmCreatorQuickViewDialog";
-import { LcmArchiveBadge, LcmPublicLayout } from "@/components/lcm/LcmPublicLayout";
+import { LcmPublicLayout } from "@/components/lcm/LcmPublicLayout";
 import { LcmProductImage } from "@/components/lcm/LcmProductImage";
-import { lcf2026ExhibitorCatalogPages } from "@/data/lcf2026ExhibitorCatalog";
 import { buildFestivalLoginUrl } from "@/lib/festivalPortal";
 import { applyPageSeo } from "@/lib/pageSeo";
 import { trpc } from "@/lib/trpc";
@@ -106,7 +105,7 @@ export default function LcmMarket() {
       title: "LCM｜ライブコマースマーケット｜ブランド・商品・サンプル・卸商談",
       description: "ライブコマース向け商品を検索でき、ブランド・商品を当面無料でセルフ登録・公開できるB2Bマーケット。サンプル、会員限定取引条件、商談を一つの場所で管理できます。",
       canonicalPath: "/lcm",
-      image: lcf2026ExhibitorCatalogPages.find((item) => item.page === 29)?.imageUrl || "https://www.livecommercefestival.com/favicon.ico",
+      image: MARKET_ASSETS.brand,
       jsonLd: [
         { "@context": "https://schema.org", "@type": "WebSite", name: "LCM｜ライブコマースマーケット", url: "https://www.livecommercefestival.com/lcm" },
         { "@context": "https://schema.org", "@type": "CollectionPage", name: "LCM 商品・ブランドディレクトリ", description: "商品を探し、ブランドと商品を当面無料でセルフ登録・公開できるB2Bマーケット", url: "https://www.livecommercefestival.com/lcm" },
@@ -122,11 +121,6 @@ export default function LcmMarket() {
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
-  const archiveItems = useMemo(
-    () => lcf2026ExhibitorCatalogPages.filter((item) => item.pageType === "出展企業紹介" && item.productTitle),
-    [],
-  );
-  const archivePreviewItems = useMemo(() => archiveItems.slice(0, 4), [archiveItems]);
   const filteredLiveProducts = useMemo(() => {
     const q = normalize(query);
     return (liveProducts.data || []).filter((item) => {
@@ -265,19 +259,6 @@ export default function LcmMarket() {
             <div className="mt-8 border border-dashed border-black/25 bg-white p-10 text-center"><Search className="mx-auto h-8 w-8 text-black/25" /><p className="mt-3 font-black">{hasFilters ? "該当する公開商品がありません" : "現在公開中の商品はありません"}</p><p className="mt-2 text-xs leading-6 text-black/45">{hasFilters ? "検索語や条件を変更すると、別の商品を確認できます。" : "ブランドが商品情報を登録して公開すると、ここに通常商品として表示されます。"}</p>{hasFilters && <button type="button" onClick={resetFilters} className="mt-4 bg-[#171714] px-5 py-3 text-sm font-black text-white">すべての公開商品を見る</button>}</div>
           )}
 
-          {!hasFilters && (
-            <section className="mt-12 overflow-hidden border border-black/15 bg-[#171714] text-white" aria-labelledby="archive-feature-heading">
-              <div className="grid lg:grid-cols-[.9fr_1.1fr]">
-                <div className="flex flex-col justify-between p-6 md:p-9">
-                  <div><div className="flex flex-wrap items-center gap-2"><LcmArchiveBadge /><span className="text-xs font-bold text-white/45">第1回LCF 出展実績・開催時の掲載情報</span></div><h3 id="archive-feature-heading" className="mt-5 text-3xl font-black tracking-tight md:text-5xl">第1回LCF<br />出展商品特集</h3><p className="mt-5 max-w-xl text-sm font-medium leading-7 text-white/60">2026年9月開催時に紹介された全{archiveItems.length}商品を、開催記録として保存しています。通常マーケットの商品とは分けて閲覧できます。</p></div>
-                  <Link href="/livecommercefestival/2026/exhibitors" className="mt-7 inline-flex w-fit items-center bg-[#f7cc35] px-5 py-3 text-sm font-black text-black">特集ページを見る<ArrowRight className="ml-2 h-4 w-4" /></Link>
-                </div>
-                <div className="grid grid-cols-2 gap-px bg-white/15 p-px">
-                  {archivePreviewItems.map((item) => <Link key={item.page} href={`/lcm/brands/catalog-${item.page}`} className="group relative aspect-square overflow-hidden bg-[#eeeae0]"><LcmProductImage src={item.thumbnailUrl} alt={item.alt} className="h-full w-full object-cover object-top transition duration-200 group-hover:scale-[1.02]" /><span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-3 pb-3 pt-10 text-[10px] font-black text-white">{item.productTitle}</span></Link>)}
-                </div>
-              </div>
-            </section>
-          )}
         </section>
 
         <LcmCreatorQuickViewDialog open={creatorQuickViewOpen} onOpenChange={setCreatorQuickViewOpen} />

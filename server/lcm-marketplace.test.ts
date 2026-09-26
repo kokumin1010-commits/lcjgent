@@ -80,7 +80,7 @@ describe("LCM marketplace foundation", () => {
     expect(market).toContain("配信情報あり");
     expect(market).toContain("isNewProduct(item.publishedAt)");
     expect(market).toContain("hasLiveReadyInformation(item)");
-    expect(market).toContain("第1回LCF 出展実績");
+    expect(market).toContain("item.eventBadges");
     expect(market).toContain("xl:grid-cols-5 2xl:grid-cols-6");
     expect(market).toContain("サンプルカート");
     expect(market).toContain("brandOfficiallyLinked");
@@ -239,15 +239,17 @@ describe("LCM marketplace foundation", () => {
     expect(layout).toContain("sm:inline-flex");
   });
 
-  it("keeps the current marketplace separate from the first-event product feature", () => {
+  it("removes the first-event product feature from the current marketplace", () => {
     const market = read("client/src/pages/LcmMarket.tsx");
     expect(market).toContain("const totalResults = filteredLiveProducts.length");
     expect(market).not.toContain("const filteredArchive");
-    expect(market).toContain("第1回LCF");
-    expect(market).toContain("出展商品特集");
-    expect(market).toContain("特集ページを見る");
-    expect(market).toContain("通常マーケットの商品とは分けて閲覧できます");
-    expect(market).toContain('href="/livecommercefestival/2026/exhibitors"');
+    expect(market).not.toContain("archiveItems");
+    expect(market).not.toContain("archivePreviewItems");
+    expect(market).not.toContain("LcmArchiveBadge");
+    expect(market).not.toContain("出展商品特集");
+    expect(market).not.toContain("特集ページを見る");
+    expect(market).not.toContain("通常マーケットの商品とは分けて閲覧できます");
+    expect(market).not.toContain('href="/livecommercefestival/2026/exhibitors"');
     expect(market).toContain("サンプルカートに追加しました");
   });
 

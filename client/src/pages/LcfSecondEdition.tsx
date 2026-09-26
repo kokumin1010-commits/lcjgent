@@ -382,11 +382,16 @@ function LcmBridge() {
           <div>
             <p className="text-xs font-black tracking-[0.24em] text-[#b78100]">02 / ALWAYS-ON MARKET</p>
             <p className="mt-7 text-[clamp(5.5rem,14vw,13rem)] font-black leading-[0.7] tracking-[-0.1em] text-[#f5cf31]" aria-hidden="true">LCM</p>
-            <p className="mt-7 max-w-sm text-sm leading-7 text-black/55">LIVE COMMERCE MARKET。第2回LCFの開催前・当日・開催後を、同じアカウントでつなぐ常設のライブコマースマーケットです。</p>
+            <p className="mt-7 max-w-sm text-sm leading-7 text-black/55">LIVE COMMERCE MARKET。第2回LCFの開催前・当日・開催後をつなぐ、常設のライブコマースマーケットです。</p>
           </div>
           <div>
             <h2 className="max-w-5xl text-5xl font-black leading-[0.94] tracking-[-0.06em] md:text-8xl">LCFの2日を、<br /><span className="text-[#b78100]">毎日の商談へ。</span></h2>
-            <p className="mt-7 max-w-3xl text-base font-medium leading-8 text-black/62 md:text-lg">LCMでは、ブランドが商品情報を育て、ライブコマーサーが配信したい商品を探せます。商品写真と定価は一般公開。サンプルや会員限定の取引条件は、LCF・LCM共通アカウントで安全に確認します。</p>
+            <div className="mt-7 max-w-3xl space-y-4 text-base font-medium leading-8 text-black/62 md:text-lg">
+              <p>LCFの2日間を、日常の商談へ。</p>
+              <p>LCMでは、ブランドが商品情報を掲載し、ライブコマーサーが配信したい商品を探すことができます。</p>
+              <p>商品写真や販売価格などの基本情報は公開され、サンプルの提供や具体的な取引条件などは、LCF・LCM共通アカウントを通じて確認できます。</p>
+              <p>LCFで生まれた出会いを一度きりで終わらせず、イベントの前後も継続的な商品発掘と商談につなげていきます。</p>
+            </div>
           </div>
         </div>
 
@@ -427,7 +432,7 @@ function BeginnerSupport() {
         <figure className="relative mt-10 min-h-72 overflow-hidden border border-black/25 bg-black md:min-h-[440px]">
           <img src={editionOnePhotos.seminar.src} alt={editionOnePhotos.seminar.alt} width={editionOnePhotos.seminar.width} height={editionOnePhotos.seminar.height} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/88 via-black/42 to-black/10" />
-          <figcaption className="absolute inset-y-0 left-0 flex max-w-2xl flex-col justify-end p-6 text-white md:p-10"><p className="text-[10px] font-black tracking-[0.2em] text-[#f5cf31]">EDITION 01 / FULL HOUSE</p><p className="mt-3 text-3xl font-black leading-tight md:text-5xl">第1回の学びを、<br />第2回の実践へ。</p><p className="mt-4 max-w-xl text-sm leading-7 text-white/70">第1回DAY2は全セミナープログラムが満席。第2回は学ぶだけで終わらず、商品選定、設定、会場配信までつなげます。</p></figcaption>
+          <figcaption className="absolute inset-y-0 left-0 flex max-w-2xl flex-col justify-end p-6 text-white md:p-10"><p className="text-[10px] font-black tracking-[0.2em] text-[#f5cf31]">EDITION 01 / FULL HOUSE</p><p className="mt-3 text-3xl font-black leading-tight md:text-5xl">第1回の学びを、<br />第2回の実践へ。</p></figcaption>
         </figure>
         <div className="mt-10 border border-black/35 bg-[#111] p-6 text-white md:p-8">
           <p className="text-xs font-black tracking-[0.2em] text-[#f5cf31]">SEMINAR CONTENTS / 予定</p>
@@ -437,7 +442,6 @@ function BeginnerSupport() {
           </div>
           <p className="mt-6 text-sm font-bold leading-7 text-white/75">そのほか、ライブコマースの実践に役立つコンテンツを予定しています。</p>
           <p className="mt-2 text-[11px] leading-5 text-white/42">※セミナー内容は現時点での予定です。今後変更となる場合があります。</p>
-          <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-t border-white/15 pt-6"><p className="max-w-2xl text-sm font-bold leading-7 text-white/70">経験年数や配信実績がなくても申込対象です。申込時に「初心者サポートを希望する」を選択できます。</p><a href={event.applicationLiverPath} className="inline-flex min-h-12 items-center justify-center bg-[#f5cf31] px-5 py-3 text-sm font-black text-black">ライブコマーサーとして申し込む<ArrowUpRight className="ml-2 h-4 w-4" /></a></div>
         </div>
       </div>
     </section>

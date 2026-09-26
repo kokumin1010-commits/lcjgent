@@ -18,21 +18,15 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
-import { lcf2026ExhibitorCatalogPages } from "@/data/lcf2026ExhibitorCatalog";
 import {
   lcf2026Coverage,
-  lcf2026HomepagePhotoIds,
   lcf2026PhotoById,
-  lcf2026Stats,
   lcfContactEmail,
-  lcfEditions,
 } from "@/data/lcfEditions";
 import { applyPageSeo } from "@/lib/pageSeo";
 import { LCF_EVENT_DEFINITIONS } from "@shared/lcfEventDefinitions";
 
 const hero = lcf2026PhotoById["D1-104"];
-const mosaicPhotos = lcf2026HomepagePhotoIds.slice(1, 7).map((id) => lcf2026PhotoById[id]);
-const exhibitorCatalogPreviewPages = [2, 26, 27, 29].map((page) => lcf2026ExhibitorCatalogPages[page - 1]);
 const lcjOfficialSite = "https://livecommercejapan.jp/";
 const lcfOfficialTiktok = "https://www.tiktok.com/@livecommercefestival";
 const secondEdition = LCF_EVENT_DEFINITIONS[2];
@@ -166,7 +160,7 @@ function TopPortalSection() {
                 <p className="text-[10px] font-black tracking-[0.2em] text-[#b58a00]">LATEST NEWS</p>
                 <h2 id="latest-news-heading" className="mt-1 text-2xl font-black tracking-[-0.04em]">新着ニュース</h2>
               </div>
-              <a href="#media" className="text-xs font-black text-black/55 hover:text-black">一覧を見る</a>
+              <span className="text-xs font-black text-black/35">LATEST 3</span>
             </div>
             <div>
               {featuredNews.map((item) => (
@@ -229,212 +223,6 @@ function TopPortalSection() {
   );
 }
 
-function ImpactSection() {
-  return (
-    <section id="about" className="bg-[#f1eee7] px-5 py-24 text-[#101010] md:px-10 md:py-32">
-      <div className="mx-auto max-w-[1500px]">
-        <div className="grid gap-10 border-t border-black/25 pt-6 md:grid-cols-[0.8fr_1.7fr] md:gap-20">
-          <div>
-            <p className="text-xs font-bold tracking-[0.25em] text-black/45">01 / PROVEN IMPACT</p>
-            <p className="mt-4 text-sm leading-7 text-black/60">約束ではなく、現場で生まれた事実を次の開催へ。</p>
-          </div>
-          <h2 className="max-w-4xl text-4xl font-black leading-[1.05] tracking-[-0.055em] md:text-7xl">
-            第1回から、<br />ライブコマースの<br /><span className="text-[#c99d11]">新しい基準</span>が生まれた。
-          </h2>
-        </div>
-
-        <div className="mt-20 grid grid-cols-2 border-l border-t border-black/20 md:grid-cols-3 lg:grid-cols-5">
-          {lcf2026Stats.map((stat) => (
-            <div key={stat.label} className="border-b border-r border-black/20 p-5 last:col-span-2 md:p-6 md:last:col-span-1 xl:p-8">
-              <p className={`${stat.compact ? "text-[clamp(1.35rem,2.9vw,3.2rem)]" : "text-[clamp(2.8rem,6vw,5.5rem)]"} whitespace-nowrap font-black leading-none tracking-[-0.07em]`}>{stat.value}</p>
-              <p className="mt-5 text-sm font-black tracking-[0.08em]">{stat.label}</p>
-              <p className="mt-1 text-xs text-black/45">{stat.note}</p>
-            </div>
-          ))}
-        </div>
-        <p className="mt-4 text-right text-[11px] leading-5 text-black/45">第1回開催実績（主催者集計）・公式開催速報・PR TIMES掲載値に基づく</p>
-      </div>
-    </section>
-  );
-}
-
-function PhotoMosaic() {
-  return (
-    <section className="bg-[#090909] px-3 py-3 md:px-5 md:py-5" aria-label="LCF 2026 ハイライト">
-      <div className="mx-auto grid max-w-[1700px] grid-cols-2 gap-3 md:grid-cols-12 md:grid-rows-[340px_280px] md:gap-5">
-        {mosaicPhotos.map((item, index) => {
-          const positions = [
-            "col-span-2 md:col-span-7 md:row-span-1",
-            "col-span-1 md:col-span-5",
-            "col-span-1 md:col-span-4",
-            "col-span-1 md:col-span-4",
-            "col-span-1 md:col-span-4",
-            "col-span-2 md:hidden",
-          ];
-          return (
-            <figure key={item.id} className={`group relative min-h-52 overflow-hidden bg-white/5 ${positions[index]}`}>
-              <img src={item.src} alt={item.alt} width={item.width} height={item.height} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.025]" />
-              <figcaption className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/80 via-black/20 to-transparent px-4 pb-4 pt-16 text-white">
-                <span className="text-[10px] font-bold tracking-[0.2em]">LCF 2026 / {item.group.toUpperCase()}</span>
-                <span className="text-[10px] text-white/60">{String(index + 1).padStart(2, "0")}</span>
-              </figcaption>
-            </figure>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function PlatformSection() {
-  const pillars = [
-    { icon: Building2, index: "A", title: "BRAND", copy: "商品を、売り場ではなく“物語”として届ける。企業と発信者がその場で出会い、次の販売機会へつながります。" },
-    { icon: Radio, index: "B", title: "COMMERCE LIVE", copy: "実際の商品を手に取り、会場から配信する。反応と販売結果が同時に生まれる、実践型ライブコマースです。" },
-    { icon: Users, index: "C", title: "COMMUNITY", copy: "学び、相談し、称え合う。セミナーからアワードまで、業界を前へ進める関係性をつくります。" },
-  ];
-  return (
-    <section className="bg-[#f1eee7] px-5 py-24 text-[#101010] md:px-10 md:py-32">
-      <div className="mx-auto max-w-[1500px]">
-        <div className="grid gap-10 md:grid-cols-[1fr_1.35fr] md:items-end">
-          <div>
-            <p className="text-xs font-bold tracking-[0.25em] text-black/45">02 / WHAT LCF CREATES</p>
-            <h2 className="mt-5 text-4xl font-black leading-none tracking-[-0.05em] md:text-6xl">出会う。<br />試す。<br />売れる。</h2>
-          </div>
-          <p className="max-w-2xl text-lg leading-9 text-black/62 md:justify-self-end md:text-xl">
-            展示会でも、セミナーでも、配信イベントだけでもない。LCFは、ブランド・ライバー・プラットフォームが一つの現場で動く、ライブコマースの実践拠点です。
-          </p>
-        </div>
-        <div className="mt-20 grid border-t border-black/25 md:grid-cols-3">
-          {pillars.map(({ icon: Icon, index, title, copy }) => (
-            <article key={title} className="border-b border-black/25 py-9 md:border-r md:px-8 md:first:pl-0 md:last:border-r-0 md:last:pr-0">
-              <div className="flex items-center justify-between">
-                <Icon size={26} strokeWidth={1.5} />
-                <span className="text-xs font-bold tracking-[0.2em] text-black/35">{index}</span>
-              </div>
-              <h3 className="mt-10 text-2xl font-black tracking-[-0.03em]">{title}</h3>
-              <p className="mt-4 text-sm leading-7 text-black/58">{copy}</p>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function ExhibitorArchiveSection() {
-  return (
-    <section id="exhibitors" className="overflow-hidden bg-[#0b0b0b] px-5 py-24 text-white md:px-10 md:py-32">
-      <div className="mx-auto max-w-[1500px]">
-        <div className="grid gap-12 border-t border-white/20 pt-6 lg:grid-cols-[0.72fr_1.28fr] lg:items-end">
-          <div>
-            <p className="text-xs font-black tracking-[0.25em] text-[#f2cb3c]">EXHIBITOR ARCHIVE / 32 PAGES</p>
-            <h2 className="mt-5 text-5xl font-black leading-[0.92] tracking-[-0.06em] md:text-7xl">出展企業と、<br />売れる理由。</h2>
-          </div>
-          <div className="max-w-2xl lg:justify-self-end">
-            <p className="text-base leading-8 text-white/62 md:text-lg">第1回LCFに集まった企業、ブランド、商品を全32ページで公開。さらにLCMでは、企業が育てるブランドページから商品を探し、サンプルや卸商談へ進めます。</p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <a href="/lcm" className="inline-flex items-center gap-4 bg-[#f2cb3c] px-6 py-4 text-sm font-black text-black transition-transform active:scale-[0.98]">
-                <Building2 size={19} /> LCMで商品を探す <ArrowUpRight size={18} />
-              </a>
-              <a href="/livecommercefestival/2026/exhibitors" className="inline-flex items-center gap-4 border border-white/30 px-6 py-4 text-sm font-black text-white transition-colors hover:border-white">
-                <BookOpen size={19} /> 第1回 出展企業実績 <ArrowUpRight size={18} />
-              </a>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-16 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-5">
-          {exhibitorCatalogPreviewPages.map((page, index) => (
-            <a key={page.page} href="/livecommercefestival/2026/exhibitors" className={`group relative overflow-hidden border border-white/15 bg-white/5 ${index % 2 ? "md:translate-y-8" : ""}`} aria-label={`${page.name}を含む出展企業実績を見る`}>
-              <img src={page.thumbnailUrl} alt={page.alt} width={595} height={841} loading="lazy" className="aspect-[595/841] w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" />
-              <span className="absolute bottom-0 left-0 bg-black/85 px-3 py-2 text-[10px] font-black tracking-[0.12em] text-[#f2cb3c]">PAGE {String(page.page).padStart(2, "0")}</span>
-            </a>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function ArchiveSection() {
-  const edition = lcfEditions[0];
-  const archivePhoto = lcf2026PhotoById[edition.heroPhotoId];
-  return (
-    <section id="archive" className="bg-[#101010] px-5 py-24 text-white md:px-10 md:py-32">
-      <div className="mx-auto max-w-[1500px]">
-        <div className="flex items-end justify-between border-b border-white/20 pb-6">
-          <div>
-            <p className="text-xs font-bold tracking-[0.25em] text-[#f2cb3c]">03 / EDITIONS ARCHIVE</p>
-            <h2 className="mt-4 text-4xl font-black tracking-[-0.05em] md:text-7xl">積み重なる、LCF。</h2>
-          </div>
-          <p className="hidden text-right text-xs leading-6 text-white/45 md:block">一回ごとの熱狂を、<br />次の産業資産へ。</p>
-        </div>
-
-        <article className="group mt-10 grid overflow-hidden border border-white/20 md:grid-cols-[1.35fr_0.65fr]">
-          <div className="relative min-h-[360px] overflow-hidden md:min-h-[620px]">
-            <img src={archivePhoto.src} alt={archivePhoto.alt} width={archivePhoto.width} height={archivePhoto.height} loading="lazy" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-transparent" />
-            <p className="absolute bottom-5 left-5 text-[10px] font-bold tracking-[0.2em] text-white/75">TOKYO / HAPPO-EN / 2026</p>
-          </div>
-          <div className="flex flex-col justify-between bg-[#191919] p-7 md:p-10">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="border border-[#f2cb3c] px-3 py-1.5 text-[10px] font-bold tracking-[0.16em] text-[#f2cb3c]">{edition.status}</span>
-                <span className="text-7xl font-black tracking-[-0.08em] text-white/10">01</span>
-              </div>
-              <p className="mt-10 text-xs font-bold tracking-[0.2em] text-white/45">{edition.label}</p>
-              <h3 className="mt-3 text-4xl font-black tracking-[-0.05em] md:text-5xl">LIVE COMMERCE<br />FESTIVAL 2026</h3>
-              <p className="mt-7 text-sm leading-7 text-white/58">{edition.dates}<br />{edition.venue}</p>
-            </div>
-            <div className="mt-12 space-y-3">
-              <a href={edition.reportPath} className="flex items-center justify-between bg-[#f2cb3c] px-5 py-4 text-sm font-black text-black transition-transform active:scale-[0.98]">
-                開催レポートを見る <ArrowUpRight size={18} />
-              </a>
-              <a href={edition.eventPath} className="flex items-center justify-between border border-white/25 px-5 py-4 text-sm font-bold text-white transition-colors hover:border-white">
-                第1回イベントページを見る <ArrowUpRight size={18} />
-              </a>
-            </div>
-          </div>
-        </article>
-      </div>
-    </section>
-  );
-}
-
-function MediaSection() {
-  return (
-    <section id="media" className="bg-white px-5 py-24 text-[#101010] md:px-10 md:py-32">
-      <div className="mx-auto grid max-w-[1500px] gap-14 md:grid-cols-[0.7fr_1.3fr]">
-        <div className="md:sticky md:top-28 md:self-start">
-          <p className="text-xs font-bold tracking-[0.25em] text-black/40">04 / MEDIA COVERAGE</p>
-          <h2 className="mt-5 text-5xl font-black leading-[0.92] tracking-[-0.06em] md:text-7xl">伝えられた、<br />現場の熱。</h2>
-          <p className="mt-7 max-w-sm text-sm leading-7 text-black/55">公式開催レポートと各メディア掲載を一か所に。記事は各媒体のサイトでご覧いただけます。</p>
-        </div>
-        <div className="border-t border-black/25">
-          {lcf2026Coverage.map((item, index) => (
-            <a key={`${item.outlet}-${item.href}`} href={item.href} target="_blank" rel="noreferrer" className="group grid gap-3 border-b border-black/20 py-6 md:grid-cols-[48px_150px_1fr_28px] md:items-center">
-              <span className="text-xs tabular-nums text-black/35">{String(index + 1).padStart(2, "0")}</span>
-              <span className="text-xs font-black tracking-[0.06em]">{item.outlet}</span>
-              <span className="text-sm font-medium leading-6 text-black/65 transition-colors group-hover:text-black">{item.title}</span>
-              <ArrowUpRight size={18} className="hidden transition-transform group-hover:-translate-y-1 group-hover:translate-x-1 md:block" />
-            </a>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function NextChapterSection() {
-  return (
-    <section id="next" className="bg-[#d5aa19] px-5 py-10 text-black md:px-10 md:py-12">
-      <div className="mx-auto grid max-w-[1500px] gap-5 md:grid-cols-[1fr_auto] md:items-center">
-        <div><p className="text-xs font-black tracking-[0.22em]">第2回 LIVE COMMERCE FESTIVAL 開催決定</p><h2 className="mt-2 text-2xl font-black tracking-[-0.035em] md:text-4xl">2026.12.08–12.09｜東京都立産業貿易センター浜松町館 2階</h2></div>
-        <a href="/2nd" className="inline-flex min-h-12 items-center justify-center gap-3 border-2 border-black px-5 py-3 text-sm font-black transition-colors hover:bg-black hover:text-white">第2回開催ページを見る <ArrowUpRight size={18} /></a>
-      </div>
-    </section>
-  );
-}
 
 export default function LiveCommerceFestivalTop() {
   useEffect(() => {
@@ -456,13 +244,6 @@ export default function LiveCommerceFestivalTop() {
       <main>
         <HeroSection />
         <TopPortalSection />
-        <ImpactSection />
-        <PhotoMosaic />
-        <ExhibitorArchiveSection />
-        <PlatformSection />
-        <ArchiveSection />
-        <MediaSection />
-        <NextChapterSection />
       </main>
       <footer className="bg-[#090909] px-5 py-10 text-white md:px-10">
         <div className="mx-auto flex max-w-[1500px] flex-col gap-6 border-t border-white/15 pt-8 text-xs text-white/45 md:flex-row md:items-end md:justify-between">

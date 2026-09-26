@@ -100,7 +100,7 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("ライブコマーサー申込");
     expect(page).toContain("一般来場申込");
     expect(page).not.toContain("チャットへ");
-    expect(page).toContain("ライブコマーサーとして申し込む");
+    expect(page).not.toContain("ライブコマーサーとして申し込む");
   });
 
   it("routes every top and sticky application action to its internal edition-two form", () => {
@@ -216,7 +216,7 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("第1回の実績が、");
     expect(page).toContain("第1回公式レポートに保存している実景と実績です");
     expect(page.match(/loading="lazy"/g)?.length).toBeGreaterThanOrEqual(8);
-    expect(page).toContain("第1回DAY2は全セミナープログラムが満席");
+    expect(page).not.toContain("第1回DAY2は全セミナープログラムが満席");
   });
 
   it("removes the redundant next-LCF section and keeps the remaining sections consecutively numbered", () => {
@@ -250,9 +250,10 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("GMVを高めるライブ配信準備");
     expect(page).toContain("※セミナー内容は現時点での予定です。今後変更となる場合があります。");
     const beginnerSupport = page.slice(page.indexOf("function BeginnerSupport()"), page.indexOf("function Venue()"));
-    expect(beginnerSupport).toContain('href={event.applicationLiverPath}');
-    expect(beginnerSupport).toContain("ライブコマーサーとして申し込む");
-    expect(beginnerSupport).toContain("初心者サポートを希望する");
+    expect(beginnerSupport).not.toContain('href={event.applicationLiverPath}');
+    expect(beginnerSupport).not.toContain("ライブコマーサーとして申し込む");
+    expect(beginnerSupport).not.toContain("初心者サポートを希望する");
+    expect(beginnerSupport).not.toContain("経験年数や配信実績がなくても申込対象です");
     expect(page).not.toContain("「興味はある。でも、何から始めればいいか分からない」方へ。");
     expect(liverForm).toContain("ライブコマース初心者サポートを希望しますか？");
     expect(liverForm).toContain("beginnerSupport: (answers.beginnerSupport as 'yes' | 'no') || 'no'");
@@ -274,6 +275,8 @@ describe("LCF second-edition official page", () => {
     expect(submittedCompletion).toContain('rel="noopener noreferrer"');
     expect(submittedCompletion).toContain("min-h-12 w-full");
     expect(submittedCompletion).toContain("bg-[#007A34]");
+    expect(submittedCompletion.indexOf("事前マッチング等の詳細は後日ご連絡いたします")).toBeLessThan(submittedCompletion.indexOf("参加者LINEオープンチャット"));
+    expect(submittedCompletion.indexOf("参加者LINEオープンチャット")).toBeLessThan(submittedCompletion.indexOf("アカウントが作成されました"));
     expect(liverForm.slice(submittedEnd)).not.toContain("LINEオープンチャットに参加する");
   });
 
@@ -290,6 +293,11 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain('id="lcm"');
     expect(page).toContain("LCFの2日を、");
     expect(page).toContain("毎日の商談へ。");
+    expect(page).toContain("第2回LCFの開催前・当日・開催後をつなぐ、常設のライブコマースマーケットです。");
+    expect(page).toContain("LCFの2日間を、日常の商談へ。");
+    expect(page).toContain("ブランドが商品情報を掲載し、ライブコマーサーが配信したい商品を探すことができます。");
+    expect(page).toContain("商品写真や販売価格などの基本情報は公開され");
+    expect(page).toContain("イベントの前後も継続的な商品発掘と商談につなげていきます。");
     expect(page).toContain('href="/lcm"');
     expect(page).toContain('href="/lcm/manage?workspace=brand"');
     expect(page).toContain('href="/lcm/manage?workspace=creator"');
@@ -305,6 +313,8 @@ describe("LCF second-edition official page", () => {
     expect(page).not.toMatch(/TikTok API連携|売上を自動取得|誰でも即時公開/);
     expect(server).toContain("第1回公式映像とライブ配信・集合写真、GMV8,000万円・販売数23,958点を公開");
     expect(server).toContain("LCMでの継続商談へつなげます");
+    expect(server).toContain("LCFの2日間を、日常の商談へ。");
+    expect(server).toContain("イベントの前後も継続的な商品発掘と商談につなげていきます。");
     expect(server).toContain('href="${baseUrl}/lcm"');
   });
 
@@ -390,11 +400,12 @@ describe("LCF second-edition official page", () => {
     expect(mypage).toContain("第1回の履歴とQRはそのまま残ります");
   });
 
-  it("keeps the top page proof-led and adds only a compact second-edition notice", () => {
+  it("keeps the top page focused on the hero and current application portal", () => {
     expect(top).toContain('const hero = lcf2026PhotoById["D1-104"]');
     expect(top).toContain("第1回イベントページを見る");
-    expect(top).toContain("第2回 LIVE COMMERCE FESTIVAL 開催決定");
-    expect(top).toContain("2026.12.08–12.09｜東京都立産業貿易センター浜松町館 2階");
+    expect(top).toContain("第2回 お申し込み受付中");
+    expect(top).not.toContain("01 / PROVEN IMPACT");
+    expect(top).not.toContain("第1回から、");
     expect(top).not.toMatch(/70ブース|70 BOOTHS|1,500㎡/);
   });
 

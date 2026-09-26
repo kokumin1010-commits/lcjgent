@@ -6,7 +6,7 @@ const readProjectFile = (relativePath: string) =>
   readFileSync(fileURLToPath(new URL(`../${relativePath}`, import.meta.url)), "utf8");
 
 const topPage = readProjectFile("client/src/pages/LiveCommerceFestivalTop.tsx");
-const heroSection = topPage.slice(topPage.indexOf("function HeroSection()"), topPage.indexOf("function ImpactSection()"));
+const heroSection = topPage.slice(topPage.indexOf("function HeroSection()"), topPage.indexOf("function TopPortalSection()"));
 
 describe("LCFトップから第2回ページへの導線", () => {
   it("イベントbanner直下に第2回の黄色主CTAと第1回archive導線を表示する", () => {
@@ -29,7 +29,7 @@ describe("LCFトップから第2回ページへの導線", () => {
     expect(heroSection).toContain("min-h-8 min-w-8");
     expect(heroSection).toContain("rounded-[1.4rem]");
 
-    const portal = topPage.slice(topPage.indexOf("function TopPortalSection()"), topPage.indexOf("function ImpactSection()"));
+    const portal = topPage.slice(topPage.indexOf("function TopPortalSection()"), topPage.indexOf("export default function"));
     expect(portal).toContain("第2回 お申し込み受付中");
     expect(portal).toContain("新着ニュース");
     expect(portal).toContain("出展企業のメリット");
@@ -48,5 +48,22 @@ describe("LCFトップから第2回ページへの導線", () => {
     expect(portal).toContain('lg:grid-cols-[minmax(0,1fr)_320px]');
     expect(portal).toContain("sm:grid-cols-2 lg:sticky lg:top-24 lg:grid-cols-1");
     expect(topPage).toContain("<TopPortalSection />");
+  });
+
+  it("指定されたPROVEN IMPACT以降をTOPから完全に削除する", () => {
+    for (const removed of [
+      "function ImpactSection()",
+      "function PhotoMosaic()",
+      "function ExhibitorArchiveSection()",
+      "function PlatformSection()",
+      "function ArchiveSection()",
+      "function MediaSection()",
+      "function NextChapterSection()",
+      "01 / PROVEN IMPACT",
+      "第1回から、",
+    ]) {
+      expect(topPage).not.toContain(removed);
+    }
+    expect(topPage).toContain("<main>\n        <HeroSection />\n        <TopPortalSection />\n      </main>");
   });
 });

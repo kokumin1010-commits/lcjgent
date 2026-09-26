@@ -414,6 +414,22 @@ export default function FestivalApplyLiver() {
             ライバー参加のお申し込みを受け付けました。<br />
             事前マッチング等の詳細は後日ご連絡いたします。
           </p>
+          <div className="mb-6 rounded-2xl border-2 border-[#06C755]/30 bg-white p-5 text-left shadow-lg">
+            <p className="flex items-center gap-2 font-bold text-gray-900">
+              <MessageCircle className="h-5 w-5 text-[#06C755]" />
+              参加者LINEオープンチャット
+            </p>
+            <p className="mt-2 text-sm leading-6 text-gray-600">開催案内や参加者向けのお知らせを確認できます。お申し込み完了後、そのままご参加ください。</p>
+            <a
+              href={LCF_OPEN_CHAT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#007A34] px-6 py-3 font-bold text-white shadow-lg transition-all hover:bg-[#00652B] hover:shadow-xl active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#00652B]"
+            >
+              <MessageCircle className="h-5 w-5" />
+              LINEオープンチャットに参加する
+            </a>
+          </div>
           {accountInfo && (
             <div className="bg-white border-2 border-purple-200 rounded-2xl p-5 mb-6 text-left shadow-lg">
               <p className="text-purple-600 font-bold mb-2 flex items-center gap-2">
@@ -433,22 +449,6 @@ export default function FestivalApplyLiver() {
               <p className="mt-2 text-sm leading-6 text-gray-600">同じメールアドレスで以前に登録した方は、既存のID・パスワードでマイページへログインしてください。第1回の履歴とQRは変更されません。</p>
             </div>
           )}
-          <div className="mb-6 rounded-2xl border-2 border-[#06C755]/30 bg-white p-5 text-left shadow-lg">
-            <p className="flex items-center gap-2 font-bold text-gray-900">
-              <MessageCircle className="h-5 w-5 text-[#06C755]" />
-              参加者LINEオープンチャット
-            </p>
-            <p className="mt-2 text-sm leading-6 text-gray-600">開催案内や参加者向けのお知らせを確認できます。お申し込み完了後、そのままご参加ください。</p>
-            <a
-              href={LCF_OPEN_CHAT_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#007A34] px-6 py-3 font-bold text-white shadow-lg transition-all hover:bg-[#00652B] hover:shadow-xl active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#00652B]"
-            >
-              <MessageCircle className="h-5 w-5" />
-              LINEオープンチャットに参加する
-            </a>
-          </div>
           <div className="flex flex-col gap-3">
             {accountInfo && (
               <Link href="/lcf/login" className="inline-flex items-center justify-center gap-2 bg-purple-500 text-white font-bold px-6 py-3 rounded-xl hover:bg-purple-400 transition-all shadow-lg hover:shadow-xl hover:scale-[1.02]">

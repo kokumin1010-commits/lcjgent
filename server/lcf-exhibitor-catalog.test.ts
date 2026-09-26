@@ -31,10 +31,10 @@ describe("LCF 2026 exhibitor catalogue archive", () => {
     expect(page).toContain("全32ページ");
   });
 
-  it("links the archive from the festival TOP and registers its public route", () => {
+  it("keeps the archive available from the TOP footer and its public route", () => {
     expect(app).toContain('<Route path="/livecommercefestival/2026/exhibitors" component={Lcf2026Exhibitors} />');
-    expect(top).toContain('id="exhibitors"');
-    expect(top).toContain("第1回 出展企業実績");
+    expect(top).not.toContain('id="exhibitors"');
+    expect(top).toContain("出展企業実績");
     expect(top).toContain('href="/livecommercefestival/2026/exhibitors"');
   });
 

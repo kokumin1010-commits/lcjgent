@@ -2712,7 +2712,11 @@ async function startServer() {
   <h2>初めてでも、会場から配信できる。</h2>
   <p>ライブコマース初心者、未経験、これから始めたい方も申込対象です。初心者講習、ブランドとの販売条件確認、配信アカウント・商品設定、当日の配信前チェックを支援します。</p>
   <h2>LCFの2日を、毎日の商談へ。</h2>
-  <p>LCM（LIVE COMMERCE MARKET）では、ブランドが商品情報を公開し、ライブコマーサーが商品を探し、サンプル・商談・配信準備を開催前後も継続できます。LCFとLCMは同じ会員アカウントです。</p>
+  <p>LCM（LIVE COMMERCE MARKET）は、第2回LCFの開催前・当日・開催後をつなぐ、常設のライブコマースマーケットです。</p>
+  <p>LCFの2日間を、日常の商談へ。</p>
+  <p>LCMでは、ブランドが商品情報を掲載し、ライブコマーサーが配信したい商品を探すことができます。</p>
+  <p>商品写真や販売価格などの基本情報は公開され、サンプルの提供や具体的な取引条件などは、LCF・LCM共通アカウントを通じて確認できます。</p>
+  <p>LCFで生まれた出会いを一度きりで終わらせず、イベントの前後も継続的な商品発掘と商談につなげていきます。</p>
   <p>開催日: 2026年12月8日（火）・9日（水）</p>
   <p>会場: 東京都立産業貿易センター浜松町館 2階展示室</p>
   <nav><a href="${baseUrl}/lcf/apply/company?edition=2">企業・ブランド申込</a><a href="${baseUrl}/lcf/apply/liver?edition=2">ライブコマーサー申込</a><a href="${baseUrl}/lcm">LCMの商品を見る</a><a href="${baseUrl}/lcm/manage?workspace=brand">ブランドとしてLCMに参加</a><a href="${baseUrl}/lcm/manage?workspace=creator">ライブコマーサーとしてLCMに参加</a><a href="${baseUrl}/">公式TOP</a><a href="${baseUrl}/2026">第1回実績</a><a href="${baseUrl}/livecommercefestival/2026/report">第1回開催レポート</a></nav>
