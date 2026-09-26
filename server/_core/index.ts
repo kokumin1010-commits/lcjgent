@@ -425,6 +425,8 @@ async function startServer() {
         counts: health.counts,
         protectedCounts: health.protectedCounts,
         migrationStatus: health.recoveryRun?.status || "pending",
+        privateStorageVerified: health.privateStorageVerified,
+        failureCode: health.failureCode,
       });
     } catch {
       return res.status(503).json({

@@ -342,6 +342,16 @@ async function verifyPrivateAssetStorage() {
   return true;
 }
 
+function upgradeFailureCode(message: unknown) {
+  const value = String(message || "");
+  if (value.includes("anonymously readable")) return "PRIVATE_STORAGE_PUBLIC";
+  if (value.includes("private object policy could not be verified"))
+    return "PRIVATE_STORAGE_PROBE_FAILED";
+  if (value.includes("verified backup failed")) return "VERIFIED_BACKUP_FAILED";
+  if (value.includes("upgrade lock")) return "UPGRADE_LOCK_TIMEOUT";
+  return value ? "EXHIBITION_UPGRADE_FAILED" : null;
+}
+
 export async function getExhibitionBoothUpgradeHealth() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required");
@@ -382,6 +392,7 @@ export async function getExhibitionBoothUpgradeHealth() {
       protectedCounts,
       recoveryRun: runs[0] || null,
       privateStorageVerified: runDetails.privateStorageVerified === true,
+      failureCode: upgradeFailureCode(runs[0]?.errorMessage),
     };
   } finally {
     await pool.end();

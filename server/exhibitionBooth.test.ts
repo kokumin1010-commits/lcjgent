@@ -119,6 +119,8 @@ describe("data and reservation isolation", () => {
     );
     expect(upgrade).toContain("verifyPrivateAssetStorage");
     expect(upgrade).toContain("privateStorageVerified");
+    expect(upgrade).toContain("PRIVATE_STORAGE_PROBE_FAILED");
+    expect(upgrade).toContain("VERIFIED_BACKUP_FAILED");
     expect(upgrade).toContain("fk_exhibition_assignment_booth");
     expect(upgrade).toContain("fk_exhibition_assignment_profile");
   });
