@@ -1,5 +1,16 @@
 import { sql } from "drizzle-orm";
+import mysql, { type Connection, type RowDataPacket } from "mysql2/promise";
 import { getDb } from "./db";
+
+export const TASK_ACCEPTANCE_MIGRATION = {
+  tag: "0163_task_completion_acceptance",
+  createdAt: 1790407902180,
+  hash: "ac69450c441066625bcc4f14f387af67ba29db985fb13b2e294f106778bccf13",
+  previousCreatedAt: 1790127793727,
+  previousHash: "5b230e0003d06db746569d1caa4cf68a40f8fbd1c79676dd0c9e2dc46d900bc1",
+} as const;
+
+const TASK_EXECUTION_UPGRADE_LOCK = "lcjgent-task-execution-schema-v3";
 
 let taskExecutionUpgrade: Promise<void> | null = null;
 type TaskExecutionUpgradeState = {
@@ -96,10 +107,196 @@ export function isOptionalTriggerUnavailable(error: unknown): boolean {
   return false;
 }
 
+export async function captureLegacyAcceptanceBoundaries(connection: Connection): Promise<void> {
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS task_execution_upgrade_markers (
+      markerKey VARCHAR(80) NOT NULL PRIMARY KEY,
+      boundaryId BIGINT NOT NULL,
+      createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await connection.query(`
+    INSERT IGNORE INTO task_execution_upgrade_markers (markerKey, boundaryId)
+    SELECT '0163_tasks_legacy_max_id', COALESCE(MAX(id), 0) FROM tasks
+  `);
+  await connection.query(`
+    INSERT IGNORE INTO task_execution_upgrade_markers (markerKey, boundaryId)
+    SELECT '0163_followups_legacy_max_id', COALESCE(MAX(id), 0) FROM report_followups
+  `);
+}
+
+export async function backfillLegacyAcceptanceBoundaries(connection: Connection): Promise<void> {
+  await connection.query(`
+    UPDATE tasks
+    SET requiresAcceptance = FALSE
+    WHERE status = 'completed'
+      AND requiresAcceptance = TRUE
+      AND id <= (
+        SELECT boundaryId FROM task_execution_upgrade_markers
+        WHERE markerKey = '0163_tasks_legacy_max_id'
+      )
+  `);
+  await connection.query(`
+    UPDATE report_followups
+    SET requiresAcceptance = FALSE
+    WHERE status = 'completed'
+      AND requiresAcceptance = TRUE
+      AND id <= (
+        SELECT boundaryId FROM task_execution_upgrade_markers
+        WHERE markerKey = '0163_followups_legacy_max_id'
+      )
+  `);
+}
+
+export async function verifyTaskAcceptanceSchema(connection: Connection): Promise<void> {
+  const [columnRows] = await connection.query<RowDataPacket[]>(`
+    SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName,
+           DATA_TYPE AS dataType, COLUMN_TYPE AS columnType,
+           IS_NULLABLE AS isNullable, COLUMN_DEFAULT AS columnDefault,
+           CHARACTER_MAXIMUM_LENGTH AS characterMaximumLength
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND (
+        (TABLE_NAME = 'tasks' AND COLUMN_NAME = 'requiresAcceptance')
+        OR (TABLE_NAME = 'report_followups' AND COLUMN_NAME IN (
+          'requiresAcceptance', 'completionRevision', 'completionRequestId'
+        ))
+        OR (TABLE_NAME = 'task_execution_upgrade_markers' AND COLUMN_NAME IN (
+          'markerKey', 'boundaryId'
+        ))
+        OR (TABLE_NAME = 'task_completion_review_events' AND COLUMN_NAME IN (
+          'requestId', 'sourceType', 'sourceId', 'subjectKey', 'completionVersion',
+          'decision', 'decisionNote', 'decidedByUserId'
+        ))
+      )
+  `);
+  const columns = new Map(columnRows.map(row => [
+    `${String(row.tableName)}:${String(row.columnName)}`,
+    row,
+  ]));
+  const requireColumn = (
+    tableName: string,
+    columnName: string,
+    options: { dataType: string; nullable: "YES" | "NO"; defaultValue?: string; maxLength?: number },
+  ) => {
+    const row = columns.get(`${tableName}:${columnName}`);
+    const normalizedDefault = row?.columnDefault == null
+      ? null
+      : String(row.columnDefault).replace(/[()']/g, "").toLowerCase();
+    if (!row
+      || String(row.dataType).toLowerCase() !== options.dataType
+      || String(row.isNullable).toUpperCase() !== options.nullable
+      || (options.defaultValue !== undefined && normalizedDefault !== options.defaultValue)
+      || (options.maxLength !== undefined && Number(row.characterMaximumLength) !== options.maxLength)) {
+      throw new Error("TASK_ACCEPTANCE_SCHEMA_VERIFICATION_FAILED");
+    }
+  };
+  requireColumn("tasks", "requiresAcceptance", { dataType: "tinyint", nullable: "NO", defaultValue: "1" });
+  requireColumn("report_followups", "requiresAcceptance", { dataType: "tinyint", nullable: "NO", defaultValue: "1" });
+  requireColumn("report_followups", "completionRevision", { dataType: "int", nullable: "NO", defaultValue: "0" });
+  requireColumn("report_followups", "completionRequestId", { dataType: "varchar", nullable: "YES", maxLength: 128 });
+  requireColumn("task_execution_upgrade_markers", "markerKey", { dataType: "varchar", nullable: "NO", maxLength: 80 });
+  requireColumn("task_execution_upgrade_markers", "boundaryId", { dataType: "bigint", nullable: "NO" });
+  requireColumn("task_completion_review_events", "requestId", { dataType: "varchar", nullable: "NO", maxLength: 128 });
+  requireColumn("task_completion_review_events", "sourceType", { dataType: "enum", nullable: "NO" });
+  requireColumn("task_completion_review_events", "sourceId", { dataType: "int", nullable: "NO" });
+  requireColumn("task_completion_review_events", "subjectKey", { dataType: "varchar", nullable: "NO", maxLength: 80 });
+  requireColumn("task_completion_review_events", "completionVersion", { dataType: "bigint", nullable: "NO" });
+  requireColumn("task_completion_review_events", "decision", { dataType: "enum", nullable: "NO" });
+  requireColumn("task_completion_review_events", "decisionNote", { dataType: "text", nullable: "NO" });
+  requireColumn("task_completion_review_events", "decidedByUserId", { dataType: "int", nullable: "NO" });
+
+  const [markerRows] = await connection.query<RowDataPacket[]>(`
+    SELECT markerKey, boundaryId FROM task_execution_upgrade_markers
+    WHERE markerKey IN ('0163_tasks_legacy_max_id', '0163_followups_legacy_max_id')
+  `);
+  if (new Set(markerRows.map(row => String(row.markerKey))).size !== 2
+    || markerRows.some(row => !Number.isSafeInteger(Number(row.boundaryId)) || Number(row.boundaryId) < 0)) {
+    throw new Error("TASK_ACCEPTANCE_BOUNDARY_MISSING");
+  }
+  const [indexRows] = await connection.query<RowDataPacket[]>(`
+    SELECT TABLE_NAME AS tableName, INDEX_NAME AS indexName,
+           NON_UNIQUE AS nonUnique, SEQ_IN_INDEX AS seqInIndex,
+           COLUMN_NAME AS columnName
+    FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND (
+        (TABLE_NAME = 'report_followups' AND INDEX_NAME = 'uq_report_followup_completion_request')
+        OR (TABLE_NAME = 'task_execution_upgrade_markers' AND INDEX_NAME = 'PRIMARY')
+        OR (TABLE_NAME = 'task_completion_review_events' AND INDEX_NAME IN (
+          'uq_task_completion_review_request', 'uq_task_completion_review_version'
+        ))
+      )
+  `);
+  const requiredIndexes = [
+    ["report_followups", "uq_report_followup_completion_request", ["completionRequestId"]],
+    ["task_execution_upgrade_markers", "PRIMARY", ["markerKey"]],
+    ["task_completion_review_events", "uq_task_completion_review_request", ["requestId"]],
+    ["task_completion_review_events", "uq_task_completion_review_version", ["sourceType", "sourceId", "subjectKey", "completionVersion"]],
+  ] as const;
+  for (const [tableName, indexName, expectedColumns] of requiredIndexes) {
+    const matching = indexRows
+      .filter(row => String(row.tableName) === tableName && String(row.indexName) === indexName)
+      .sort((left, right) => Number(left.seqInIndex) - Number(right.seqInIndex));
+    if (matching.length !== expectedColumns.length
+      || matching.some(row => Number(row.nonUnique) !== 0)
+      || expectedColumns.some((columnName, index) => String(matching[index]?.columnName) !== columnName)) {
+      throw new Error("TASK_ACCEPTANCE_SCHEMA_VERIFICATION_FAILED");
+    }
+  }
+}
+
+export async function recordTaskAcceptanceMigration(connection: Connection): Promise<void> {
+  const [tableRows] = await connection.query<RowDataPacket[]>(`
+    SELECT COUNT(*) AS count
+    FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '__drizzle_migrations'
+  `);
+  if (Number(tableRows[0]?.count || 0) !== 1) {
+    throw new Error("TASK_ACCEPTANCE_MIGRATION_LEDGER_MISSING");
+  }
+  const [sameTimestampRows] = await connection.query<RowDataPacket[]>(
+    "SELECT hash FROM __drizzle_migrations WHERE created_at = ? ORDER BY id",
+    [TASK_ACCEPTANCE_MIGRATION.createdAt],
+  );
+  const sameTimestampHashes = sameTimestampRows.map(row => String(row.hash || ""));
+  if (sameTimestampHashes.length > 1
+    || sameTimestampHashes.some(hash => hash !== TASK_ACCEPTANCE_MIGRATION.hash)) {
+    throw new Error("TASK_ACCEPTANCE_MIGRATION_LEDGER_HASH_MISMATCH");
+  }
+  const [previousRows] = await connection.query<RowDataPacket[]>(
+    "SELECT hash FROM __drizzle_migrations WHERE created_at = ? ORDER BY id",
+    [TASK_ACCEPTANCE_MIGRATION.previousCreatedAt],
+  );
+  const previousHashes = previousRows.map(row => String(row.hash || ""));
+  if (previousHashes.length !== 1
+    || previousHashes[0] !== TASK_ACCEPTANCE_MIGRATION.previousHash) {
+    throw new Error("TASK_ACCEPTANCE_MIGRATION_PREDECESSOR_MISMATCH");
+  }
+  if (sameTimestampHashes.includes(TASK_ACCEPTANCE_MIGRATION.hash)) return;
+  await connection.query(
+    "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)",
+    [TASK_ACCEPTANCE_MIGRATION.hash, TASK_ACCEPTANCE_MIGRATION.createdAt],
+  );
+}
+
 export async function ensureTaskExecutionTables(): Promise<void> {
   if (!taskExecutionUpgrade) {
     taskExecutionUpgrade = (async () => {
       setUpgradeState("running", "database_connection");
+      const databaseUrl = String(process.env.DATABASE_URL || "").trim();
+      if (!databaseUrl) throw new Error("Database not available");
+      const lockConnection = await mysql.createConnection(databaseUrl);
+      let lockAcquired = false;
+      try {
+        const [lockRows] = await lockConnection.query<RowDataPacket[]>(
+          "SELECT GET_LOCK(?, 120) AS acquired",
+          [TASK_EXECUTION_UPGRADE_LOCK],
+        );
+        lockAcquired = Number(lockRows[0]?.acquired || 0) === 1;
+        if (!lockAcquired) throw new Error("TASK_EXECUTION_UPGRADE_LOCK_TIMEOUT");
+        await captureLegacyAcceptanceBoundaries(lockConnection);
+
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
@@ -121,9 +318,6 @@ export async function ensureTaskExecutionTables(): Promise<void> {
         if (existing.length === 0) {
           try {
             await db.execute(sql.raw(ddl));
-            if (columnName === "requiresAcceptance") {
-              await db.execute(sql`UPDATE tasks SET requiresAcceptance = FALSE WHERE status = 'completed'`);
-            }
           } catch (error) {
             if (!isDuplicateSchemaObject(error)) throw error;
           }
@@ -517,9 +711,6 @@ export async function ensureTaskExecutionTables(): Promise<void> {
         if (existing.length === 0) {
           try {
             await db.execute(sql.raw(ddl));
-            if (columnName === "requiresAcceptance") {
-              await db.execute(sql`UPDATE report_followups SET requiresAcceptance = FALSE WHERE status = 'completed'`);
-            }
           } catch (error) {
             if (!isDuplicateSchemaObject(error)) throw error;
           }
@@ -663,7 +854,19 @@ export async function ensureTaskExecutionTables(): Promise<void> {
           }
         }
       }
-      setUpgradeState("ready", "complete");
+        setUpgradeState("running", "task_acceptance_backfill");
+        await backfillLegacyAcceptanceBoundaries(lockConnection);
+        setUpgradeState("running", "task_acceptance_verification");
+        await verifyTaskAcceptanceSchema(lockConnection);
+        setUpgradeState("running", "task_acceptance_ledger");
+        await recordTaskAcceptanceMigration(lockConnection);
+        setUpgradeState("ready", "complete");
+      } finally {
+        if (lockAcquired) {
+          await lockConnection.query("SELECT RELEASE_LOCK(?)", [TASK_EXECUTION_UPGRADE_LOCK]).catch(() => undefined);
+        }
+        await lockConnection.end().catch(() => undefined);
+      }
     })().catch(error => {
       taskExecutionUpgrade = null;
       setUpgradeState("failed", taskExecutionUpgradeState.step, safeUpgradeError(error));

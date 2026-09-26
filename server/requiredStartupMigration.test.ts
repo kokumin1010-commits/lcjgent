@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   REQUIRED_MIGRATION_TAGS,
-  isOptionalTriggerUnavailable,
   mysqlErrorCode,
   readDrizzleLedgerState,
   verifyRequiredSchema,
@@ -56,15 +55,6 @@ function requiredIndexRows() {
   add("tw_daily_line_outbox", "tw_daily_line_outbox_event_uq", ["event_id"], true);
   add("tw_daily_line_outbox", "tw_daily_line_outbox_due_idx", ["status", "next_attempt_at", "id"], false);
   add("reports", "uq_reports_request_id", ["requestId"], true);
-  add("report_followups", "uq_report_followup_completion_request", ["completionRequestId"], true);
-  add("task_completion_review_events", "PRIMARY", ["id"], true);
-  add("task_completion_review_events", "uq_task_completion_review_request", ["requestId"], true);
-  add(
-    "task_completion_review_events",
-    "uq_task_completion_review_version",
-    ["sourceType", "sourceId", "subjectKey", "completionVersion"],
-    true,
-  );
   add("entity_revision_audits", "idx_entity_revision_entity", ["entityType", "entityId", "id"], false);
   add("report_attachments", "uq_report_attachments_upload", ["reportId", "uploadId"], true);
   add("report_followup_extraction_runs", "uq_followup_extraction_job", ["jobKey"], true);
@@ -85,19 +75,10 @@ const descriptor = {
 };
 
 describe("required startup migration behavior", () => {
-  it("only treats unsupported or denied trigger creation as optional", () => {
-    expect(isOptionalTriggerUnavailable({ code: "ER_NOT_SUPPORTED_YET" })).toBe(true);
-    expect(isOptionalTriggerUnavailable({ code: "ER_TABLEACCESS_DENIED_ERROR" })).toBe(true);
-    expect(isOptionalTriggerUnavailable({ errno: 1227 })).toBe(true);
-    expect(isOptionalTriggerUnavailable(new Error("TRIGGER command denied to user"))).toBe(true);
-    expect(isOptionalTriggerUnavailable({ code: "ER_PARSE_ERROR" })).toBe(false);
-  });
-
-  it("runs the LINE bridge, reliable report, and task acceptance migrations in order", () => {
+  it("runs only the small LINE bridge and reliable report migrations before listen", () => {
     expect(REQUIRED_MIGRATION_TAGS).toEqual([
       "0161_tw_daily_line_bridge",
       "0162_daily_report_reliable_submission",
-      "0163_task_completion_acceptance",
     ]);
   });
 

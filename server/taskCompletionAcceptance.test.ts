@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { TASK_ACCEPTANCE_MIGRATION } from "./taskExecutionUpgrade";
 
 const schema = readFileSync("drizzle/schema.ts", "utf8");
 const migration = readFileSync("drizzle/0163_task_completion_acceptance.sql", "utf8");
@@ -15,6 +17,8 @@ const performance = readFileSync("server/performanceReconciliationService.ts", "
 const brandBdCommand = readFileSync("server/brandBdCommandService.ts", "utf8");
 const dailyReview = readFileSync("server/dailyReportTaskReview.ts", "utf8");
 const startupMigration = readFileSync("run-required-startup-migrations.mjs", "utf8");
+const serverIndex = readFileSync("server/_core/index.ts", "utf8");
+const migrationJournal = JSON.parse(journal) as { entries: Array<{ tag: string; when: number }> };
 
 describe("task completion acceptance", () => {
   it("ships a forward migration and application-append-only review events", () => {
@@ -34,12 +38,49 @@ describe("task completion acceptance", () => {
     expect(upgrade).toContain("trg_task_completion_review_no_update");
     expect(upgrade).toContain("trg_task_completion_review_no_delete");
     expect(upgrade).toContain("isOptionalTriggerUnavailable");
-    expect(startupMigration).toContain('"0163_task_completion_acceptance"');
-    expect(startupMigration).toContain("uq_task_completion_review_version");
+    expect(startupMigration).not.toContain('"0163_task_completion_acceptance"');
     expect(startupMigration).toContain("if (ledgerState.alreadyRecorded) continue");
     expect(startupMigration).not.toContain("information_schema.TRIGGERS");
-    expect(startupMigration).toContain("isOptionalTriggerUnavailable");
-    expect(startupMigration).toContain("/^CREATE\\s+TRIGGER\\b/i.test(statement)");
+    expect(upgrade).toContain("uq_task_completion_review_version");
+    expect(serverIndex).toContain("initializeTaskExecutionStorage();");
+    expect(serverIndex.indexOf("initializeTaskExecutionStorage();")).toBeLessThan(
+      serverIndex.indexOf("server.listen(port, async"),
+    );
+    expect(serverIndex).toContain("void ensureTaskExecutionTables().then");
+    expect(router).toContain("const taskExecutionProcedure = protectedProcedure.use");
+    const taskRouter = router.slice(router.indexOf("  task: router({"), router.indexOf("\n  ceoCommandCenter:"));
+    expect(taskRouter).not.toContain("protectedProcedure");
+    expect(taskRouter.match(/taskExecutionProcedure/g)?.length).toBe(20);
+    for (const endpoint of [
+      "extractFollowups",
+      "pendingFollowups",
+      "overdueFollowups",
+      "completedFollowups",
+      "updateFollowupStatus",
+      "completeWithResult",
+      "suggestNextAction",
+      "getFollowupsByReport",
+      "getFollowupsByStaff",
+      "deleteFollowup",
+      "batchExtractFollowups",
+      "generateWeeklySummary",
+      "startSession",
+      "sendMessage",
+      "retryFollowupExtraction",
+      "convertToReport",
+    ]) {
+      expect(router).toContain(`${endpoint}: taskExecutionProcedure`);
+    }
+
+    const migrationEntry = migrationJournal.entries.find(entry => entry.tag === TASK_ACCEPTANCE_MIGRATION.tag);
+    expect(migrationEntry?.when).toBe(TASK_ACCEPTANCE_MIGRATION.createdAt);
+    expect(createHash("sha256").update(migration).digest("hex")).toBe(TASK_ACCEPTANCE_MIGRATION.hash);
+    expect(upgrade).toContain("task_execution_upgrade_markers");
+    expect(upgrade).toContain("0163_tasks_legacy_max_id");
+    expect(upgrade).toContain("0163_followups_legacy_max_id");
+    expect(upgrade).toContain("id <= (\n        SELECT boundaryId");
+    expect(upgrade).toContain("TASK_ACCEPTANCE_MIGRATION_PREDECESSOR_MISMATCH");
+    expect(upgrade).toContain("INSERT INTO __drizzle_migrations (hash, created_at)");
   });
 
   it("allows only the creator, responsible manager or super admin to review", () => {
@@ -48,7 +89,7 @@ describe("task completion acceptance", () => {
     expect(service).toContain("access.reviewableStaffIds.includes(subjectStaffId)");
     expect(service).toContain("无权验收该执行人的任务");
     expect(service).toContain("无权验收该日报任务");
-    expect(router).toContain("reviewCompletion: protectedProcedure");
+    expect(router).toContain("reviewCompletion: taskExecutionProcedure");
     expect(router).toContain("assertLcjBrainLinkedTaskMutationAllowed(input.id, \"update\")");
   });
 

@@ -43,7 +43,7 @@ import { storagePut } from "./storage";
 import { normalizeReceiptPurchaseDate, receiptPurchaseDateOrUndefined } from "../shared/receiptDate";
 import { DAILY_REPORT_REQUIRED_ANSWER_COUNT, getJstDayRange } from "../shared/dailyReportConversation";
 import { normalizeSafeHttpUrl } from "../shared/safeHttpUrl";
-import { ensureTaskExecutionTables } from "./taskExecutionUpgrade";
+import { ensureTaskExecutionTables, getTaskExecutionUpgradeStatus } from "./taskExecutionUpgrade";
 import { parseTaskDeadlineJst } from "../shared/taskDeadline";
 import {
   completeFinanceImportDocument,
@@ -3107,6 +3107,28 @@ const taskSuperAdminProcedure = protectedProcedure.use(async ({ ctx, next }) => 
   return next({ ctx });
 });
 
+function assertTaskExecutionStorageReady() {
+  const status = getTaskExecutionUpgradeStatus();
+  if (status.state !== "ready") {
+    throw new TRPCError({
+      code: "SERVICE_UNAVAILABLE",
+      message: status.state === "failed"
+        ? "任务系统升级失败，正在自动重试，请稍后再试"
+        : "任务系统正在升级，请稍后再试",
+    });
+  }
+}
+
+const taskExecutionProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  assertTaskExecutionStorageReady();
+  return next({ ctx });
+});
+
+const taskExecutionSuperAdminProcedure = taskSuperAdminProcedure.use(async ({ ctx, next }) => {
+  assertTaskExecutionStorageReady();
+  return next({ ctx });
+});
+
 export const appRouter = router({
   system: systemRouter,
   databaseBackup: router({
@@ -3651,12 +3673,12 @@ export const appRouter = router({
   }),
 
   task: router({
-    assignmentDirectory: protectedProcedure.query(async ({ ctx }) => {
+    assignmentDirectory: taskExecutionProcedure.query(async ({ ctx }) => {
       const rows = await resolveAssignableTaskStaff(ctx.user);
       return rows.map(toTaskAssigneeDirectoryEntry);
     }),
 
-    create: protectedProcedure
+    create: taskExecutionProcedure
       .input(
         z.object({
           requestId: z.string().uuid(),
@@ -3862,13 +3884,13 @@ export const appRouter = router({
         }
       }),
 
-    list: protectedProcedure.query(async ({ ctx }) => {
+    list: taskExecutionProcedure.query(async ({ ctx }) => {
       const rows = await getAllTasks();
       const { db, access } = await resolveTaskExecutionAccess(ctx.user);
       return await getVisibleTaskExecutionRows(db, access, rows);
     }),
 
-    feed: protectedProcedure
+    feed: taskExecutionProcedure
       .input(z.object({
         searchTerm: z.string().max(200).default(""),
         status: z.enum(["all", "pending", "in_progress", "completed", "cancelled"]).default("all"),
@@ -3944,7 +3966,7 @@ export const appRouter = router({
         };
       }),
 
-    listAllWithUsers: protectedProcedure.query(async ({ ctx }) => {
+    listAllWithUsers: taskExecutionProcedure.query(async ({ ctx }) => {
       const rows = await getAllTasksWithUsers();
       const { db, access } = await resolveTaskExecutionAccess(ctx.user);
       const visible = await getVisibleTaskExecutionRows(
@@ -3956,7 +3978,7 @@ export const appRouter = router({
       return visible.map(row => ({ ...row, user: usersByTaskId.get(row.task.id) || null }));
     }),
 
-    listByStatus: protectedProcedure
+    listByStatus: taskExecutionProcedure
       .input(z.object({ status: z.enum(["pending", "in_progress", "completed", "cancelled"]) }))
       .query(async ({ input, ctx }) => {
         const rows = await getTasksByStatus(input.status);
@@ -3964,7 +3986,7 @@ export const appRouter = router({
         return await getVisibleTaskExecutionRows(db, access, rows);
       }),
 
-    listByStaffId: protectedProcedure
+    listByStaffId: taskExecutionProcedure
       .input(z.object({ staffId: z.number() }))
       .query(async ({ input, ctx }) => {
         const rows = await getTasksByStaffId(input.staffId);
@@ -3972,7 +3994,7 @@ export const appRouter = router({
         return await getVisibleTaskExecutionRows(db, access, rows);
       }),
 
-    getTasksByStaff: protectedProcedure
+    getTasksByStaff: taskExecutionProcedure
       .input(z.object({ staffId: z.number() }))
       .query(async ({ input, ctx }) => {
         await assertCanReadStaff(ctx.user, input.staffId);
@@ -3990,7 +4012,7 @@ export const appRouter = router({
         };
       }),
 
-    getById: protectedProcedure
+    getById: taskExecutionProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input, ctx }) => {
         const taskData = await getTaskById(input.id);
@@ -4000,7 +4022,7 @@ export const appRouter = router({
         return { ...taskData, task: toTaskClientRecord(taskData.task), execution };
       }),
 
-    submitExecutionFeedback: protectedProcedure
+    submitExecutionFeedback: taskExecutionProcedure
       .input(z.object({
         requestId: z.string().uuid(),
         taskId: z.number().int().positive(),
@@ -4031,7 +4053,7 @@ export const appRouter = router({
         return { success: true, execution };
       }),
 
-    completeOwnReportFollowup: protectedProcedure
+    completeOwnReportFollowup: taskExecutionProcedure
       .input(z.object({
         id: z.number().int().positive(),
         requestId: z.string().uuid(),
@@ -4054,7 +4076,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    reviewCompletion: protectedProcedure
+    reviewCompletion: taskExecutionProcedure
       .input(z.object({
         source: z.enum(["manual", "daily_report"]),
         id: z.number().int().positive(),
@@ -4101,7 +4123,7 @@ export const appRouter = router({
         return { ...result, execution: null };
       }),
 
-    getStaffByTaskId: protectedProcedure
+    getStaffByTaskId: taskExecutionProcedure
       .input(z.object({ taskId: z.number() }))
       .query(async ({ input, ctx }) => {
         const taskData = await getTaskById(input.taskId);
@@ -4114,7 +4136,7 @@ export const appRouter = router({
         return await getStaffByTaskId(input.taskId);
       }),
 
-    search: protectedProcedure
+    search: taskExecutionProcedure
       .input(z.object({ searchTerm: z.string() }))
       .query(async ({ input, ctx }) => {
         const rows = await searchTasks(input.searchTerm);
@@ -4122,7 +4144,7 @@ export const appRouter = router({
         return await getVisibleTaskExecutionRows(db, access, rows);
       }),
 
-    update: protectedProcedure
+    update: taskExecutionProcedure
       .input(
         z.object({
           id: z.number(),
@@ -4155,7 +4177,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    delete: protectedProcedure
+    delete: taskExecutionProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         await assertLcjBrainLinkedTaskMutationAllowed(input.id, "delete");
@@ -4170,7 +4192,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    sendReminder: protectedProcedure
+    sendReminder: taskExecutionProcedure
       .input(z.object({ taskId: z.number().int().positive(), requestId: z.string().uuid() }))
       .mutation(async ({ input, ctx }) => {
         await assertLcjBrainLinkedTaskMutationAllowed(input.taskId, "notify");
@@ -4194,7 +4216,7 @@ export const appRouter = router({
         return { success: true, queuedCount: queued.queued };
       }),
 
-    getReminders: protectedProcedure
+    getReminders: taskExecutionProcedure
       .input(z.object({ taskId: z.number() }))
       .query(async ({ input, ctx }) => {
         const taskData = await getTaskById(input.taskId);
@@ -4205,7 +4227,7 @@ export const appRouter = router({
         return await getRemindersByTaskId(input.taskId);
       }),
 
-    getEmailTracking: protectedProcedure
+    getEmailTracking: taskExecutionProcedure
       .input(z.object({ taskId: z.number() }))
       .query(async ({ input, ctx }) => {
         const taskData = await getTaskById(input.taskId);
@@ -4216,7 +4238,7 @@ export const appRouter = router({
         return await getEmailTrackingByTaskId(input.taskId);
       }),
 
-    checkCompletion: protectedProcedure
+    checkCompletion: taskExecutionProcedure
       .input(
         z.object({
           taskId: z.string(),
@@ -4508,7 +4530,7 @@ export const appRouter = router({
         };
       }),
 
-    retryFollowupExtraction: protectedProcedure
+    retryFollowupExtraction: taskExecutionProcedure
       .input(z.object({ reportId: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => {
         const scope = await resolveReportVisibilityScope(ctx.user);
@@ -4844,7 +4866,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       }),
 
     // Extract followup items from reports using AI
-    extractFollowups: protectedProcedure
+    extractFollowups: taskExecutionProcedure
       .input(
         z.object({
           reportId: z.number(),
@@ -4876,7 +4898,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       }),
 
     // Get all pending followups
-    pendingFollowups: protectedProcedure.query(async ({ ctx }) => {
+    pendingFollowups: taskExecutionProcedure.query(async ({ ctx }) => {
       const scope = await resolveReportVisibilityScope(ctx.user);
       const rows = await getPendingFollowups(buildReportVisibilityFilter(scope));
       return rows.map(row => ({
@@ -4886,7 +4908,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
     }),
 
     // Get overdue followups (for highlighting) with optional staff filter
-    overdueFollowups: protectedProcedure
+    overdueFollowups: taskExecutionProcedure
       .input(z.object({ staffId: z.number().optional() }).nullish())
       .query(async ({ input, ctx }) => {
         const scope = await resolveReportVisibilityScope(ctx.user);
@@ -4904,7 +4926,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       }),
 
     // Get completed followups with optional staff filter
-    completedFollowups: protectedProcedure
+    completedFollowups: taskExecutionProcedure
       .input(z.object({ staffId: z.number().optional() }).nullish())
       .query(async ({ input, ctx }) => {
         const scope = await resolveReportVisibilityScope(ctx.user);
@@ -4922,7 +4944,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       }),
 
     // Update followup status with result recording
-    updateFollowupStatus: protectedProcedure
+    updateFollowupStatus: taskExecutionProcedure
       .input(
         z.object({
           id: z.number(),
@@ -4943,7 +4965,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       }),
 
     // Complete followup with result and generate next action suggestion
-    completeWithResult: protectedProcedure
+    completeWithResult: taskExecutionProcedure
       .input(
         z.object({
           id: z.number(),
@@ -4999,7 +5021,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       }),
 
     // AI suggest next action based on followup content and result
-    suggestNextAction: protectedProcedure
+    suggestNextAction: taskExecutionProcedure
       .input(
         z.object({
           followupId: z.number(),
@@ -5089,7 +5111,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       }),
 
     // Get followups by report
-    getFollowupsByReport: protectedProcedure
+    getFollowupsByReport: taskExecutionProcedure
       .input(z.object({ reportId: z.number() }))
       .query(async ({ input, ctx }) => {
         const scope = await resolveReportVisibilityScope(ctx.user);
@@ -5099,7 +5121,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       }),
 
     // Get followups by staff
-    getFollowupsByStaff: protectedProcedure
+    getFollowupsByStaff: taskExecutionProcedure
       .input(z.object({ reportStaffId: z.number() }))
       .query(async ({ input, ctx }) => {
         const scope = await resolveReportVisibilityScope(ctx.user);
@@ -5108,7 +5130,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       }),
 
     // Delete followup
-    deleteFollowup: protectedProcedure
+    deleteFollowup: taskExecutionProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         const scope = await resolveReportVisibilityScope(ctx.user);
@@ -5122,7 +5144,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       }),
 
     // Batch extract followups from recent reports
-    batchExtractFollowups: protectedProcedure
+    batchExtractFollowups: taskExecutionProcedure
       .input(
         z.object({
           days: z.number().int().min(1).max(30).default(7),
@@ -5149,7 +5171,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         return { success: result.failedCount === 0, ...result };
       }),
     // AI Department Weekly Summary - 部門週報サマリー
-    generateWeeklySummary: protectedProcedure
+    generateWeeklySummary: taskExecutionProcedure
       .input(
         z.object({
           country: z.string().optional(), // Optional country filter inside the authorized scope
@@ -12942,7 +12964,7 @@ ${authorizedReport.workContent}
   // Chat Report Router (チャット形式の日報)
   chatReport: router({
     // Start or continue today's chat session
-    startSession: protectedProcedure
+    startSession: taskExecutionProcedure
       .input(z.object({ staffId: z.number() }))
       .mutation(async ({ input, ctx }) => {
         const scope = await resolveReportVisibilityScope(ctx.user);
@@ -13083,7 +13105,7 @@ ${greetingContext ? `コンテキスト: ${greetingContext}` : ""}
       }),
 
     // Send a message in the chat
-    sendMessage: protectedProcedure
+    sendMessage: taskExecutionProcedure
       .input(z.object({
         sessionId: z.number(),
         content: z.string().trim().min(1).max(10_000),
@@ -13264,7 +13286,7 @@ ${contextInfo ? `コンテキスト: ${contextInfo}` : ""}
       }),
 
     // Convert chat session to report
-    convertToReport: protectedProcedure
+    convertToReport: taskExecutionProcedure
       .input(z.object({ sessionId: z.number() }))
       .mutation(async ({ ctx, input }) => {
         const session = await getChatSessionById(input.sessionId);

@@ -164,8 +164,8 @@ describe("task execution access and scoring contract", () => {
     expect(upgradeSuccess).toContain("taskExecutionSchedulersStarted");
     expect(upgradeSuccess).toContain("setTimeout(() => initializeTaskExecutionStorage(attempt + 1)");
     expect(serverEntry).toContain('/api/health/task-execution');
-    expect(router).toContain("submitExecutionFeedback: protectedProcedure");
-    expect(router).toContain("reviewCompletion: protectedProcedure");
+    expect(router).toContain("submitExecutionFeedback: taskExecutionProcedure");
+    expect(router).toContain("reviewCompletion: taskExecutionProcedure");
     expect(executionService).toContain("仅被指派员工可以提交本人的执行反馈");
     expect(detail).toContain("提交我的执行反馈");
     expect(detail).toContain("每月任务完成率与按期完成率");
