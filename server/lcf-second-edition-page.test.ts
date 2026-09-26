@@ -130,12 +130,13 @@ describe("LCF second-edition official page", () => {
   });
 
   it("shows the supplied finished key visual without its duplicate top band and keeps real site CTAs", () => {
-    expect(page).toContain("AnPNzcemGiRReCxl.webp");
+    expect(page).toContain("MMteMRKpTWljOHRT.webp");
+    expect(page).not.toContain("AnPNzcemGiRReCxl.webp");
     expect(page).not.toContain("ObKwxbjDEhLNvGry.jpg");
     expect(page).toContain("src={HERO_IMAGE}");
     expect(page).toContain('className="-mt-[7.1%] block h-auto w-full"');
     expect(page).toContain("width={2048}");
-    expect(page).toContain("height={1747}");
+    expect(page).toContain("height={1745}");
     expect(page).toContain('fetchPriority="high"');
     expect(page).toContain("<ApplicationButtons hero />");
     expect(page.match(/<ApplicationButtons hero \/>/g)?.length).toBe(1);
@@ -404,7 +405,8 @@ describe("LCF second-edition official page", () => {
     expect(server).toContain('"@type": "Event"');
     expect(server).toContain('startDate: "2026-12-08"');
     expect(server).toContain("<loc>${baseUrl}/2nd</loc>");
-    expect(server).toContain("AnPNzcemGiRReCxl.webp");
+    expect(server).toContain("MMteMRKpTWljOHRT.webp");
+    expect(server).not.toContain("AnPNzcemGiRReCxl.webp");
     expect(server).not.toMatch(/70ブース|70のライブ対応ブース|1,500㎡/);
   });
 });

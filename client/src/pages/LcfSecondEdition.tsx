@@ -28,7 +28,7 @@ import { trpc } from "@/lib/trpc";
 import { LCF_EVENT_DEFINITIONS } from "@shared/lcfEventDefinitions";
 
 const event = LCF_EVENT_DEFINITIONS[2];
-const HERO_IMAGE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/AnPNzcemGiRReCxl.webp";
+const HERO_IMAGE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/MMteMRKpTWljOHRT.webp";
 const OFFICIAL_MOVIE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/QHYaTbQAzawNOpYI.mp4";
 const LCF_COLOR_LOGO = {
   src: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/NqiAbWVvlJsEtygb.png",
@@ -231,7 +231,7 @@ function Hero() {
               src={HERO_IMAGE}
               alt="第2回LIVE COMMERCE FESTIVALのコピー、出演者、開催情報、第1回開催風景をまとめた公式キービジュアル"
               width={2048}
-              height={1747}
+              height={1745}
               fetchPriority="high"
               decoding="async"
               className="-mt-[7.1%] block h-auto w-full"
