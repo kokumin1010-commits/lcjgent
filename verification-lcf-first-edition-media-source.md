@@ -111,3 +111,12 @@ LCF mypageの事前マッチングpanelでは、「第2回LCFの出展商品か�
 LCF／LCM／sample logistics 44 files・324 tests、exact production build、変更component bundle、rendered DOM監査、`git diff --check`に成功した。全体TypeScript既存1,162 diagnosticsに対し今回変更fileは0件。独立review最終結果は**GO（P0/P1 0件）**。本番申込、OpenChat投稿、matching申請、GMV報告、production DB mutationは行っていない。
 
 feature SHA `e64696fc9e950f1f6910ca64cc5c9ae3f01e1c62`はGitHub CI run `36222035732`とRailway production deployment `6675295194`がsuccess。本番`/2nd`はHTTP 200で、配信`LcfSecondEdition-C5gx8et3.js`には「会場完成予想イメージ」、`VisualStories`、`LIVE_IMAGE`、`MATCHING_IMAGE`が存在しない。配信chunkには「第2回LCFの出展商品から選ぶ」と`/lcm#products`を確認した。acceptanceはGET／chunk／DOM read-onlyのみで、申込、matching、GMV、DBの書込みは0件。
+
+## 第2回申込form化・一般2step・mypage空き領域削除（2026-09-26追加／本番反映済み）
+`/2nd`の申込導線を再監査し、上部とfixed barの出展／ライブコマーサー／一般をすべてedition 2の内部formへ接続した。遷移先は順に`/lcf/apply/company?edition=2`、`/lcf/apply/liver?edition=2`、`/lcf/apply/general?edition=2`で、OpenChat URL、`target="_blank"`、チャット表記は残していない。一般routeをSPAとboot shellへ追加し、legacy一般routeも維持した。
+
+一般参加formは基本情報と確認・送信だけの2stepとし、来場計画、業種、来場目的、参加日程を削除した。serverは既存DB互換のため省略fieldを`both_days`／空配列へ正規化し、edition 2は`eventYear=2026-02`で重複判定・保存・ticket emailを処理する。既存会員メールを使う第2回申込はmatching login sessionをduplicate/ticket処理より前に必須化し、未認証・別emailを拒否するbehavioral 5-case testを追加した。第1回defaultと新規email申込は変更していない。
+
+追加の赤囲み指示に合わせ、`/lcf/mypage`上部の重複workspace menuと、削除済み会場完成予想画像のlink・label・予約領域を除去した。NEXT EDITION cardと「第2回の参加内容・QR」は390px／1280pxとも実測20px間隔、旧menu／旧画像0件、横overflow 0だった。申込・QR・同行者・日程変更・取消・guide・matching/GMV・archive等は保持した。
+
+最新main統合後のLCF関連36 files・246 tests、production build、変更component bundle、diff／OpenChat／secret監査に成功した。全体TypeScriptは既存1,162 diagnosticsで今回変更行の新規errorなし。独立read-only reviewは**GO（blocker 0件）**。feature SHA `f2e5db56a71a0a8da11ac9edd8de50c67a7ddcba`のGitHub CI run `36225493347`とRailway deployment `6675864322`はsuccess。本番5 routeはHTTP 200で、配信chunkとbrowser DOMから3 form導線、一般2step、第2回日程、mypage旧menu／旧画像の不在を確認した。本番申込、OpenChat、DB書込みは実施していない。

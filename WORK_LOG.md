@@ -3995,3 +3995,14 @@ Schema由生产限定的备份门控运行时升级创建`livestream_debriefs`�
 `/master/tiktok-ads`から、チャット本文を元に追加したブランド別コスト・GMV・ROIデータおよび関連コードを完全削除した。トップ5指標カードのクリック導線は維持し、現在はシステムが取得済みのLCJ-01 Auctionデータだけを表示する。総費用カードもAuction API／検証済みスナップショットの値へ戻し、GMV MaxはTikTok公式API認証と対象Shop権限が完了するまで未接続として明示する。
 
 検証：TikTok Ads関連6ファイル44テスト成功、独立esbuild成功、production build成功、変更ファイルのTypeScript新規診断なし（既存全体baselineのみ）、Railway deployment success、`https://lcjmall.com/master/tiktok-ads` HTTP 200、production chunkでシステム限定文言を確認し人工報告区画が存在しないことを確認。
+
+## 2026-09-26｜第2回申込3導線・一般2step・マイページ余白修正（本番反映済み）
+`/2nd`の上部・画面下固定barで、ライブコマーサー申込と一般来場申込が公式OpenChatへ誤遷移していた根本原因を修正した。開催回定義へ一般申込pathを追加し、出展、ライブコマーサー、一般の6導線をそれぞれ`/lcf/apply/company?edition=2`、`/lcf/apply/liver?edition=2`、`/lcf/apply/general?edition=2`へ統一した。OpenChat URL、新tab指定、「チャットへ」表記は第2回申込CTAから除去した。新しい一般申込routeはboot shellも第2回queryを認識する。
+
+一般参加申込は「基本情報 → 確認・送信」の2stepへ簡素化し、業種、来場目的、参加日程を含む「来場計画」を画面・state・validation・payloadから削除した。DB schemaは非破壊で維持し、serverが既存必須columnへ`both_days`と空配列を保存する。申込はtrusted edition定義から`2026-02`を選び、重複判定、保存、ticket emailの日程・会場を第2回へ統一する。既存LCF/LCM会員メールは、company/liverと同じく第2回だけmatching authenticated sessionを必須化し、duplicate ticket取得より前に拒否する。第1回と新規メールの公開申込は維持した。
+
+追加指定により、`/lcf/mypage`上部の重複した「LCF / LCM COMMON ACCOUNT」workspace menuだけを削除した。削除済み会場完成予想画像のlink・label・desktop予約columnも除去し、`NEXT EDITION / 02`の直後へ「第2回の参加内容・QR」が20px間隔で続く構成にした。申込状態、本人QR、同行者QR、日程変更、取消、参加guide、matching/GMV、履歴、booth履歴、password変更は維持している。
+
+最新`origin/main`統合後、LCF関連36 files・246 tests、focused 5 files・55 tests、production build、`git diff --check`、OpenChat残差・secret-like差分監査が成功した。TypeScript全体はrepository既存1,162 diagnosticsで、今回変更行に新規diagnosticはない。read-only mock browserでは390px／1280pxとも旧menu・旧画像0件、section間隔20px、横overflow 0、console/page error 0。独立review最終結果は**GO（blocker 0件）**。
+
+release SHA `f2e5db56a71a0a8da11ac9edd8de50c67a7ddcba`のGitHub CI run `36225493347`とRailway production deployment `6675864322`はsuccess。本番`/2nd`、3申込route、`/lcf/mypage`はHTTP 200。配信chunk `LcfSecondEdition-CX2nO0TE.js`、`FestivalApplyGeneral-DdZ32ufb.js`、`LcfMypage-OJnBQTBV.js`で、内部3申込導線、2step／来場計画不要、mypage旧menu・会場画像の不在を確認した。本番browserでも`/2nd`の上部・固定6 linkが正しい内部route、一般申込が第2回日程・2step・login案内を表示し、ログイン済みmypageで旧menu／旧画像が非表示だった。acceptanceはGET／DOM read-onlyのみで、申込送信、OpenChat投稿、production DB mutationは行っていない。
