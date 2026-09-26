@@ -3968,3 +3968,13 @@ LCF mypageの「第2回LCFの出展商品から選ぶ」を`/lcm#products`への
 関連回帰はLCF／LCM／sample logistics 44 files・324 testsが成功した。exact production build、変更component bundle、`git diff --check`、secret-like追加監査も成功。全体TypeScriptはrepository既存1,162 diagnosticsで、今回変更12 filesは0件。390px／1440px実画面でheadline、2主役card、カテゴリ、login、商品filter、`#products`遷移を確認し、横溢れ・文字切れ・固定要素の重なりがないことを確認した。検証では申込、興味登録、sample申請、ブランド登録、商品登録、production DB mutationを行っていない。
 
 feature SHA `e64696fc9e950f1f6910ca64cc5c9ae3f01e1c62`はGitHub CI run `36222035732`とRailway production deployment `6675295194`がsuccess。本番`/lcm`と`/2nd`はHTTP 200で、entry `index-BzUlew5s.js`から`LcmMarket-EXW6lo8j.js`、`LcmPublicLayout-NdA9Zcj-.js`、`LcfSecondEdition-C5gx8et3.js`が配信される。新見出し、2主役card、4カテゴリ、LCF商品linkをchunk内で確認し、第2回chunkには完成予想markerがない。生成画像6点も本番からHTTP 200。本番390px／1440px画面ではheader、headline、card、login、カテゴリに重なり・横溢れがなく、`#products`移動後のfilter clearanceは31.953px／48.219pxだった。acceptanceはGET／DOM／screenshotだけで、production書込みは0件。
+
+## 2026-09-26｜TikTok广告五卡点击下钻与9月商品广告成本口径修正
+
+`/master/tiktok-ads`顶部五张指标卡全部改为可点击button，并保留键盘focus与明确的`aria-label`。9月商品广告总成本卡进入09.01～09.24品牌商品短视频GMV广告明细；曝光、点击、转化事件、Campaign卡进入LCJ-01 Auction Campaign清单，并分别按对应指标（Campaign卡按花费）从高到低排列。Campaign面板使用挂载后的ref滚动，避免第一次点击时内容尚未渲染而无法下钻。
+
+按运营确认报告录入三个品牌口径：基础投流成本合计¥1,850,118、额外视频加热¥149,021、全成本¥1,999,139、GMV¥5,937,657；页面同时展示报告ROI与包含额外加热后的全成本ROI。原有¥633,173明确标记为单一LCJ-01广告账户的Auction全期间累计，不再被表达为全公司广告总成本，也不与9月商品广告报告直接相加。连接状态由模糊的“接続待ち”改为“实时Auction读取已连接／实时API未接通／写入待启用”等真实状态；当前快照明确不含GMV Max，完整实时汇总仍需独立Shop ID与读取权限。
+
+现有RBAC、受控写入开关、签名确认、单目标租约、持久审计、写后复核与服务器端令牌隔离均未修改。TikTok Ads相关7 files・47 tests全部通过；新增金额/ROI计算、Auction边界、五卡路由和来源文案均有回归覆盖。前后端独立esbuild、production build、`git diff --check`成功；全量TypeScript仍有仓库既有1,162项诊断，本次修改文件诊断为0。独立只读复审确认金额数学、数据分层与安全边界正确，并按建议修正Campaign卡排序口径和首次点击滚动时序。
+
+feature SHA `7ab7071191af5ea7d973533d35070926f694058e`对应Railway production deployment `6675453531`成功。本番`/master/tiktok-ads`为HTTP 200，配信chunk `TikTokAdsIntegration--y_Rz-j1.js`已确认包含“9月商品广告总成本”“品牌商品短视频GMV广告实绩”“查看明细”“操作权限あり・实时API未接通”及GMV Max数据边界文案。验证只执行GET、构建与只读检查，没有调用TikTok写入API或修改production广告数据。
