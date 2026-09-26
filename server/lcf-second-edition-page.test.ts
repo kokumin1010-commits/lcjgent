@@ -31,7 +31,8 @@ describe("LCF second-edition official page", () => {
     expect(clientHtml).toContain("企業・ブランド向け申込フォームを読み込んでいます。");
     expect(clientHtml).toContain("path === '/lcf/apply/liver'");
     expect(clientHtml).toContain("ライブコマーサー向け申込フォームを読み込んでいます。");
-    expect(clientHtml).toContain("path === '/livecommercefestival/2026/apply/general'");
+    expect(clientHtml).toContain("path === '/lcf/apply/general' || path === '/livecommercefestival/2026/apply/general'");
+    expect(clientHtml).toContain("new URLSearchParams(location.search).get('edition') === '2'");
   });
 
   it("publishes the confirmed date, venue and concept without a fixed booth count", () => {
@@ -98,32 +99,34 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("お問い合わせページへ");
     expect(page).toContain("ライブコマーサー申込");
     expect(page).toContain("一般来場申込");
-    expect(page).toContain("チャットへ");
+    expect(page).not.toContain("チャットへ");
     expect(page).toContain("ライブコマーサーとして申し込む");
   });
 
-  it("routes exhibitor inquiries internally and live/general applications to the official OpenChat", () => {
+  it("routes every top and sticky application action to its internal edition-two form", () => {
     const buttons = page.slice(page.indexOf("function ApplicationButtons"), page.indexOf("function LcmHeroBanner"));
     const sticky = page.slice(page.indexOf("function StickyApplicationBar"), page.indexOf("export default function"));
-    expect(page).toContain("const LCF_OPEN_CHAT_URL = \"https://line.me/ti/g2/KsS3Ma1HW3okfwI2OowM6Ubk0UHKOHmb3nZFhA");
+    expect(page).not.toContain("LCF_OPEN_CHAT_URL");
+    expect(page).not.toContain("line.me/ti/g2/");
+    expect(page).not.toContain("チャットへ");
     expect(buttons).toContain("grid-cols-3 gap-1.5 sm:gap-2");
     expect(buttons.match(/min-h-12/g)?.length).toBe(3);
     expect(buttons.match(/sm:min-h-14/g)?.length).toBe(3);
     expect(buttons).toContain('<span className="sm:hidden">ライバー申込</span>');
     expect(buttons).toContain('<span className="sm:hidden">一般申込</span>');
     expect(buttons).toContain('aria-label="出展申込・お問い合わせページへ"');
-    expect(buttons).toContain('aria-label="ライブコマーサー申込・チャットへ"');
-    expect(buttons).toContain('aria-label="一般来場申込・チャットへ"');
+    expect(buttons).toContain('aria-label="ライブコマーサー申込フォームへ"');
+    expect(buttons).toContain('aria-label="一般来場申込フォームへ"');
     expect(buttons).toContain("href={event.applicationCompanyPath}");
-    expect(buttons).toContain("出展申込");
-    expect(buttons).toContain("お問い合わせページへ");
-    expect(buttons.match(/href=\{LCF_OPEN_CHAT_URL\}/g)?.length).toBe(4);
-    expect(buttons).toContain("ライブコマーサー申込");
-    expect(buttons).toContain("一般来場申込");
-    expect(buttons).toContain('target="_blank"');
-    expect(buttons).toContain('rel="noopener noreferrer"');
+    expect(buttons).toContain("href={event.applicationLiverPath}");
+    expect(buttons).toContain("href={event.applicationGeneralPath}");
+    expect(buttons).toContain("申込フォームへ");
+    expect(buttons).not.toContain('target="_blank"');
     expect(sticky).toContain("grid-cols-3");
-    expect(sticky).toContain("一般申込");
+    expect(sticky).toContain("href={event.applicationCompanyPath}");
+    expect(sticky).toContain("href={event.applicationLiverPath}");
+    expect(sticky).toContain("href={event.applicationGeneralPath}");
+    expect(sticky).not.toContain('target="_blank"');
   });
 
   it("shows the supplied finished key visual without its duplicate top band and keeps real site CTAs", () => {
@@ -349,12 +352,14 @@ describe("LCF second-edition official page", () => {
     expect(definitions).toContain('eventYear: "2026-02"');
     expect(definitions).toContain('applicationCompanyPath: "/lcf/apply/company?edition=2"');
     expect(definitions).toContain('applicationLiverPath: "/lcf/apply/liver?edition=2"');
+    expect(definitions).toContain('applicationGeneralPath: "/lcf/apply/general?edition=2"');
     expect(app).toContain('<Route path="/lcf/apply/company" component={FestivalApplyCompany} />');
     expect(app).toContain('<Route path="/lcf/apply/liver" component={FestivalApplyLiver} />');
+    expect(app).toContain('<Route path="/lcf/apply/general" component={FestivalApplyGeneral} />');
     expect(companyForm).toContain("edition: event.edition");
     expect(liverForm).toContain("edition: event.edition");
     expect(liverForm).toContain("lcf_liver_form_${event.eventYear}");
-    expect(router.match(/edition: z\.union\(\[z\.literal\(1\), z\.literal\(2\)\]\)\.default\(1\)/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(router.match(/edition: z\.union\(\[z\.literal\(1\), z\.literal\(2\)\]\)\.default\(1\)/g)?.length).toBeGreaterThanOrEqual(3);
     expect(router).toContain("eq(festivalCompanyApplications.eventYear, event.eventYear)");
     expect(router).toContain("eq(festivalLiverApplications.eventYear, event.eventYear)");
     expect(router).not.toMatch(/submitCompany:[\s\S]{0,1500}eventYear:\s*z\./);

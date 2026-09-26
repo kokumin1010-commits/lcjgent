@@ -1,4 +1,4 @@
-export const GENERAL_APPLICATION_DRAFT_KEY = "lcf-2026-general-application-draft-v1";
+export const GENERAL_APPLICATION_DRAFT_KEY = "lcf-general-application-draft-v2";
 
 export const DEFAULT_GENERAL_APPLICATION_FORM = {
   participationType: "" as "" | "corporate" | "individual",
@@ -8,9 +8,6 @@ export const DEFAULT_GENERAL_APPLICATION_FORM = {
   email: "",
   phone: "",
   lineOrLark: "",
-  industryTypes: [] as string[],
-  visitPurposes: [] as string[],
-  attendanceSchedule: "" as "" | "day1_only" | "day2_only" | "both_days",
   portraitConsent: false,
   complianceConsent: false,
 };
@@ -39,12 +36,6 @@ export function validateGeneralApplicationStep(
   }
 
   if (targetStep === 2) {
-    if (form.industryTypes.length === 0) nextErrors.industryTypes = "業種・所属を1つ以上選択してください。";
-    if (form.visitPurposes.length === 0) nextErrors.visitPurposes = "ご来場目的を1つ以上選択してください。";
-    if (!form.attendanceSchedule) nextErrors.attendanceSchedule = "ご来場日程を選択してください。";
-  }
-
-  if (targetStep === 3) {
     if (!form.portraitConsent) nextErrors.portraitConsent = "肖像権に関する同意が必要です。";
     if (!form.complianceConsent) nextErrors.complianceConsent = "コンプライアンスに関する同意が必要です。";
   }
@@ -64,9 +55,6 @@ export function countGeneralApplicationRequired(
     emailValid,
     phoneValid,
     form.participationType !== "corporate" || Boolean(form.brandName.trim()),
-    form.industryTypes.length > 0,
-    form.visitPurposes.length > 0,
-    Boolean(form.attendanceSchedule),
     form.portraitConsent,
     form.complianceConsent,
   ];

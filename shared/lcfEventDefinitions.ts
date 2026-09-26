@@ -21,6 +21,7 @@ export const LCF_EVENT_DEFINITIONS = {
     pagePath: "/2026",
     applicationCompanyPath: "/lcf/apply/company",
     applicationLiverPath: "/lcf/apply/liver",
+    applicationGeneralPath: "/lcf/apply/general",
   },
   2: {
     edition: 2,
@@ -39,6 +40,7 @@ export const LCF_EVENT_DEFINITIONS = {
     pagePath: "/2nd",
     applicationCompanyPath: "/lcf/apply/company?edition=2",
     applicationLiverPath: "/lcf/apply/liver?edition=2",
+    applicationGeneralPath: "/lcf/apply/general?edition=2",
   },
 } as const;
 
@@ -63,4 +65,3 @@ export function getLcfEventByYear(value: unknown): LcfEventDefinition {
 export function isLcfEventYear(value: unknown): value is LcfEventYear {
   return value === LCF_EVENT_DEFINITIONS[1].eventYear || value === LCF_EVENT_DEFINITIONS[2].eventYear;
 }
-

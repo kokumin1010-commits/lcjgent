@@ -59,11 +59,16 @@ describe("LCF second-edition mypage and companion admission", () => {
     expect(router).toContain("tickets.isActive = 1");
   });
 
-  it("replaces ambiguous menus and removes the fake preparation checklist", () => {
+  it("removes the redundant workspace menu and the deleted venue-image slot from the event mypage", () => {
     expect(nav).toContain("LCF参加・QR");
     expect(nav).toContain("LCMブランド・商品");
     expect(nav).toContain("LCM配信者プロフィール");
     expect(nav).toContain("LCF</strong>は開催イベント");
+    expect(mypage).not.toContain("<FestivalWorkspaceNav");
+    expect(mypage).not.toContain("会場完成予想イメージ");
+    expect(mypage).not.toContain("ObKwxbjDEhLNvGry");
+    expect(mypage).not.toContain("md:grid-cols-[1fr_240px]");
+    expect(mypage.indexOf("{/* Next edition */}")).toBeLessThan(mypage.indexOf("<LcfEditionApplicationCenter />"));
     expect(mypage).not.toContain("参加準備チェックリスト");
     expect(mypage).not.toContain("出展準備チェックリスト");
     expect(guide).toContain("事前マッチング・当日配信・GMV報告");

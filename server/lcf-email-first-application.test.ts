@@ -88,9 +88,9 @@ describe("LCF second-edition email-first application flow", () => {
 
   it("requires the authenticated matching account before accepting an existing email for edition two", () => {
     expect(router).toContain("requireAuthenticatedExistingMemberForSecondEdition");
-    expect(router).toContain("verifyFestivalUserRequest(params.req)");
+    expect(router).toContain("(params.verifyRequest || verifyFestivalUserRequest)(params.req)");
     expect(router).toContain("登録済みパスワードで本人確認してからお申し込みください");
-    expect(router.match(/await requireAuthenticatedExistingMemberForSecondEdition/g)?.length).toBe(2);
+    expect(router.match(/await requireAuthenticatedExistingMemberForSecondEdition/g)?.length).toBe(3);
   });
 
   it("never stores or renders the entered password as a chat answer", () => {

@@ -8,7 +8,6 @@ import { LogOut, User, Building2, Mic2, Users, Key, Loader2, CheckCircle2, Calen
 import { Link, useLocation } from 'wouter';
 import { trpc } from '@/lib/trpc';
 import { lcfEditions } from '@/data/lcfEditions';
-import { FestivalWorkspaceNav } from '@/components/lcf/FestivalWorkspaceNav';
 import { LcfEngagementCenter } from '@/components/lcf/LcfEngagementCenter';
 import { LcfEditionApplicationCenter } from '@/components/lcf/LcfEditionApplicationCenter';
 import { LcfSecondEditionGuide } from '@/components/lcf/LcfSecondEditionGuide';
@@ -131,12 +130,9 @@ export default function LcfMypage() {
 
       {/* Content */}
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
-
-        <FestivalWorkspaceNav roles={lcmAccess.data?.roles || { event: true, brand: me.accountType === 'company', creator: me.canReserveBooth }} active="event" variant="dark" />
-
         {/* Next edition */}
         <section className="overflow-hidden border border-amber-400/25 bg-[#15130d]">
-          <div className="grid md:grid-cols-[1fr_240px]">
+          <div>
             <div className="p-6 md:p-7">
               <p className="text-[10px] font-bold tracking-[0.2em] text-amber-400">NEXT EDITION / 02</p>
               <h2 className="mt-2 text-2xl font-bold">見る展示会から、売る展示会へ。</h2>
@@ -180,11 +176,6 @@ export default function LcfMypage() {
                 )}
               </div>
             </div>
-            <Link href="/2nd" className="relative min-h-44 overflow-hidden border-t border-white/10 md:border-l md:border-t-0" aria-label="第2回LCF開催ページを見る">
-              <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ObKwxbjDEhLNvGry.jpg" alt="浜松町館2階の特徴をもとに描いた第2回LCF会場完成予想イメージ" className="absolute inset-0 h-full w-full object-cover" />
-              <span className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-              <span className="absolute bottom-3 left-3 text-[10px] font-bold tracking-[0.12em] text-white">会場完成予想イメージ</span>
-            </Link>
           </div>
         </section>
 

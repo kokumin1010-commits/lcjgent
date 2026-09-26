@@ -237,7 +237,7 @@ describe("LCF / LCM common login and role workspaces", () => {
     expect(router).not.toContain('set({ accountType: "liver"');
   });
 
-  it("keeps event, brand and creator pages visually separate and switchable", () => {
+  it("keeps marketplace workspaces switchable without repeating the menu on the event mypage", () => {
     const navigation = read("client/src/components/lcf/FestivalWorkspaceNav.tsx");
     const eventPage = read("client/src/pages/LcfMypage.tsx");
     const marketPage = read("client/src/pages/LcmManage.tsx");
@@ -245,7 +245,7 @@ describe("LCF / LCM common login and role workspaces", () => {
     expect(navigation).toContain("LCF参加・QR");
     expect(navigation).toContain('label: "LCMブランド・商品"');
     expect(navigation).toContain("LCM配信者プロフィール");
-    expect(eventPage).toContain('active="event"');
+    expect(eventPage).not.toContain("<FestivalWorkspaceNav");
     expect(eventPage).toContain("見る展示会から、売る展示会へ。");
     expect(eventPage).toContain("東京都立産業貿易センター浜松町館 2階展示室");
     expect(eventPage).not.toContain("CountdownTimer");

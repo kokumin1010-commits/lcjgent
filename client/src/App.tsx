@@ -691,6 +691,7 @@ function Router() {
         {/* Live Commerce Festival */}
         <Route path="/lcf/apply/company" component={FestivalApplyCompany} />
         <Route path="/lcf/apply/liver" component={FestivalApplyLiver} />
+        <Route path="/lcf/apply/general" component={FestivalApplyGeneral} />
         <Route path="/livecommercefestival/2026/apply/company" component={FestivalApplyCompany} />
         <Route path="/livecommercefestival/2026/apply/liver" component={FestivalApplyLiver} />
         <Route path="/livecommercefestival/2026/apply/general" component={FestivalApplyGeneral} />

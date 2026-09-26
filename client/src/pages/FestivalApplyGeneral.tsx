@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { getLcfEventByEdition } from "@shared/lcfEventDefinitions";
 import {
   DEFAULT_GENERAL_APPLICATION_FORM as DEFAULT_FORM,
   GENERAL_APPLICATION_DRAFT_KEY as SESSION_DRAFT_KEY,
@@ -26,49 +27,18 @@ import {
   type GeneralApplicationFormState as FormState,
 } from "@/lib/festivalGeneralApplicationForm";
 
-const INDUSTRY_OPTIONS = [
-  "ブランド",
-  "メーカー",
-  "EC事業者",
-  "MCN",
-  "広告代理店",
-  "サービス企業",
-  "物流企業",
-  "メディア",
-  "投資機関",
-  "その他",
-];
-
-const VISIT_PURPOSES = [
-  "ライブコマース・TikTok Shopの最新トレンドやノウハウの情報収集",
-  "出展企業（メーカーやブランド）との商談・ネットワーキング",
-  "クリエイター・ライバー・MCNとのネットワーキング",
-  "自社の次回以降の出展に向けた視察",
-  "セミナー・講演の聴講",
-  "商品仕入れ、ネットワーキング",
-  "その他",
-];
-
-const ATTENDANCE_OPTIONS = [
-  { value: "day1_only", label: "9月8日（火）DAY1 のみ参加" },
-  { value: "day2_only", label: "9月9日（水）DAY2 のみ参加" },
-  { value: "both_days", label: "両日参加" },
-] as const;
-
 const fieldClass =
   "w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none transition focus:border-amber-500 focus:ring-4 focus:ring-amber-100";
 
-function restoreSessionDraft(): FormState {
+function restoreSessionDraft(storageKey: string): FormState {
   if (typeof window === "undefined") return DEFAULT_FORM;
   try {
-    const saved = window.sessionStorage.getItem(SESSION_DRAFT_KEY);
+    const saved = window.sessionStorage.getItem(storageKey);
     if (!saved) return DEFAULT_FORM;
     const parsed = JSON.parse(saved) as Partial<FormState>;
     return {
       ...DEFAULT_FORM,
       ...parsed,
-      industryTypes: Array.isArray(parsed.industryTypes) ? parsed.industryTypes : [],
-      visitPurposes: Array.isArray(parsed.visitPurposes) ? parsed.visitPurposes : [],
       portraitConsent: Boolean(parsed.portraitConsent),
       complianceConsent: Boolean(parsed.complianceConsent),
     };
@@ -114,7 +84,10 @@ function SelectionCard({
 }
 
 export default function FestivalApplyGeneral() {
-  const [form, setForm] = useState<FormState>(restoreSessionDraft);
+  const event = getLcfEventByEdition(new URLSearchParams(window.location.search).get("edition"));
+  const storageKey = `${SESSION_DRAFT_KEY}-${event.eventYear}`;
+  const loginPath = `/lcf/login?return=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+  const [form, setForm] = useState<FormState>(() => restoreSessionDraft(storageKey));
   const [step, setStep] = useState(1);
   const [errors, setErrors] = useState<FormErrors>({});
   const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
@@ -126,21 +99,19 @@ export default function FestivalApplyGeneral() {
   const [passwordCopied, setPasswordCopied] = useState(false);
 
   const normalizedEmail = form.email.trim().toLowerCase();
-  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
-  const phoneValid = /^[0-9+()\-\s]{7,30}$/.test(form.phone.trim());
 
   useEffect(() => {
     if (submitted) return;
     const timer = window.setTimeout(() => {
       try {
-        window.sessionStorage.setItem(SESSION_DRAFT_KEY, JSON.stringify(form));
+        window.sessionStorage.setItem(storageKey, JSON.stringify(form));
         setDraftSavedAt(new Date());
       } catch {
         setDraftSavedAt(null);
       }
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [form, submitted]);
+  }, [form, storageKey, submitted]);
 
   const completedRequired = useMemo(() => countGeneralApplicationRequired(form), [form]);
 
@@ -152,7 +123,7 @@ export default function FestivalApplyGeneral() {
       setTicketEmailSent(data.ticketEmailSent ?? false);
       if (data.account) setAccountInfo({ email: form.email, password: data.account.password });
       try {
-        window.sessionStorage.removeItem(SESSION_DRAFT_KEY);
+        window.sessionStorage.removeItem(storageKey);
       } catch {
         // The application remains complete even when storage is unavailable.
       }
@@ -180,17 +151,16 @@ export default function FestivalApplyGeneral() {
       focusFirstError(nextErrors);
       return;
     }
-    setStep((current) => Math.min(3, current + 1));
+    setStep((current) => Math.min(2, current + 1));
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const submitApplication = () => {
     const stepOneErrors = validateStep(1);
     const stepTwoErrors = validateStep(2);
-    const stepThreeErrors = validateStep(3);
-    const allErrors = { ...stepOneErrors, ...stepTwoErrors, ...stepThreeErrors };
+    const allErrors = { ...stepOneErrors, ...stepTwoErrors };
     if (Object.keys(allErrors).length > 0) {
-      const invalidStep = Object.keys(stepOneErrors).length > 0 ? 1 : Object.keys(stepTwoErrors).length > 0 ? 2 : 3;
+      const invalidStep = Object.keys(stepOneErrors).length > 0 ? 1 : 2;
       setStep(invalidStep);
       setErrors(allErrors);
       focusFirstError(allErrors);
@@ -198,31 +168,23 @@ export default function FestivalApplyGeneral() {
     }
 
     mutation.mutate({
+      edition: event.edition,
       participationType: form.participationType as "corporate" | "individual",
       companyName: form.participationType === "corporate" ? form.brandName.trim() : "",
-      department: form.industryTypes.join(", "),
       name: form.name.trim(),
       nameKana: form.nameKana.trim(),
       email: normalizedEmail,
       phone: form.phone.trim(),
-      attendanceSchedule: form.attendanceSchedule as "day1_only" | "day2_only" | "both_days",
-      visitPurposes: form.visitPurposes,
       lineOrLark: form.lineOrLark.trim() || undefined,
       brandName: form.brandName.trim() || undefined,
-      industryTypes: form.industryTypes,
       portraitRightsConsent: true,
       complianceConsent: true,
     });
   };
 
-  const toggleArrayValue = (key: "industryTypes" | "visitPurposes", value: string) => {
-    const current = form[key];
-    setValue(key, current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
-  };
-
   const clearDraft = () => {
     try {
-      window.sessionStorage.removeItem(SESSION_DRAFT_KEY);
+      window.sessionStorage.removeItem(storageKey);
     } catch {
       // Storage may be disabled; the in-memory form can still be cleared.
     }
@@ -237,8 +199,9 @@ export default function FestivalApplyGeneral() {
       <main className="min-h-screen bg-gradient-to-b from-amber-50 via-white to-orange-50 px-4 py-10">
         <div className="mx-auto w-full max-w-lg rounded-3xl border border-amber-100 bg-white p-6 text-center shadow-xl sm:p-9">
           <CheckCircle2 className="mx-auto mb-4 h-16 w-16 text-emerald-500" />
-          <p className="text-sm font-bold tracking-[0.18em] text-amber-700">LIVE COMMERCE FESTIVAL 2026</p>
+          <p className="text-sm font-bold tracking-[0.18em] text-amber-700">{event.name}</p>
           <h1 className="mt-2 text-2xl font-black text-slate-900">お申し込み完了</h1>
+          <p className="mt-2 text-sm font-bold leading-6 text-amber-700">{event.dateText}<br />{event.venueName}</p>
           <p className="mt-3 text-sm leading-7 text-slate-600">{submissionMessage}</p>
           <div className={`mt-5 rounded-2xl p-4 text-left text-sm ${ticketEmailSent ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>
             {ticketEmailSent
@@ -277,7 +240,7 @@ export default function FestivalApplyGeneral() {
           )}
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <Link href="/lcf/login" className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white">マイページへ</Link>
-            <Link href="/" className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-bold text-slate-700">トップへ戻る</Link>
+            <Link href={event.pagePath} className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-bold text-slate-700">イベントページへ戻る</Link>
           </div>
         </div>
       </main>
@@ -287,22 +250,30 @@ export default function FestivalApplyGeneral() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 via-white to-orange-50 pb-28 text-slate-900 sm:pb-12">
       <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-amber-700">
-          <ArrowLeft className="h-4 w-4" /> トップに戻る
+        <Link href={event.pagePath} className="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-amber-700">
+          <ArrowLeft className="h-4 w-4" /> イベントページに戻る
         </Link>
 
         <section className="mt-5 overflow-hidden rounded-3xl bg-slate-950 text-white shadow-2xl">
           <div className="bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,.45),transparent_45%)] p-6 sm:p-8">
-            <p className="text-xs font-black tracking-[0.22em] text-amber-300">LIVE COMMERCE FESTIVAL 2026</p>
+            <p className="text-xs font-black tracking-[0.22em] text-amber-300">{event.name}</p>
             <h1 className="mt-3 text-2xl font-black sm:text-3xl">一般参加 お申し込み</h1>
-            <p className="mt-3 max-w-xl text-sm leading-7 text-slate-300">初めての方も、下の3ステップに沿って入力するだけでお申し込みいただけます。入力時間の目安は約3分です。</p>
+            <p className="mt-3 max-w-xl text-sm leading-7 text-slate-300">基本情報を入力し、内容を確認するだけでお申し込みいただけます。来場計画の入力は不要です。</p>
             <div className="mt-5 grid gap-3 text-sm sm:grid-cols-3">
-              <div className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-3"><CalendarDays className="h-4 w-4 text-amber-300" /> 2026年9月8日・9日</div>
-              <div className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-3"><Clock3 className="h-4 w-4 text-amber-300" /> 約3分で入力</div>
+              <div className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-3"><CalendarDays className="h-4 w-4 text-amber-300" /> {event.dateText}</div>
+              <div className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-3"><Clock3 className="h-4 w-4 text-amber-300" /> 約2分で入力</div>
               <div className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-3"><TicketCheck className="h-4 w-4 text-amber-300" /> 申込後にチケット発行</div>
             </div>
           </div>
         </section>
+
+        {event.edition === 2 && (
+          <section className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950 shadow-sm sm:p-5">
+            <p className="font-bold">すでにLCF・LCM会員の方</p>
+            <p className="mt-1 text-blue-800">登録済みメールアドレスを使う場合は、本人確認のため先にログインしてください。ログイン後、この入力内容を復元してお申し込みを続けられます。</p>
+            <Link href={loginPath} className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-700 px-4 py-2.5 font-bold text-white">ログインしてから申し込む</Link>
+          </section>
+        )}
 
         <section className="mt-5 rounded-2xl border border-amber-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -313,8 +284,8 @@ export default function FestivalApplyGeneral() {
         </section>
 
         <nav className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-label="申込手順">
-          <div className="grid grid-cols-3 gap-2">
-            {["基本情報", "来場計画", "確認・送信"].map((label, index) => {
+          <div className="grid grid-cols-2 gap-2">
+            {["基本情報", "確認・送信"].map((label, index) => {
               const number = index + 1;
               const active = number === step;
               const complete = number < step;
@@ -333,7 +304,7 @@ export default function FestivalApplyGeneral() {
             })}
           </div>
           <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-            <span>ステップ {step} / 3</span>
+            <span>ステップ {step} / 2</span>
             <span>必須項目 {completedRequired.completed} / {completedRequired.total}</span>
           </div>
         </nav>
@@ -369,20 +340,8 @@ export default function FestivalApplyGeneral() {
           )}
 
           {step === 2 && (
-            <section className="space-y-7" aria-labelledby="step-two-title">
-              <div><p className="text-xs font-black tracking-[0.18em] text-amber-600">STEP 2</p><h2 id="step-two-title" className="mt-1 text-xl font-black">来場計画</h2><p className="mt-2 text-sm text-slate-500">ご所属と、当日の参加目的を選択してください。</p></div>
-
-              <div id="field-industryTypes" tabIndex={-1}><label className="mb-2 block text-sm font-bold">業種・所属 <span className="text-red-500">必須・複数選択可</span></label><div className="grid gap-2 sm:grid-cols-2">{INDUSTRY_OPTIONS.map((item) => <SelectionCard key={item} checked={form.industryTypes.includes(item)} onChange={() => toggleArrayValue("industryTypes", item)}>{item}</SelectionCard>)}</div><FieldError message={errors.industryTypes} /></div>
-
-              <div id="field-visitPurposes" tabIndex={-1}><label className="mb-2 block text-sm font-bold">ご来場目的 <span className="text-red-500">必須・複数選択可</span></label><div className="space-y-2">{VISIT_PURPOSES.map((item) => <SelectionCard key={item} checked={form.visitPurposes.includes(item)} onChange={() => toggleArrayValue("visitPurposes", item)}>{item}</SelectionCard>)}</div><FieldError message={errors.visitPurposes} /></div>
-
-              <div id="field-attendanceSchedule" tabIndex={-1}><label className="mb-2 block text-sm font-bold">ご来場スケジュール <span className="text-red-500">必須</span></label><p className="mb-3 text-xs leading-5 text-slate-500">ご来場日程に応じて、ブランド紹介やイベント調整をご案内する場合があります。</p><div className="space-y-2">{ATTENDANCE_OPTIONS.map((item) => <SelectionCard key={item.value} type="radio" name="attendanceSchedule" checked={form.attendanceSchedule === item.value} onChange={() => setValue("attendanceSchedule", item.value)}>{item.label}</SelectionCard>)}</div><FieldError message={errors.attendanceSchedule} /></div>
-            </section>
-          )}
-
-          {step === 3 && (
             <section className="space-y-6" aria-labelledby="step-three-title">
-              <div><p className="text-xs font-black tracking-[0.18em] text-amber-600">STEP 3</p><h2 id="step-three-title" className="mt-1 text-xl font-black">内容確認・送信</h2><p className="mt-2 text-sm text-slate-500">内容を確認し、2つの同意事項にチェックして送信してください。</p></div>
+              <div><p className="text-xs font-black tracking-[0.18em] text-amber-600">STEP 2</p><h2 id="step-three-title" className="mt-1 text-xl font-black">内容確認・送信</h2><p className="mt-2 text-sm text-slate-500">内容を確認し、2つの同意事項にチェックして送信してください。</p></div>
 
               <div className="rounded-2xl bg-slate-50 p-4 sm:p-5">
                 <dl className="grid gap-4 text-sm sm:grid-cols-2">
@@ -391,9 +350,6 @@ export default function FestivalApplyGeneral() {
                   <div><dt className="text-xs font-bold text-slate-400">会社・ブランド</dt><dd className="mt-1 font-bold">{form.brandName || "—"}</dd></div>
                   <div><dt className="text-xs font-bold text-slate-400">メール</dt><dd className="mt-1 break-all font-bold">{normalizedEmail}</dd></div>
                   <div><dt className="text-xs font-bold text-slate-400">電話番号</dt><dd className="mt-1 font-bold">{form.phone}</dd></div>
-                  <div><dt className="text-xs font-bold text-slate-400">来場日程</dt><dd className="mt-1 font-bold">{ATTENDANCE_OPTIONS.find((item) => item.value === form.attendanceSchedule)?.label}</dd></div>
-                  <div className="sm:col-span-2"><dt className="text-xs font-bold text-slate-400">業種・所属</dt><dd className="mt-1 font-bold">{form.industryTypes.join("、")}</dd></div>
-                  <div className="sm:col-span-2"><dt className="text-xs font-bold text-slate-400">来場目的</dt><dd className="mt-1 leading-6">{form.visitPurposes.join("、")}</dd></div>
                 </dl>
                 <button type="button" onClick={() => setStep(1)} className="mt-4 text-xs font-bold text-amber-700 underline">基本情報を修正する</button>
               </div>
@@ -408,7 +364,7 @@ export default function FestivalApplyGeneral() {
 
           <div className="mt-8 hidden items-center justify-between gap-3 border-t border-slate-100 pt-6 sm:flex">
             <button type="button" disabled={step === 1 || mutation.isPending} onClick={() => setStep((current) => Math.max(1, current - 1))} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-5 py-3 text-sm font-bold text-slate-700 disabled:invisible"><ChevronLeft className="h-4 w-4" /> 前へ</button>
-            {step < 3 ? <button type="button" onClick={goNext} className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-amber-200 transition active:scale-[0.98]">次へ進む <ChevronRight className="h-4 w-4" /></button> : <button type="submit" disabled={mutation.isPending} className="inline-flex min-w-48 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-emerald-200 transition active:scale-[0.98] disabled:opacity-60">{mutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> 送信中...</> : <><TicketCheck className="h-4 w-4" /> この内容で申し込む</>}</button>}
+            {step < 2 ? <button type="button" onClick={goNext} className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-amber-200 transition active:scale-[0.98]">次へ進む <ChevronRight className="h-4 w-4" /></button> : <button type="submit" disabled={mutation.isPending} className="inline-flex min-w-48 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-emerald-200 transition active:scale-[0.98] disabled:opacity-60">{mutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> 送信中...</> : <><TicketCheck className="h-4 w-4" /> この内容で申し込む</>}</button>}
           </div>
         </form>
 
@@ -418,7 +374,7 @@ export default function FestivalApplyGeneral() {
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-8px_30px_rgba(15,23,42,.08)] backdrop-blur sm:hidden">
         <div className="mx-auto flex max-w-3xl items-center gap-2">
           {step > 1 && <button type="button" disabled={mutation.isPending} onClick={() => setStep((current) => Math.max(1, current - 1))} className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-700"><ChevronLeft className="h-5 w-5" /></button>}
-          {step < 3 ? <button type="button" onClick={goNext} className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-amber-500 text-sm font-black text-white shadow-lg">次へ進む <ChevronRight className="h-4 w-4" /></button> : <button type="button" disabled={mutation.isPending} onClick={submitApplication} className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-black text-white shadow-lg disabled:opacity-60">{mutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin" />送信中...</> : <><TicketCheck className="h-4 w-4" />この内容で申し込む</>}</button>}
+          {step < 2 ? <button type="button" onClick={goNext} className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-amber-500 text-sm font-black text-white shadow-lg">次へ進む <ChevronRight className="h-4 w-4" /></button> : <button type="button" disabled={mutation.isPending} onClick={submitApplication} className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-black text-white shadow-lg disabled:opacity-60">{mutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin" />送信中...</> : <><TicketCheck className="h-4 w-4" />この内容で申し込む</>}</button>}
         </div>
       </div>
     </main>

@@ -251,11 +251,12 @@ function enforceMemberLookupRateLimit(req: any, email: string, eventYear: string
   }
 }
 
-async function requireAuthenticatedExistingMemberForSecondEdition(params: {
+export async function requireAuthenticatedExistingMemberForSecondEdition(params: {
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>;
   req: any;
   email: string;
   edition: 1 | 2;
+  verifyRequest?: typeof verifyFestivalUserRequest;
 }) {
   if (params.edition !== 2) return;
   const [existingAccount] = await params.db.select({ id: festivalAccounts.id })
@@ -264,7 +265,7 @@ async function requireAuthenticatedExistingMemberForSecondEdition(params: {
     .limit(1);
   if (!existingAccount) return;
 
-  const festivalUser = await verifyFestivalUserRequest(params.req);
+  const festivalUser = await (params.verifyRequest || verifyFestivalUserRequest)(params.req);
   if (!festivalUser || String(festivalUser.email).trim().toLowerCase() !== params.email.toLowerCase()) {
     throw new TRPCError({
       code: "UNAUTHORIZED",
@@ -880,6 +881,7 @@ export const festivalRouter = router({
   // 一般来場申込み
   submitGeneral: publicProcedure
     .input(z.object({
+      edition: z.union([z.literal(1), z.literal(2)]).default(1),
       participationType: z.enum(["corporate", "individual"]),
       companyName: z.string().trim().max(255).default(""),
       department: z.string().trim().max(255).optional(),
@@ -887,11 +889,11 @@ export const festivalRouter = router({
       nameKana: z.string().trim().min(1, "フリガナは必須です").max(255),
       email: z.string().trim().toLowerCase().email("有効なメールアドレスを入力してください").max(320),
       phone: z.string().trim().regex(/^[0-9+()\-\s]{7,30}$/, "電話番号の形式が正しくありません"),
-      attendanceSchedule: z.enum(["day1_only", "day2_only", "both_days"]),
-      visitPurposes: z.array(z.string().trim().min(1).max(255)).min(1, "来場目的を1つ以上選択してください").max(20),
+      attendanceSchedule: z.enum(["day1_only", "day2_only", "both_days"]).default("both_days"),
+      visitPurposes: z.array(z.string().trim().min(1).max(255)).max(20).default([]),
       lineOrLark: z.string().trim().max(255).optional(),
       brandName: z.string().trim().max(255).optional(),
-      industryTypes: z.array(z.string().trim().min(1).max(255)).min(1, "業種・所属を1つ以上選択してください").max(20),
+      industryTypes: z.array(z.string().trim().min(1).max(255)).max(20).default([]),
       portraitRightsConsent: z.literal(true),
       complianceConsent: z.literal(true),
     }).superRefine((data, ctx) => {
@@ -900,15 +902,17 @@ export const festivalRouter = router({
       }
     }))
     .mutation(async ({ input, ctx }) => {
-      enforceSubmissionRateLimit(ctx.req, input.email, "general");
+      const event = getLcfEventByEdition(input.edition);
+      enforceSubmissionRateLimit(ctx.req, input.email, `general:${event.eventYear}`);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      await requireAuthenticatedExistingMemberForSecondEdition({ db, req: ctx.req, email: input.email, edition: input.edition });
       // 重複チェック: 同じメールで既に申込みがある場合はスキップ
       const existingGeneral = await db.select({ id: festivalGeneralApplications.id })
         .from(festivalGeneralApplications)
         .where(and(
           eq(festivalGeneralApplications.email, input.email),
-          eq(festivalGeneralApplications.eventYear, "2026")
+          eq(festivalGeneralApplications.eventYear, event.eventYear)
         ))
         .limit(1);
       if (existingGeneral.length > 0) {
@@ -931,7 +935,7 @@ export const festivalRouter = router({
               applicantEmail: input.email,
               applicantType: 'general',
             });
-            ticketEmailSent = await sendTicketEmail(input.email, input.name, existingTicketId, 'general');
+            ticketEmailSent = await sendTicketEmail(input.email, input.name, existingTicketId, 'general', event.eventYear);
           }
         } catch(e) { console.error("[LCF] Existing ticket lookup error:", e); }
         return { success: true, id: existingGeneral[0].id, message: "既に申込み済みです", ticketId: existingTicketId, ticketEmailSent, account: null };
@@ -956,7 +960,7 @@ export const festivalRouter = router({
           portraitRightsConsent: "agreed",
           complianceConsent: "agreed",
           status: "confirmed",
-          eventYear: "2026",
+          eventYear: event.eventYear,
         });
         insertId = (result as any)[0]?.insertId || 0;
       } catch (err: any) {
@@ -980,7 +984,7 @@ export const festivalRouter = router({
 
             // Log activity
       if (accountInfo) {
-        logActivity({ accountId: insertId, accountEmail: input.email, accountType: 'general', action: 'submit_application', details: JSON.stringify({ name: input.name }), req: ctx.req });
+        logActivity({ accountId: insertId, accountEmail: input.email, accountType: 'general', action: 'submit_application', details: JSON.stringify({ name: input.name, edition: event.edition, eventYear: event.eventYear }), req: ctx.req });
       }
       // Generate ticket and send email
       let ticketId: string | null = null;
@@ -993,7 +997,7 @@ export const festivalRouter = router({
           applicantEmail: input.email,
           applicantType: 'general',
         });
-        ticketEmailSent = await sendTicketEmail(input.email, input.name, ticketId, 'general');
+        ticketEmailSent = await sendTicketEmail(input.email, input.name, ticketId, 'general', event.eventYear);
       } catch (err: any) {
         console.error("[LCF Ticket] Ticket creation error:", err.message);
       }

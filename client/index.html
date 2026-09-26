@@ -100,9 +100,10 @@
             document.title = 'LIVE COMMERCE FESTIVAL｜ライブコマースの祭典・公式サイト';
             if (title) title.textContent = 'LIVE COMMERCE FESTIVAL';
             if (message) message.textContent = '公式サイトを読み込んでいます。';
-          } else if (path === '/livecommercefestival/2026/apply/general') {
-            document.title = 'Live Commerce Festival 2026 一般参加お申し込み';
-            if (title) title.textContent = 'Live Commerce Festival 2026';
+          } else if (path === '/lcf/apply/general' || path === '/livecommercefestival/2026/apply/general') {
+            var isSecondEdition = new URLSearchParams(location.search).get('edition') === '2';
+            document.title = (isSecondEdition ? '第2回 ' : '') + 'Live Commerce Festival 一般参加お申し込み';
+            if (title) title.textContent = isSecondEdition ? '第2回 Live Commerce Festival' : 'Live Commerce Festival 2026';
             if (message) message.textContent = '一般参加お申し込みフォームを読み込んでいます。初めての方もこのままお待ちください。';
           } else {
             document.title = 'LIVE COMMERCE FESTIVAL｜公式サイト';

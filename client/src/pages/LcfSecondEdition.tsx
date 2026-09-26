@@ -28,7 +28,6 @@ import { trpc } from "@/lib/trpc";
 import { LCF_EVENT_DEFINITIONS } from "@shared/lcfEventDefinitions";
 
 const event = LCF_EVENT_DEFINITIONS[2];
-const LCF_OPEN_CHAT_URL = "https://line.me/ti/g2/KsS3Ma1HW3okfwI2OowM6Ubk0UHKOHmb3nZFhA?utm_source=invitation&utm_medium=link_copy&utm_campaign=default";
 const HERO_IMAGE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/AnPNzcemGiRReCxl.webp";
 const OFFICIAL_MOVIE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/QHYaTbQAzawNOpYI.mp4";
 const LCF_COLOR_LOGO = {
@@ -155,22 +154,18 @@ function ApplicationButtons({ dark = false, hero = false }: { dark?: boolean; he
           <Building2 size={19} className="hidden shrink-0 sm:block" /><span><span className="sm:hidden">出展申込</span><span className="hidden sm:inline">出展申込<small className="mt-0.5 block text-[10px] font-bold">お問い合わせページへ</small></span></span><ArrowUpRight size={17} className="hidden shrink-0 sm:block" />
         </a>
         <a
-          href={LCF_OPEN_CHAT_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="ライブコマーサー申込・チャットへ"
+          href={event.applicationLiverPath}
+          aria-label="ライブコマーサー申込フォームへ"
           className="inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-1.5 py-2 text-center text-[10px] font-black leading-4 text-white shadow-[0_10px_30px_rgba(238,48,116,.2)] transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.97] sm:min-h-14 sm:gap-2 sm:px-4 sm:py-3 sm:text-sm"
         >
-          <Handshake size={19} className="hidden shrink-0 sm:block" /><span><span className="sm:hidden">ライバー申込</span><span className="hidden sm:inline">ライブコマーサー申込<small className="mt-0.5 block text-[10px] font-bold">チャットへ</small></span></span><ArrowUpRight size={17} className="hidden shrink-0 sm:block" />
+          <Handshake size={19} className="hidden shrink-0 sm:block" /><span><span className="sm:hidden">ライバー申込</span><span className="hidden sm:inline">ライブコマーサー申込<small className="mt-0.5 block text-[10px] font-bold">申込フォームへ</small></span></span><ArrowUpRight size={17} className="hidden shrink-0 sm:block" />
         </a>
         <a
-          href={LCF_OPEN_CHAT_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="一般来場申込・チャットへ"
+          href={event.applicationGeneralPath}
+          aria-label="一般来場申込フォームへ"
           className="inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-1.5 py-2 text-center text-[10px] font-black leading-4 text-white shadow-[0_10px_30px_rgba(238,48,116,.2)] transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.97] sm:min-h-14 sm:gap-2 sm:px-4 sm:py-3 sm:text-sm"
         >
-          <Users size={19} className="hidden shrink-0 sm:block" /><span><span className="sm:hidden">一般申込</span><span className="hidden sm:inline">一般来場申込<small className="mt-0.5 block text-[10px] font-bold">チャットへ</small></span></span><ArrowUpRight size={17} className="hidden shrink-0 sm:block" />
+          <Users size={19} className="hidden shrink-0 sm:block" /><span><span className="sm:hidden">一般申込</span><span className="hidden sm:inline">一般来場申込<small className="mt-0.5 block text-[10px] font-bold">申込フォームへ</small></span></span><ArrowUpRight size={17} className="hidden shrink-0 sm:block" />
         </a>
       </div>
     );
@@ -180,11 +175,11 @@ function ApplicationButtons({ dark = false, hero = false }: { dark?: boolean; he
       <a href={event.applicationCompanyPath} className="inline-flex min-h-14 items-center justify-center gap-3 bg-[#f5cf31] px-6 py-4 text-sm font-black text-black transition-transform duration-150 active:scale-[0.97]">
         <Building2 size={19} />出展申込・お問い合わせページへ<ArrowUpRight size={17} />
       </a>
-      <a href={LCF_OPEN_CHAT_URL} target="_blank" rel="noopener noreferrer" className={`inline-flex min-h-14 items-center justify-center gap-3 border px-6 py-4 text-sm font-black transition-colors ${dark ? "border-white/45 bg-black/30 text-white hover:border-white" : "border-black/35 text-black hover:bg-black hover:text-white"}`}>
-        <Camera size={19} />ライブコマーサー申込・チャットへ<ArrowUpRight size={17} />
+      <a href={event.applicationLiverPath} className={`inline-flex min-h-14 items-center justify-center gap-3 border px-6 py-4 text-sm font-black transition-colors ${dark ? "border-white/45 bg-black/30 text-white hover:border-white" : "border-black/35 text-black hover:bg-black hover:text-white"}`}>
+        <Camera size={19} />ライブコマーサー申込フォームへ<ArrowUpRight size={17} />
       </a>
-      <a href={LCF_OPEN_CHAT_URL} target="_blank" rel="noopener noreferrer" className={`inline-flex min-h-14 items-center justify-center gap-3 border px-6 py-4 text-sm font-black transition-colors ${dark ? "border-white/45 bg-black/30 text-white hover:border-white" : "border-black/35 text-black hover:bg-black hover:text-white"}`}>
-        <Users size={19} />一般来場申込・チャットへ<ArrowUpRight size={17} />
+      <a href={event.applicationGeneralPath} className={`inline-flex min-h-14 items-center justify-center gap-3 border px-6 py-4 text-sm font-black transition-colors ${dark ? "border-white/45 bg-black/30 text-white hover:border-white" : "border-black/35 text-black hover:bg-black hover:text-white"}`}>
+        <Users size={19} />一般来場申込フォームへ<ArrowUpRight size={17} />
       </a>
     </div>
   );
@@ -510,8 +505,8 @@ function StickyApplicationBar() {
     <aside className="fixed inset-x-0 bottom-0 z-[60] border-t border-white/15 bg-[#090909]/95 px-3 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 text-white shadow-[0_-12px_40px_rgba(0,0,0,.35)] backdrop-blur-xl" aria-label="第2回LCF申込メニュー">
       <div className="mx-auto grid max-w-5xl grid-cols-3 gap-2">
         <a href={event.applicationCompanyPath} className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-2 py-2.5 text-center text-[10px] font-black leading-4 text-white transition-transform duration-150 active:scale-[0.97] sm:gap-2 sm:px-3 sm:text-sm"><Building2 className="hidden h-4 w-4 shrink-0 sm:block" /><span><span className="sm:hidden">出展申込</span><span className="hidden sm:inline">出展申込・お問い合わせ</span></span></a>
-        <a href={LCF_OPEN_CHAT_URL} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-2 py-2.5 text-center text-[10px] font-black leading-4 text-white transition-transform duration-150 active:scale-[0.97] sm:gap-2 sm:px-3 sm:text-sm"><Handshake className="hidden h-4 w-4 shrink-0 sm:block" /><span><span className="sm:hidden">ライバー申込</span><span className="hidden sm:inline">ライブコマーサー申込・チャット</span></span></a>
-        <a href={LCF_OPEN_CHAT_URL} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-2 py-2.5 text-center text-[10px] font-black leading-4 text-white transition-transform duration-150 active:scale-[0.97] sm:gap-2 sm:px-3 sm:text-sm"><Users className="hidden h-4 w-4 shrink-0 sm:block" /><span><span className="sm:hidden">一般申込</span><span className="hidden sm:inline">一般来場申込・チャット</span></span></a>
+        <a href={event.applicationLiverPath} className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-2 py-2.5 text-center text-[10px] font-black leading-4 text-white transition-transform duration-150 active:scale-[0.97] sm:gap-2 sm:px-3 sm:text-sm"><Handshake className="hidden h-4 w-4 shrink-0 sm:block" /><span><span className="sm:hidden">ライバー申込</span><span className="hidden sm:inline">ライブコマーサー申込</span></span></a>
+        <a href={event.applicationGeneralPath} className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#ed2f75] via-[#ff7350] to-[#ffbd18] px-2 py-2.5 text-center text-[10px] font-black leading-4 text-white transition-transform duration-150 active:scale-[0.97] sm:gap-2 sm:px-3 sm:text-sm"><Users className="hidden h-4 w-4 shrink-0 sm:block" /><span><span className="sm:hidden">一般申込</span><span className="hidden sm:inline">一般来場申込</span></span></a>
       </div>
     </aside>
   );
