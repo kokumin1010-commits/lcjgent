@@ -29,6 +29,7 @@ import { LCF_EVENT_DEFINITIONS } from "@shared/lcfEventDefinitions";
 const hero = lcf2026PhotoById["D1-104"];
 const lcjOfficialSite = "https://livecommercejapan.jp/";
 const lcfOfficialTiktok = "https://www.tiktok.com/@livecommercefestival";
+const lcfOfficialLogo = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/JExZSKEQRYCOygvH.webp";
 const secondEdition = LCF_EVENT_DEFINITIONS[2];
 const topHeroSlides = [
   {
@@ -55,11 +56,14 @@ function BrandHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-black/10 bg-[#f6f3ec]/95 text-[#101010] backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-[1500px] items-center justify-between px-4 md:h-20 md:px-8">
-        <a href="/" className="group flex items-center gap-3" aria-label="LIVE COMMERCE FESTIVAL ホーム">
-          <span className="grid h-10 w-12 place-items-center rounded-sm bg-[#f2cb3c] text-sm font-black tracking-[-0.08em] text-black transition-transform duration-200 group-hover:-rotate-2 md:h-11 md:w-14">LCF</span>
-          <span className="hidden text-[11px] font-black leading-tight tracking-[0.2em] text-black/75 sm:block">
-            LIVE COMMERCE<br />FESTIVAL
-          </span>
+        <a href="/" className="group inline-flex items-center" aria-label="LIVE COMMERCE FESTIVAL ホーム">
+          <img
+            src={lcfOfficialLogo}
+            alt="LIVE COMMERCE FESTIVAL"
+            width={850}
+            height={524}
+            className="h-12 w-auto object-contain transition-transform duration-200 group-hover:-rotate-1 md:h-14"
+          />
         </a>
         <nav className="flex items-center gap-2 text-xs font-black tracking-[0.03em] sm:gap-3" aria-label="メインナビゲーション">
           <a href="/lcf/mypage" className="inline-flex min-h-10 items-center gap-2 rounded-full bg-[#101010] px-4 py-2.5 text-[11px] text-white transition-colors hover:bg-[#7c3aed] sm:px-5 sm:text-xs">

@@ -4,6 +4,18 @@ import { describe, expect, it } from "vitest";
 const read = (relativePath: string) => readFileSync(new URL(relativePath, import.meta.url), "utf8");
 
 describe("LCF public first-view navigation", () => {
+  it("uses the supplied full-color official logo in the home header", () => {
+    const source = read("../client/src/pages/LiveCommerceFestivalTop.tsx");
+
+    expect(source).toContain("JExZSKEQRYCOygvH.webp");
+    expect(source).toContain("src={lcfOfficialLogo}");
+    expect(source).toContain('alt="LIVE COMMERCE FESTIVAL"');
+    expect(source).toContain("width={850}");
+    expect(source).toContain("height={524}");
+    expect(source).not.toContain(">LCF</span>");
+    expect(source).not.toContain("LIVE COMMERCE<br />FESTIVAL");
+  });
+
   it("keeps the event hero and exposes a compact second-edition application area", () => {
     const source = read("../client/src/pages/LiveCommerceFestivalTop.tsx");
 

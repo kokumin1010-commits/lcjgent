@@ -4049,3 +4049,7 @@ feature SHA `520b48eca70df02c2acba6bcf1f1449c1add3f96`、GitHub CI run `36246498
 提交`1699865a`的GitHub检查和Railway部署已成功，`/master/tasks`、`/master/morning-meeting`与应用health均HTTP 200；但`/api/health/task-execution`安全返回503，步骤为`task_acceptance_ledger`。根因是旧生产数据库已有并通过严格校验的0161/0162表、列与索引，但历史Drizzle账本缺失对应记录；因此异步0163按设计拒绝越过未知前驱并保持任务API fail-closed，生产页面未崩溃但任务操作暂不可用。
 监听前迁移器现先以Drizzle官方结构幂等创建`__drizzle_migrations`，继续执行0161/0162的幂等DDL并严格验证全部运行时列与关键索引；只有完整Schema验证成功后，才允许把缺失的0161作为“已验证基线”登记，再要求0162精确引用0161 hash后登记。若任一目标时间戳已有不同hash、0161前驱存在冲突记录、或0162链不连续，仍立即失败关闭，不会伪造或覆盖账本。
 验证：启动迁移、异步0163与任务验收专项3个文件20项通过，任务验收与早会完整专项14个文件92项通过，8GB production build成功；隔离MariaDB在“0161/0162结构完整、`__drizzle_migrations`不存在”的真实状态下首次执行成功补建账本并按时间顺序登记两条精确SHA-256，第二次重放不新增记录，证明修复幂等。独立只读复审最终P0=0、P1=0；已补充“0161正确但0160前驱hash冲突”仍失败关闭的测试。未修改已经推送的0161/0162/0163 SQL或journal内容。
+
+## 2026-09-26｜LCFトップ公式ロゴ差し替え（本番反映前）
+`https://www.livecommercefestival.com/`のheader左上にあった黄色い`LCF`文字badgeと重複wordmarkを、ユーザー提供のフルカラー公式ロゴへ差し替えた。原本2048×1152 RGBAから透明余白だけを無損失でcropし、850×524／55,552 bytesのWebPをCDNへ保存。配信binaryはlocal生成物とSHA-256 `1de26c3b9abeff92680325b1eb7d689ec5cc4640959274d2c985a3d0e5d9e9f7`で完全一致する。navigation、mypage導線、hero、開催回切替、他pageは変更していない。
+検証：LCF／Festival／ticket関連40 files・283 tests通過、production build成功、今回2 pathsのTypeScript diagnosticは0。desktop 1280pxとmobile 390pxで画像読込、header内収まり、横overflow 0、旧黄色badge 0、console/page/request error 0を確認。独立read-only reviewはGO（blocker 0件）。
