@@ -1,4 +1,5 @@
 import { TIKTOK_ADS_BOOTSTRAP_SNAPSHOT } from "./tiktokAdsSnapshot";
+import { TIKTOK_ADS_REPORTED_PERFORMANCE } from "./tiktokAdsReportedPerformance";
 
 const TIKTOK_API_ORIGIN = "https://business-api.tiktok.com";
 const TIKTOK_API_VERSION = "v1.3";
@@ -363,13 +364,20 @@ function withSource(
     });
   return {
     source,
-    sourceLabel: source === "live" ? "TikTok Marketing API 实时数据" : "TikTok for Business 已验证快照",
+    sourceLabel: source === "live" ? "TikTok Marketing API 实时Auction数据" : "LCJ-01 Auction已验证快照",
     liveConfigured: Boolean(process.env.TIKTOK_BUSINESS_ACCESS_TOKEN),
     liveErrorCode: options?.liveErrorCode ?? null,
     lastSyncedAt: snapshot.capturedAt,
     snapshotCapturedAt: TIKTOK_ADS_BOOTSTRAP_SNAPSHOT.capturedAt,
     advertiser: snapshot.advertiser,
     lifetimeMetrics: snapshot.lifetimeMetrics,
+    reportedPerformance: TIKTOK_ADS_REPORTED_PERFORMANCE,
+    reportingCoverage: {
+      auctionAdvertiserCount: 1,
+      auctionServiceType: "AUCTION" as const,
+      includesGmvMax: false,
+      note: "Auction账户报表与商品短视频GMV广告报告是不同期间、不同口径，禁止直接相加。",
+    },
     campaigns,
     adgroups: [...snapshot.adgroups].sort((a, b) => b.createTime.localeCompare(a.createTime)),
     ads: [...snapshot.ads].sort((a, b) => b.createTime.localeCompare(a.createTime)),

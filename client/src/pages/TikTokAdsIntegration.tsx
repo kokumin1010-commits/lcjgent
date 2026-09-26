@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import {
   Activity,
@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   BarChart3,
   CheckCircle2,
+  ChevronRight,
   CircleDollarSign,
   Clock3,
   History,
@@ -58,6 +59,7 @@ const TABS = [
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
+type CampaignSortMetric = "spend" | "impressions" | "clicks" | "conversion";
 
 type MetricValues = {
   spend: string;
@@ -110,6 +112,10 @@ function formatPercent(value: string | number | null | undefined): string {
   return `${numberValue(value).toFixed(2)}%`;
 }
 
+function formatRoi(value: string | number | null | undefined): string {
+  return `${numberValue(value).toFixed(2)}x`;
+}
+
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return "—";
   const parsed = new Date(value.includes("T") ? value : `${value.replace(" ", "T")}+09:00`);
@@ -150,26 +156,36 @@ function AccountStatusBadge({ status }: { status: string }) {
   return <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600")}>{enabled ? "账户有效" : status}</span>;
 }
 
-function MetricCard({ icon: Icon, label, value, note, accent }: {
+function MetricCard({ icon: Icon, label, value, note, accent, onClick, ariaLabel }: {
   icon: typeof Eye;
   label: string;
   value: string;
   note: string;
   accent: string;
+  onClick: () => void;
+  ariaLabel: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      className="group w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition duration-150 hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 active:scale-[0.98]"
+    >
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500">{label}</p>
           <p className="mt-2 text-2xl font-black tracking-tight text-slate-950">{value}</p>
         </div>
-        <div className={cn("flex h-11 w-11 items-center justify-center rounded-xl", accent)}>
+        <div className={cn("flex h-11 w-11 items-center justify-center rounded-xl transition group-hover:scale-105", accent)}>
           <Icon className="h-5 w-5" />
         </div>
       </div>
-      <p className="mt-3 text-xs text-slate-500">{note}</p>
-    </div>
+      <div className="mt-3 flex items-center justify-between gap-2 text-xs text-slate-500">
+        <span>{note}</span>
+        <span className="inline-flex shrink-0 items-center font-semibold text-cyan-700">查看明细<ChevronRight className="ml-0.5 h-3.5 w-3.5" /></span>
+      </div>
+    </button>
   );
 }
 
@@ -225,6 +241,9 @@ export default function TikTokAdsIntegration() {
   const { user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [search, setSearch] = useState("");
+  const [campaignSortMetric, setCampaignSortMetric] = useState<CampaignSortMetric>("spend");
+  const [campaignDrilldownPending, setCampaignDrilldownPending] = useState(false);
+  const campaignDetailRef = useRef<HTMLDivElement>(null);
   const [operationDraft, setOperationDraft] = useState<OperationDraft | null>(null);
   const [operationReason, setOperationReason] = useState("");
   const [confirmationInput, setConfirmationInput] = useState("");
@@ -337,11 +356,15 @@ export default function TikTokAdsIntegration() {
 
   const filteredCampaigns = useMemo(() => {
     const keyword = search.trim().toLowerCase();
-    if (!keyword) return data?.campaigns ?? [];
-    return (data?.campaigns ?? []).filter(item =>
-      `${item.campaignName} ${item.campaignId} ${item.objectiveType}`.toLowerCase().includes(keyword)
+    const rows = keyword
+      ? (data?.campaigns ?? []).filter(item =>
+          `${item.campaignName} ${item.campaignId} ${item.objectiveType}`.toLowerCase().includes(keyword)
+        )
+      : [...(data?.campaigns ?? [])];
+    return rows.sort((left, right) =>
+      numberValue(right.metrics[campaignSortMetric]) - numberValue(left.metrics[campaignSortMetric])
     );
-  }, [data?.campaigns, search]);
+  }, [campaignSortMetric, data?.campaigns, search]);
 
   const filteredAdgroups = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -385,6 +408,33 @@ export default function TikTokAdsIntegration() {
   const activeAdgroups = [...adgroupDeliveryStates.values()].filter(isTikTokEffectivelyDelivering).length;
   const activeAds = [...adDeliveryStates.values()].filter(isTikTokEffectivelyDelivering).length;
   const metrics = data?.lifetimeMetrics as MetricValues | undefined;
+  const campaignSortLabels: Record<CampaignSortMetric, string> = {
+    spend: "花费",
+    impressions: "曝光",
+    clicks: "点击",
+    conversion: "转化事件",
+  };
+
+  useEffect(() => {
+    if (activeTab !== "campaigns" || !campaignDrilldownPending) return;
+    campaignDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setCampaignDrilldownPending(false);
+  }, [activeTab, campaignDrilldownPending, campaignSortMetric]);
+
+  const scrollToSection = (id: string) => {
+    window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  };
+
+  const openAuctionMetric = (metric: CampaignSortMetric) => {
+    setCampaignSortMetric(metric);
+    setSearch("");
+    setCampaignDrilldownPending(true);
+    setActiveTab("campaigns");
+  };
+
+  const openReportedPerformance = () => {
+    scrollToSection("tiktok-reported-performance");
+  };
 
   if (
     authLoading ||
@@ -457,7 +507,13 @@ export default function TikTokAdsIntegration() {
                         ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-100"
                         : "border-white/15 bg-white/10 text-slate-200"
                     )}>
-                      {canOperate && writeEnabled ? "受控操作可用" : canOperate ? "操作权限あり・接続待ち" : "查看模式"}
+                      {canOperate && writeEnabled
+                        ? "受控操作可用"
+                        : canOperate && data.source === "live"
+                          ? "实时读取已连接・写入待启用"
+                          : canOperate
+                            ? "操作权限あり・实时API未接通"
+                            : "查看模式"}
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-slate-400">LCJ-01 · Campaign / 广告组 / 广告素材 / 绩效报表</p>
@@ -499,7 +555,7 @@ export default function TikTokAdsIntegration() {
             <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
             <div>
               <p className="font-bold text-slate-900">操作权限已分配，但生产写入链路尚未启用</p>
-              <p className="mt-1 text-sm leading-6 text-slate-600">当前可安全查看全部数据和操作设计。配置服务器专用Marketing API令牌及写入开关后，启停与符合条件的总预算调整按钮会开放；令牌不会进入浏览器。</p>
+              <p className="mt-1 text-sm leading-6 text-slate-600">当前可查看已接入的LCJ-01 Auction快照、运营确认报告和操作设计。配置服务器专用Marketing API令牌及写入开关后，启停与符合条件的总预算调整按钮会开放；令牌不会进入浏览器。</p>
             </div>
           </div>
         )}
@@ -511,7 +567,7 @@ export default function TikTokAdsIntegration() {
             <div className="flex gap-3">
               <AlertTriangle className={cn("mt-0.5 h-5 w-5 shrink-0", data.liveErrorCode ? "text-red-600" : "text-amber-600")} />
               <div>
-                <p className="font-bold text-slate-900">当前显示已验证的真实快照，不是伪造数据</p>
+                <p className="font-bold text-slate-900">当前显示LCJ-01 Auction已验证快照，实时API尚未接通</p>
                 <p className="mt-1 text-sm leading-6 text-slate-600">
                   采集时间：{formatDateTime(data.snapshotCapturedAt)}。在Railway安全配置专用读取令牌后，本页会自动切换为TikTok Marketing API实时数据。
                 </p>
@@ -526,11 +582,93 @@ export default function TikTokAdsIntegration() {
         )}
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <MetricCard icon={CircleDollarSign} label="总花费" value={formatYen(metrics?.spend)} note="API全期间累计" accent="bg-cyan-50 text-cyan-700" />
-          <MetricCard icon={Eye} label="曝光" value={formatCompact(metrics?.impressions)} note={`${formatNumber(metrics?.impressions)} impressions`} accent="bg-violet-50 text-violet-700" />
-          <MetricCard icon={MousePointerClick} label="点击" value={formatCompact(metrics?.clicks)} note={`CTR ${formatPercent(metrics?.ctr)}`} accent="bg-blue-50 text-blue-700" />
-          <MetricCard icon={Target} label="转化事件" value={formatCompact(metrics?.conversion)} note={`TikTok事件，不等于订单 · CPA ${formatYenRate(metrics?.costPerConversion)}`} accent="bg-emerald-50 text-emerald-700" />
-          <MetricCard icon={Activity} label="Campaign" value={`${data.campaigns.length}`} note={`${activeCampaigns} 有效投放 · ${data.adgroups.length} 广告组 · ${data.ads.length} 广告`} accent="bg-pink-50 text-pink-700" />
+          <MetricCard
+            icon={CircleDollarSign}
+            label="9月商品广告总成本"
+            value={formatYen(data.reportedPerformance.totals.allInSpend)}
+            note="09.01–09.24 · 含额外加热"
+            accent="bg-cyan-50 text-cyan-700"
+            onClick={openReportedPerformance}
+            ariaLabel="查看9月品牌商品广告成本明细"
+          />
+          <MetricCard
+            icon={Eye}
+            label="Auction曝光"
+            value={formatCompact(metrics?.impressions)}
+            note={`${formatNumber(metrics?.impressions)} impressions`}
+            accent="bg-violet-50 text-violet-700"
+            onClick={() => openAuctionMetric("impressions")}
+            ariaLabel="按曝光查看Auction Campaign明细"
+          />
+          <MetricCard
+            icon={MousePointerClick}
+            label="Auction点击"
+            value={formatCompact(metrics?.clicks)}
+            note={`CTR ${formatPercent(metrics?.ctr)}`}
+            accent="bg-blue-50 text-blue-700"
+            onClick={() => openAuctionMetric("clicks")}
+            ariaLabel="按点击查看Auction Campaign明细"
+          />
+          <MetricCard
+            icon={Target}
+            label="Auction转化事件"
+            value={formatCompact(metrics?.conversion)}
+            note={`事件≠订单 · CPA ${formatYenRate(metrics?.costPerConversion)}`}
+            accent="bg-emerald-50 text-emerald-700"
+            onClick={() => openAuctionMetric("conversion")}
+            ariaLabel="按转化事件查看Auction Campaign明细"
+          />
+          <MetricCard
+            icon={Activity}
+            label="Auction Campaign"
+            value={`${data.campaigns.length}`}
+            note={`${activeCampaigns} 有效投放 · ${data.adgroups.length} 广告组 · ${data.ads.length} 广告`}
+            accent="bg-pink-50 text-pink-700"
+            onClick={() => openAuctionMetric("spend")}
+            ariaLabel="按花费查看全部Auction Campaign明细"
+          />
+        </section>
+
+        <section id="tiktok-reported-performance" className="scroll-mt-5 overflow-hidden rounded-2xl border border-cyan-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-cyan-100 bg-gradient-to-r from-cyan-50 via-white to-pink-50 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-700">运营确认报告 · {data.reportedPerformance.periodStart} – {data.reportedPerformance.periodEnd}</p>
+              <h2 className="mt-1 text-lg font-black text-slate-950">品牌商品短视频GMV广告实绩</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-600">该区块保留品牌投流成本、额外加热、GMV与ROI；与下方LCJ-01 Auction累计快照分开显示，避免不同期间和广告类型被误加。</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-cyan-100 px-3 py-1.5 text-xs font-bold text-cyan-800">来源：{data.reportedPerformance.sourceLabel}</span>
+          </div>
+
+          <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-6 xl:grid-cols-4">
+            <div className="rounded-xl bg-slate-950 p-4 text-white"><p className="text-xs text-slate-400">基础投流成本</p><p className="mt-2 text-xl font-black">{formatYen(data.reportedPerformance.totals.baseSpend)}</p></div>
+            <div className="rounded-xl bg-amber-50 p-4"><p className="text-xs text-amber-700">额外视频加热</p><p className="mt-2 text-xl font-black text-slate-950">{formatYen(data.reportedPerformance.totals.additionalSpend)}</p></div>
+            <div className="rounded-xl bg-emerald-50 p-4"><p className="text-xs text-emerald-700">商品广告GMV</p><p className="mt-2 text-xl font-black text-slate-950">{formatYen(data.reportedPerformance.totals.gmv)}</p></div>
+            <div className="rounded-xl bg-violet-50 p-4"><p className="text-xs text-violet-700">全成本ROI</p><p className="mt-2 text-xl font-black text-slate-950">{formatRoi(data.reportedPerformance.totals.allInRoi)}</p><p className="mt-1 text-[11px] text-slate-500">GMV ÷（基础成本＋额外加热）</p></div>
+          </div>
+
+          <div className="overflow-x-auto border-t border-slate-100">
+            <table className="min-w-[860px] w-full text-sm">
+              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
+                <tr><th className="px-4 py-3 sm:px-6">品牌</th><th className="px-4 py-3 text-right">基础成本</th><th className="px-4 py-3 text-right">额外加热</th><th className="px-4 py-3 text-right">全成本</th><th className="px-4 py-3 text-right">GMV</th><th className="px-4 py-3 text-right">报告ROI</th><th className="px-4 py-3 text-right sm:pr-6">全成本ROI</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {data.reportedPerformance.brands.map(brand => (
+                  <tr key={brand.brandName} className="hover:bg-slate-50/80">
+                    <td className="px-4 py-3 font-bold sm:px-6">{brand.brandName}</td>
+                    <td className="px-4 py-3 text-right">{formatYen(brand.baseSpend)}</td>
+                    <td className="px-4 py-3 text-right">{brand.additionalSpend ? formatYen(brand.additionalSpend) : "—"}</td>
+                    <td className="px-4 py-3 text-right font-bold">{formatYen(brand.allInSpend)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-emerald-700">{formatYen(brand.gmv)}</td>
+                    <td className="px-4 py-3 text-right">{formatRoi(brand.reportedRoi)}</td>
+                    <td className="px-4 py-3 text-right font-bold sm:pr-6">{formatRoi(brand.allInRoi)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="border-t border-amber-100 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900 sm:px-6">
+            下方原有 {formatYen(metrics?.spend)} 是单一LCJ-01广告账户的 <strong>Auction全期间累计</strong>，不是全公司9月商品广告总成本；GMV Max实时汇总仍需另行接入Shop ID与读取权限。
+          </div>
         </section>
 
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -586,7 +724,7 @@ export default function TikTokAdsIntegration() {
                     <h2 className="font-bold">连接与数据边界</h2>
                   </div>
                   <dl className="mt-4 space-y-3 text-sm">
-                    <div className="flex justify-between gap-4"><dt className="text-slate-500">当前来源</dt><dd className="text-right font-semibold">{data.source === "live" ? "服务器实时API" : "只读MCP快照"}</dd></div>
+                    <div className="flex justify-between gap-4"><dt className="text-slate-500">当前来源</dt><dd className="text-right font-semibold">{data.source === "live" ? "服务器实时Auction API" : "LCJ-01 Auction只读快照"}</dd></div>
                     <div className="flex justify-between gap-4"><dt className="text-slate-500">最后读取</dt><dd className="text-right font-semibold">{formatDateTime(data.lastSyncedAt)}</dd></div>
                     <div className="flex justify-between gap-4"><dt className="text-slate-500">生产令牌</dt><dd className="text-right font-semibold">{data.liveConfigured ? "已配置（不显示）" : "未配置"}</dd></div>
                     <div className="flex justify-between gap-4"><dt className="text-slate-500">当前权限</dt><dd className={cn("text-right font-semibold", canOperate ? "text-emerald-700" : "text-slate-700")}>{canOperate ? "查看＋受控操作" : "查看专用"}</dd></div>
@@ -631,7 +769,7 @@ export default function TikTokAdsIntegration() {
           )}
 
           {(activeTab === "campaigns" || activeTab === "adgroups" || activeTab === "ads") && (
-            <div className="p-4 sm:p-6">
+            <div ref={activeTab === "campaigns" ? campaignDetailRef : undefined} id={activeTab === "campaigns" ? "tiktok-auction-detail" : undefined} className="scroll-mt-5 p-4 sm:p-6">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-lg font-black">
@@ -640,6 +778,9 @@ export default function TikTokAdsIntegration() {
                   <p className="text-sm text-slate-500">
                     有效投放中：{activeTab === "campaigns" ? activeCampaigns : activeTab === "adgroups" ? activeAdgroups : activeAds}件
                   </p>
+                  {activeTab === "campaigns" && (
+                    <p className="mt-1 text-xs font-semibold text-cyan-700">当前按{campaignSortLabels[campaignSortMetric]}从高到低排列</p>
+                  )}
                 </div>
                 <div className="relative w-full sm:w-80">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />

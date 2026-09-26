@@ -94,6 +94,18 @@ describe("TikTok Ads connector", () => {
     expect(dashboard.ads).toHaveLength(48);
     expect(dashboard.campaigns.every(item => item.metrics && item.adgroupCount >= 0 && item.adCount >= 0)).toBe(true);
     expect(dashboard.lifetimeMetrics.spend).toBe("633173.000");
+    expect(dashboard.reportingCoverage).toEqual({
+      auctionAdvertiserCount: 1,
+      auctionServiceType: "AUCTION",
+      includesGmvMax: false,
+      note: "Auction账户报表与商品短视频GMV广告报告是不同期间、不同口径，禁止直接相加。",
+    });
+    expect(dashboard.reportedPerformance.totals).toMatchObject({
+      baseSpend: 1_850_118,
+      additionalSpend: 149_021,
+      allInSpend: 1_999_139,
+      gmv: 5_937_657,
+    });
     expect(JSON.stringify(dashboard)).not.toContain("Access-Token");
   });
 
