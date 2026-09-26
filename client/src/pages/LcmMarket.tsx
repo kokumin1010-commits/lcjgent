@@ -114,6 +114,14 @@ export default function LcmMarket() {
     });
   }, []);
 
+  useEffect(() => {
+    if (window.location.hash !== "#product-search") return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById("product-search")?.scrollIntoView({ block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
   const archiveItems = useMemo(
     () => lcf2026ExhibitorCatalogPages.filter((item) => item.pageType === "出展企業紹介" && item.productTitle),
     [],
@@ -189,7 +197,7 @@ export default function LcmMarket() {
               </article>
             </div>
 
-            <section aria-labelledby="lcm-category-heading" className="mt-10 border-t border-black/15 pt-8 md:mt-14 md:pt-10">
+            <section id="product-search" aria-labelledby="lcm-category-heading" className="mt-10 scroll-mt-[125px] border-t border-black/15 pt-8 sm:scroll-mt-[73px] md:mt-14 md:scroll-mt-[81px] md:pt-10">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div><h2 id="lcm-category-heading" className="text-3xl font-black tracking-[-0.04em] md:text-4xl">どんな商品がある？</h2><p className="mt-2 text-sm font-semibold text-black/55">商品は登録なしでご覧いただけます。</p></div>
                 <label htmlFor="lcm-search" className="relative block w-full lg:max-w-[430px]"><Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-black/40" /><span className="sr-only">商品・ブランドを検索</span><input id="lcm-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="商品名・ブランド名で検索" className="h-13 w-full border border-black/20 bg-white pl-12 pr-4 text-sm font-bold outline-none ring-[#f7cc35] placeholder:text-black/35 focus:ring-4" /></label>

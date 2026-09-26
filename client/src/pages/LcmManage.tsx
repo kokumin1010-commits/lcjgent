@@ -16,7 +16,7 @@ import { buildFestivalLoginUrl, getRequestedFestivalWorkspace } from "@/lib/fest
 import { applyPageSeo } from "@/lib/pageSeo";
 import { trpc } from "@/lib/trpc";
 import { getLcmCatalogBrandPages, getLcmCatalogIdentity, lcmCatalogIdentities, normalizeLcmCatalogName } from "@shared/lcmCatalogDirectory";
-import { LCM_CAMPAIGNS_ENABLED } from "@shared/lcmFeatureFlags";
+import { LCM_BRAND_CONTACTS_ENABLED, LCM_BRAND_CONTACTS_UNAVAILABLE_MESSAGE, LCM_CAMPAIGNS_ENABLED } from "@shared/lcmFeatureFlags";
 
 type BrandForm = {
   displayName: string; companyName: string; category: string; tagline: string; description: string; story: string;
@@ -126,7 +126,7 @@ export default function LcmManage() {
     }
   }, [access.error?.data?.code, access.isError]);
   const manageBrand = trpc.lcm.getManageBrand.useQuery({ brandId: selectedBrand?.brand.id || 0 }, { enabled: Boolean(approved && selectedBrand?.member.status === "active"), retry: false });
-  const memberProduct = trpc.lcm.getMemberProduct.useQuery({ productId: sampleProductId || wholesaleProductId || contactProductId || 0 }, { enabled: Boolean(approved && (sampleProductId || wholesaleProductId || contactProductId)), retry: false });
+  const memberProduct = trpc.lcm.getMemberProduct.useQuery({ productId: sampleProductId || wholesaleProductId || (LCM_BRAND_CONTACTS_ENABLED ? contactProductId : 0) || 0 }, { enabled: Boolean(approved && (sampleProductId || wholesaleProductId || (LCM_BRAND_CONTACTS_ENABLED && contactProductId))), retry: false });
   const myRequests = trpc.lcm.listMyRequests.useQuery(undefined, { enabled: Boolean(approved), retry: false });
   const myContacts = trpc.lcm.listMyBrandContacts.useInfiniteQuery({}, { enabled: Boolean(approved && showContacts && !requestedBrandId), retry: false, getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined });
   const brandRequests = trpc.lcm.listBrandRequests.useQuery({ brandId: requestedBrandId || selectedBrand?.brand.id || 0 }, { enabled: Boolean(approved && showRequests && requestedBrandId), retry: false });
@@ -196,6 +196,7 @@ export default function LcmManage() {
   if (membership.status !== "approved") return <LcmPublicLayout><main className="grid min-h-[65vh] place-items-center px-5"><div className="max-w-xl border border-black/15 bg-white p-8"><Clock3 className="h-10 w-10 text-[#d45b16]" /><p className="mt-5 text-xs font-black tracking-[0.16em]">MEMBERSHIP STATUS</p><h1 className="mt-2 text-3xl font-black">{membership.status === "pending" ? "会員状態を確認しています" : membership.status === "rejected" ? "LCMを利用できません" : "LCMの利用を停止しています"}</h1><p className="mt-4 text-sm leading-7 text-black/60">状態：{statusLabels[membership.status] || membership.status}{membership.reviewNote ? `｜${membership.reviewNote}` : ""}</p><p className="mt-4 text-xs leading-6 text-black/50">再開が必要な場合は、表示された理由を添えてLCM運営へお問い合わせください。</p></div></main></LcmPublicLayout>;
 
   if (contactProductId) {
+    if (!LCM_BRAND_CONTACTS_ENABLED) return <BrandContactUnavailable />;
     return <BrandContactApplication product={memberProduct.data} isLoading={memberProduct.isLoading} pending={createBrandContact.isPending} onSubmit={(data) => createBrandContact.mutate({ productId: contactProductId, ...data })} />;
   }
   if (sampleProductId || wholesaleProductId) {
@@ -450,6 +451,10 @@ function WorkspaceUnavailable({ title, description }: { title: string; descripti
 
 const sampleStatusLabels: Record<string, string> = { pending: "申請中", approved: "承認済み", rejected: "見送り", preparing: "発送準備中", shipped: "発送済み", delivered: "受取済み", live_scheduled: "配信予定", completed: "完了", cancelled: "取消済み" };
 const wholesaleStatusLabels: Record<string, string> = { requested: "申込済み", reviewing: "確認中", accepted: "商談承認", declined: "見送り", negotiating: "条件調整中", completed: "完了", cancelled: "取消済み" };
+
+function BrandContactUnavailable() {
+  return <LcmPublicLayout><main className="grid min-h-[65vh] place-items-center bg-[#f4f1e9] px-5"><section className="w-full max-w-xl border border-black/15 bg-white p-7 text-center md:p-10"><MessageCircle className="mx-auto h-10 w-10 text-black/30" /><p className="mt-5 text-xs font-black tracking-[0.16em] text-black/40">CONTACT THE BRAND</p><h1 className="mt-2 text-3xl font-black">ブランドさんに連絡</h1><span className="mt-4 inline-flex bg-[#a5a5a5] px-4 py-2 text-xs font-black tracking-[0.12em] text-white">調整中</span><p className="mt-5 text-sm font-bold leading-7 text-black/55">{LCM_BRAND_CONTACTS_UNAVAILABLE_MESSAGE}</p><Link href="/lcm#product-search" className="mt-7 inline-flex min-h-12 items-center justify-center bg-[#171714] px-6 text-sm font-black text-white">LCMの商品検索へ戻る<ArrowRight className="ml-2 h-4 w-4" /></Link></section></main></LcmPublicLayout>;
+}
 
 function BrandContactApplication({ product, isLoading, pending, onSubmit }: { product: any; isLoading: boolean; pending: boolean; onSubmit: (data: { subject: string; message: string }) => void }) {
   const [subject, setSubject] = useState("商品について相談したい");

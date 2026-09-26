@@ -31,7 +31,7 @@ import {
   normalizeLcmCatalogName,
 } from "../shared/lcmCatalogDirectory";
 import { isOfficialTikTokUrl, normalizeLcmTikTokUrl } from "../shared/lcmSocialUrls";
-import { LCM_CAMPAIGNS_ENABLED } from "../shared/lcmFeatureFlags";
+import { LCM_BRAND_CONTACTS_ENABLED, LCM_BRAND_CONTACTS_UNAVAILABLE_MESSAGE, LCM_CAMPAIGNS_ENABLED } from "../shared/lcmFeatureFlags";
 import { publicProcedure, router, t } from "./_core/trpc";
 import { getDb } from "./db";
 import { sendEmail } from "./emailService";
@@ -43,6 +43,12 @@ const LCM_TERMS_VERSION = "2026-09-13-v1";
 function assertLcmCampaignsEnabled() {
   if (!LCM_CAMPAIGNS_ENABLED) {
     throw new TRPCError({ code: "NOT_FOUND", message: "キャンペーン機能は現在非公開です" });
+  }
+}
+
+function assertLcmBrandContactsEnabled() {
+  if (!LCM_BRAND_CONTACTS_ENABLED) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: LCM_BRAND_CONTACTS_UNAVAILABLE_MESSAGE });
   }
 }
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -1884,6 +1890,7 @@ export const lcmRouter = router({
     subject: z.string().trim().min(2).max(120).refine((value) => !/[\r\n]/.test(value), "件名に改行は使用できません"),
     message: z.string().trim().min(10).max(5000),
   }).strict()).mutation(async ({ ctx, input }) => {
+    assertLcmBrandContactsEnabled();
     const db = await requireDb();
     const [product] = await db.select({
       id: lcmProducts.id,

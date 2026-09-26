@@ -124,6 +124,7 @@ describe("第2回LCFの事前マッチングと証憑付き自己申告GMV", () 
     const adminPanel = read("client/src/components/lcf/LcfGmvAdminPanel.tsx");
     const mypage = read("client/src/pages/LcfMypage.tsx");
     const engagement = read("client/src/components/lcf/LcfEngagementCenter.tsx");
+    const market = read("client/src/pages/LcmMarket.tsx");
 
     expect(admin).toContain('"gmv"');
     expect(admin).toContain('label: "マッチング・GMV"');
@@ -136,8 +137,12 @@ describe("第2回LCFの事前マッチングと証憑付き自己申告GMV", () 
     expect(adminPanel).toContain("商品別確認済みGMV");
     expect(mypage).toContain("<LcfEngagementCenter />");
     expect(engagement).toContain("この数字は「自己申告GMV」として送信され");
-    expect(engagement).toContain('href="/lcm#products"');
+    expect(engagement).toContain('href="/lcm#product-search"');
     expect(engagement).toContain("第2回LCFの出展商品から選ぶ");
+    expect(market).toContain('id="product-search"');
+    expect(market).toContain('htmlFor="lcm-search"');
+    expect(market).toContain('window.location.hash !== "#product-search"');
+    expect(market).toContain('document.getElementById("product-search")?.scrollIntoView({ block: "start" })');
   });
 
   it("第1回のQR・受付・VIP・アフターパーティー・ブース予約を保持する", () => {

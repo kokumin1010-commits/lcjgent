@@ -104,8 +104,10 @@ describe("LCM marketplace foundation", () => {
     expect(product).toContain('buildFestivalLoginUrl(samplePath)');
     expect(product).toContain('buildFestivalLoginUrl(wholesalePath)');
     expect(product).toContain('buildFestivalLoginUrl(contactPath)');
+    expect(product).toContain("LCM_BRAND_CONTACTS_ENABLED");
     expect(product).toContain("ブランドさんに連絡");
-    expect(product).toContain("LCMマイページに履歴を保存し、連携済みのブランド担当者へメール通知します。担当者未連携時はLCM運営が受け付けます");
+    expect(product).toContain("調整中");
+    expect(product).toContain('type="button" disabled aria-disabled="true"');
     expect(product).not.toContain("サンプル受付なし");
     expect(product).not.toContain(">サンプル対応</span>");
     expect(product).toContain("定価・参考小売価格");

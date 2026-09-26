@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { LCM_BRAND_CONTACTS_ENABLED, LCM_BRAND_CONTACTS_UNAVAILABLE_MESSAGE } from "../shared/lcmFeatureFlags";
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const schema = read("drizzle/lcmSchema.ts");
@@ -23,25 +24,30 @@ describe("LCM brand contact threads", () => {
     expect(upgrade).toContain("additive empty tables and nullable columns only");
   });
 
-  it("exposes a prominent contact CTA for every product without negative sample availability labels", () => {
+  it("keeps brand contact visible but disabled as adjustment-in-progress until pre-matching starts", () => {
+    expect(LCM_BRAND_CONTACTS_ENABLED).toBe(false);
+    expect(LCM_BRAND_CONTACTS_UNAVAILABLE_MESSAGE).toContain("参加メーカー確定後");
     expect(product).toContain('const contactPath = `/lcm/manage?contact=${product.id}`');
     expect(product).toContain('buildFestivalLoginUrl(contactPath)');
-    expect(product).toContain('<a href={contactHref}');
-    expect(product).not.toContain('<Link href={contactHref}');
-    expect(product).toContain("touch-manipulation");
-    expect(product).toContain("relative z-10");
-    expect(product).toContain('aria-label={`${product.brandName}へ商品について連絡する`}');
+    expect(product).toContain("LCM_BRAND_CONTACTS_ENABLED ? <>");
+    expect(product).toContain('type="button" disabled aria-disabled="true"');
+    expect(product).toContain('bg-[#a5a5a5]');
     expect(product).toContain("ブランドさんに連絡");
-    expect(product).toContain("連携済みのブランド担当者へメール通知します。担当者未連携時はLCM運営が受け付けます");
-    expect(product).toContain('bg-[#bd480d]');
+    expect(product).toContain("調整中");
+    expect(product).toContain("LCM_BRAND_CONTACTS_UNAVAILABLE_MESSAGE");
+    expect(manage).toContain("if (!LCM_BRAND_CONTACTS_ENABLED) return <BrandContactUnavailable />");
+    expect(manage).toContain("LCMの商品検索へ戻る");
     expect(product.indexOf("ブランドさんに連絡")).toBeLessThan(product.indexOf("取引条件を見る"));
     expect(product).not.toContain("サンプル受付なし");
     expect(product).not.toContain(">サンプル対応</span>");
     expect(product).not.toContain("現在、この商品のサンプル申請は受け付けていません");
   });
 
-  it("stores the first message and audits it before notification delivery", () => {
+  it("fails closed before DB access while retaining the first-message implementation for later activation", () => {
     expect(router).toContain("createBrandContact: lcmMemberProcedure");
+    expect(router).toContain("assertLcmBrandContactsEnabled();");
+    const createContact = router.slice(router.indexOf("createBrandContact: lcmMemberProcedure"), router.indexOf("listMyBrandContacts: lcmMemberProcedure"));
+    expect(createContact.indexOf("assertLcmBrandContactsEnabled();")).toBeLessThan(createContact.indexOf("const db = await requireDb()"));
     expect(router).toContain('eq(lcmProducts.status, "published")');
     expect(router).toContain('eq(lcmBrandProfiles.status, "published")');
     expect(router).toContain("自社ブランドの商品には連絡できません");

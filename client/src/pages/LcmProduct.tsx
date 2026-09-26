@@ -31,6 +31,7 @@ import { LcmProductImage } from "@/components/lcm/LcmProductImage";
 import { buildFestivalLoginUrl } from "@/lib/festivalPortal";
 import { applyPageSeo } from "@/lib/pageSeo";
 import { trpc } from "@/lib/trpc";
+import { LCM_BRAND_CONTACTS_ENABLED, LCM_BRAND_CONTACTS_UNAVAILABLE_MESSAGE } from "@shared/lcmFeatureFlags";
 
 function formatPrice(value: string | number | null | undefined) {
   if (value == null || value === "") return "価格はブランドへ確認";
@@ -187,10 +188,17 @@ export default function LcmProduct() {
 
                 <div className="mt-7 flex flex-wrap gap-2">{links.map(([label, url]) => <a key={label} href={url!} target="_blank" rel="noreferrer" className="inline-flex items-center border border-black bg-white px-4 py-3 text-xs font-black transition hover:bg-black hover:text-white">{label}<ExternalLink className="ml-2 h-4 w-4" /></a>)}</div>
 
-                <a href={contactHref} aria-label={`${product.brandName}へ商品について連絡する`} className="relative z-10 mt-8 inline-flex min-h-16 w-full touch-manipulation items-center justify-center gap-3 bg-[#bd480d] px-5 py-4 text-base font-black text-white shadow-[0_14px_35px_rgba(189,72,13,.22)] transition-transform active:scale-[0.99]">
-                  <MessageCircle className="h-5 w-5" />ブランドさんに連絡<ArrowRight className="h-5 w-5" />
-                </a>
-                <p className="mt-2 text-center text-[11px] font-bold leading-5 text-black/45">LCMマイページに履歴を保存し、連携済みのブランド担当者へメール通知します。担当者未連携時はLCM運営が受け付けます。</p>
+                {LCM_BRAND_CONTACTS_ENABLED ? <>
+                  <a href={contactHref} aria-label={`${product.brandName}へ商品について連絡する`} className="relative z-10 mt-8 inline-flex min-h-16 w-full touch-manipulation items-center justify-center gap-3 bg-[#bd480d] px-5 py-4 text-base font-black text-white shadow-[0_14px_35px_rgba(189,72,13,.22)] transition-transform active:scale-[0.99]">
+                    <MessageCircle className="h-5 w-5" />ブランドさんに連絡<ArrowRight className="h-5 w-5" />
+                  </a>
+                  <p className="mt-2 text-center text-[11px] font-bold leading-5 text-black/45">LCMマイページに履歴を保存し、連携済みのブランド担当者へメール通知します。担当者未連携時はLCM運営が受け付けます。</p>
+                </> : <>
+                  <button type="button" disabled aria-disabled="true" className="mt-8 inline-flex min-h-16 w-full cursor-not-allowed items-center justify-center gap-3 bg-[#a5a5a5] px-5 py-4 text-base font-black text-white shadow-none">
+                    <MessageCircle className="h-5 w-5" />ブランドさんに連絡<span className="border border-white/50 bg-black/15 px-2 py-1 text-[10px] tracking-[0.12em]">調整中</span>
+                  </button>
+                  <p className="mt-2 text-center text-[11px] font-bold leading-5 text-black/50">{LCM_BRAND_CONTACTS_UNAVAILABLE_MESSAGE}</p>
+                </>}
 
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   {accessQuery.data ? <button type="button" onClick={() => interestMutation.mutate({ productId: product.id })} disabled={interestMutation.isPending} aria-pressed={engagement?.interested || false} className={`inline-flex min-h-12 items-center justify-center border px-3 text-xs font-black sm:text-sm ${engagement?.interested ? "border-[#b42f26] bg-[#fff0ee] text-[#b42f26]" : "border-black/15 bg-white"}`}><Heart className={`mr-2 h-4 w-4 ${engagement?.interested ? "fill-current" : ""}`} />{engagement?.interested ? "興味あり登録済み" : "興味あり"}</button> : <Link href={productReturnHref} className="inline-flex min-h-12 items-center justify-center border border-black/15 bg-white px-3 text-xs font-black sm:text-sm"><Heart className="mr-2 h-4 w-4" />興味あり</Link>}

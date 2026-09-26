@@ -179,7 +179,7 @@ export function LcfEngagementCenter() {
           {activeView === 'matching' ? (
             <div className="space-y-6 p-4 sm:p-6">
               <div>
-                <a href="/lcm#products" className="group inline-flex min-h-11 items-center gap-2 border-b border-amber-400/70 text-base font-black text-white hover:text-amber-200">
+                <a href="/lcm#product-search" className="group inline-flex min-h-11 items-center gap-2 border-b border-amber-400/70 text-base font-black text-white hover:text-amber-200">
                   <PackageSearch className="h-4 w-4 text-amber-400" />第2回LCFの出展商品から選ぶ
                   <ArrowRight className="h-4 w-4 text-amber-400 transition-transform group-hover:translate-x-1" />
                 </a>
