@@ -92,11 +92,11 @@ const editionOnePhotos = {
 } as const;
 
 const experiences = [
-  { icon: Handshake, index: "01", title: "直接マッチング", copy: "企業・ブランドとライブコマーサーが、商品を前に条件や企画を直接話せる出会いの場をつくります。" },
-  { icon: ShoppingBag, index: "02", title: "商品体験", copy: "触れる、試す、背景を聞く。配信前の商品理解を深め、伝える言葉をその場で見つけます。" },
-  { icon: Mic2, index: "03", title: "実践セミナー", copy: "現場で再現できる販売設計、表現、運用の知見を学び、次の配信へ持ち帰ります。" },
-  { icon: Radio, index: "04", title: "会場からライブ販売", copy: "会場で出会った商品を、その場から視聴者へ届ける。展示で終わらない実践につなげます。" },
-  { icon: Users, index: "05", title: "LCMで継続商談", copy: "イベント後もLCMで商品発見と商談を継続し、次の販売と次回LCFへ循環させます。" },
+  { icon: Handshake, index: "01", title: "直接マッチング", copy: "企業・ブランドとライブコマーサーが直接出会い、商品の魅力や販売方法について、その場で具体的な商談ができます。" },
+  { icon: ShoppingBag, index: "02", title: "商品体験", copy: "商品を実際に手に取り、試し、商品の特徴や開発背景を知ることで、ライブ配信で伝えるための商品理解を深めます。" },
+  { icon: Mic2, index: "03", title: "実践セミナー", copy: "ライブコマースの販売ノウハウや成功事例を学び、実際の配信や販売に活かせる知識を身につけます。" },
+  { icon: Radio, index: "04", title: "会場からライブ販売", copy: "会場で出会った商品を、その場から実際にライブ配信。展示や商談だけで終わらず、リアルな販売機会につなげます。" },
+  { icon: Users, index: "05", title: "LCMで継続商談", copy: "イベント後もLCMを通じて商品発掘や商談を継続。LCFで生まれた出会いを、継続的な販売やビジネスへつなげます。" },
 ] as const;
 
 function Header() {
@@ -229,7 +229,7 @@ function Hero() {
                 <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/92 via-black/72 to-black/42" />
                 <div className="relative z-10 max-w-3xl">
                   <p className="flex items-center gap-3 text-[10px] font-black tracking-[0.24em] text-[#f5cf31] md:text-xs"><span className="h-px w-10 bg-[#f5cf31]" />2ND EDITION / SELLING EXPERIENCE</p>
-                  <h2 className="mt-5 text-3xl font-black leading-tight tracking-[-0.045em] md:text-5xl">見る展示会から、配信して売る展示会へ。</h2>
+                  <h2 className="mt-5 text-3xl font-black leading-tight tracking-[-0.045em] md:text-5xl">見る展示会から体験する展示会へ。</h2>
                   <p className="mt-5 max-w-2xl text-sm font-medium leading-7 text-white/82 md:text-base">商品と出会い、実際に試し、学び、販売につなげる。企業とライブコマーサーの出会いを、商談だけで終わらせず、実際の販売へとつなげる2日間です。</p>
                   <span className="sr-only">{SELLING_EXPERIENCE_PHOTO.alt}</span>
                 </div>
@@ -464,7 +464,7 @@ export default function LcfSecondEdition() {
         "@context": "https://schema.org",
         "@type": "Event",
         name: event.name,
-        description: "見る展示会から、配信して売る展示会へ。企業とライブコマーサーの直接マッチング、商品体験、会場からのライブ販売と、LCMでの継続的な商品発見・商談をつなぐ2日間。",
+        description: "見る展示会から体験する展示会へ。企業とライブコマーサーの直接マッチング、商品体験、会場からのライブ販売と、LCMでの継続的な商品発見・商談をつなぐ2日間。",
         startDate: "2026-12-08",
         endDate: "2026-12-09",
         eventStatus: "https://schema.org/EventScheduled",

@@ -36,7 +36,13 @@ describe("LCF second-edition official page", () => {
   });
 
   it("publishes the confirmed date, venue and concept without a fixed booth count", () => {
-    expect(page).toContain("見る展示会から、配信して売る展示会へ。");
+    expect(page).toContain("見る展示会から体験する展示会へ。");
+    expect(page).not.toContain("見る展示会から、体験する展示会へ。");
+    expect(page).not.toContain("見る展示会から、配信して売る展示会へ。");
+    expect(server).toContain('const concept = "見る展示会から体験する展示会へ。"');
+    expect(server).toContain("const description = `${concept} 第2回LIVE COMMERCE FESTIVAL");
+    expect(server).toContain("<p>${escapeHtml(concept)}</p>");
+    expect(server).not.toContain("<p>見る展示会から、売る展示会へ。</p>");
     expect(page).toContain("商品と出会い、実際に試し、学び、販売につなげる。");
     expect(page).toContain("企業とライブコマーサーの出会いを、商談だけで終わらせず、実際の販売へとつなげる2日間です。");
     expect(page).not.toContain("商品と出会い、試し、学び、会場から届ける。");
@@ -50,9 +56,23 @@ describe("LCF second-edition official page", () => {
     expect(page).not.toMatch(/70ブース|70 BOOTHS|1,500㎡/);
   });
 
+  it("uses the supplied wording for all five second-edition experiences", () => {
+    for (const copy of [
+      "企業・ブランドとライブコマーサーが直接出会い、商品の魅力や販売方法について、その場で具体的な商談ができます。",
+      "商品を実際に手に取り、試し、商品の特徴や開発背景を知ることで、ライブ配信で伝えるための商品理解を深めます。",
+      "ライブコマースの販売ノウハウや成功事例を学び、実際の配信や販売に活かせる知識を身につけます。",
+      "会場で出会った商品を、その場から実際にライブ配信。展示や商談だけで終わらず、リアルな販売機会につなげます。",
+      "イベント後もLCMを通じて商品発掘や商談を継続。LCFで生まれた出会いを、継続的な販売やビジネスへつなげます。",
+    ]) {
+      expect(page).toContain(copy);
+    }
+    expect(page).not.toContain("商品を前に条件や企画を直接話せる出会いの場をつくります。");
+    expect(page).not.toContain("次の販売と次回LCFへ循環させます。");
+  });
+
   it("uses the supplied first-edition live-selling photo behind the revised event introduction", () => {
     const hero = page.slice(page.indexOf("function Hero()"), page.indexOf("function OfficialMovie()"));
-    const headingIndex = hero.indexOf("見る展示会から、配信して売る展示会へ。");
+    const headingIndex = hero.indexOf("見る展示会から体験する展示会へ。");
     const bodyIndex = hero.indexOf("商品と出会い、実際に試し、学び、販売につなげる。");
     const photoIndex = hero.indexOf("src={SELLING_EXPERIENCE_PHOTO.src}");
     const lcmBannerIndex = hero.indexOf("<LcmHeroBanner />");
@@ -71,7 +91,7 @@ describe("LCF second-edition official page", () => {
     expect(hero).toContain("<span className=\"sr-only\">{SELLING_EXPERIENCE_PHOTO.alt}</span>");
     expect(hero).toContain('loading="eager"');
     expect(hero).toContain('fetchPriority="high"');
-    expect(page).toContain("見る展示会から、配信して売る展示会へ。企業とライブコマーサーの直接マッチング");
+    expect(page).toContain("見る展示会から体験する展示会へ。企業とライブコマーサーの直接マッチング");
     expect(photoIndex).toBeGreaterThan(-1);
     expect(photoIndex).toBeLessThan(headingIndex);
     expect(headingIndex).toBeLessThan(bodyIndex);

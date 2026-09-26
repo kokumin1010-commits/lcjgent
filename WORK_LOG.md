@@ -4060,3 +4060,11 @@ feature SHA `520b48eca70df02c2acba6bcf1f1449c1add3f96`、GitHub CI run `36246498
 関連LCF回帰38 files・265 tests、focused 3 files・41 tests、production build／compile、`git diff --check`、desktop 1440px／mobile 390px visual QAに合格。全体TypeScriptは既存1,163 diagnosticsのbaselineで、今回変更fileの新規diagnosticは0。配信SHA `7adacfcddbb5f6e2b9a3d10ae895ff9fe44ca5d2`のGitHub CI `36251389991`とRailway deployment `6680546434`はいずれもsuccess。本番`/2nd`はHTTP 200、HSTS／CSPあり。DOM実測で削除marker 0、会場内画像0、会場→footer gap 0、横overflow 0、固定barの3 linkは正しい第2回内部formを維持した。本番chunk `LcfSecondEdition-DrEtXzH2.js`でも削除marker不在と残す会場見出しを確認した。acceptanceはGET／DOM／screenshotのみで、申込送信やproduction DB mutationは行っていない。
 
 最初のfeature SHA `3116fb46051bfd9d94dbfc2a82f075c7922f4cb7`は、直前にmainへ追加された展位portal upgradeがHTTP listen前に全DB pre/post backup・DDL・private storage検証を直列実行していたためRailway health window内に起動できず失敗した。修復ではbackup、DDL、protected-count、private storage匿名拒否、signed URL等の安全条件を一切緩和せず、upgradeをserver listen後のsingleton background処理へ移動。完了まで展位のpublic auth／portal／admin全procedureを`PRECONDITION_FAILED`でfail-closedし、失敗時も全站を終了させずsanitized error codeだけを記録する。Railwayは同じコードでsuccessとなり公開LCFページが復旧した。展位専用healthは`migrationStatus=failed`／HTTP 503を維持しており、原因未解消状態で展位機能を公開・DBへ直接介入することはしていない。
+## 2026-09-26｜第2回LCF「体験する展示会」标题与5项体验文案（本番反映前）
+`https://www.livecommercefestival.com/2nd`的主视觉标题按确认稿从「見る展示会から、配信して売る展示会へ。」改为「見る展示会から体験する展示会へ。」（严格沿用附件原句，不在「から」后添加逗号），并同步Event JSON-LD说明。
+
+下方5张体验卡按附件逐项替换：①直接マッチング明确企业/品牌与直播电商主播现场直接商谈商品魅力和销售方法；②商品体験明确实际拿取、试用并理解特征和开发背景；③実践セミナー明确学习销售诀窍与成功案例并用于实际直播销售；④会場からライブ販売明确现场直接直播并连接真实销售机会；⑤LCMで継続商談明确活动后持续商品发掘和商谈，把LCF相遇连接到持续销售与业务。未修改页面结构、图片、申请入口、日期、会场及第1回页面。
+
+可见标题、客户端Event JSON-LD、服务端bot HTML、OG/Twitter说明和服务端Event JSON-LD均复用同一新标题，搜索引擎与分享预览不再出现旧标题。
+
+验证：LCF/Festival/ticket相关40个测试文件284项全部通过；页面与当前展位启动修复专项2文件38项通过；8GB production build成功。全量TypeScript仍为仓库既有1,163项；`server/_core/index.ts`只有既有4项且不在本次修改行，页面与测试文件0项。最终独立只读复审P0=0、P1=0。部署后再记录Railway与生产DOM结果。
