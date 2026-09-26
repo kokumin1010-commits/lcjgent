@@ -55,3 +55,15 @@ LCMトップは、大きな横断検索、カテゴリ、新着、配信情報�
 本番`/lcm`、`/lcm/brands/catalog-29`、`/lcm/manage?workspace=brand`、`/lcf/login`はHTTP 200。デスクトップで商品検索「KYOGOKU」が29件から1件へ絞られ、定価`¥49,500（税込）`と既存アーカイブURLを保持することを確認した。新着フィルターは現在の公開商品0件に対して空状態とリセット導線を正しく表示した。390×844のモバイル画面では見出し、公開範囲説明、検索欄、統計が横にはみ出さず表示された。
 
 検証は検索、画面遷移、表示確認だけで行い、ブランド連携、商品作成・更新、審査提出、サンプル申請、卸商談などの本番書込みは実行していない。
+
+## 6. 第2回商品検索導線・ブランド連絡開始前ガード（2026-09-26／本番反映済み）
+
+- LCFマイページの「第2回LCFの出展商品から選ぶ」は`/lcm#product-search`へ接続。React描画後に`scrollIntoView`を実行するため、初回直接遷移でも検索欄へ到達する。
+- 公開商品詳細の「ブランドさんに連絡」は、開始flagがOFFの間はグレーのdisabled buttonとして「調整中」を表示し、hrefを持たない。
+- 案内文は「参加メーカー確定後、事前マッチング開始時に利用できます。現在は調整中です。」へ統一した。
+- 旧contact直URLは送信formを表示せず、同じ調整中案内と商品検索への戻り導線を表示する。
+- serverの新規thread作成mutationはflag guardをDB accessより前に実行し、OFF時は`PRECONDITION_FAILED`。既存threadの一覧・閲覧・返信は停止していない。
+- LCM／関連LCF 12 files・96 testsとproduction buildが成功。全体TypeScriptの既存1,163 diagnostics／86 filesに今回変更9 filesは含まれない。独立read-only reviewはGO。
+- release SHA `331436716d55851420efa4491fa4544fa9ce0d3f`、GitHub CI run `36244646173`、Railway production deployment `6679304067`はsuccess。
+- 本番390px実測: contact buttonはdisabled／`aria-disabled=true`／hrefなし／背景`rgb(165, 165, 165)`／cursor`not-allowed`、横overflowなし。`/lcm#product-search`はsection上端125px、検索input上端238px、横overflowなし。
+- 本番acceptanceはGET・DOM・screenshotのみ。新規連絡、メール送信、DB書込みは実行していない。

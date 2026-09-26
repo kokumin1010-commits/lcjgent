@@ -4019,3 +4019,12 @@ release SHA `f2e5db56a71a0a8da11ac9edd8de50c67a7ddcba`のGitHub CI run `36225493
 ユーザー提供の`LP_TOP_v2`完成画像を第2回`/2nd`のメインビジュアルへ差し替えた。原本はWebP 2048×1745、308,242 bytes、SHA-256 `68de5309131783ff4b008e84dd7895f63722b3566ef9586d9e39a7558b171155`。CDNへ`MMteMRKpTWljOHRT.webp`として保存し、download binaryが原本と完全一致することを確認した。画面内の実CTAを維持するため、完成画像上部の埋込みbutton帯は従来通り7.1% cropし、上部・下部fixedの企業／ライブコマーサー／一般申込linkは操作可能なまま保持した。
 
 client hero、`/2nd` OGP/Event JSON-LD、LCF sitemap imageを同一の新画像URLへ統一し、旧`AnPNzcemGiRReCxl.webp`参照をactive codeから除去。LCF 36 files・246 tests、production build、CDN MIME/dimension/binary、desktop 1280×900／mobile 390×844のlocal・production visualを検証した。release SHA `636b4b518050849f1835b1d4fdf15ae3421c602b`、GitHub CI run `36242956932`、Railway production deployment `6678994098`はいずれもsuccess。本番entry `index-D0M27IW2.js`から配信される`LcfSecondEdition-cNMlrquY.js`、bot OGP、sitemapが新画像URLを参照し、旧URLを含まないことをGET/read-onlyで確認した。
+
+## 2026-09-26｜第2回商品検索直行・ブランド連絡「調整中」化（本番反映済み）
+`/lcf/mypage`の「第2回LCFの出展商品から選ぶ」を`/lcm#product-search`へ変更し、LCM描画後に商品検索sectionへ確実にscrollする処理とsticky header分のresponsive offsetを追加した。390px本番実測では検索section上端125px、検索input上端238pxで、横overflowは0だった。
+
+参加メーカー確定・第2回事前マッチング開始前の誤操作を防ぐため、公開商品詳細の「ブランドさんに連絡」はグレー表示、`disabled`、`aria-disabled=true`、hrefなしの「調整中」buttonへ変更した。案内文は「参加メーカー確定後、事前マッチング開始時に利用できます。現在は調整中です。」へ統一。既存の連絡履歴・返信は維持し、新規連絡作成だけをshared feature flagで停止した。旧`/lcm/manage?contact=<id>`直URLも送信formではなく調整中画面を表示し、server `createBrandContact`はDB accessより前に`PRECONDITION_FAILED`でfail-closedする。
+
+LCM／関連LCF 12 files・96 tests、production build、`git diff --check`、secret-like差分監査が成功。全体TypeScriptはrepository既存1,163 diagnostics／86 filesでexit 2だが、今回変更9 filesは0件。独立read-only reviewは**GO（material blocker 0件）**。release SHA `331436716d55851420efa4491fa4544fa9ce0d3f`、GitHub CI run `36244646173`、Railway production deployment `6679304067`はいずれもsuccess。
+
+本番`/lcm`、`/lcm/products/drkozu-cell-peel-crystal`、`/lcm/manage?contact=6`はHTTP 200。本番DOMで連絡controlが`BUTTON`、disabled、`aria-disabled=true`、hrefなし、背景`rgb(165, 165, 165)`、cursor`not-allowed`であることをdesktop／390px mobile双方で確認した。`/lcm#product-search`はhashと検索欄位置へ正しく着地し、旧contact直URLも調整中画面を表示した。検証はGET／DOM read-onlyのみで、新規連絡作成、email、production DB mutationは実行していない。
