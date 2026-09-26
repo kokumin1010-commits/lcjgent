@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   REQUIRED_MIGRATION_TAGS,
   mysqlErrorCode,
   readDrizzleLedgerState,
+  recordVerifiedRequiredMigrations,
   verifyRequiredSchema,
 } from "../run-required-startup-migrations.mjs";
 
@@ -76,10 +78,19 @@ const descriptor = {
 
 describe("required startup migration behavior", () => {
   it("runs only the small LINE bridge and reliable report migrations before listen", () => {
+    const source = readFileSync("run-required-startup-migrations.mjs", "utf8");
+    const mainSource = source.slice(source.indexOf("async function main()"));
     expect(REQUIRED_MIGRATION_TAGS).toEqual([
       "0161_tw_daily_line_bridge",
       "0162_daily_report_reliable_submission",
     ]);
+    expect(source).toContain("CREATE TABLE IF NOT EXISTS __drizzle_migrations");
+    expect(mainSource.indexOf("await ensureDrizzleLedgerTable(connection)")).toBeLessThan(
+      mainSource.indexOf("for (const descriptor of descriptors)"),
+    );
+    expect(mainSource.indexOf("await verifyRequiredSchema(connection)")).toBeLessThan(
+      mainSource.indexOf("await recordVerifiedRequiredMigrations(connection, descriptors)"),
+    );
   });
 
   it("reports fail-closed custom startup errors instead of UNKNOWN", () => {
@@ -89,7 +100,7 @@ describe("required startup migration behavior", () => {
     expect(mysqlErrorCode(new Error("DATABASE_URL_REQUIRED"))).toBe("DATABASE_URL_REQUIRED");
   });
 
-  it("allows schema repair when the historical Drizzle ledger is behind without fabricating a ledger row", async () => {
+  it("reports a behind ledger state before verified baseline repair", async () => {
     const state = await readDrizzleLedgerState(
       connectionForLedger({ previousHashes: [] }) as never,
       descriptor,
@@ -100,6 +111,81 @@ describe("required startup migration behavior", () => {
       alreadyRecorded: false,
       canRecordSafely: false,
     });
+  });
+
+  it("repairs the required ledger chain only in verified migration order", async () => {
+    const ledger = new Map<number, string[]>();
+    const inserts: Array<[string, number]> = [];
+    const connection = {
+      execute: async (sql: string, params: unknown[] = []): Promise<ExecuteResult> => {
+        if (sql.includes("information_schema.TABLES")) return [[{ count: 1 }], undefined];
+        if (sql.includes("WHERE created_at = ? ORDER BY id")) {
+          const hashes = ledger.get(Number(params[0])) || [];
+          return [[...hashes.map(hash => ({ hash }))], undefined];
+        }
+        if (sql.startsWith("INSERT INTO __drizzle_migrations")) {
+          const hash = String(params[0]);
+          const createdAt = Number(params[1]);
+          ledger.set(createdAt, [...(ledger.get(createdAt) || []), hash]);
+          inserts.push([hash, createdAt]);
+          return [[], undefined];
+        }
+        throw new Error(`Unexpected SQL in test: ${sql}`);
+      },
+    };
+    const descriptors = [
+      {
+        tag: "0161_tw_daily_line_bridge",
+        folderMillis: 200,
+        previousFolderMillis: 100,
+        previousHash: "legacy-not-required-after-schema-verification",
+        hash: "bridge-hash",
+      },
+      {
+        tag: "0162_daily_report_reliable_submission",
+        folderMillis: 300,
+        previousFolderMillis: 200,
+        previousHash: "bridge-hash",
+        hash: "report-hash",
+      },
+    ];
+
+    await recordVerifiedRequiredMigrations(connection as never, descriptors as never);
+    expect(inserts).toEqual([
+      ["bridge-hash", 200],
+      ["report-hash", 300],
+    ]);
+    await recordVerifiedRequiredMigrations(connection as never, descriptors as never);
+    expect(inserts).toHaveLength(2);
+  });
+
+  it("does not replace a conflicting historical predecessor with a verified baseline", async () => {
+    const connection = connectionForLedger({ previousHashes: ["wrong-previous-hash"] });
+    await expect(
+      recordVerifiedRequiredMigrations(connection as never, [{
+        tag: "0161_tw_daily_line_bridge",
+        folderMillis: 300,
+        previousFolderMillis: 200,
+        previousHash: "previous-hash",
+        hash: "target-hash",
+      }] as never),
+    ).rejects.toThrow("STARTUP_MIGRATION_LEDGER_CHAIN_GAP");
+  });
+
+  it("fails closed when 0161 is recorded but its historical predecessor hash conflicts", async () => {
+    const connection = connectionForLedger({
+      targetHashes: ["target-hash"],
+      previousHashes: ["wrong-previous-hash"],
+    });
+    await expect(
+      recordVerifiedRequiredMigrations(connection as never, [{
+        tag: "0161_tw_daily_line_bridge",
+        folderMillis: 300,
+        previousFolderMillis: 200,
+        previousHash: "previous-hash",
+        hash: "target-hash",
+      }] as never),
+    ).rejects.toThrow("STARTUP_MIGRATION_LEDGER_CHAIN_GAP");
   });
 
   it("records the target only when the exact predecessor hash is represented", async () => {

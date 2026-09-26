@@ -100,6 +100,16 @@ async function tableExists(connection, tableName) {
   return Number(rows?.[0]?.count || 0) === 1;
 }
 
+async function ensureDrizzleLedgerTable(connection) {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS __drizzle_migrations (
+      id SERIAL PRIMARY KEY,
+      hash TEXT NOT NULL,
+      created_at BIGINT
+    )
+  `);
+}
+
 async function readDrizzleLedgerState(connection, descriptor) {
   if (!(await tableExists(connection, "__drizzle_migrations"))) {
     return {
@@ -134,6 +144,40 @@ async function readDrizzleLedgerState(connection, descriptor) {
     alreadyRecorded,
     canRecordSafely: alreadyRecorded || predecessorRecordedExactly,
   };
+}
+
+async function recordVerifiedRequiredMigrations(connection, descriptors) {
+  for (let index = 0; index < descriptors.length; index += 1) {
+    const descriptor = descriptors[index];
+    const ledgerState = await readDrizzleLedgerState(connection, descriptor);
+    let isVerifiedBaseline = false;
+    if (index === 0) {
+      const [previousRows] = await connection.execute(
+        "SELECT hash FROM __drizzle_migrations WHERE created_at = ? ORDER BY id",
+        [descriptor.previousFolderMillis],
+      );
+      const previousHashes = Array.isArray(previousRows)
+        ? previousRows.map(row => String(row.hash || ""))
+        : [];
+      isVerifiedBaseline = previousHashes.length === 0;
+      if (!isVerifiedBaseline
+        && (previousHashes.length !== 1 || previousHashes[0] !== descriptor.previousHash)) {
+        throw new Error("STARTUP_MIGRATION_LEDGER_CHAIN_GAP");
+      }
+    }
+    if (ledgerState.alreadyRecorded) continue;
+    if (!ledgerState.canRecordSafely && !isVerifiedBaseline) {
+      throw new Error("STARTUP_MIGRATION_LEDGER_CHAIN_GAP");
+    }
+    await connection.execute(
+      "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)",
+      [descriptor.hash, descriptor.folderMillis],
+    );
+    console.warn("[StartupMigration] LEDGER_REPAIRED_AFTER_SCHEMA_VERIFICATION", {
+      migration: descriptor.tag,
+      mode: isVerifiedBaseline ? "verified_baseline" : "verified_successor",
+    });
+  }
 }
 
 function hasRequiredIndex(indexRows, tableName, indexName, columns, unique) {
@@ -256,6 +300,7 @@ async function main() {
       || !(await tableExists(connection, "reports"))) {
       throw new Error("STARTUP_MIGRATION_PREREQUISITE_MISSING");
     }
+    await ensureDrizzleLedgerTable(connection);
 
     for (const descriptor of descriptors) {
       const ledgerState = await readDrizzleLedgerState(connection, descriptor);
@@ -270,23 +315,7 @@ async function main() {
     }
 
     await verifyRequiredSchema(connection);
-
-    for (const descriptor of descriptors) {
-      const ledgerState = await readDrizzleLedgerState(connection, descriptor);
-      if (!ledgerState.alreadyRecorded && ledgerState.canRecordSafely) {
-        await connection.execute(
-          "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)",
-          [descriptor.hash, descriptor.folderMillis],
-        );
-      } else if (!ledgerState.alreadyRecorded) {
-        console.warn("[StartupMigration] LEDGER_BEHIND_SCHEMA_VERIFIED", {
-          code: ledgerState.ledgerAvailable
-            ? "STARTUP_MIGRATION_LEDGER_BEHIND"
-            : "STARTUP_MIGRATION_LEDGER_MISSING",
-          migration: descriptor.tag,
-        });
-      }
-    }
+    await recordVerifiedRequiredMigrations(connection, descriptors);
 
     console.log(
       `[StartupMigration] REQUIRED_MIGRATIONS_APPLIED ${descriptors
@@ -305,6 +334,7 @@ export {
   REQUIRED_MIGRATION_TAGS,
   mysqlErrorCode,
   readDrizzleLedgerState,
+  recordVerifiedRequiredMigrations,
   verifyRequiredSchema,
 };
 

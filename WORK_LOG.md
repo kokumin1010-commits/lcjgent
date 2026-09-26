@@ -4044,3 +4044,8 @@ feature SHA `520b48eca70df02c2acba6bcf1f1449c1add3f96`、GitHub CI run `36246498
 `/lcf/apply/liver?edition=2`の申込チャットから、所属事務所、SNSアカウント、電話番号、LINE／Lark、来場希望日、企業との事前マッチング、初心者サポートの7問を除外した。新規申込はメール、氏名、フリガナ、ライバー名、任意ジャンル、同意の6ステップ、既存会員はメール、既存パスワード、同意の3ステップ。既存会員の本人確認・第1回プロフィール再利用、重複申込防止、ticket／account作成は維持した。第1回申込は従来13ステップと必須電話・来場日・マッチング選択を完全維持する。
 第2回で省略した非NULL項目はserver側で安全に正規化し、電話は空文字、来場日は両日、事前マッチングと初心者サポートは希望なしを保存する。旧clientから送信された有効値は引き続き受理し、不正な電話形式は拒否する。DB schema・migration・production dataは変更していない。
 検証：LCF／Festival／ticket関連40 files・282 tests通過、production build成功、TypeScript全体既存1,163 diagnosticsに対し今回6 pathsは0件。全体Vitestは4,651通過・45 skip・227失敗で、失敗はDB／外部認証env不足と既存source-contract基線に限定され、本件LCF 40 filesは全通過。desktop 1280px／mobile 390pxで新規6ステップ、既存会員3ステップ、第1回13ステップ保持、横overflow・console／page errorなしを確認。独立read-only reviewはGO（blocker 0件）。
+
+## 2026-09-26｜任务验收生产Schema账本修复（本番再反映前）
+提交`1699865a`的GitHub检查和Railway部署已成功，`/master/tasks`、`/master/morning-meeting`与应用health均HTTP 200；但`/api/health/task-execution`安全返回503，步骤为`task_acceptance_ledger`。根因是旧生产数据库已有并通过严格校验的0161/0162表、列与索引，但历史Drizzle账本缺失对应记录；因此异步0163按设计拒绝越过未知前驱并保持任务API fail-closed，生产页面未崩溃但任务操作暂不可用。
+监听前迁移器现先以Drizzle官方结构幂等创建`__drizzle_migrations`，继续执行0161/0162的幂等DDL并严格验证全部运行时列与关键索引；只有完整Schema验证成功后，才允许把缺失的0161作为“已验证基线”登记，再要求0162精确引用0161 hash后登记。若任一目标时间戳已有不同hash、0161前驱存在冲突记录、或0162链不连续，仍立即失败关闭，不会伪造或覆盖账本。
+验证：启动迁移、异步0163与任务验收专项3个文件20项通过，任务验收与早会完整专项14个文件92项通过，8GB production build成功；隔离MariaDB在“0161/0162结构完整、`__drizzle_migrations`不存在”的真实状态下首次执行成功补建账本并按时间顺序登记两条精确SHA-256，第二次重放不新增记录，证明修复幂等。独立只读复审最终P0=0、P1=0；已补充“0161正确但0160前驱hash冲突”仍失败关闭的测试。未修改已经推送的0161/0162/0163 SQL或journal内容。
