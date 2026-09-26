@@ -216,6 +216,27 @@ describe("LCM marketplace foundation", () => {
     expect(read("client/src/pages/LcfAdmin.tsx")).toContain("LCM運営");
   });
 
+  it("presents the marketplace as two clear role cards with image-led public categories", () => {
+    const market = read("client/src/pages/LcmMarket.tsx");
+    const layout = read("client/src/components/lcm/LcmPublicLayout.tsx");
+    for (const text of ["届けたい商品と、", "伝えるライバー", "メーカー・ブランドの方", "ライブコマーサー・クリエイターの方", "どんな商品がある？", "美容・コスメ", "食品・飲料", "健康・ウェルネス", "ライフスタイル"]) {
+      expect(market).toContain(text);
+    }
+    expect(market).toContain("MARKET_ASSETS.brand");
+    expect(market).toContain("MARKET_ASSETS.creator");
+    expect(market).toContain('id="products"');
+    expect(market).toContain("scroll-mt-[125px]");
+    expect(market).toContain("sm:scroll-mt-[73px]");
+    expect(market).toContain("md:scroll-mt-[81px]");
+    expect(market).toContain("sticky top-[125px]");
+    expect(market).toContain("sm:top-[73px]");
+    expect(market).toContain("md:top-[81px]");
+    expect(layout).toContain("ライブコマースマーケット");
+    expect(layout).toContain('{me.data ? "マイページ" : "ログイン"}');
+    expect(layout).toContain("sm:hidden");
+    expect(layout).toContain("sm:inline-flex");
+  });
+
   it("keeps the current marketplace separate from the first-event product feature", () => {
     const market = read("client/src/pages/LcmMarket.tsx");
     expect(market).toContain("const totalResults = filteredLiveProducts.length");

@@ -7,11 +7,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   ArrowRight,
-  BadgePercent,
+  Building2,
   CheckCircle2,
   Clock3,
   Heart,
-  LockKeyhole,
   PackageCheck,
   ShieldCheck,
   Search,
@@ -30,7 +29,15 @@ import { lcf2026ExhibitorCatalogPages } from "@/data/lcf2026ExhibitorCatalog";
 import { buildFestivalLoginUrl } from "@/lib/festivalPortal";
 import { applyPageSeo } from "@/lib/pageSeo";
 import { trpc } from "@/lib/trpc";
-import { LCM_CAMPAIGNS_ENABLED } from "@shared/lcmFeatureFlags";
+
+const MARKET_ASSETS = {
+  brand: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/jCsAaBnvQjRKYwfp.webp",
+  creator: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/XMUZPFbqGmXsAoim.webp",
+  beauty: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/LfarjFTekKlvElUN.webp",
+  food: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/QJyORBXxMAmSIdCH.webp",
+  wellness: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/FtyjRmRPYVAQIEji.webp",
+  lifestyle: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/fHJriVLkfNrEHYgc.webp",
+} as const;
 
 const categories = [
   { label: "すべて", keywords: [] },
@@ -83,8 +90,6 @@ export default function LcmMarket() {
   const [sampleOnly, setSampleOnly] = useState(false);
   const [creatorQuickViewOpen, setCreatorQuickViewOpen] = useState(false);
   const liveProducts = trpc.lcm.listPublicProducts.useQuery({ limit: 60 }, { retry: false });
-  const liveCampaigns = trpc.lcm.listPublicCampaigns.useQuery({ limit: 6 }, { enabled: LCM_CAMPAIGNS_ENABLED, retry: false });
-  const liveStats = trpc.lcm.publicStats.useQuery(undefined, { retry: false });
   const accessQuery = trpc.lcm.getMyAccess.useQuery(undefined, { retry: false });
   const engagementQuery = trpc.lcm.getMyEngagementSummary.useQuery(undefined, { enabled: Boolean(accessQuery.data), retry: false });
   const interestMutation = trpc.lcm.toggleProductInterest.useMutation({
@@ -140,55 +145,68 @@ export default function LcmMarket() {
 
   return (
     <LcmPublicLayout>
-      <main className="bg-[#f4f1e9]">
-        <section className="border-b border-black/15 bg-[#fffdf8]">
-          <div className="mx-auto grid max-w-[1440px] gap-8 px-5 py-10 md:px-8 md:py-14 lg:grid-cols-[.9fr_1.1fr] lg:items-end">
-            <div>
-              <p className="text-xs font-black tracking-[0.22em] text-[#9b6200]">LIVE COMMERCE MARKET</p>
-              <h1 className="mt-4 max-w-3xl text-[clamp(2.8rem,6vw,5.8rem)] font-black leading-[.9] tracking-[-0.065em]">
-                商品を見つける。<br /><span className="text-[#d45b16]">売る準備</span>を始める。
-              </h1>
-            </div>
-
-            <div className="border border-black/15 bg-[#171714] p-4 text-white shadow-[10px_10px_0_#f7cc35] md:p-6">
-              <label htmlFor="lcm-search" className="text-xs font-black tracking-[0.16em] text-white/55">商品・ブランドを検索</label>
-              <div className="relative mt-3">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-black/45" />
-                <input
-                  id="lcm-search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="商品名、ブランド名、特徴から探す"
-                  className="h-14 w-full bg-white pl-12 pr-4 text-base font-bold text-black outline-none ring-[#f7cc35] placeholder:text-black/35 focus:ring-4"
-                />
-              </div>
-              <div className="mt-5 grid grid-cols-3 gap-px bg-white/15">
-                <div className="bg-[#171714] p-3"><p className="text-xl font-black text-[#f7cc35]">{liveStats.data?.productCount || 0}</p><p className="mt-1 text-[10px] font-bold text-white/50">公開商品</p></div>
-                <div className="bg-[#171714] p-3"><p className="text-xl font-black">{archiveItems.length}</p><p className="mt-1 text-[10px] font-bold text-white/50">第1回特集</p></div>
-                <div className="bg-[#171714] p-3"><p className="text-xl font-black">{liveStats.data?.brandCount || 0}</p><p className="mt-1 text-[10px] font-bold text-white/50">公開ブランド</p></div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {LCM_CAMPAIGNS_ENABLED && (liveCampaigns.data || []).some((campaign) => ["active", "upcoming"].includes(campaign.periodState)) && <section className="border-b border-black/15 bg-[#171714] px-5 py-10 text-white md:px-8 md:py-14"><div className="mx-auto max-w-[1440px]"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="flex items-center gap-2 text-xs font-black tracking-[0.18em] text-[#f7cc35]"><BadgePercent className="h-4 w-4" />BRAND CAMPAIGNS</p><h2 className="mt-2 text-3xl font-black tracking-tight md:text-5xl">条件から、売りたい商品を選ぶ。</h2><p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">期間と対象商品を比較。正確な成果報酬率・割引率・計測条件・サンプル条件はLCM会員ログイン後に確認できます。</p></div><Link href="/lcm/campaigns" className="inline-flex items-center bg-[#f7cc35] px-5 py-3 text-sm font-black text-black">すべてのキャンペーン<ArrowRight className="ml-2 h-4 w-4" /></Link></div><div className="mt-7 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{(liveCampaigns.data || []).filter((campaign) => ["active", "upcoming"].includes(campaign.periodState)).slice(0, 6).map((campaign) => <Link key={campaign.id} href={`/lcm/campaigns/${campaign.slug}`} className="group grid grid-cols-[120px_1fr] overflow-hidden border border-white/15 bg-white/5 transition hover:border-[#f7cc35]"><div className="aspect-square bg-white/10"><LcmProductImage src={campaign.heroImageUrl} alt="" className="h-full w-full object-cover" /></div><div className="min-w-0 p-4"><div className="flex items-center justify-between gap-2"><p className="truncate text-[10px] font-black text-[#f7cc35]">{campaign.brandName}</p><span className="shrink-0 text-[9px] font-black text-white/45">{campaign.periodState === "active" ? "実施中" : "開始前"}</span></div><h3 className="mt-2 line-clamp-2 text-base font-black leading-5">{campaign.title}</h3><p className="mt-3 text-[10px] font-bold text-white/45">対象 {campaign.productCount}商品｜条件は会員限定</p></div></Link>)}</div></div></section>}
-
-        <section aria-labelledby="lcm-entry-heading" className="border-b border-black/15 bg-[#f4f1e9] px-5 py-8 md:px-8 md:py-10">
+      <main className="bg-[#f7f5ef]">
+        <section className="border-b border-black/10 bg-[#fffdf8] px-4 py-10 sm:px-6 md:py-14 lg:px-8">
           <div className="mx-auto max-w-[1440px]">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div><p className="text-xs font-black tracking-[0.2em] text-[#9b6200]">START WITH YOUR ROLE</p><h2 id="lcm-entry-heading" className="mt-2 text-3xl font-black tracking-tight md:text-5xl">LCMで何をしますか？</h2></div>
-              <p className="max-w-xl text-sm font-semibold leading-7 text-black/55">ブランド登録、公式プロフィール作成、商品閲覧を入口から分けました。LCF登録済みの方は同じ共通アカウントを使えます。</p>
+            <div className="text-center">
+              <p className="text-[10px] font-black tracking-[0.34em] text-black/55 md:text-xs">LIVE COMMERCE MARKET</p>
+              <h1 className="mx-auto mt-4 max-w-5xl text-[clamp(2.4rem,6.2vw,5.8rem)] font-black leading-[.98] tracking-[-0.065em]">
+                届けたい商品と、<br className="sm:hidden" /><span className="underline decoration-[#f7cc35] decoration-[8px] underline-offset-[8px]">伝えるライバーが</span><br className="sm:hidden" />出会う。
+              </h1>
+              <p className="mt-6 text-sm font-bold tracking-wide text-black/65 md:text-lg">メーカーとライバーをつなぐ、ライブコマースのマッチングサービス。</p>
             </div>
-            <div className="mt-6 grid gap-px bg-black/20 lg:grid-cols-[1.2fr_.9fr_.9fr]">
-              <Link href="/lcm/manage?workspace=brand" className="group bg-[#f7cc35] p-6 transition-colors hover:bg-[#ffd84d] md:p-8"><div className="flex items-start justify-between gap-4"><span className="text-xs font-black tracking-[0.16em]">01 / BRAND</span><ShoppingBag className="h-7 w-7" /></div><h3 className="mt-8 text-3xl font-black tracking-tight">まずブランドを検索。<br />そのまま商品登録へ。</h3><p className="mt-4 text-sm font-semibold leading-7 text-black/65">当面は登録無料。管理中のブランドはすぐ商品登録へ進めます。掲載済みブランドは権限確認、新規ブランドは公式LINEから申請します。</p><span className="mt-7 inline-flex items-center border-b-2 border-black pb-1 text-sm font-black">ブランドを検索・申請する<ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" /></span></Link>
-              <Link href="/lcm/manage?workspace=creator" className="group bg-[#171714] p-6 text-white transition-colors hover:bg-black md:p-8"><div className="flex items-start justify-between gap-4"><span className="text-xs font-black tracking-[0.16em] text-[#f7cc35]">02 / CREATOR</span><Users className="h-7 w-7 text-[#f7cc35]" /></div><h3 className="mt-8 text-2xl font-black tracking-tight">公式プロフィールを<br />自分で作る。</h3><p className="mt-4 text-sm font-semibold leading-7 text-white/60">得意カテゴリ、配信形式、公開実績を登録。本人提出と運営確認後にディレクトリへ掲載します。</p><span className="mt-7 inline-flex items-center border-b border-white/70 pb-1 text-sm font-black">ライブコマーサーとして参加<ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" /></span></Link>
-              <button type="button" onClick={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" })} className="group bg-white p-6 text-left transition-colors hover:bg-[#fffdf8] md:p-8"><div className="flex items-start justify-between gap-4"><span className="text-xs font-black tracking-[0.16em] text-[#9b6200]">03 / BROWSE</span><Search className="h-7 w-7 text-[#d45b16]" /></div><h3 className="mt-8 text-2xl font-black tracking-tight">登録前に、<br />公開商品を見る。</h3><p className="mt-4 text-sm font-semibold leading-7 text-black/55">写真、ブランド、定価、商品の特徴は登録なしで検索・比較できます。</p><span className="mt-7 inline-flex items-center border-b border-black pb-1 text-sm font-black">商品一覧へ移動<ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" /></span></button>
+
+            <div className="mt-9 grid gap-3 lg:grid-cols-2 lg:gap-4">
+              <article className="group relative isolate min-h-[520px] overflow-hidden bg-[#f8d950] p-6 sm:p-8 md:min-h-[620px] md:p-10">
+                <img src={MARKET_ASSETS.brand} alt="美容・健康・生活商品を並べたブランド向け商品イメージ" width={1400} height={1050} className="absolute inset-0 h-full w-full object-cover object-center" fetchPriority="high" />
+                <div className="absolute inset-0 bg-gradient-to-b from-[#fff4b8]/95 via-[#fff4b8]/80 to-[#f7cc35]/20" />
+                <div className="relative z-10 flex h-full flex-col">
+                  <p className="inline-flex w-fit items-center rounded-full bg-[#f7cc35] px-4 py-2 text-xs font-black"><Building2 className="mr-2 h-4 w-4" />メーカー・ブランドの方</p>
+                  <h2 className="mt-7 text-4xl font-black leading-[1.05] tracking-[-0.045em] sm:text-5xl md:text-6xl">商品の魅力を、<br />届けてくれる<br className="sm:hidden" />ライブコマーサーへ。</h2>
+                  <p className="mt-5 max-w-xl text-sm font-bold leading-7 text-black/70 md:text-base">商品を掲載して、新たな販路づくりへ。<br />相性のよいライブコマーサーとの出会いを広げます。</p>
+                  <ul className="mt-6 space-y-3 text-sm font-black md:text-base">{["商品・ブランドを掲載", "ライブコマーサーを探す", "販売条件を共有"].map((item) => <li key={item} className="flex items-center gap-3"><CheckCircle2 className="h-5 w-5 fill-[#f7cc35] text-black" />{item}</li>)}</ul>
+                  <div className="mt-auto pt-8">
+                    <Link href="/lcm/manage?workspace=brand" className="inline-flex min-h-14 w-full items-center justify-center bg-[#171714] px-6 text-base font-black text-white transition hover:bg-black active:scale-[.99]">商品掲載を申し込む<ArrowRight className="ml-3 h-5 w-5" /></Link>
+                    <p className="mt-3 text-center text-xs font-bold text-black/60">ブランド・商品登録は当面無料です</p>
+                    <button type="button" onClick={() => setCreatorQuickViewOpen(true)} className="mx-auto mt-4 flex min-h-11 items-center border-b border-black px-2 text-sm font-black">ライブコマーサーを見る<ArrowRight className="ml-2 h-4 w-4" /></button>
+                  </div>
+                </div>
+              </article>
+
+              <article className="group relative isolate min-h-[520px] overflow-hidden bg-[#171714] p-6 text-white sm:p-8 md:min-h-[620px] md:p-10">
+                <img src={MARKET_ASSETS.creator} alt="スマートフォンで商品を紹介するライブコマーサー" width={1000} height={1250} className="absolute inset-0 h-full w-full object-cover object-center" fetchPriority="high" />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/80 to-black/20" />
+                <div className="relative z-10 flex h-full flex-col">
+                  <p className="inline-flex w-fit items-center rounded-full border border-white/65 bg-black/25 px-4 py-2 text-xs font-black"><Users className="mr-2 h-4 w-4 text-[#f7cc35]" />ライブコマーサー・クリエイターの方</p>
+                  <h2 className="mt-7 max-w-[760px] text-4xl font-black leading-[1.05] tracking-[-0.045em] sm:text-5xl md:text-6xl">あなたの配信に、<br />紹介したくなる商品を。</h2>
+                  <p className="mt-5 max-w-lg text-sm font-bold leading-7 text-white/80 md:text-base">気になる商品やブランドを見つけて、<br />サンプルや販売条件を確認できます。</p>
+                  <ul className="mt-6 space-y-3 text-sm font-black md:text-base">{["配信で紹介する商品を探す", "サンプル・販売条件を確認", "プロフィールを掲載"].map((item) => <li key={item} className="flex items-center gap-3"><CheckCircle2 className="h-5 w-5 fill-[#f7cc35] text-[#f7cc35]" />{item}</li>)}</ul>
+                  <div className="mt-auto pt-8">
+                    <button type="button" onClick={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" })} className="inline-flex min-h-14 w-full items-center justify-center bg-[#f7cc35] px-6 text-base font-black text-black transition hover:bg-[#ffda49] active:scale-[.99]">商品を探す<ArrowRight className="ml-3 h-5 w-5" /></button>
+                    <Link href="/lcm/manage?workspace=creator" className="mx-auto mt-4 flex min-h-11 w-fit items-center border-b border-white/75 px-2 text-sm font-black">ライブコマーサー登録はこちら<ArrowRight className="ml-2 h-4 w-4" /></Link>
+                  </div>
+                </div>
+              </article>
             </div>
+
+            <section aria-labelledby="lcm-category-heading" className="mt-10 border-t border-black/15 pt-8 md:mt-14 md:pt-10">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div><h2 id="lcm-category-heading" className="text-3xl font-black tracking-[-0.04em] md:text-4xl">どんな商品がある？</h2><p className="mt-2 text-sm font-semibold text-black/55">商品は登録なしでご覧いただけます。</p></div>
+                <label htmlFor="lcm-search" className="relative block w-full lg:max-w-[430px]"><Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-black/40" /><span className="sr-only">商品・ブランドを検索</span><input id="lcm-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="商品名・ブランド名で検索" className="h-13 w-full border border-black/20 bg-white pl-12 pr-4 text-sm font-bold outline-none ring-[#f7cc35] placeholder:text-black/35 focus:ring-4" /></label>
+              </div>
+              <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">{[
+                { label: "美容・コスメ", image: MARKET_ASSETS.beauty },
+                { label: "食品・飲料", image: MARKET_ASSETS.food },
+                { label: "健康・ウェルネス", image: MARKET_ASSETS.wellness },
+                { label: "ライフスタイル", image: MARKET_ASSETS.lifestyle },
+              ].map((item) => <button key={item.label} type="button" onClick={() => { setCategory(item.label); document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} className="group text-left"><span className="block aspect-[4/3] overflow-hidden bg-white"><img src={item.image} alt="" width={720} height={1234} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" loading="lazy" /></span><span className="mt-3 flex items-center justify-between border-b border-black/20 pb-2 text-sm font-black md:text-base">{item.label}<ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></span></button>)}</div>
+              <button type="button" onClick={() => { resetFilters(); document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} className="mt-6 inline-flex min-h-11 items-center border-b-2 border-black px-1 text-sm font-black">商品をすべて見る<ArrowRight className="ml-2 h-4 w-4" /></button>
+            </section>
           </div>
         </section>
 
-        <section id="products" className="mx-auto max-w-[1440px] px-3 py-8 sm:px-5 md:px-8 md:py-12">
-          <div className="sticky top-[62px] z-20 -mx-3 border-y border-black/10 bg-[#f4f1e9]/95 px-3 py-3 backdrop-blur sm:-mx-5 sm:px-5 md:-mx-8 md:px-8">
+        <section id="products" className="mx-auto max-w-[1440px] scroll-mt-[125px] px-3 py-8 sm:scroll-mt-[73px] sm:px-5 md:scroll-mt-[81px] md:px-8 md:py-12">
+          <div className="sticky top-[125px] z-20 -mx-3 border-y border-black/10 bg-[#f4f1e9]/95 px-3 py-3 backdrop-blur sm:-mx-5 sm:top-[73px] sm:px-5 md:-mx-8 md:top-[81px] md:px-8">
             <div className="mx-auto flex max-w-[1440px] gap-2 overflow-x-auto pb-1" aria-label="商品カテゴリ">
               {categories.map((item) => (
                 <button key={item.label} type="button" onClick={() => setCategory(item.label)} aria-pressed={category === item.label} className={`shrink-0 border px-3.5 py-2 text-xs font-black transition active:scale-[.97] ${category === item.label ? "border-black bg-[#171714] text-white" : "border-black/15 bg-white hover:border-black"}`}>{item.label}</button>
@@ -254,30 +272,6 @@ export default function LcmMarket() {
           )}
         </section>
 
-        <section id="brand-registration" className="border-y border-black/15 bg-[#f7cc35] px-5 py-14 md:px-8 md:py-16">
-          <div className="mx-auto max-w-[1440px]">
-            <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
-              <div><p className="text-xs font-black tracking-[0.2em]">FOR BRANDS / FREE REGISTRATION</p><h2 className="mt-3 text-4xl font-black tracking-tight md:text-6xl">ブランドさんが、<br />無料で参加できます。</h2><p className="mt-5 max-w-3xl text-sm font-semibold leading-7 md:text-base">最初に会社名・ブランド名・商品名で検索します。管理中ならそのまま商品登録、第1回LCFなどで掲載済みなら管理権限確認、新規ブランドなら公式LINEで担当者へ登録を申請します。</p></div>
-              <Link href="/lcm/manage?workspace=brand" className="inline-flex items-center justify-center bg-[#171714] px-7 py-4 text-sm font-black text-white">ブランドを検索する<ArrowRight className="ml-2 h-4 w-4" /></Link>
-            </div>
-            <div className="mt-10 grid gap-px bg-black/25 sm:grid-cols-2 xl:grid-cols-5">{[
-              { number: "01", title: "共通アカウント", text: "LCF登録済みの場合は、同じメールアドレスとパスワードでログインします。" },
-              { number: "02", title: "ブランドを検索", text: "会社名・ブランド名・商品名から既存ページを確認します。" },
-              { number: "03", title: "連携またはLINE申請", text: "掲載済みは管理権限確認、新規ブランドは公式LINEで担当者へ申請します。" },
-              { number: "04", title: "ブランドを完成", text: "登録されたブランドへロゴ、説明、公式URLなどを入力して公開します。" },
-              { number: "05", title: "商品を登録・公開", text: "写真、定価、魅力、サンプル、配信向き情報を登録して公開します。" },
-            ].map((step) => <article key={step.number} className="bg-[#fff7d8] p-5 md:p-6"><p className="text-sm font-black tracking-[0.18em] text-[#9b6200]">STEP {step.number}</p><h3 className="mt-5 text-xl font-black">{step.title}</h3><p className="mt-3 text-sm font-semibold leading-7 text-black/60">{step.text}</p></article>)}</div>
-            <div className="mt-6 grid gap-px bg-black/20 md:grid-cols-2"><div className="flex items-start gap-3 bg-[#171714] p-5 text-white"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#f7cc35]" /><p className="text-sm font-semibold leading-7"><strong className="block text-white">すでに管理ブランドがある方</strong><span className="text-white/60">検索結果からブランドを選ぶと、すぐに商品登録へ進めます。</span></p></div><div className="flex items-start gap-3 bg-white p-5"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#16805b]" /><p className="text-sm font-semibold leading-7"><strong className="block">新しいブランドを登録する方</strong><span className="text-black/55">共通アカウントでログインし、検索で見つからないことを確認してから公式LINEへ登録希望を送ります。</span></p></div></div>
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-[1440px] px-5 py-14 md:px-8 md:py-16">
-          <div className="grid gap-px bg-black/15 md:grid-cols-3">
-            <article className="bg-white p-7"><ShoppingBag className="h-7 w-7 text-[#d45b16]" /><h3 className="mt-5 text-xl font-black">登録なしで商品を見る</h3><p className="mt-3 text-sm font-medium leading-7 text-black/60">写真、ブランド、定価、商品の特徴は一般公開。検索や比較の入口を狭くしません。</p><button type="button" onClick={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" })} className="mt-5 inline-flex items-center border-b border-black pb-1 text-xs font-black">商品一覧へ<ArrowRight className="ml-1 h-4 w-4" /></button></article>
-            <article className="bg-white p-7"><Users className="h-7 w-7 text-[#d45b16]" /><h3 className="mt-5 text-xl font-black">ライブコマーサーをポップアップで見る</h3><p className="mt-3 text-sm font-medium leading-7 text-black/60">得意カテゴリや配信形式から候補を比較。今のページを離れず、公開プロフィールを確認できます。</p><button type="button" onClick={() => setCreatorQuickViewOpen(true)} className="mt-5 inline-flex items-center border-b border-black pb-1 text-xs font-black">ライブコマーサーを見る<ArrowRight className="ml-1 h-4 w-4" /></button></article>
-            <article className="bg-white p-7"><LockKeyhole className="h-7 w-7 text-[#d45b16]" /><h3 className="mt-5 text-xl font-black">重要な条件は会員限定</h3><p className="mt-3 text-sm font-medium leading-7 text-black/60">卸価格、最小発注数、送料、支払条件、報酬率は共通アカウントで保護します。</p></article>
-          </div>
-        </section>
         <LcmCreatorQuickViewDialog open={creatorQuickViewOpen} onOpenChange={setCreatorQuickViewOpen} />
       </main>
     </LcmPublicLayout>

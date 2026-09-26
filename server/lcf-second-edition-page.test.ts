@@ -140,15 +140,12 @@ describe("LCF second-edition official page", () => {
     expect(page).not.toContain("bg-[length:230%_auto]");
   });
 
-  it("keeps the two labelled concept images while removing the unwanted common-sign section", () => {
-    expect(page).toContain("nKtCVJQpUiElkcWi.jpg");
-    expect(page).toContain("ffORXTavLEVGMmDT.jpg");
-    expect(page.match(/完成予想イメージ/g)?.length).toBeGreaterThanOrEqual(2);
-    const visualStories = page.slice(page.indexOf("function VisualStories()"), page.indexOf("function Proof()"));
-    expect(visualStories).toContain("width={LIVE_IMAGE.width}");
-    expect(visualStories).toContain("height={LIVE_IMAGE.height}");
-    expect(visualStories).toContain("width={MATCHING_IMAGE.width}");
-    expect(visualStories).toContain("height={MATCHING_IMAGE.height}");
+  it("removes the venue concept-image gallery and the unwanted common-sign section", () => {
+    expect(page).not.toContain("nKtCVJQpUiElkcWi.jpg");
+    expect(page).not.toContain("ffORXTavLEVGMmDT.jpg");
+    expect(page).not.toContain("完成予想イメージ");
+    expect(page).not.toContain("function VisualStories()");
+    expect(page).not.toContain("<VisualStories />");
     expect(page).not.toContain("<LcfFascia");
     expect(page).not.toContain("COMMON SIGN");
     expect(page).not.toContain("function Signage");

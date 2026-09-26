@@ -146,8 +146,9 @@ describe("LCM brand campaign pages", () => {
     const directory = read("client/src/pages/LcmCampaigns.tsx");
     const detail = read("client/src/pages/LcmCampaign.tsx");
     expect(manage).toContain("{LCM_CAMPAIGNS_ENABLED && <>");
-    expect(market).toContain("enabled: LCM_CAMPAIGNS_ENABLED");
-    expect(market).toContain("{LCM_CAMPAIGNS_ENABLED && (liveCampaigns.data || [])");
+    expect(market).not.toContain("listPublicCampaigns.useQuery");
+    expect(market).not.toContain("liveCampaigns");
+    expect(market).not.toContain("キャンペーンを見る");
     expect(brand).toContain("{LCM_CAMPAIGNS_ENABLED && (brand.campaigns || [])");
     expect(layout).not.toContain('<Link href="/lcm/campaigns">キャンペーンを探す</Link>');
     expect(manage).toContain('const steps = ["概要・期間", "報酬・割引", "計測・対象", "配信ガイド", "対象商品"]');

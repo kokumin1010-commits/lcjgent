@@ -15,18 +15,20 @@ export function LcmPublicLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[#f6f4ee] text-[#171714]">
-      <div className="bg-[#171714] px-4 py-2 text-center text-[11px] font-bold tracking-[0.18em] text-white">
-        LIVE COMMERCE MARKET BY LCF
-      </div>
-      <header className="sticky top-0 z-40 border-b border-black/15 bg-[#fffdf8]/95 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-[1440px] flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center md:px-8">
-          <Link href="/lcm" className="flex shrink-0 items-center gap-3" aria-label="LCMトップ">
-            <span className="grid h-11 w-11 place-items-center bg-[#f7cc35] text-sm font-black tracking-tight text-black">LCM</span>
-            <span className="hidden leading-tight sm:block">
-              <span className="block text-sm font-black tracking-tight">ライブコマースマーケット</span>
-              <span className="block text-[9px] font-semibold tracking-[0.16em] text-black/45">BRAND × CREATOR × COMMERCE</span>
-            </span>
-          </Link>
+      <header className="sticky top-0 z-40 border-b border-black/10 bg-[#fffdf8]/95 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-[1440px] flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center md:px-8 md:py-4">
+          <div className="flex w-full items-center justify-between sm:w-auto">
+            <Link href="/lcm" className="flex shrink-0 items-center gap-3" aria-label="LCMトップ">
+              <span className="grid h-12 w-12 place-items-center rounded-md bg-[#f7cc35] text-base font-black tracking-tight text-black">LCM</span>
+              <span className="hidden leading-tight sm:block">
+                <span className="block text-base font-black tracking-tight">ライブコマースマーケット</span>
+                <span className="block text-[9px] font-semibold tracking-[0.2em] text-black/45">LIVE COMMERCE MARKET</span>
+              </span>
+            </Link>
+            <Link href={me.data?.portal?.defaultPath || (me.data ? "/lcf/mypage" : loginUrl)} className="inline-flex min-h-11 items-center border border-black px-4 text-xs font-black sm:hidden">
+              {me.data ? "マイページ" : "ログイン"}
+            </Link>
+          </div>
           <nav className="grid w-full grid-cols-[2fr_3fr] gap-1.5 text-[11px] font-bold sm:ml-auto sm:w-auto sm:flex sm:items-center sm:text-xs md:gap-2 md:text-sm" aria-label="LCMナビゲーション">
             <Link href="/lcm" className="inline-flex min-h-11 items-center justify-center whitespace-nowrap px-2 py-2 hover:bg-black/5 sm:px-3">
               <PackageSearch className="mr-1.5 h-4 w-4" />商品を探す
@@ -35,16 +37,19 @@ export function LcmPublicLayout({ children }: { children: ReactNode }) {
               <Users className="mr-1.5 h-4 w-4" />ライブコマーサーを探す
             </Link>
           </nav>
+          <Link href={me.data?.portal?.defaultPath || (me.data ? "/lcf/mypage" : loginUrl)} className="hidden min-h-11 items-center border border-black px-5 text-xs font-black transition hover:bg-black hover:text-white sm:inline-flex md:text-sm">
+            {me.data ? "マイページ" : "ログイン"}
+          </Link>
         </div>
       </header>
       {children}
-      <footer className="border-t border-black/15 bg-[#171714] px-5 py-12 text-white">
-        <div className="mx-auto grid max-w-[1440px] gap-8 md:grid-cols-[1fr_auto] md:items-end">
-          <div>
-            <p className="text-2xl font-black tracking-tight">LCM</p>
-            <p className="mt-2 max-w-xl text-sm leading-7 text-white/65">ブランドとライブコマースの担い手が、商品を知り、条件を確かめ、次の商談へ進むためのB2Bマーケットです。</p>
+      <footer className="border-t border-black/10 bg-[#fffdf8] px-5 py-10">
+        <div className="mx-auto grid max-w-[1440px] gap-7 md:grid-cols-[1fr_auto] md:items-end">
+          <div className="flex items-center gap-3">
+            <span className="grid h-11 w-11 place-items-center rounded-md bg-[#f7cc35] text-sm font-black">LCM</span>
+            <p className="text-sm font-black tracking-tight">ライブコマースマーケット</p>
           </div>
-          <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs font-bold text-white/70">
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs font-bold text-black/60">
             <Link href="/livecommercefestival">LCF公式サイト</Link>
             <Link href="/livecommercefestival/2026/report">第1回開催レポート</Link>
             <Link href={me.data?.portal?.defaultPath || (me.data ? "/lcf/mypage" : loginUrl)}>{me.data ? "マイページ" : "ログイン"}</Link>

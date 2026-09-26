@@ -83,8 +83,8 @@ describe("LCM free self-publishing with post-publication moderation", () => {
     const manage = read("client/src/pages/LcmManage.tsx");
     const router = read("server/lcmRouter.ts");
     const seo = read("server/lcmSeo.ts");
-    expect(market).toContain("当面は登録無料");
-    expect(market).toContain("ブランドさんが、<br />無料で参加できます。");
+    expect(market).toContain("ブランド・商品登録は当面無料です");
+    expect(market).toContain("商品掲載を申し込む");
     expect(manage).toContain("ブランド・商品登録は当面無料");
     expect(seo).toContain("新規ブランドは公式LINEから申請できます");
     expect(router).toContain("本人の公開同意と運営確認後に行われます");

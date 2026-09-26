@@ -3,7 +3,7 @@
  * Design: operational black/gold, clear status provenance, no invented sales or automatic TikTok claims.
  */
 import { useMemo, useState } from 'react';
-import { BarChart3, CheckCircle2, Clock3, FileImage, Handshake, Loader2, MessageSquareText, PackageSearch, RotateCcw, Send, ShieldCheck, XCircle } from 'lucide-react';
+import { ArrowRight, BarChart3, CheckCircle2, Clock3, FileImage, Handshake, Loader2, MessageSquareText, PackageSearch, RotateCcw, Send, ShieldCheck, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc';
 import { LcmProductImage } from '@/components/lcm/LcmProductImage';
@@ -179,7 +179,10 @@ export function LcfEngagementCenter() {
           {activeView === 'matching' ? (
             <div className="space-y-6 p-4 sm:p-6">
               <div>
-                <h3 className="flex items-center gap-2 text-base font-black"><PackageSearch className="h-4 w-4 text-amber-400" />第2回LCFの出展商品から選ぶ</h3>
+                <a href="/lcm#products" className="group inline-flex min-h-11 items-center gap-2 border-b border-amber-400/70 text-base font-black text-white hover:text-amber-200">
+                  <PackageSearch className="h-4 w-4 text-amber-400" />第2回LCFの出展商品から選ぶ
+                  <ArrowRight className="h-4 w-4 text-amber-400 transition-transform group-hover:translate-x-1" />
+                </a>
                 <p className="mt-1 text-xs leading-5 text-gray-500">承認済み出展企業がLCMで正式公開した商品だけを表示します。</p>
               </div>
               {products.isLoading ? <Loader2 className="h-5 w-5 animate-spin text-amber-400" /> : (products.data || []).length ? (

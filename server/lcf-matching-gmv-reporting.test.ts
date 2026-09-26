@@ -136,6 +136,8 @@ describe("第2回LCFの事前マッチングと証憑付き自己申告GMV", () 
     expect(adminPanel).toContain("商品別確認済みGMV");
     expect(mypage).toContain("<LcfEngagementCenter />");
     expect(engagement).toContain("この数字は「自己申告GMV」として送信され");
+    expect(engagement).toContain('href="/lcm#products"');
+    expect(engagement).toContain("第2回LCFの出展商品から選ぶ");
   });
 
   it("第1回のQR・受付・VIP・アフターパーティー・ブース予約を保持する", () => {

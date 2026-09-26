@@ -62,8 +62,8 @@ describe("LCM brand discovery onboarding", () => {
     const manage = read("client/src/pages/LcmManage.tsx");
     const router = read("server/lcmRouter.ts");
     const seo = read("server/lcmSeo.ts");
-    expect(market).toContain("当面は登録無料");
-    expect(market).toContain("ブランドを検索・申請する");
+    expect(market).toContain("ブランド・商品登録は当面無料です");
+    expect(market).toContain("商品掲載を申し込む");
     expect(manage).toContain("商品名・カテゴリ・概要・定価・メイン写真が揃うと、事前審査なしで公開できます");
     expect(router).toContain("assertProductPublishable(product)");
     expect(router).toContain('action: "self_published"');

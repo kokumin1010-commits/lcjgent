@@ -31,18 +31,6 @@ const event = LCF_EVENT_DEFINITIONS[2];
 const LCF_OPEN_CHAT_URL = "https://line.me/ti/g2/KsS3Ma1HW3okfwI2OowM6Ubk0UHKOHmb3nZFhA?utm_source=invitation&utm_medium=link_copy&utm_campaign=default";
 const HERO_IMAGE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/AnPNzcemGiRReCxl.webp";
 const OFFICIAL_MOVIE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/QHYaTbQAzawNOpYI.mp4";
-const LIVE_IMAGE = {
-  src: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/nKtCVJQpUiElkcWi.jpg",
-  width: 2176,
-  height: 1632,
-  alt: "第2回LCFで商品を紹介し会場からライブ販売する完成予想イメージ",
-} as const;
-const MATCHING_IMAGE = {
-  src: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/ffORXTavLEVGMmDT.jpg",
-  width: 2176,
-  height: 1632,
-  alt: "第2回LCFで企業とライブコマーサーが商品を囲んで商談する完成予想イメージ",
-} as const;
 const LCF_COLOR_LOGO = {
   src: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/NqiAbWVvlJsEtygb.png",
   width: 1200,
@@ -485,19 +473,6 @@ function Venue() {
   );
 }
 
-function VisualStories() {
-  return (
-    <section className="bg-[#0b0b0b] px-5 py-24 text-white md:px-10 md:py-32">
-      <div className="mx-auto max-w-[1540px]">
-        <div className="grid gap-5 lg:grid-cols-2">
-          <figure className="group overflow-hidden border border-white/15"><img src={LIVE_IMAGE.src} alt={LIVE_IMAGE.alt} width={LIVE_IMAGE.width} height={LIVE_IMAGE.height} className="aspect-[4/3] w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" loading="lazy" /><figcaption className="border-t border-white/15 p-5"><p className="text-[10px] font-black tracking-[0.2em] text-[#f5cf31]">LIVE SELLING / CONCEPT IMAGE</p><p className="mt-2 text-sm leading-6 text-white/60">商品を理解し、会場から届ける。会場完成予想イメージであり、実際の施工・出展内容とは異なる場合があります。</p></figcaption></figure>
-          <figure className="group overflow-hidden border border-white/15 lg:translate-y-12"><img src={MATCHING_IMAGE.src} alt={MATCHING_IMAGE.alt} width={MATCHING_IMAGE.width} height={MATCHING_IMAGE.height} className="aspect-[4/3] w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" loading="lazy" /><figcaption className="border-t border-white/15 p-5"><p className="text-[10px] font-black tracking-[0.2em] text-[#f5cf31]">BUSINESS MATCHING / CONCEPT IMAGE</p><p className="mt-2 text-sm leading-6 text-white/60">商品を囲み、販売条件と企画を直接話す。会場完成予想イメージであり、実際の施工・出展内容とは異なる場合があります。</p></figcaption></figure>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function Proof() {
   return (
     <section className="bg-white px-5 py-16 text-[#111] md:px-10 md:py-24">
@@ -570,7 +545,7 @@ export default function LcfSecondEdition() {
   return (
     <div className="min-h-screen bg-[#090909] pb-16 font-sans antialiased sm:pb-20">
       <Header />
-      <main><Hero /><OfficialMovie /><Proof /><Experience /><LcmBridge /><BeginnerSupport /><Venue /><VisualStories /></main>
+      <main><Hero /><OfficialMovie /><Proof /><Experience /><LcmBridge /><BeginnerSupport /><Venue /></main>
       <footer className="bg-[#090909] px-5 py-10 text-white md:px-10"><div className="mx-auto flex max-w-[1540px] flex-col gap-6 border-t border-white/15 pt-8 text-xs text-white/45 md:flex-row md:items-end md:justify-between"><div><p className="font-black tracking-[0.18em] text-white">LIVE COMMERCE FESTIVAL</p><p className="mt-2">Commerce moves people.</p></div><div className="flex flex-wrap gap-5"><a href="/" className="hover:text-white">TOP</a><a href="/2026" className="hover:text-white">第1回実績</a><a href="/lcm" className="hover:text-white">LCM MARKET</a><a href={me.data?.portal?.defaultPath || (me.data ? "/lcf/mypage" : "/lcf/login")} className="hover:text-white">{me.data ? "マイページ" : "ログイン"}</a></div><p>© 2026 LCF実行委員会</p></div></footer>
       <StickyApplicationBar />
     </div>

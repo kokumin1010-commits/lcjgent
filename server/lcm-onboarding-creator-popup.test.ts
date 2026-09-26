@@ -4,26 +4,30 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
 describe("LCM self-onboarding and creator quick view", () => {
-  it("shows three role-first entry points with the existing workspace URLs", () => {
+  it("shows the two main role cards with the existing workspace URLs and public product discovery", () => {
     const market = read("client/src/pages/LcmMarket.tsx");
-    expect(market).toContain("LCMで何をしますか？");
-    expect(market).toContain("まずブランドを検索。");
-    expect(market).toContain("そのまま商品登録へ。");
+    expect(market).toContain("届けたい商品と、");
+    expect(market).toContain("伝えるライバー");
+    expect(market).toContain("メーカー・ブランドの方");
+    expect(market).toContain("ライブコマーサー・クリエイターの方");
     expect(market).toContain('href="/lcm/manage?workspace=brand"');
     expect(market).toContain('href="/lcm/manage?workspace=creator"');
     expect(market).toContain('document.getElementById("products")');
-    expect(market).toContain("ブランドを検索・申請する");
+    expect(market).toContain("商品掲載を申し込む");
+    expect(market).toContain("商品を探す");
+    expect(market).toContain("ライブコマーサーを見る");
+    expect(market).not.toContain("LCMで何をしますか？");
+    expect(market).not.toContain("START WITH YOUR ROLE");
   });
 
-  it("explains the free brand search, LINE request, and product self-publication path", () => {
+  it("keeps the free-registration promise and routes brand provisioning to the existing protected flow", () => {
     const market = read("client/src/pages/LcmMarket.tsx");
-    for (const text of ["ブランドさんが、", "無料で参加できます。", "共通アカウント", "ブランドを検索", "連携またはLINE申請", "ブランドを完成", "商品を登録・公開"]) {
-      expect(market).toContain(text);
-    }
-    expect(market).toContain("すでに管理ブランドがある方");
-    expect(market).toContain("検索結果からブランドを選ぶと、すぐに商品登録へ進めます");
-    expect(market).toContain("新規ブランドは公式LINEから申請します");
-    expect(market).not.toContain("初回の会員確認後");
+    const manage = read("client/src/pages/LcmManage.tsx");
+    expect(market).toContain("ブランド・商品登録は当面無料です");
+    expect(market).toContain('href="/lcm/manage?workspace=brand"');
+    expect(manage).toContain("新しいブランドは公式LINEから申請");
+    expect(manage).toContain("LCJ公式LINEを開く");
+    expect(manage).toContain("商品名・カテゴリ・概要・定価・メイン写真が揃うと、事前審査なしで公開できます");
   });
 
   it("opens public creator profiles in a reusable accessible dialog", () => {
