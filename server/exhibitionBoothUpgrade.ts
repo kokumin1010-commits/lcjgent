@@ -5,7 +5,11 @@ import mysql, {
   type RowDataPacket,
 } from "mysql2/promise";
 import { runDatabaseBackup } from "./databaseBackupScheduler";
-import { storageDelete, storagePutPrivate } from "./storage";
+import {
+  storageDelete,
+  storagePutPrivate,
+  storageReadPrivateBuffer,
+} from "./storage";
 import {
   EXHIBITION_BOOTH_DEFINITIONS,
   EXHIBITION_EVENT_SLUG,
@@ -333,13 +337,19 @@ async function seedInitialEvent(pool: Pool) {
 
 async function verifyPrivateAssetStorage() {
   const objectKey = `private/exhibition/_health/${Date.now()}-${randomUUID()}.txt`;
-  await storagePutPrivate(
-    objectKey,
-    Buffer.from("lcj-exhibition-private-storage-check"),
-    "text/plain"
-  );
-  await storageDelete(objectKey);
-  return true;
+  const original = Buffer.from("lcj-exhibition-private-storage-check");
+  let uploaded = false;
+  try {
+    await storagePutPrivate(objectKey, original, "text/plain");
+    uploaded = true;
+    const restored = await storageReadPrivateBuffer(objectKey);
+    if (!restored.equals(original)) {
+      throw new Error("private object encryption round-trip failed");
+    }
+    return true;
+  } finally {
+    if (uploaded) await storageDelete(objectKey).catch(() => undefined);
+  }
 }
 
 function upgradeFailureCode(message: unknown) {
@@ -347,6 +357,10 @@ function upgradeFailureCode(message: unknown) {
   if (value.includes("anonymously readable")) return "PRIVATE_STORAGE_PUBLIC";
   if (value.includes("private object policy could not be verified"))
     return "PRIVATE_STORAGE_PROBE_FAILED";
+  if (value.includes("encryption round-trip failed"))
+    return "PRIVATE_STORAGE_DECRYPT_FAILED";
+  if (value.includes("encryption secret is not configured"))
+    return "PRIVATE_STORAGE_KEY_UNAVAILABLE";
   if (value.includes("verified backup failed")) return "VERIFIED_BACKUP_FAILED";
   if (value.includes("upgrade lock")) return "UPGRADE_LOCK_TIMEOUT";
   return value ? "EXHIBITION_UPGRADE_FAILED" : null;

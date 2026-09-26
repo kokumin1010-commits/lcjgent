@@ -8,8 +8,18 @@ import {
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+} from "node:crypto";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
+
+const EXHIBITION_PRIVATE_MAGIC = Buffer.from("LCJEX01", "ascii");
+const EXHIBITION_PRIVATE_IV_BYTES = 12;
+const EXHIBITION_PRIVATE_TAG_BYTES = 16;
 
 function getS3Client(): S3Client {
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
@@ -72,23 +82,81 @@ export async function storagePut(
   const client = getS3Client();
   const bucket = getBucket();
   const key = normalizeKey(relKey);
-
   const body = typeof data === "string" ? Buffer.from(data) : data;
 
-  const command = new PutObjectCommand({
-    Bucket: bucket,
-    Key: key,
-    Body: body as Buffer,
-    ContentType: contentType,
-  });
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: body as Buffer,
+      ContentType: contentType,
+    })
+  );
 
-  await client.send(command);
-
-  const url = getPublicUrl(key);
-  return { key, url };
+  return { key, url: getPublicUrl(key) };
 }
 
-async function assertAnonymousObjectBlocked(key: string) {
+function exhibitionPrivateEncryptionKey() {
+  const source =
+    process.env.EXHIBITION_ASSET_ENCRYPTION_SECRET ||
+    process.env.DB_BACKUP_ENCRYPTION_KEY ||
+    process.env.EXHIBITION_AUTH_SECRET ||
+    process.env.JWT_SECRET;
+  if (!source) {
+    throw new Error("exhibition asset encryption secret is not configured");
+  }
+  return createHash("sha256")
+    .update(`lcj-exhibition-asset-v1:${source}`)
+    .digest();
+}
+
+export function encryptExhibitionPrivateObject(
+  key: string,
+  data: Buffer | Uint8Array
+) {
+  const iv = randomBytes(EXHIBITION_PRIVATE_IV_BYTES);
+  const cipher = createCipheriv(
+    "aes-256-gcm",
+    exhibitionPrivateEncryptionKey(),
+    iv
+  );
+  cipher.setAAD(Buffer.from(key, "utf8"));
+  const ciphertext = Buffer.concat([
+    cipher.update(Buffer.from(data)),
+    cipher.final(),
+  ]);
+  return Buffer.concat([
+    EXHIBITION_PRIVATE_MAGIC,
+    iv,
+    cipher.getAuthTag(),
+    ciphertext,
+  ]);
+}
+
+export function decryptExhibitionPrivateObject(key: string, payload: Buffer) {
+  const ivStart = EXHIBITION_PRIVATE_MAGIC.length;
+  const tagStart = ivStart + EXHIBITION_PRIVATE_IV_BYTES;
+  const ciphertextStart = tagStart + EXHIBITION_PRIVATE_TAG_BYTES;
+  if (
+    payload.length <= ciphertextStart ||
+    !payload.subarray(0, ivStart).equals(EXHIBITION_PRIVATE_MAGIC)
+  ) {
+    throw new Error("invalid encrypted exhibition asset");
+  }
+  const decipher = createDecipheriv(
+    "aes-256-gcm",
+    exhibitionPrivateEncryptionKey(),
+    payload.subarray(ivStart, tagStart)
+  );
+  decipher.setAAD(Buffer.from(key, "utf8"));
+  decipher.setAuthTag(payload.subarray(tagStart, ciphertextStart));
+  return Buffer.concat([
+    decipher.update(payload.subarray(ciphertextStart)),
+    decipher.final(),
+  ]);
+}
+
+async function assertAnonymousObjectIsEncrypted(key: string) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8_000);
   try {
@@ -96,15 +164,30 @@ async function assertAnonymousObjectBlocked(key: string) {
       `${getPublicUrl(key)}?privacy_probe=${Date.now()}`,
       {
         method: "GET",
-        headers: { Range: "bytes=0-0", "Cache-Control": "no-cache" },
+        headers: { Range: "bytes=0-63", "Cache-Control": "no-cache" },
         redirect: "manual",
         signal: controller.signal,
       }
     );
-    if (response.status >= 200 && response.status < 400) {
-      throw new Error(
-        `private object is anonymously readable (HTTP ${response.status})`
-      );
+    if (response.status >= 200 && response.status < 300) {
+      const reader = response.body?.getReader();
+      if (!reader)
+        throw new Error("private object policy could not be verified");
+      let prefix = Buffer.alloc(0);
+      while (prefix.length < EXHIBITION_PRIVATE_MAGIC.length) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        prefix = Buffer.concat([prefix, Buffer.from(chunk.value)]);
+      }
+      await reader.cancel().catch(() => undefined);
+      if (
+        prefix
+          .subarray(0, EXHIBITION_PRIVATE_MAGIC.length)
+          .equals(EXHIBITION_PRIVATE_MAGIC)
+      ) {
+        return;
+      }
+      throw new Error("private object is anonymously readable as plaintext");
     }
     if (![401, 403, 404].includes(response.status)) {
       throw new Error(
@@ -112,8 +195,9 @@ async function assertAnonymousObjectBlocked(key: string) {
       );
     }
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("private object"))
+    if (error instanceof Error && error.message.startsWith("private object")) {
       throw error;
+    }
     throw new Error("private object policy could not be verified");
   } finally {
     clearTimeout(timeout);
@@ -133,17 +217,22 @@ export async function storagePutPrivate(
       "private exhibition objects must use the private/exhibition prefix"
     );
   }
+  const encrypted = encryptExhibitionPrivateObject(key, data);
   await client.send(
     new PutObjectCommand({
       Bucket: bucket,
       Key: key,
-      Body: data as Buffer,
-      ContentType: contentType,
+      Body: encrypted,
+      ContentType: "application/octet-stream",
       CacheControl: "private, no-store, max-age=0",
+      Metadata: {
+        "lcj-encryption": "aes-256-gcm-v1",
+        "original-content-type": contentType.slice(0, 100),
+      },
     })
   );
   try {
-    await assertAnonymousObjectBlocked(key);
+    await assertAnonymousObjectIsEncrypted(key);
   } catch (error) {
     await client
       .send(new DeleteObjectCommand({ Bucket: bucket, Key: key }))
@@ -197,29 +286,27 @@ export async function storageGet(
   const client = getS3Client();
   const bucket = getBucket();
   const key = normalizeKey(relKey);
-
-  // Generate a pre-signed URL valid for 1 hour
-  const command = new GetObjectCommand({
-    Bucket: bucket,
-    Key: key,
-  });
-
+  const command = new GetObjectCommand({ Bucket: bucket, Key: key });
   const url = await getSignedUrl(client, command, { expiresIn: 3600 });
   return { key, url };
 }
 
-export async function storageGetPrivate(
+export async function storageReadPrivateBuffer(
   relKey: string
-): Promise<{ key: string; url: string }> {
+): Promise<Buffer> {
   const client = getS3Client();
   const bucket = getBucket();
   const key = normalizeKey(relKey);
   if (!key.startsWith("private/exhibition/")) {
     throw new Error("invalid private exhibition object key");
   }
-  const command = new GetObjectCommand({ Bucket: bucket, Key: key });
-  const url = await getSignedUrl(client, command, { expiresIn: 600 });
-  return { key, url };
+  const object = await client.send(
+    new GetObjectCommand({ Bucket: bucket, Key: key })
+  );
+  if (!object.Body)
+    throw new Error("encrypted exhibition asset body is missing");
+  const payload = Buffer.from(await object.Body.transformToByteArray());
+  return decryptExhibitionPrivateObject(key, payload);
 }
 
 export async function storageReadBuffer(relKey: string): Promise<{

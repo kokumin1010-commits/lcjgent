@@ -266,6 +266,58 @@ async function startServer() {
   app.use(express.json({ limit: "100mb" }));
   app.use(express.urlencoded({ limit: "100mb", extended: true }));
 
+  app.get("/api/exhibition/assets/:token", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store, private, max-age=0");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    try {
+      const token = String(req.params.token || "");
+      if (!token || token.length > 4000) return res.status(403).end();
+      const {
+        getExhibitionPool,
+        sanitizeDownloadFileName,
+        verifyExhibitionAssetAccessToken,
+      } = await import("../exhibitionBoothService");
+      const access = await verifyExhibitionAssetAccessToken(token);
+      if (!access) return res.status(403).end();
+      const pool = getExhibitionPool();
+      const [rows] = await pool.query(
+        `SELECT asset.objectKey,asset.originalFileName,asset.mimeType,asset.fileSize,
+                asset.assetType,asset.isCurrent,asset.reviewStatus,
+                profile.accountId,profile.isPublic,profile.reviewStatus AS profileReviewStatus
+           FROM exhibition_brand_assets asset
+           JOIN exhibition_brand_profiles profile ON profile.id=asset.profileId
+          WHERE asset.id=? LIMIT 1`,
+        [access.assetId]
+      );
+      const asset = (rows as any[])[0];
+      if (!asset) return res.status(404).end();
+      if (access.principalType === "brand") {
+        const own = Number(asset.accountId) === access.principalId;
+        const approvedPublicLogo =
+          asset.assetType === "logo" &&
+          Boolean(asset.isCurrent) &&
+          asset.reviewStatus === "approved" &&
+          Boolean(asset.isPublic) &&
+          asset.profileReviewStatus === "approved";
+        if (!own && !approvedPublicLogo) return res.status(403).end();
+      }
+      const { storageReadPrivateBuffer } = await import("../storage");
+      const data = await storageReadPrivateBuffer(String(asset.objectKey));
+      if (data.length !== Number(asset.fileSize)) return res.status(500).end();
+      const fileName = sanitizeDownloadFileName(String(asset.originalFileName));
+      res.setHeader("Content-Type", String(asset.mimeType || "application/octet-stream"));
+      res.setHeader("Content-Length", String(data.length));
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename*=UTF-8''${encodeURIComponent(fileName)}`
+      );
+      return res.status(200).end(data);
+    } catch {
+      return res.status(403).end();
+    }
+  });
+
   // CORS for external LP forms (livecommercejapan.jp)
   app.use((req, res, next) => {
     const allowedOrigins = ["https://livecommercejapan.jp", "https://www.livecommercejapan.jp", "http://localhost:3000", "http://localhost:5173"];

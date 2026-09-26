@@ -5,8 +5,9 @@ import { z } from "zod";
 import sharp from "sharp";
 import { router } from "./_core/trpc";
 import { decodeValidatedImage } from "./uploadValidation";
-import { storageDelete, storageGetPrivate, storagePutPrivate } from "./storage";
+import { storageDelete, storagePutPrivate } from "./storage";
 import {
+  createExhibitionAssetAccessToken,
   exhibitionPortalProcedure,
   findActiveExhibitionEvent,
   findProfileForAccount,
@@ -207,7 +208,7 @@ export const exhibitionPortalRouter = router({
               occupant.brandName AS occupantBrandName,occupant.category AS occupantCategory,
               occupant.brandIntro AS occupantBrandIntro,occupant.reviewStatus AS occupantReviewStatus,
               occupant.isPublic AS occupantIsPublic,
-              logo.objectKey AS occupantLogoKey
+              logo.id AS occupantLogoAssetId,logo.reviewStatus AS occupantLogoReviewStatus
          FROM exhibition_booths booth
          LEFT JOIN exhibition_booth_assignments assignment ON assignment.eventId=booth.eventId AND assignment.boothId=booth.id
          LEFT JOIN exhibition_brand_profiles occupant ON occupant.id=assignment.profileId
@@ -222,10 +223,17 @@ export const exhibitionPortalRouter = router({
           enabled(row.occupantIsPublic) &&
           row.occupantReviewStatus === "approved";
         let occupantLogoUrl: string | null = null;
-        if ((isMine || publicOccupant) && row.occupantLogoKey) {
-          occupantLogoUrl = (
-            await storageGetPrivate(String(row.occupantLogoKey))
-          ).url;
+        if (
+          row.occupantLogoAssetId &&
+          (isMine ||
+            (publicOccupant && row.occupantLogoReviewStatus === "approved"))
+        ) {
+          const token = await createExhibitionAssetAccessToken({
+            assetId: Number(row.occupantLogoAssetId),
+            principalType: "brand",
+            principalId: account.id,
+          });
+          occupantLogoUrl = `/api/exhibition/assets/${encodeURIComponent(token)}`;
         }
         return {
           id: Number(row.id),
@@ -618,7 +626,11 @@ export const exhibitionPortalRouter = router({
           code: "NOT_FOUND",
           message: "ファイルが見つかりません",
         });
-      const signed = await storageGetPrivate(String(row.objectKey));
+      const token = await createExhibitionAssetAccessToken({
+        assetId: input.assetId,
+        principalType: "brand",
+        principalId: account.id,
+      });
       await writeExhibitionAudit({
         accountId: account.id,
         actorType: "brand",
@@ -627,7 +639,7 @@ export const exhibitionPortalRouter = router({
         action: "asset_downloaded",
       }).catch(() => undefined);
       return {
-        url: signed.url,
+        url: `/api/exhibition/assets/${encodeURIComponent(token)}`,
         fileName: sanitizeDownloadFileName(String(row.originalFileName)),
       };
     }),

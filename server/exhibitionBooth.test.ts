@@ -8,9 +8,15 @@ import {
   EXHIBITION_MAP_WIDTH,
 } from "../shared/exhibitionBoothMap";
 import {
+  createExhibitionAssetAccessToken,
   hashExhibitionPassword,
+  verifyExhibitionAssetAccessToken,
   verifyExhibitionPassword,
 } from "./exhibitionBoothService";
+import {
+  decryptExhibitionPrivateObject,
+  encryptExhibitionPrivateObject,
+} from "./storage";
 
 function source(path: string) {
   return readFileSync(resolve(process.cwd(), path), "utf8");
@@ -83,6 +89,26 @@ describe("independent exhibition authentication", () => {
     );
     expect(app).not.toContain('<Route path="/master/booth-portal"');
   });
+
+  it("issues isolated five-minute asset access tokens", async () => {
+    const previous = process.env.JWT_SECRET;
+    process.env.JWT_SECRET = "unit-test-exhibition-asset-access-secret";
+    try {
+      const token = await createExhibitionAssetAccessToken({
+        assetId: 42,
+        principalType: "brand",
+        principalId: 7,
+      });
+      await expect(verifyExhibitionAssetAccessToken(token)).resolves.toEqual({
+        assetId: 42,
+        principalType: "brand",
+        principalId: 7,
+      });
+    } finally {
+      if (previous === undefined) delete process.env.JWT_SECRET;
+      else process.env.JWT_SECRET = previous;
+    }
+  });
 });
 
 describe("data and reservation isolation", () => {
@@ -118,6 +144,7 @@ describe("data and reservation isolation", () => {
       "ON DUPLICATE KEY UPDATE boothType=VALUES(boothType)"
     );
     expect(upgrade).toContain("verifyPrivateAssetStorage");
+    expect(upgrade).toContain("storageReadPrivateBuffer");
     expect(upgrade).toContain("privateStorageVerified");
     expect(upgrade).toContain("PRIVATE_STORAGE_PROBE_FAILED");
     expect(upgrade).toContain("VERIFIED_BACKUP_FAILED");
@@ -138,19 +165,41 @@ describe("data and reservation isolation", () => {
     expect(portal).toContain("ER_DUP_ENTRY");
   });
 
-  it("stores brand assets privately and returns signed URLs only after authorization", () => {
+  it("stores brand assets as authenticated ciphertext and decrypts only through an authorized app route", () => {
     const portal = source("server/exhibitionPortalRouter.ts");
     const admin = source("server/exhibitionAdminRouter.ts");
     const storage = source("server/storage.ts");
+    const index = source("server/_core/index.ts");
     expect(portal).toContain("private/exhibition/");
     expect(portal).toContain("exhibitionPortalProcedure");
     expect(portal).toContain("storagePutPrivate");
-    expect(portal).toContain("storageGetPrivate");
+    expect(portal).toContain("createExhibitionAssetAccessToken");
     expect(admin).toContain("exhibitionAdminViewProcedure");
-    expect(admin).toContain("storageGetPrivate");
-    expect(storage).toContain("assertAnonymousObjectBlocked");
+    expect(admin).toContain("createExhibitionAssetAccessToken");
+    expect(storage).toContain("aes-256-gcm");
+    expect(storage).toContain("assertAnonymousObjectIsEncrypted");
     expect(storage).toContain('CacheControl: "private, no-store, max-age=0"');
-    expect(storage).toContain("expiresIn: 600");
+    expect(index).toContain('app.get("/api/exhibition/assets/:token"');
+    expect(index).toContain("verifyExhibitionAssetAccessToken");
+    expect(index).toContain("storageReadPrivateBuffer");
+  });
+
+  it("round-trips exhibition assets with AES-GCM and binds ciphertext to its object key", () => {
+    const previous = process.env.JWT_SECRET;
+    process.env.JWT_SECRET = "unit-test-exhibition-encryption-secret";
+    try {
+      const key = "private/exhibition/event/1/logo/file.png";
+      const original = Buffer.from("private-logo-binary-content");
+      const encrypted = encryptExhibitionPrivateObject(key, original);
+      expect(encrypted.includes(original)).toBe(false);
+      expect(decryptExhibitionPrivateObject(key, encrypted)).toEqual(original);
+      expect(() =>
+        decryptExhibitionPrivateObject(`${key}.moved`, encrypted)
+      ).toThrow();
+    } finally {
+      if (previous === undefined) delete process.env.JWT_SECRET;
+      else process.env.JWT_SECRET = previous;
+    }
   });
 
   it("does not block the whole Railway service while the backup-gated upgrade runs", () => {

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { router } from "./_core/trpc";
 import { issueExhibitionPasswordToken } from "./exhibitionAuthRouter";
 import {
+  createExhibitionAssetAccessToken,
   exhibitionAdminEditProcedure,
   exhibitionAdminViewProcedure,
   findActiveExhibitionEvent,
@@ -12,7 +13,6 @@ import {
   sanitizeDownloadFileName,
   writeExhibitionAudit,
 } from "./exhibitionBoothService";
-import { storageGetPrivate } from "./storage";
 
 const statusValue = z.enum(["invited", "active", "suspended"]);
 const reviewStatusValue = z.enum([
@@ -639,7 +639,11 @@ export const exhibitionAdminRouter = router({
       const asset = rows[0];
       if (!asset)
         throw new TRPCError({ code: "NOT_FOUND", message: "素材不存在" });
-      const signed = await storageGetPrivate(String(asset.objectKey));
+      const token = await createExhibitionAssetAccessToken({
+        assetId: input.assetId,
+        principalType: "admin",
+        principalId: Number(actorId(ctx)),
+      });
       await writeExhibitionAudit({
         profileId: Number(asset.profileId),
         assetId: input.assetId,
@@ -648,7 +652,7 @@ export const exhibitionAdminRouter = router({
         action: "asset_downloaded_by_admin",
       }).catch(() => undefined);
       return {
-        url: signed.url,
+        url: `/api/exhibition/assets/${encodeURIComponent(token)}`,
         fileName: sanitizeDownloadFileName(String(asset.originalFileName)),
       };
     }),

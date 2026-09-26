@@ -30,12 +30,10 @@ function assertExhibitionBoothReady() {
   }
 }
 
-export const exhibitionPublicProcedure = t.procedure.use(
-  async ({ next }) => {
-    assertExhibitionBoothReady();
-    return next();
-  }
-);
+export const exhibitionPublicProcedure = t.procedure.use(async ({ next }) => {
+  assertExhibitionBoothReady();
+  return next();
+});
 
 export function getExhibitionPool(): Pool {
   if (!poolInstance) {
@@ -62,16 +60,26 @@ export type ExhibitionAccountSession = {
   authVersion: number;
 };
 
-function authSecret() {
+function exhibitionSecretSource() {
   const source = process.env.EXHIBITION_AUTH_SECRET || process.env.JWT_SECRET;
   if (!source) {
     if (process.env.NODE_ENV === "production")
       throw new Error("Exhibition auth secret is not configured");
-    return createHash("sha256")
-      .update("local-exhibition-auth-secret-v1")
-      .digest();
+    return "local-exhibition-auth-secret-v1";
   }
-  return createHash("sha256").update(`exhibition-portal-v1:${source}`).digest();
+  return source;
+}
+
+function authSecret() {
+  return createHash("sha256")
+    .update(`exhibition-portal-v1:${exhibitionSecretSource()}`)
+    .digest();
+}
+
+function assetAccessSecret() {
+  return createHash("sha256")
+    .update(`exhibition-asset-access-v1:${exhibitionSecretSource()}`)
+    .digest();
 }
 
 export function normalizeExhibitionEmail(value: string) {
@@ -136,6 +144,44 @@ export async function createExhibitionSessionToken(
     .setIssuedAt()
     .setExpirationTime(`${EXHIBITION_SESSION_TTL_SECONDS}s`)
     .sign(authSecret());
+}
+
+export async function createExhibitionAssetAccessToken(params: {
+  assetId: number;
+  principalType: "brand" | "admin";
+  principalId: number;
+}) {
+  return new SignJWT({
+    scope: "exhibition-asset",
+    assetId: params.assetId,
+    principalType: params.principalType,
+    principalId: params.principalId,
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setAudience("lcj-exhibition-asset")
+    .setIssuer("lcjmall.com")
+    .setIssuedAt()
+    .setExpirationTime("5m")
+    .sign(assetAccessSecret());
+}
+
+export async function verifyExhibitionAssetAccessToken(token: string) {
+  const verified = await jwtVerify(token, assetAccessSecret(), {
+    issuer: "lcjmall.com",
+    audience: "lcj-exhibition-asset",
+  });
+  if (verified.payload.scope !== "exhibition-asset") return null;
+  const assetId = Number(verified.payload.assetId || 0);
+  const principalId = Number(verified.payload.principalId || 0);
+  const principalType = verified.payload.principalType;
+  if (
+    !assetId ||
+    !principalId ||
+    (principalType !== "brand" && principalType !== "admin")
+  ) {
+    return null;
+  }
+  return { assetId, principalId, principalType } as const;
 }
 
 export function getRequestCookie(req: any, name: string) {
