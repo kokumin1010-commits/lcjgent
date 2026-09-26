@@ -3989,3 +3989,9 @@ GMV统一复用`shared/brandMetrics.ts`的正值优先解析规则，0占位不�
 Schema由生产限定的备份门控运行时升级创建`livestream_debriefs`和`livestream_debrief_events`；仅Railway内置`RAILWAY_ENVIRONMENT_NAME=production`时允许DDL，非生产调用在数据库访问前失败关闭。生产升级在监听前使用命名锁、加密pre/post backup、源数据摘要核对、严格列／索引健康检查和只读`/api/health/livestream-debrief`；不新增自定义环境变量。
 
 验证：中控复盘／菜单／品牌GMV完整性3 files・44 tests通过；全项目Vitest为4,619通过、45跳过、223失败，失败仍为latest-main既有48个数据库／外部环境依赖文件，本次scope 0失败。production build成功，仅有仓库既有`receiptMaskingService.ts` sharp warning；完整TypeScript保持latest-main既有1,162项诊断，本次新增文件及事务重构区间0项。1440px与390px真实构建视觉QA通过，无横向溢出、console error、page error或failed request。三轮独立只读复审最终为GO，P0/P1均为0。验证未连接或写入生产数据库。
+
+## 2026-09-26｜TikTok广告人工报告数据撤回・系统来源限定
+
+`/master/tiktok-ads`から、チャット本文を元に追加したブランド別コスト・GMV・ROIデータおよび関連コードを完全削除した。トップ5指標カードのクリック導線は維持し、現在はシステムが取得済みのLCJ-01 Auctionデータだけを表示する。総費用カードもAuction API／検証済みスナップショットの値へ戻し、GMV MaxはTikTok公式API認証と対象Shop権限が完了するまで未接続として明示する。
+
+検証：TikTok Ads関連6ファイル44テスト成功、独立esbuild成功、production build成功、変更ファイルのTypeScript新規診断なし（既存全体baselineのみ）、Railway deployment success、`https://lcjmall.com/master/tiktok-ads` HTTP 200、production chunkでシステム限定文言を確認し人工報告区画が存在しないことを確認。
