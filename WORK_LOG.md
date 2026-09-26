@@ -3978,3 +3978,14 @@ feature SHA `e64696fc9e950f1f6910ca64cc5c9ae3f01e1c62`はGitHub CI run `36222035
 现有RBAC、受控写入开关、签名确认、单目标租约、持久审计、写后复核与服务器端令牌隔离均未修改。TikTok Ads相关7 files・47 tests全部通过；新增金额/ROI计算、Auction边界、五卡路由和来源文案均有回归覆盖。前后端独立esbuild、production build、`git diff --check`成功；全量TypeScript仍有仓库既有1,162项诊断，本次修改文件诊断为0。独立只读复审确认金额数学、数据分层与安全边界正确，并按建议修正Campaign卡排序口径和首次点击滚动时序。
 
 feature SHA `7ab7071191af5ea7d973533d35070926f694058e`对应Railway production deployment `6675453531`成功。本番`/master/tiktok-ads`为HTTP 200，配信chunk `TikTokAdsIntegration--y_Rz-j1.js`已确认包含“9月商品广告总成本”“品牌商品短视频GMV广告实绩”“查看明细”“操作权限あり・实时API未接通”及GMV Max数据边界文案。验证只执行GET、构建与只读检查，没有调用TikTok写入API或修改production广告数据。
+
+## 2026-09-26｜中控达播复盘台（本番反映前）
+新增`/master/livers-dashboard/reviews`中控达播复盘台，直接复用现有员工／后台账号和主播司令塔权限，不新建独立账号体系。中控可按日期、主播或场次筛选已结束直播；日期、时间、时长、GMV、订单、品牌及商品数据由既有直播记录自动带入。主观内容保持短表单：每项最多3句并提供快捷选项，只要求至少1项“做得好或问题”和1项具体改善；保存后自动生成可复制到群里的完整复盘格式。
+
+场次卡同时区分“直播记录人”“复盘最初录入人”“最后更新人”。手动、CSV、商品CSV和实时记录组合均保留创建者姓名，并把CSV／实时仅作为数据来源说明，不误标执行人。复盘当前快照使用单调revision乐观锁，每次保存事务内追加不可变版本事件；查看权限与编辑权限分别继承`/master/livers-dashboard`，管理员全权，普通员工无编辑权限时表单和服务端mutation均拒绝。
+
+GMV统一复用`shared/brandMetrics.ts`的正值优先解析规则，0占位不会遮蔽有效值；冲突来源、多品牌分配缺失／全零／总额不一致时禁止保存并提示先修正直播记录。CSV商品替换、品牌GMV重算和`productCsvImported`标记已合并到同一数据库事务，并与复盘保存使用相同的`brand_livestreams FOR UPDATE`父场次锁；复盘保存还锁定商品和品牌分配行，避免把导入中间态固化到不可变审计。未分配品牌显示“销售额待分配”，不再误显示¥0。
+
+Schema由生产限定的备份门控运行时升级创建`livestream_debriefs`和`livestream_debrief_events`；仅Railway内置`RAILWAY_ENVIRONMENT_NAME=production`时允许DDL，非生产调用在数据库访问前失败关闭。生产升级在监听前使用命名锁、加密pre/post backup、源数据摘要核对、严格列／索引健康检查和只读`/api/health/livestream-debrief`；不新增自定义环境变量。
+
+验证：中控复盘／菜单／品牌GMV完整性3 files・44 tests通过；全项目Vitest为4,619通过、45跳过、223失败，失败仍为latest-main既有48个数据库／外部环境依赖文件，本次scope 0失败。production build成功，仅有仓库既有`receiptMaskingService.ts` sharp warning；完整TypeScript保持latest-main既有1,162项诊断，本次新增文件及事务重构区间0项。1440px与390px真实构建视觉QA通过，无横向溢出、console error、page error或failed request。三轮独立只读复审最终为GO，P0/P1均为0。验证未连接或写入生产数据库。

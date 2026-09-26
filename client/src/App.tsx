@@ -6,6 +6,7 @@ import { useReferralCapture } from "./hooks/useReferralCapture";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
 import ProtectedLiverRoute from "./components/ProtectedLiverRoute";
+import { PermissionGate } from "./components/PermissionGate";
 import { lazy, Suspense, useEffect } from "react";
 import { LCM_CAMPAIGNS_ENABLED } from "@shared/lcmFeatureFlags";
 
@@ -90,6 +91,7 @@ const LiverDashboard = lazy(() => import("./pages/LiverDashboard"));
 const LiverAiCoach = lazy(() => import("./pages/LiverAiCoach"));
 const LiverLineSetup = lazy(() => import("./pages/LiverLineSetup"));
 const LiverDashboardNew = lazy(() => import("./pages/LiverDashboardNew"));
+const LivestreamDebriefConsole = lazy(() => import("./pages/LivestreamDebriefConsole"));
 const LiverDetailNew = lazy(() => import("./pages/LiverDetailNew"));
 const Simulator = lazy(() => import("./pages/Simulator"));
 const ProposalPage = lazy(() => import("./pages/ProposalPage"));
@@ -459,6 +461,13 @@ function Router() {
           </DashboardLayout>
         </Route> */}
         <Route path={"/master/livers-dashboard"} component={LiverDashboardNew} />
+        <Route path={"/master/livers-dashboard/reviews"}>
+          <DashboardLayout>
+            <PermissionGate pageKey="/master/livers-dashboard" pageName="中控达播复盘台">
+              <LivestreamDebriefConsole />
+            </PermissionGate>
+          </DashboardLayout>
+        </Route>
         <Route path={"/master/sales-check"}>
           <DashboardLayout>
             <SalesCheck />

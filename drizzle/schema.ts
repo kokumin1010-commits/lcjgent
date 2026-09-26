@@ -648,6 +648,46 @@ export type BrandLivestream = typeof brandLivestreams.$inferSelect;
 export type InsertBrandLivestream = typeof brandLivestreams.$inferInsert;
 
 
+/** One structured control-room debrief per livestream. */
+export const livestreamDebriefs = mysqlTable("livestream_debriefs", {
+  id: int("id").autoincrement().primaryKey(),
+  livestreamId: int("livestream_id").notNull(),
+  reviewJson: json("review_json").$type<Record<string, unknown>>().notNull(),
+  reviewText: text("review_text").notNull(),
+  revision: int("revision").default(1).notNull(),
+  createdBy: int("created_by").notNull(),
+  createdByName: varchar("created_by_name", { length: 255 }).notNull(),
+  updatedBy: int("updated_by").notNull(),
+  updatedByName: varchar("updated_by_name", { length: 255 }).notNull(),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  livestreamUnique: uniqueIndex("uk_livestream_debrief_livestream").on(table.livestreamId),
+  updatedIndex: index("idx_livestream_debrief_updated").on(table.updatedAt),
+}));
+
+export type LivestreamDebrief = typeof livestreamDebriefs.$inferSelect;
+export type InsertLivestreamDebrief = typeof livestreamDebriefs.$inferInsert;
+
+/** Immutable version history for every control-room debrief save. */
+export const livestreamDebriefEvents = mysqlTable("livestream_debrief_events", {
+  id: int("id").autoincrement().primaryKey(),
+  debriefId: int("debrief_id").notNull(),
+  livestreamId: int("livestream_id").notNull(),
+  revision: int("revision").notNull(),
+  reviewJson: json("review_json").$type<Record<string, unknown>>().notNull(),
+  reviewText: text("review_text").notNull(),
+  recordedBy: int("recorded_by").notNull(),
+  recordedByName: varchar("recorded_by_name", { length: 255 }).notNull(),
+  recordedAt: timestamp("recorded_at", { fsp: 3 }).defaultNow().notNull(),
+}, table => ({
+  debriefRevisionUnique: uniqueIndex("uk_livestream_debrief_event_revision").on(table.debriefId, table.revision),
+  livestreamTimeIndex: index("idx_livestream_debrief_event_stream_time").on(table.livestreamId, table.recordedAt),
+}));
+
+export type LivestreamDebriefEvent = typeof livestreamDebriefEvents.$inferSelect;
+
+
 /**
  * Follow-up items extracted from daily reports
  * 日報から抽出されたフォローアップ項目（提案、打ち合わせ、商談など）

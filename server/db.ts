@@ -5814,20 +5814,19 @@ export async function importLivestreamProductsFromCsv(
   });
 
   await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM brand_livestreams WHERE id = ${livestreamId} FOR UPDATE`);
     await tx
       .delete(livestreamProducts)
       .where(eq(livestreamProducts.livestreamId, livestreamId));
     if (insertData.length > 0) {
       await tx.insert(livestreamProducts).values(insertData);
     }
+    await calculateAndSaveBrandGmvInTransaction(tx, livestreamId);
     await tx
       .update(brandLivestreams)
       .set({ productCsvImported: "yes" })
       .where(eq(brandLivestreams.id, livestreamId));
   });
-
-  // Calculate and save per-brand GMV after CSV import
-  await calculateAndSaveBrandGmv(livestreamId);
 
   return products.length;
 }
@@ -5837,21 +5836,15 @@ export async function importLivestreamProductsFromCsv(
  * Uses product_master (canonicalName→brandId) and product_name_aliases for matching.
  * Unmatched products are assigned to the primary brand.
  */
-export async function calculateAndSaveBrandGmv(livestreamId: number) {
-  const db = await getDb();
-  if (!db) return;
-
-  try {
+async function calculateAndSaveBrandGmvInTransaction(database: any, livestreamId: number) {
     // 1. Get all products for this livestream
-    const products = await db
+    const products: Array<{ productName: string; directGmv: number | null; gmv: number | null; grossRevenue: number | null }> = await database
       .select()
       .from(livestreamProducts)
       .where(eq(livestreamProducts.livestreamId, livestreamId));
 
-    if (products.length === 0) return;
-
     // 2. Get the livestream's brand associations from livestream_brands
-    const brandAssociations = await db
+    const brandAssociations: Array<{ brandId: number }> = await database
       .select()
       .from(livestreamBrands)
       .where(eq(livestreamBrands.livestreamId, livestreamId));
@@ -5859,7 +5852,7 @@ export async function calculateAndSaveBrandGmv(livestreamId: number) {
     if (brandAssociations.length === 0) return;
 
     // 3. Get the primary brand from brand_livestreams
-    const [livestream] = await db
+    const [livestream]: Array<{ brandId: number | null }> = await database
       .select({ brandId: brandLivestreams.brandId })
       .from(brandLivestreams)
       .where(eq(brandLivestreams.id, livestreamId));
@@ -5868,7 +5861,6 @@ export async function calculateAndSaveBrandGmv(livestreamId: number) {
 
     // 4. Build product name → brandId mapping using product_master and aliases
     const allProductNames = products.map(p => p.productName).filter(Boolean);
-    if (allProductNames.length === 0) return;
 
     // 4a. Direct match from product_master (canonicalName)
     const nameToBrandMap = new Map<string, number>();
@@ -5877,7 +5869,7 @@ export async function calculateAndSaveBrandGmv(livestreamId: number) {
     const batchSize = 100;
     for (let i = 0; i < allProductNames.length; i += batchSize) {
       const batch = allProductNames.slice(i, i + batchSize);
-      const masterMatches = await db
+      const masterMatches: Array<{ canonicalName: string; brandId: number | null }> = await database
         .select({
           canonicalName: productMaster.canonicalName,
           brandId: productMaster.brandId,
@@ -5900,7 +5892,7 @@ export async function calculateAndSaveBrandGmv(livestreamId: number) {
     if (unmatchedNames.length > 0) {
       for (let i = 0; i < unmatchedNames.length; i += batchSize) {
         const batch = unmatchedNames.slice(i, i + batchSize);
-        const aliasMatches = await db
+        const aliasMatches: Array<{ aliasName: string; masterId: number }> = await database
           .select({
             aliasName: productNameAliases.aliasName,
             masterId: productNameAliases.productMasterId,
@@ -5910,12 +5902,12 @@ export async function calculateAndSaveBrandGmv(livestreamId: number) {
 
         if (aliasMatches.length > 0) {
           const masterIds = [...new Set(aliasMatches.map(a => a.masterId))];
-          const masters = await db
+          const masters: Array<{ id: number; brandId: number | null }> = await database
             .select({ id: productMaster.id, brandId: productMaster.brandId })
             .from(productMaster)
             .where(inArray(productMaster.id, masterIds));
 
-          const masterIdToBrand = new Map(masters.map(m => [m.id, m.brandId]));
+          const masterIdToBrand = new Map(masters.map(m => [m.id, m.brandId] as const));
           for (const alias of aliasMatches) {
             const brandId = masterIdToBrand.get(alias.masterId);
             if (brandId) nameToBrandMap.set(alias.aliasName, brandId);
@@ -5932,7 +5924,11 @@ export async function calculateAndSaveBrandGmv(livestreamId: number) {
     }
 
     for (const product of products) {
-      const gmv = product.directGmv || product.gmv || 0;
+      const gmv = resolveLivestreamProductGmv({
+        directGmv: product.directGmv,
+        gmv: product.gmv,
+        grossRevenue: product.grossRevenue,
+      });
       if (gmv <= 0) continue;
 
       const matchedBrandId = nameToBrandMap.get(product.productName);
@@ -5952,7 +5948,7 @@ export async function calculateAndSaveBrandGmv(livestreamId: number) {
 
     // 6. Update livestream_brands with calculated GMV
     for (const [brandId, gmv] of brandGmvMap.entries()) {
-      await db
+      await database
         .update(livestreamBrands)
         .set({ gmv })
         .where(
@@ -5963,7 +5959,18 @@ export async function calculateAndSaveBrandGmv(livestreamId: number) {
         );
     }
 
-    console.log(`[calculateAndSaveBrandGmv] Livestream ${livestreamId}: saved GMV for ${brandGmvMap.size} brands`);
+  console.log(`[calculateAndSaveBrandGmv] Livestream ${livestreamId}: saved GMV for ${brandGmvMap.size} brands`);
+}
+
+export async function calculateAndSaveBrandGmv(livestreamId: number) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT id FROM brand_livestreams WHERE id = ${livestreamId} FOR UPDATE`);
+      await calculateAndSaveBrandGmvInTransaction(tx, livestreamId);
+    });
   } catch (error) {
     console.error(`[calculateAndSaveBrandGmv] Error for livestream ${livestreamId}:`, error);
   }

@@ -396,6 +396,12 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         labelJa: "ライバー司令塔",
       },
       {
+        icon: ClipboardCheck,
+        path: "/master/livers-dashboard/reviews",
+        labelZh: "中控达播复盘",
+        labelJa: "中控ライブ振り返り",
+      },
+      {
         icon: Bot,
         path: "/master/ai-coach",
         labelZh: "主播成长面板",

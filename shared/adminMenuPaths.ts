@@ -40,6 +40,7 @@ export const TRACKABLE_ADMIN_MENU_PATHS = [
   "/master/step-email/analytics",
   "/master/livers",
   "/master/livers-dashboard",
+  "/master/livers-dashboard/reviews",
   "/master/ai-coach",
   "/master/mega-channel",
   "/master/agencies",

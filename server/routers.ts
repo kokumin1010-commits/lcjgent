@@ -101,6 +101,7 @@ import { tiktokCompetitorDailyRouter } from "./tiktokCompetitorDailyRouter";
 import { influencerBdRouter } from "./influencerBdRouter";
 import { staffIdentityRouter } from "./staffIdentityRouter";
 import { hrRoleReviewRouter } from "./hrRoleReviewRouter";
+import { livestreamDebriefRouter } from "./livestreamDebriefRouter";
 import {
   attachFollowStaffForDateRange,
   ensureStaffScheduleFollowColumns,
@@ -31573,6 +31574,7 @@ JSON形式で推薦順序を返してください。`;
   influencerBd: influencerBdRouter,
   staffIdentity: staffIdentityRouter,
   hrRoleReview: hrRoleReviewRouter,
+  livestreamDebrief: livestreamDebriefRouter,
   memberRisk: memberRiskRouter,
   memberIdentity: memberIdentityRouter,
   beautyWalletMember: beautyWalletMemberRouter,

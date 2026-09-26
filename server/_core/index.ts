@@ -97,6 +97,7 @@ import { runProcurementSchemaUpgradeSetup } from "../procurementSchemaUpgrade";
 import { runAuctionSchemaUpgradeSetup } from "../auctionSchemaUpgrade";
 import { runLivestreamSetImageUpgradeSetup } from "../livestreamSetImageUpgrade";
 import { getSampleLogisticsUpgradeHealth, runSampleLogisticsUpgradeSetup } from "../sampleLogisticsUpgrade";
+import { getLivestreamDebriefUpgradeHealth, isLivestreamDebriefUpgradeAuthorized, runLivestreamDebriefUpgradeSetup } from "../livestreamDebriefUpgrade";
 import { runLiverHomeFinanceRecovery } from "../liverHomeFinanceRecovery";
 import { runLiverPayrollRecovery } from "../liverPayrollRecovery";
 import { runLivestreamTimingRepair } from "../livestreamTimingRepair";
@@ -512,6 +513,16 @@ async function startServer() {
       return res.status(health.healthy ? 200 : 503).json({ ok: health.healthy, ...health });
     } catch {
       return res.status(503).json({ ok: false, errorCode: "SAMPLE_LOGISTICS_HEALTH_UNAVAILABLE" });
+    }
+  });
+
+  app.get("/api/health/livestream-debrief", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    try {
+      const health = await getLivestreamDebriefUpgradeHealth();
+      return res.status(health.healthy ? 200 : 503).json({ ok: health.healthy, ...health });
+    } catch {
+      return res.status(503).json({ ok: false, errorCode: "LIVESTREAM_DEBRIEF_HEALTH_UNAVAILABLE" });
     }
   });
 
@@ -4411,6 +4422,21 @@ async function startServer() {
       errorCode: error instanceof Error ? error.message.split(":", 1)[0] : "SAMPLE_LOGISTICS_UPGRADE_FAILED",
     });
     throw error;
+  }
+
+  // Structured control-room debriefs and immutable revision history must be
+  // healthy before staff can read or save post-stream reviews.
+  if (isLivestreamDebriefUpgradeAuthorized()) {
+    try {
+      await runLivestreamDebriefUpgradeSetup();
+    } catch (error) {
+      console.error("[LivestreamDebriefUpgrade] pre-listen setup failed", {
+        errorCode: error instanceof Error ? error.message.split(":", 1)[0] : "LIVESTREAM_DEBRIEF_UPGRADE_FAILED",
+      });
+      throw error;
+    }
+  } else {
+    console.log("[LivestreamDebriefUpgrade] skipped outside Railway production; no DDL executed");
   }
 
   // Start the service-brand command-center backup/migration without delaying
