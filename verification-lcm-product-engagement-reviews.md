@@ -82,9 +82,11 @@ feature SHA `5f4986f88ef9d05fc58328df78f6c7166e4172b6`はGitHub CI success、Rai
 
 feature SHA `ded1ea6101fd0ace7d1a97bc50c1e6f16ca9e4a9`はGitHub CI run `36133091871`とRailway production deployment `6660311604`がsuccess。本番商品詳細はHTTP 200で、entry `index-DuFbB8c-.js`が`LcmProduct-BI2x6x1h.js`を参照している。390px mobile実画面でCTAは350×64px、`pointer-events:auto`、`z-index:10`のnative anchorとして表示された。CTA中央を実tapすると、`https://www.livecommercefestival.com/lcf/login?return=%2Flcm%2Fmanage%3Fcontact%3D6`へ遷移し、商品6のcontact formへのreturn pathが保持された。検証はlogin画面への遷移までで、連絡送信・email・DB書込みは行っていない。
 
-## LCMトップのmarketplace型刷新（2026-09-26追加／本番反映前）
+## LCMトップのmarketplace型刷新（2026-09-26追加／本番反映済み）
 `/lcm`の上部を、メーカー・ブランドとライブコマーサー・クリエイターの2つの利用目的が一目で分かる構成へ変更した。主見出しは「届けたい商品と、伝えるライバーが出会う。」で、ブランド側の主buttonは既存`/lcm/manage?workspace=brand`、ライブコマーサー側の主buttonは同一pageの`#products`へ接続する。creator quick viewと`/lcm/manage?workspace=creator`も維持した。headerには既存の共通account判定を使うログイン／マイページbuttonを残し、公開navigationは商品検索とライブコマーサー検索に限定する。
 新しい画像は本変更用に生成した商品集合1点、ライブ配信者1点、カテゴリ4点の計6点で、WebPへ最適化した。配信URLは`jCsAaBnvQjRKYwfp.webp`、`XMUZPFbqGmXsAoim.webp`、`LfarjFTekKlvElUN.webp`、`QJyORBXxMAmSIdCH.webp`、`FtyjRmRPYVAQIEji.webp`、`fHJriVLkfNrEHYgc.webp`。全URLでHTTP 200、`image/webp`を確認した。人物画像を含むため、実在の登録者・ブランド・実績を示す素材としては扱わず、説明用の生成visualとしてのみ使用する。
 公開商品sectionの実data query、検索、カテゴリ、新着、配信情報、sample対応filter、興味あり、sample申請、商品card、空状態、第1回LCF archiveは変更していない。新しい4カテゴリcardは既存filter stateを更新して`#products`へscrollする。キャンペーンqueryや公開導線は追加せず、既存の一時非公開境界を維持した。
 responsive headerの実高に合わせ、`#products`へmobile 125px、`sm` 73px、`md` 81pxのscroll marginを設定した。sticky filterにも同じbreakpoint別offsetを設定した。CDPの`scrollIntoView`実測ではmobile 390pxでheader bottom 125px、filter top 156.953px、clearance 31.953px。desktop 1440pxではheader bottom 81px、filter top 129.219px、clearance 48.219pxだった。実build画面でもfilterとheaderは重ならない。
 関連回帰44 files・324 tests、exact production build、変更component bundle、diff／secret監査に成功した。全体TypeScriptの既存1,162 diagnosticsに対し今回変更fileは0件。独立reviewは初回P1を上記offsetで修正後、**GO（P0/P1 0件）**。acceptanceはlocal GET／DOM／screenshotだけで、商品、brand、interest、sample、contact、campaignの書込みは行っていない。
+
+feature SHA `e64696fc9e950f1f6910ca64cc5c9ae3f01e1c62`はGitHub CI run `36222035732`とRailway production deployment `6675295194`がsuccess。本番`/lcm`はHTTP 200で、entry `index-BzUlew5s.js`から`LcmMarket-EXW6lo8j.js`と`LcmPublicLayout-NdA9Zcj-.js`が配信される。新見出し、2主役card、4カテゴリ、login／mypageをchunkとdesktop 1440px／mobile 390px実画面で確認した。6画像は本番参照先からすべてHTTP 200。`#products`移動後の本番実測はmobileでheader bottom 125px／filter top 156.953px、desktopで81px／129.219pxであり、重なりはない。本番確認でも商品、brand、interest、sample、contact、campaignのmutationは実施していない。

@@ -3960,9 +3960,11 @@ feature SHA `500030220fdc1cc9c214c3720153da99d159ac15`はGitHub CI run `36138669
 
 发布前验证：专项14/14通过；全项目Vitest为4,605通过、45跳过、223失败，失败仍集中在latest-main已有48个数据库/外部环境依赖文件，本功能测试无失败；production build成功，仅保留仓库既有`receiptMaskingService.ts` sharp namespace warning。全量TypeScript仍有仓库既有1,162项诊断，本次新增共享规则、升级模块、测试和两个UI文件均为0，`sampleRequestRouter.ts`仍是同main既有37项nullable DB与2项旧`mallProducts.brand`诊断，`server/_core/index.ts`仍为既有4项。1440px与390px实际构建视觉QA通过，管理弹窗和主播详情/追踪/时间线均无横向溢出、console error、page error或failed request。最终独立只读复审为GO，P0/P1/P2/P3均为0。验证未连接或写入生产数据库，也未使用生产身份执行物流mutation。
 
-## 2026-09-26｜LCMトップ刷新・第2回LCF商品導線・完成予想画像削除（本番反映前）
+## 2026-09-26｜LCMトップ刷新・第2回LCF商品導線・完成予想画像削除（本番反映済み）
 `/lcm`を、提供されたデザイン方針に合わせて「届けたい商品と、伝えるライバーが出会う。」を主見出しとするmarketplace型トップへ刷新した。上部は、メーカー・ブランド向けとライブコマーサー・クリエイター向けの2枚の主役cardで構成する。ブランド側は既存の商品登録workflowへ、ライブコマーサー側は公開商品一覧と既存のprofile登録workflowへ接続する。headerは黄色LCM logo、商品検索、ライブコマーサー検索、ログイン／マイページだけに整理した。
 商品探索は「美容・コスメ」「食品・飲料」「健康・ウェルネス」「ライフスタイル」の画像付き4カテゴリと検索欄を上部へ配置した。既存の公開商品query、カテゴリ／新着／配信情報／sample filter、興味あり、sample申請、商品card、第1回LCF出展archiveは維持する。キャンペーンは既存feature flag OFFのままで、再公開していない。使用する6画像はManusで本変更用に生成し、WebPへ最適化して公開CDNへ配置した。
 LCF mypageの「第2回LCFの出展商品から選ぶ」を`/lcm#products`への明示linkにし、商品検索へ直接移動できるようにした。`/2nd`からは、ユーザー指定どおり2枚の「会場完成予想イメージ」と`VisualStories` sectionを完全に削除した。会場情報、初心者support、第1回実績、申込導線は維持している。
 独立reviewで、responsive header刷新後も商品filterが旧`top-[62px]`のままでmobile時に重なるP1を検出した。商品sectionとsticky filterへmobile 125px、`sm` 73px、`md` 81pxのresponsive offsetを追加した。CDP実測では390px幅でheader bottom 125px／filter top 156.953px、1440px幅でheader bottom 81px／filter top 129.219pxとなり、重なりは0件。修正後の独立reviewは**GO（P0/P1 0件）**。
 関連回帰はLCF／LCM／sample logistics 44 files・324 testsが成功した。exact production build、変更component bundle、`git diff --check`、secret-like追加監査も成功。全体TypeScriptはrepository既存1,162 diagnosticsで、今回変更12 filesは0件。390px／1440px実画面でheadline、2主役card、カテゴリ、login、商品filter、`#products`遷移を確認し、横溢れ・文字切れ・固定要素の重なりがないことを確認した。検証では申込、興味登録、sample申請、ブランド登録、商品登録、production DB mutationを行っていない。
+
+feature SHA `e64696fc9e950f1f6910ca64cc5c9ae3f01e1c62`はGitHub CI run `36222035732`とRailway production deployment `6675295194`がsuccess。本番`/lcm`と`/2nd`はHTTP 200で、entry `index-BzUlew5s.js`から`LcmMarket-EXW6lo8j.js`、`LcmPublicLayout-NdA9Zcj-.js`、`LcfSecondEdition-C5gx8et3.js`が配信される。新見出し、2主役card、4カテゴリ、LCF商品linkをchunk内で確認し、第2回chunkには完成予想markerがない。生成画像6点も本番からHTTP 200。本番390px／1440px画面ではheader、headline、card、login、カテゴリに重なり・横溢れがなく、`#products`移動後のfilter clearanceは31.953px／48.219pxだった。acceptanceはGET／DOM／screenshotだけで、production書込みは0件。

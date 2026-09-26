@@ -105,7 +105,9 @@ feature SHA `ded1ea6101fd0ace7d1a97bc50c1e6f16ca9e4a9`はGitHub CI run `36133091
 
 feature SHA `500030220fdc1cc9c214c3720153da99d159ac15`はGitHub CI run `36138669546`とRailway production deployment `6661391106`がsuccess。本番`/2nd`はHTTP 200で、entry `index-BMZL3diX.js`から`LcfSecondEdition-tr246KR1.js`が配信されている。390px本番DOM測定では「出展申込」「ライバー申込」「一般申込」は各約115.3×48px、left 16pxからright 374pxの範囲に収まる。本番screenshotでも1行表示、非重複、文字切れなしを確認した。確認はGET／DOM read-onlyのみで、申込送信・OpenChat投稿は行っていない。
 
-## 第2回完成予想画像の削除とLCM商品検索導線（2026-09-26追加／本番反映前）
+## 第2回完成予想画像の削除とLCM商品検索導線（2026-09-26追加／本番反映済み）
 `/2nd`から、完成予想として掲載していた2画像と`VisualStories` sectionを削除した。sourceとrendered DOMの双方で「会場完成予想イメージ」、旧画像asset ID、`LIVE_IMAGE`、`MATCHING_IMAGE`、`VisualStories`が存在しないことを確認した。浜松町館の会場情報、初心者support、申込導線、第1回実績sectionは残している。
 LCF mypageの事前マッチングpanelでは、「第2回LCFの出展商品から選ぶ」を`/lcm#products`への明示linkへ変更した。リンク先のLCM商品sectionには`id="products"`とresponsive scroll marginがあり、固定headerの下へ正しく表示される。GMV自己申告、証憑、matching申請、承認済み出展商品のserver queryは変更していない。
 LCF／LCM／sample logistics 44 files・324 tests、exact production build、変更component bundle、rendered DOM監査、`git diff --check`に成功した。全体TypeScript既存1,162 diagnosticsに対し今回変更fileは0件。独立review最終結果は**GO（P0/P1 0件）**。本番申込、OpenChat投稿、matching申請、GMV報告、production DB mutationは行っていない。
+
+feature SHA `e64696fc9e950f1f6910ca64cc5c9ae3f01e1c62`はGitHub CI run `36222035732`とRailway production deployment `6675295194`がsuccess。本番`/2nd`はHTTP 200で、配信`LcfSecondEdition-C5gx8et3.js`には「会場完成予想イメージ」、`VisualStories`、`LIVE_IMAGE`、`MATCHING_IMAGE`が存在しない。配信chunkには「第2回LCFの出展商品から選ぶ」と`/lcm#products`を確認した。acceptanceはGET／chunk／DOM read-onlyのみで、申込、matching、GMV、DBの書込みは0件。
