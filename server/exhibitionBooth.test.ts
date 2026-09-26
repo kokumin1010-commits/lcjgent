@@ -182,6 +182,9 @@ describe("data and reservation isolation", () => {
     expect(index).toContain('app.get("/api/exhibition/assets/:token"');
     expect(index).toContain("verifyExhibitionAssetAccessToken");
     expect(index).toContain("storageReadPrivateBuffer");
+    expect(
+      index.match(/startsWith\('\/master\/exhibition-booths'\)/g)
+    ).toHaveLength(2);
   });
 
   it("round-trips exhibition assets with AES-GCM and binds ciphertext to its object key", () => {

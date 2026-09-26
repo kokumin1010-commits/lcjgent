@@ -251,12 +251,12 @@ async function startServer() {
     if (req.secure) {
       res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
-    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/lcm/manage') || req.path.startsWith('/lcm/admin') || req.path.startsWith('/lcm/sample-cart') || req.path.startsWith('/booth-portal') || req.path.startsWith('/api/trpc/exhibition') || req.path.startsWith('/api/trpc/festival') || req.path.startsWith('/api/trpc/festivalAuth') || req.path.startsWith('/api/trpc/festivalEngagement') || req.path.startsWith('/api/trpc/lcm.') || req.path.startsWith('/api/trpc/ranking.admin') || req.path.startsWith('/api/trpc/boothReservation.')) {
+    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/lcm/manage') || req.path.startsWith('/lcm/admin') || req.path.startsWith('/lcm/sample-cart') || req.path.startsWith('/booth-portal') || req.path.startsWith('/master/exhibition-booths') || req.path.startsWith('/api/trpc/exhibition') || req.path.startsWith('/api/trpc/festival') || req.path.startsWith('/api/trpc/festivalAuth') || req.path.startsWith('/api/trpc/festivalEngagement') || req.path.startsWith('/api/trpc/lcm.') || req.path.startsWith('/api/trpc/ranking.admin') || req.path.startsWith('/api/trpc/boothReservation.')) {
       res.setHeader('Cache-Control', 'no-store, private, max-age=0');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
     }
-    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/lcf/login') || req.path.startsWith('/lcf/mypage') || req.path.startsWith('/lcm/manage') || req.path.startsWith('/lcm/admin') || req.path.startsWith('/lcm/sample-cart') || req.path.startsWith('/booth-portal')) {
+    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/lcf/login') || req.path.startsWith('/lcf/mypage') || req.path.startsWith('/lcm/manage') || req.path.startsWith('/lcm/admin') || req.path.startsWith('/lcm/sample-cart') || req.path.startsWith('/booth-portal') || req.path.startsWith('/master/exhibition-booths')) {
       res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
     }
     next();
