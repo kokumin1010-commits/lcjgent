@@ -7,7 +7,6 @@ import { useEffect } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
-  BookOpenCheck,
   Building2,
   CalendarDays,
   Camera,
@@ -15,12 +14,8 @@ import {
   MapPin,
   Mic2,
   Radio,
-  Ruler,
-  Settings2,
   ShoppingBag,
-  Sparkles,
   Users,
-  Wrench,
 } from "lucide-react";
 import { lcf2026PhotoById, lcf2026Stats } from "@/data/lcfEditions";
 import { applyPageSeo } from "@/lib/pageSeo";
@@ -47,12 +42,6 @@ const LCM_PUBLIC_MARKET_SCREEN = {
   width: 1440,
   height: 1050,
   alt: "LCMで公開商品やブランドを探せる実際の商品探索画面",
-} as const;
-const VENUE_EXTERIOR_PHOTO = {
-  src: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/cooervvFkHfjnVRF.jpg",
-  width: 628,
-  height: 837,
-  alt: "東京都立産業貿易センター浜松町館が入る東京ポートシティ竹芝の外観",
 } as const;
 const EDITION_ONE_STREAMING_PHOTOS = [
   {
@@ -99,7 +88,6 @@ const editionOnePhotos = {
   streamingBooth: lcf2026PhotoById["D1-053"],
   matching: lcf2026PhotoById["D1-137"],
   productExchange: lcf2026PhotoById["D2-114"],
-  seminar: lcf2026PhotoById["D2-035"],
   liveProduct: lcf2026PhotoById["D2-064"],
 } as const;
 
@@ -109,19 +97,6 @@ const experiences = [
   { icon: Mic2, index: "03", title: "実践セミナー", copy: "現場で再現できる販売設計、表現、運用の知見を学び、次の配信へ持ち帰ります。" },
   { icon: Radio, index: "04", title: "会場からライブ販売", copy: "会場で出会った商品を、その場から視聴者へ届ける。展示で終わらない実践につなげます。" },
   { icon: Users, index: "05", title: "LCMで継続商談", copy: "イベント後もLCMで商品発見と商談を継続し、次の販売と次回LCFへ循環させます。" },
-] as const;
-
-const beginnerSupportSteps = [
-  { icon: BookOpenCheck, index: "01", title: "初心者講習", copy: "ライブコマースの仕組み、配信前に必要な準備、商品を伝える基本を、初めての方にも分かる言葉で整理します。" },
-  { icon: Handshake, index: "02", title: "ブランドとの設定", copy: "紹介する商品、販売条件、配信可否、当日の役割をブランド担当者と確認し、曖昧なまま配信へ進まないよう支援します。" },
-  { icon: Settings2, index: "03", title: "アカウント・商品設定", copy: "配信アカウント、商品登録、販売導線など、ライブ開始前に必要な設定を確認し、準備を一つずつ前へ進めます。" },
-  { icon: Wrench, index: "04", title: "当日の配信準備", copy: "会場での進行、商品確認、配信前チェックをサポートし、条件が整った方が実際のライブ配信へ進める状態を目指します。" },
-] as const;
-
-const seminarContents = [
-  { title: "トップライブコマーサーセッション", copy: "第一線で活躍するライブコマーサーが、リアルな経験や成功事例を語るスペシャルセッション。" },
-  { title: "「売れる配信」の秘訣", copy: "商品選び、伝え方、視聴者とのコミュニケーションなど、売上につながるライブ配信のポイントを解説。" },
-  { title: "GMVを高めるライブ配信準備", copy: "配信前に何を準備すべきか。商品選定から配信設計まで、実践的な準備のポイントを学べる。" },
 ] as const;
 
 function Header() {
@@ -420,53 +395,14 @@ function LcmBridge() {
   );
 }
 
-function BeginnerSupport() {
-  return (
-    <section id="beginner-support" className="bg-[#f5cf31] px-5 py-24 text-[#111] md:px-10 md:py-32">
-      <div className="mx-auto max-w-[1540px]">
-        <div className="grid gap-10 border-t border-black/30 pt-6 lg:grid-cols-[0.74fr_1.26fr] lg:items-end">
-          <div><p className="text-xs font-black tracking-[0.24em] text-black/55">03 / BEGINNER SUPPORT</p><span className="mt-5 inline-flex border border-black/35 bg-black px-3 py-1.5 text-[11px] font-black tracking-[0.08em] text-[#f5cf31]">未経験・これから始めたい方も対象</span></div>
-          <div><h2 className="text-5xl font-black leading-[0.92] tracking-[-0.06em] md:text-8xl">初めてでも、<br />会場から配信できる。</h2><p className="mt-7 max-w-3xl text-base font-medium leading-8 text-black/68 md:text-lg">ライブコマースは、アカウントを作るだけですぐに売れるものではありません。ブランドとの条件確認、商品設定、配信アカウント、当日の進行まで、実際に始めるための準備があります。LCFでは、その一歩目から会場での実践までをつなぎます。</p></div>
-        </div>
-        <div className="mt-14 grid border-l border-t border-black/25 sm:grid-cols-2 lg:grid-cols-4">{beginnerSupportSteps.map(({ icon: Icon, index, title, copy }) => <article key={title} className="border-b border-r border-black/25 p-6 md:p-7"><div className="flex items-center justify-between"><Icon size={25} /><span className="text-xs font-black text-black/35">{index}</span></div><h3 className="mt-9 text-xl font-black">{title}</h3><p className="mt-4 text-sm leading-7 text-black/62">{copy}</p></article>)}</div>
-        <figure className="relative mt-10 min-h-72 overflow-hidden border border-black/25 bg-black md:min-h-[440px]">
-          <img src={editionOnePhotos.seminar.src} alt={editionOnePhotos.seminar.alt} width={editionOnePhotos.seminar.width} height={editionOnePhotos.seminar.height} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/88 via-black/42 to-black/10" />
-          <figcaption className="absolute inset-y-0 left-0 flex max-w-2xl flex-col justify-end p-6 text-white md:p-10"><p className="text-[10px] font-black tracking-[0.2em] text-[#f5cf31]">EDITION 01 / FULL HOUSE</p><p className="mt-3 text-3xl font-black leading-tight md:text-5xl">第1回の学びを、<br />第2回の実践へ。</p></figcaption>
-        </figure>
-        <div className="mt-10 border border-black/35 bg-[#111] p-6 text-white md:p-8">
-          <p className="text-xs font-black tracking-[0.2em] text-[#f5cf31]">SEMINAR CONTENTS / 予定</p>
-          <h3 className="mt-3 text-3xl font-black tracking-[-0.04em] md:text-5xl">セミナーコンテンツ（予定）</h3>
-          <div className="mt-7 grid border-l border-t border-white/15 md:grid-cols-3">
-            {seminarContents.map((content, index) => <article key={content.title} className="border-b border-r border-white/15 p-5 md:p-6"><p className="text-xs font-black text-[#f5cf31]">0{index + 1}</p><h4 className="mt-5 text-xl font-black leading-tight">{content.title}</h4><p className="mt-4 text-sm leading-7 text-white/65">{content.copy}</p></article>)}
-          </div>
-          <p className="mt-6 text-sm font-bold leading-7 text-white/75">そのほか、ライブコマースの実践に役立つコンテンツを予定しています。</p>
-          <p className="mt-2 text-[11px] leading-5 text-white/42">※セミナー内容は現時点での予定です。今後変更となる場合があります。</p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function Venue() {
-  const facts = [
-    { icon: Ruler, value: "約1,530㎡", label: "2階展示室・全室" },
-    { icon: Sparkles, value: "5m", label: "天井高" },
-    { icon: Radio, value: "無柱空間", label: "配信と商談を見通せる会場" },
-    { icon: ShoppingBag, value: "フローリング", label: "商品展示に馴染む床仕上げ" },
-  ] as const;
   return (
-    <section id="venue" className="bg-[#f2efe6] px-5 py-24 text-[#111] md:px-10 md:py-32">
+    <section id="venue" className="bg-[#f2efe6] px-5 pb-16 pt-24 text-[#111] md:px-10 md:pb-20 md:pt-32">
       <div className="mx-auto max-w-[1540px]">
         <div className="grid gap-10 lg:grid-cols-[0.78fr_1.22fr] lg:items-end">
-          <div><p className="text-xs font-black tracking-[0.24em] text-black/45">04 / HAMAMATSUCHO</p><h2 className="mt-5 text-4xl font-black leading-[0.94] tracking-[-0.06em] md:text-7xl">東京・浜松町で、<br />配信と商談が動く。</h2></div>
+          <div><p className="text-xs font-black tracking-[0.24em] text-black/45">03 / HAMAMATSUCHO</p><h2 className="mt-5 text-4xl font-black leading-[0.94] tracking-[-0.06em] md:text-7xl">東京・浜松町で、<br />配信と商談が動く。</h2></div>
           <div className="max-w-2xl space-y-4 text-base leading-8 text-black/62 lg:justify-self-end"><p className="text-lg font-black text-black">東京都立産業貿易センター浜松町館 2階展示室</p><p>JR浜松町駅から徒歩5分、ゆりかもめ竹芝駅から徒歩2分。大門駅からも徒歩7分と、都内各地からアクセスしやすい会場です。</p><p>広々とした展示スペースを活かし、商品展示・体験、ライブ配信、セミナー、商談までを一つの会場で展開。</p><p>企業とライブコマーサーが出会い、商品を知り、話し、そしてその場で配信・販売できる空間をつくります。</p></div>
         </div>
-        <div className="mt-16 grid gap-6 lg:grid-cols-[0.36fr_1.64fr]">
-          <figure className="overflow-hidden border border-black/20 bg-black"><img src={VENUE_EXTERIOR_PHOTO.src} alt={VENUE_EXTERIOR_PHOTO.alt} width={VENUE_EXTERIOR_PHOTO.width} height={VENUE_EXTERIOR_PHOTO.height} loading="lazy" className="h-full max-h-[620px] w-full object-cover" /><figcaption className="border-t border-white/15 bg-black px-4 py-3 text-xs font-black text-white">東京ポートシティ竹芝 外観</figcaption></figure>
-          <div className="grid border-l border-t border-black/20 sm:grid-cols-2">{facts.map(({ icon: Icon, value, label }) => <div key={label} className="flex min-h-52 flex-col border-b border-r border-black/20 p-6 md:p-8"><Icon size={24} strokeWidth={1.5} /><p className="mt-auto pt-10 text-3xl font-black tracking-[-0.05em] md:text-4xl">{value}</p><p className="mt-3 min-h-10 text-sm text-black/50">{label}</p></div>)}</div>
-        </div>
-        <p className="mt-5 text-xs leading-6 text-black/45">最終の出展区画数・配置・設備は、申込状況、会場、施工、消防、避難・搬入条件の調整後に決定します。固定のブース数を前提とした確定図ではありません。</p>
       </div>
     </section>
   );
@@ -528,7 +464,7 @@ export default function LcfSecondEdition() {
         "@context": "https://schema.org",
         "@type": "Event",
         name: event.name,
-        description: "見る展示会から、配信して売る展示会へ。企業とライブコマーサーの直接マッチング、商品体験、初心者講習、会場からのライブ販売と、LCMでの継続的な商品発見・商談をつなぐ2日間。",
+        description: "見る展示会から、配信して売る展示会へ。企業とライブコマーサーの直接マッチング、商品体験、会場からのライブ販売と、LCMでの継続的な商品発見・商談をつなぐ2日間。",
         startDate: "2026-12-08",
         endDate: "2026-12-09",
         eventStatus: "https://schema.org/EventScheduled",
@@ -544,7 +480,7 @@ export default function LcfSecondEdition() {
   return (
     <div className="min-h-screen bg-[#090909] pb-16 font-sans antialiased sm:pb-20">
       <Header />
-      <main><Hero /><OfficialMovie /><Proof /><Experience /><LcmBridge /><BeginnerSupport /><Venue /></main>
+      <main><Hero /><OfficialMovie /><Proof /><Experience /><LcmBridge /><Venue /></main>
       <footer className="bg-[#090909] px-5 py-10 text-white md:px-10"><div className="mx-auto flex max-w-[1540px] flex-col gap-6 border-t border-white/15 pt-8 text-xs text-white/45 md:flex-row md:items-end md:justify-between"><div><p className="font-black tracking-[0.18em] text-white">LIVE COMMERCE FESTIVAL</p><p className="mt-2">Commerce moves people.</p></div><div className="flex flex-wrap gap-5"><a href="/" className="hover:text-white">TOP</a><a href="/2026" className="hover:text-white">第1回実績</a><a href="/lcm" className="hover:text-white">LCM MARKET</a><a href={me.data?.portal?.defaultPath || (me.data ? "/lcf/mypage" : "/lcf/login")} className="hover:text-white">{me.data ? "マイページ" : "ログイン"}</a></div><p>© 2026 LCF実行委員会</p></div></footer>
       <StickyApplicationBar />
     </div>

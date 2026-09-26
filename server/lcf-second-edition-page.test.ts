@@ -44,7 +44,7 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("12月9日（水）");
     expect(page).toContain("東京都立産業貿易センター");
     expect(page).toContain("浜松町館 2階展示室");
-    expect(page).toContain("約1,530㎡");
+    expect(page).not.toContain("約1,530㎡");
     expect(page).not.toContain("会場公式情報を見る");
     expect(page).not.toContain("https://www.sanbo.metro.tokyo.lg.jp/");
     expect(page).not.toMatch(/70ブース|70 BOOTHS|1,500㎡/);
@@ -210,56 +210,49 @@ describe("LCF second-edition official page", () => {
   });
 
   it("distributes distinct first-edition official photos as proof across the page", () => {
-    for (const id of ["D1-104", "D1-094", "D1-030", "D1-053", "D1-137", "D2-114", "D2-035", "D2-064"]) {
+    for (const id of ["D1-104", "D1-094", "D1-030", "D1-053", "D1-137", "D2-114", "D2-064"]) {
       expect(page).toContain(`lcf2026PhotoById["${id}"]`);
     }
+    expect(page).not.toContain('lcf2026PhotoById["D2-035"]');
     expect(page).toContain("第1回の実績が、");
     expect(page).toContain("第1回公式レポートに保存している実景と実績です");
     expect(page.match(/loading="lazy"/g)?.length).toBeGreaterThanOrEqual(8);
     expect(page).not.toContain("第1回DAY2は全セミナープログラムが満席");
   });
 
-  it("removes the redundant next-LCF section and keeps the remaining sections consecutively numbered", () => {
+  it("removes the redundant next-LCF and beginner-support sections and keeps the remaining sections consecutively numbered", () => {
     expect(page).not.toContain("function Concept");
     expect(page).not.toContain('id="concept"');
     expect(page).not.toContain("THE NEXT LCF");
     expect(page).not.toContain("日本初※");
     expect(page).toContain('href="#experience"');
     expect(page).not.toContain('href="#concept"');
-    for (const marker of ["01 / SELLING EXPERIENCE", "02 / ALWAYS-ON MARKET", "03 / BEGINNER SUPPORT", "04 / HAMAMATSUCHO"]) {
+    for (const marker of ["01 / SELLING EXPERIENCE", "02 / ALWAYS-ON MARKET", "03 / HAMAMATSUCHO"]) {
       expect(page).toContain(marker);
     }
+    expect(page).not.toContain("03 / BEGINNER SUPPORT");
+    expect(page).not.toContain("04 / HAMAMATSUCHO");
     expect(page).not.toContain("function FinalCta");
     expect(page).not.toContain("JOIN THE FLOOR");
     expect(page).not.toContain("見る側から、");
     expect(page).toContain("function StickyApplicationBar");
   });
 
-  it("welcomes beginners and explains support through live preparation", () => {
-    expect(page).toContain("初めてでも、");
-    expect(page).toContain("会場から配信できる。");
-    expect(page).toContain("未経験・これから始めたい方も対象");
-    expect(page).toContain("初心者講習");
-    expect(page).toContain("ブランドとの設定");
-    expect(page).toContain("アカウント・商品設定");
-    expect(page).toContain("当日の配信準備");
-    expect(page).not.toContain("初めての方も歓迎｜配信準備をサポート");
-    expect(page).toContain("セミナーコンテンツ（予定）");
-    expect(page).toContain("トップライブコマーサーセッション");
-    expect(page).toContain("「売れる配信」の秘訣");
-    expect(page).toContain("GMVを高めるライブ配信準備");
-    expect(page).toContain("※セミナー内容は現時点での予定です。今後変更となる場合があります。");
-    const beginnerSupport = page.slice(page.indexOf("function BeginnerSupport()"), page.indexOf("function Venue()"));
-    expect(beginnerSupport).not.toContain('href={event.applicationLiverPath}');
-    expect(beginnerSupport).not.toContain("ライブコマーサーとして申し込む");
-    expect(beginnerSupport).not.toContain("初心者サポートを希望する");
-    expect(beginnerSupport).not.toContain("経験年数や配信実績がなくても申込対象です");
-    expect(page).not.toContain("「興味はある。でも、何から始めればいいか分からない」方へ。");
+  it("removes the entire beginner-support presentation while preserving first-edition application compatibility", () => {
+    expect(page).not.toContain("function BeginnerSupport()");
+    expect(page).not.toContain("<BeginnerSupport />");
+    expect(page).not.toContain('id="beginner-support"');
+    expect(page).not.toContain("初めてでも、");
+    expect(page).not.toContain("会場から配信できる。");
+    expect(page).not.toContain("未経験・これから始めたい方も対象");
+    expect(page).not.toContain("セミナーコンテンツ（予定）");
+    expect(page).not.toContain("EDITION 01 / FULL HOUSE");
+    expect(server).not.toContain("<h2>初めてでも、会場から配信できる。</h2>");
+    expect(server).not.toContain("ライブコマース初心者、未経験、これから始めたい方も申込対象です。");
     expect(liverForm).toContain("filterLiverApplicationSteps(event.edition, detailSteps)");
     expect(liverForm).toContain("beginnerSupport: (answers.beginnerSupport as 'yes' | 'no') || 'no'");
     expect(router).toContain('beginnerSupport: z.enum(["yes", "no"]).default("no")');
     expect(router).toContain("第2回LCF：ライブコマース初心者サポート希望");
-    expect(server).toContain("ライブコマース初心者、未経験、これから始めたい方も申込対象です");
   });
 
   it("links the live-commercer completion screen to the official LINE OpenChat", () => {
@@ -318,7 +311,7 @@ describe("LCF second-edition official page", () => {
     expect(server).toContain('href="${baseUrl}/lcm"');
   });
 
-  it("shows the venue Google map without restoring the removed outbound venue link", () => {
+  it("keeps the venue introduction and map but removes everything from the exterior photo onward", () => {
     expect(page).toContain("function VenueMiniMap()");
     expect(page).toContain("https://www.google.com/maps?q=");
     expect(page).toContain("output=embed&z=16");
@@ -328,10 +321,18 @@ describe("LCF second-edition official page", () => {
     expect(page).toContain("東京・浜松町で、");
     expect(page).toContain("JR浜松町駅から徒歩5分、ゆりかもめ竹芝駅から徒歩2分。");
     expect(page).toContain("企業とライブコマーサーが出会い、商品を知り、話し、そしてその場で配信・販売できる空間をつくります。");
-    expect(page).toContain("cooervvFkHfjnVRF.jpg");
-    expect(page).toContain("VENUE_EXTERIOR_PHOTO");
-    expect(page).toContain("東京ポートシティ竹芝 外観");
+    expect(page).not.toContain("cooervvFkHfjnVRF.jpg");
+    expect(page).not.toContain("VENUE_EXTERIOR_PHOTO");
+    expect(page).not.toContain("東京ポートシティ竹芝 外観");
+    expect(page).not.toContain("約1,530㎡");
+    expect(page).not.toContain("2階展示室・全室");
+    expect(page).not.toContain("天井高");
+    expect(page).not.toContain("無柱空間");
+    expect(page).not.toContain("フローリング");
+    expect(page).not.toContain("最終の出展区画数・配置・設備は");
     expect(page).not.toContain("会場公式情報を見る");
+    expect(page).toContain("<footer");
+    expect(page).toContain("<StickyApplicationBar />");
   });
 
   it("aligns the first-edition proof statistics with fixed value, label and note rows", () => {
