@@ -54,3 +54,14 @@
 | SEO | bot向けHTMLで指定OG画像、GMV8,000万円、販売数23,958点を確認 |
 
 本番の申込送信やアカウントへの書込み操作は実行していない。
+
+## 指定版 LP_TOP_v2 への差し替え（2026-09-26／本番反映済み）
+- 提供原本: `/home/ubuntu/upload/pasted_file_YefmGT_LP_TOP_v2(3).webp`
+- 実寸／形式: 2048×1745、WebP RGB、308,242 bytes
+- SHA-256: `68de5309131783ff4b008e84dd7895f63722b3566ef9586d9e39a7558b171155`
+- 本番CDN: `https://files.manuscdn.com/user_upload_by_module/session_file/310519663320462236/MMteMRKpTWljOHRT.webp`
+- client hero、`/2nd` OGP/Event JSON-LD、sitemap imageを新URLへ統一。旧`AnPNzcemGiRReCxl.webp`はactive code・production page chunkから除去。
+- 実サイトの申込buttonをクリック可能なまま残すため、完成画像内の上部button帯は従来の7.1% cropで重複表示を回避。
+- 検証: focused 3 files・29 tests、LCF 36 files・246 tests、production build、CDN MIME／dimension／binary一致、1280×900・390×844 visual、GitHub CI、Railway deploymentすべて成功。
+- Release: feature SHA `636b4b518050849f1835b1d4fdf15ae3421c602b`、CI `36242956932`、Railway deployment `6678994098`。
+- Production: `/2nd` HTTP 200、entry `index-D0M27IW2.js`、page chunk `LcfSecondEdition-cNMlrquY.js`、bot OGP、sitemapで新URLを確認。外部action、申込、DB mutationは実施していない。
