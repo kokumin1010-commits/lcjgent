@@ -4053,3 +4053,10 @@ feature SHA `520b48eca70df02c2acba6bcf1f1449c1add3f96`、GitHub CI run `36246498
 ## 2026-09-26｜LCFトップ公式ロゴ差し替え（本番反映前）
 `https://www.livecommercefestival.com/`のheader左上にあった黄色い`LCF`文字badgeと重複wordmarkを、ユーザー提供のフルカラー公式ロゴへ差し替えた。原本2048×1152 RGBAから透明余白だけを無損失でcropし、850×524／55,552 bytesのWebPをCDNへ保存。配信binaryはlocal生成物とSHA-256 `1de26c3b9abeff92680325b1eb7d689ec5cc4640959274d2c985a3d0e5d9e9f7`で完全一致する。navigation、mypage導線、hero、開催回切替、他pageは変更していない。
 検証：LCF／Festival／ticket関連40 files・283 tests通過、production build成功、今回2 pathsのTypeScript diagnosticは0。desktop 1280pxとmobile 390pxで画像読込、header内収まり、横overflow 0、旧黄色badge 0、console/page/request error 0を確認。独立read-only reviewはGO（blocker 0件）。
+
+## 2026-09-26｜第2回LPの初心者サポート・会場外観以下削除（本番反映済み）
+ユーザー指定の2点を`/2nd`へ反映した。①「03 / BEGINNER SUPPORT」「初めてでも、会場から配信できる。」を含む初心者サポートsectionを全削除。②会場sectionは「03 / HAMAMATSUCHO」「東京・浜松町で、」「JR浜松町駅から徒歩5分、ゆりかもめ竹芝駅から徒歩2分。」までを残し、会場外観画像から下の面積・天井高・無柱空間・フローリング・注記・最終CTAを全削除した。本文終端は会場案内からfooterへ隙間0pxで接続し、上部／固定の企業・ライブコマーサー・一般の3申込導線は維持した。bot向け第2回HTMLからも削除済み初心者サポート文案を除去した。
+
+関連LCF回帰38 files・265 tests、focused 3 files・41 tests、production build／compile、`git diff --check`、desktop 1440px／mobile 390px visual QAに合格。全体TypeScriptは既存1,163 diagnosticsのbaselineで、今回変更fileの新規diagnosticは0。配信SHA `7adacfcddbb5f6e2b9a3d10ae895ff9fe44ca5d2`のGitHub CI `36251389991`とRailway deployment `6680546434`はいずれもsuccess。本番`/2nd`はHTTP 200、HSTS／CSPあり。DOM実測で削除marker 0、会場内画像0、会場→footer gap 0、横overflow 0、固定barの3 linkは正しい第2回内部formを維持した。本番chunk `LcfSecondEdition-DrEtXzH2.js`でも削除marker不在と残す会場見出しを確認した。acceptanceはGET／DOM／screenshotのみで、申込送信やproduction DB mutationは行っていない。
+
+最初のfeature SHA `3116fb46051bfd9d94dbfc2a82f075c7922f4cb7`は、直前にmainへ追加された展位portal upgradeがHTTP listen前に全DB pre/post backup・DDL・private storage検証を直列実行していたためRailway health window内に起動できず失敗した。修復ではbackup、DDL、protected-count、private storage匿名拒否、signed URL等の安全条件を一切緩和せず、upgradeをserver listen後のsingleton background処理へ移動。完了まで展位のpublic auth／portal／admin全procedureを`PRECONDITION_FAILED`でfail-closedし、失敗時も全站を終了させずsanitized error codeだけを記録する。Railwayは同じコードでsuccessとなり公開LCFページが復旧した。展位専用healthは`migrationStatus=failed`／HTTP 503を維持しており、原因未解消状態で展位機能を公開・DBへ直接介入することはしていない。
