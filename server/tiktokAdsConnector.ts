@@ -1,5 +1,4 @@
 import { TIKTOK_ADS_BOOTSTRAP_SNAPSHOT } from "./tiktokAdsSnapshot";
-import { TIKTOK_ADS_REPORTED_PERFORMANCE } from "./tiktokAdsReportedPerformance";
 
 const TIKTOK_API_ORIGIN = "https://business-api.tiktok.com";
 const TIKTOK_API_VERSION = "v1.3";
@@ -371,12 +370,11 @@ function withSource(
     snapshotCapturedAt: TIKTOK_ADS_BOOTSTRAP_SNAPSHOT.capturedAt,
     advertiser: snapshot.advertiser,
     lifetimeMetrics: snapshot.lifetimeMetrics,
-    reportedPerformance: TIKTOK_ADS_REPORTED_PERFORMANCE,
     reportingCoverage: {
       auctionAdvertiserCount: 1,
       auctionServiceType: "AUCTION" as const,
       includesGmvMax: false,
-      note: "Auction账户报表与商品短视频GMV广告报告是不同期间、不同口径，禁止直接相加。",
+      note: "当前只显示单一广告账户的Auction API数据；尚未接入GMV Max商品广告数据。",
     },
     campaigns,
     adgroups: [...snapshot.adgroups].sort((a, b) => b.createTime.localeCompare(a.createTime)),

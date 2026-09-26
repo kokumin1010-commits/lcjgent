@@ -98,14 +98,9 @@ describe("TikTok Ads connector", () => {
       auctionAdvertiserCount: 1,
       auctionServiceType: "AUCTION",
       includesGmvMax: false,
-      note: "Auction账户报表与商品短视频GMV广告报告是不同期间、不同口径，禁止直接相加。",
+      note: "当前只显示单一广告账户的Auction API数据；尚未接入GMV Max商品广告数据。",
     });
-    expect(dashboard.reportedPerformance.totals).toMatchObject({
-      baseSpend: 1_850_118,
-      additionalSpend: 149_021,
-      allInSpend: 1_999_139,
-      gmv: 5_937_657,
-    });
+    expect(dashboard).not.toHaveProperty("reportedPerformance");
     expect(JSON.stringify(dashboard)).not.toContain("Access-Token");
   });
 

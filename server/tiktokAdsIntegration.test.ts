@@ -8,7 +8,6 @@ const pageSource = readFileSync("client/src/pages/TikTokAdsIntegration.tsx", "ut
 const storeSource = readFileSync("client/src/pages/StoreManagement.tsx", "utf8");
 const routerSource = readFileSync("server/tiktokAdsRouter.ts", "utf8");
 const connectorSource = readFileSync("server/tiktokAdsConnector.ts", "utf8");
-const reportedPerformanceSource = readFileSync("server/tiktokAdsReportedPerformance.ts", "utf8");
 const snapshotSource = readFileSync("server/tiktokAdsSnapshot.ts", "utf8");
 const operationsSource = readFileSync("server/tiktokAdsOperations.ts", "utf8");
 const upgradeSource = readFileSync("server/tiktokAdsOperationsUpgrade.ts", "utf8");
@@ -81,25 +80,23 @@ describe("TikTok Ads independent integration page", () => {
   });
 
   it("makes all five headline cards clickable and routes each metric to its matching detail", () => {
-    expect(pageSource).toContain("onClick={openReportedPerformance}");
+    expect(pageSource).toContain('label="Auction总花费"');
+    expect(pageSource.match(/openAuctionMetric\("spend"\)/g)).toHaveLength(2);
     expect(pageSource).toContain('openAuctionMetric("impressions")');
     expect(pageSource).toContain('openAuctionMetric("clicks")');
     expect(pageSource).toContain('openAuctionMetric("conversion")');
-    expect(pageSource).toContain('openAuctionMetric("spend")');
-    expect(pageSource).toContain('id="tiktok-reported-performance"');
     expect(pageSource).toContain('"tiktok-auction-detail"');
     expect(pageSource).toContain("campaignDetailRef.current?.scrollIntoView");
     expect(pageSource).toContain('ref={activeTab === "campaigns" ? campaignDetailRef : undefined}');
     expect(pageSource).toContain("查看明细");
   });
 
-  it("separates the September operator report from the single-account Auction snapshot", () => {
-    expect(reportedPerformanceSource).toContain("baseSpend + additionalSpend");
+  it("shows only system-derived Auction data and never embeds operator-reported brand figures", () => {
     expect(connectorSource).toContain('includesGmvMax: false');
     expect(connectorSource).toContain('auctionServiceType: "AUCTION"');
-    expect(pageSource).toContain("9月商品广告总成本");
-    expect(pageSource).toContain("品牌商品短视频GMV广告实绩");
-    expect(pageSource).toContain("避免不同期间和广告类型被误加");
+    expect(connectorSource).not.toContain("reportedPerformance");
+    expect(pageSource).not.toContain("运营确认报告");
+    expect(pageSource).not.toContain("品牌商品短视频GMV广告实绩");
     expect(pageSource).toContain("操作权限あり・实时API未接通");
     expect(pageSource).not.toContain("操作权限あり・接続待ち");
   });

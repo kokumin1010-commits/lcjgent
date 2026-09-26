@@ -112,10 +112,6 @@ function formatPercent(value: string | number | null | undefined): string {
   return `${numberValue(value).toFixed(2)}%`;
 }
 
-function formatRoi(value: string | number | null | undefined): string {
-  return `${numberValue(value).toFixed(2)}x`;
-}
-
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return "—";
   const parsed = new Date(value.includes("T") ? value : `${value.replace(" ", "T")}+09:00`);
@@ -421,19 +417,11 @@ export default function TikTokAdsIntegration() {
     setCampaignDrilldownPending(false);
   }, [activeTab, campaignDrilldownPending, campaignSortMetric]);
 
-  const scrollToSection = (id: string) => {
-    window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
-  };
-
   const openAuctionMetric = (metric: CampaignSortMetric) => {
     setCampaignSortMetric(metric);
     setSearch("");
     setCampaignDrilldownPending(true);
     setActiveTab("campaigns");
-  };
-
-  const openReportedPerformance = () => {
-    scrollToSection("tiktok-reported-performance");
   };
 
   if (
@@ -555,7 +543,7 @@ export default function TikTokAdsIntegration() {
             <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
             <div>
               <p className="font-bold text-slate-900">操作权限已分配，但生产写入链路尚未启用</p>
-              <p className="mt-1 text-sm leading-6 text-slate-600">当前可查看已接入的LCJ-01 Auction快照、运营确认报告和操作设计。配置服务器专用Marketing API令牌及写入开关后，启停与符合条件的总预算调整按钮会开放；令牌不会进入浏览器。</p>
+              <p className="mt-1 text-sm leading-6 text-slate-600">当前只显示系统已读取的LCJ-01 Auction数据。配置服务器专用Marketing API令牌及写入开关后，启停与符合条件的总预算调整按钮会开放；令牌不会进入浏览器。</p>
             </div>
           </div>
         )}
@@ -584,12 +572,12 @@ export default function TikTokAdsIntegration() {
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <MetricCard
             icon={CircleDollarSign}
-            label="9月商品广告总成本"
-            value={formatYen(data.reportedPerformance.totals.allInSpend)}
-            note="09.01–09.24 · 含额外加热"
+            label="Auction总花费"
+            value={formatYen(metrics?.spend)}
+            note={data.source === "live" ? "服务器实时API累计" : "LCJ-01已验证快照累计"}
             accent="bg-cyan-50 text-cyan-700"
-            onClick={openReportedPerformance}
-            ariaLabel="查看9月品牌商品广告成本明细"
+            onClick={() => openAuctionMetric("spend")}
+            ariaLabel="按花费查看Auction Campaign明细"
           />
           <MetricCard
             icon={Eye}
@@ -627,48 +615,6 @@ export default function TikTokAdsIntegration() {
             onClick={() => openAuctionMetric("spend")}
             ariaLabel="按花费查看全部Auction Campaign明细"
           />
-        </section>
-
-        <section id="tiktok-reported-performance" className="scroll-mt-5 overflow-hidden rounded-2xl border border-cyan-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-cyan-100 bg-gradient-to-r from-cyan-50 via-white to-pink-50 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-700">运营确认报告 · {data.reportedPerformance.periodStart} – {data.reportedPerformance.periodEnd}</p>
-              <h2 className="mt-1 text-lg font-black text-slate-950">品牌商品短视频GMV广告实绩</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-600">该区块保留品牌投流成本、额外加热、GMV与ROI；与下方LCJ-01 Auction累计快照分开显示，避免不同期间和广告类型被误加。</p>
-            </div>
-            <span className="shrink-0 rounded-full bg-cyan-100 px-3 py-1.5 text-xs font-bold text-cyan-800">来源：{data.reportedPerformance.sourceLabel}</span>
-          </div>
-
-          <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-6 xl:grid-cols-4">
-            <div className="rounded-xl bg-slate-950 p-4 text-white"><p className="text-xs text-slate-400">基础投流成本</p><p className="mt-2 text-xl font-black">{formatYen(data.reportedPerformance.totals.baseSpend)}</p></div>
-            <div className="rounded-xl bg-amber-50 p-4"><p className="text-xs text-amber-700">额外视频加热</p><p className="mt-2 text-xl font-black text-slate-950">{formatYen(data.reportedPerformance.totals.additionalSpend)}</p></div>
-            <div className="rounded-xl bg-emerald-50 p-4"><p className="text-xs text-emerald-700">商品广告GMV</p><p className="mt-2 text-xl font-black text-slate-950">{formatYen(data.reportedPerformance.totals.gmv)}</p></div>
-            <div className="rounded-xl bg-violet-50 p-4"><p className="text-xs text-violet-700">全成本ROI</p><p className="mt-2 text-xl font-black text-slate-950">{formatRoi(data.reportedPerformance.totals.allInRoi)}</p><p className="mt-1 text-[11px] text-slate-500">GMV ÷（基础成本＋额外加热）</p></div>
-          </div>
-
-          <div className="overflow-x-auto border-t border-slate-100">
-            <table className="min-w-[860px] w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
-                <tr><th className="px-4 py-3 sm:px-6">品牌</th><th className="px-4 py-3 text-right">基础成本</th><th className="px-4 py-3 text-right">额外加热</th><th className="px-4 py-3 text-right">全成本</th><th className="px-4 py-3 text-right">GMV</th><th className="px-4 py-3 text-right">报告ROI</th><th className="px-4 py-3 text-right sm:pr-6">全成本ROI</th></tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {data.reportedPerformance.brands.map(brand => (
-                  <tr key={brand.brandName} className="hover:bg-slate-50/80">
-                    <td className="px-4 py-3 font-bold sm:px-6">{brand.brandName}</td>
-                    <td className="px-4 py-3 text-right">{formatYen(brand.baseSpend)}</td>
-                    <td className="px-4 py-3 text-right">{brand.additionalSpend ? formatYen(brand.additionalSpend) : "—"}</td>
-                    <td className="px-4 py-3 text-right font-bold">{formatYen(brand.allInSpend)}</td>
-                    <td className="px-4 py-3 text-right font-bold text-emerald-700">{formatYen(brand.gmv)}</td>
-                    <td className="px-4 py-3 text-right">{formatRoi(brand.reportedRoi)}</td>
-                    <td className="px-4 py-3 text-right font-bold sm:pr-6">{formatRoi(brand.allInRoi)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="border-t border-amber-100 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900 sm:px-6">
-            下方原有 {formatYen(metrics?.spend)} 是单一LCJ-01广告账户的 <strong>Auction全期间累计</strong>，不是全公司9月商品广告总成本；GMV Max实时汇总仍需另行接入Shop ID与读取权限。
-          </div>
         </section>
 
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
