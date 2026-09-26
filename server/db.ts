@@ -26,6 +26,13 @@ import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, In
 import { lineGroupAutomationStates, lineGroupLifecycleStates, reportFollowupExtractionRuns } from "../drizzle/schema";
 import { taskExecutionFeedbacks, taskNotificationOutbox } from "../drizzle/schema";
 import { shouldApplyLineGroupLifecycleEvent } from "./lineGroupLifecycleOrder";
+import {
+  assertRecurringBrandUpdateSafe,
+  cancelRecurringBrandSchedules,
+  tryCancelApprovedBrandSchedule,
+  tryCreateApprovedBrandSchedule,
+  tryUpdateApprovedBrandSchedule,
+} from "./brandLiveScheduleGate";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -5235,6 +5242,8 @@ export async function getPendingResponsesForUI() {
 
 // Create a new schedule
 export async function createSchedule(data: InsertSchedule) {
+  const approvedBrandSchedule = await tryCreateApprovedBrandSchedule(data);
+  if (approvedBrandSchedule) return approvedBrandSchedule;
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -5367,7 +5376,7 @@ export async function getLiverNamesByAgency(agencyId: number) {
   if (!db) return [];
   
   const result = await db
-    .select({ name: livers.name, color: livers.color, uid: livers.uid })
+    .select({ id: livers.id, name: livers.name, color: livers.color, uid: livers.uid, tiktokAccount: livers.tiktokAccount })
     .from(livers)
     .where(and(
       eq(livers.agencyId, agencyId),
@@ -5376,7 +5385,7 @@ export async function getLiverNamesByAgency(agencyId: number) {
   
   return result
     .filter(r => r.name)
-    .map(r => ({ name: r.name!, color: r.color || '#FF69B4', uid: r.uid || null }))
+    .map(r => ({ id: r.id, name: r.name!, color: r.color || '#FF69B4', uid: r.uid || null, tiktokAccount: r.tiktokAccount || null }))
     .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
 }
 
@@ -5437,7 +5446,8 @@ export async function getSchedulesByLineGroup(lineGroupId: string, startDate?: D
 }
 
 // Update schedule
-export async function updateSchedule(id: number, data: Partial<InsertSchedule>) {
+export async function updateSchedule(id: number, data: Partial<InsertSchedule>, actorUserId?: number | null) {
+  if (await tryUpdateApprovedBrandSchedule(id, data, actorUserId)) return;
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -5448,7 +5458,8 @@ export async function updateSchedule(id: number, data: Partial<InsertSchedule>) 
 }
 
 // Update all recurring schedules with the same parentScheduleId
-export async function updateRecurringSchedules(parentScheduleId: number, data: Partial<InsertSchedule>) {
+export async function updateRecurringSchedules(parentScheduleId: number, data: Partial<InsertSchedule>, actorUserId?: number | null) {
+  await assertRecurringBrandUpdateSafe(parentScheduleId, data, actorUserId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -5468,7 +5479,8 @@ export async function updateRecurringSchedules(parentScheduleId: number, data: P
 }
 
 // Delete schedule (soft delete - set status to cancelled)
-export async function deleteSchedule(id: number) {
+export async function deleteSchedule(id: number, actorUserId?: number | null) {
+  if (await tryCancelApprovedBrandSchedule(id, actorUserId)) return;
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -5479,7 +5491,8 @@ export async function deleteSchedule(id: number) {
 }
 
 // Delete all recurring schedules with the same parentScheduleId
-export async function deleteRecurringSchedules(parentScheduleId: number) {
+export async function deleteRecurringSchedules(parentScheduleId: number, actorUserId?: number | null) {
+  if (await cancelRecurringBrandSchedules(parentScheduleId, actorUserId)) return;
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   

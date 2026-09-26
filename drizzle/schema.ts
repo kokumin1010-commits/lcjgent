@@ -6979,6 +6979,124 @@ export type InsertBrandMonthlyGmvTarget = typeof brandMonthlyGmvTargets.$inferIn
 // ============================================================
 // ブランド商務BD：案件・月間目標・変更監査
 // ============================================================
+export const brandLiveApprovalSettings = mysqlTable("brand_live_approval_settings", {
+  id: int("id").primaryKey().default(1),
+  approverUserId: int("approverUserId").notNull(),
+  approverName: varchar("approverName", { length: 255 }).notNull(),
+  configuredBy: int("configuredBy").notNull(),
+  configuredAt: timestamp("configuredAt", { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { fsp: 3 }).defaultNow().onUpdateNow().notNull(),
+});
+export type BrandLiveApprovalSetting = typeof brandLiveApprovalSettings.$inferSelect;
+
+export const brandLiveApprovals = mysqlTable("brand_live_approvals", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(),
+  targetLiverId: int("targetLiverId").notNull(),
+  targetLiverName: varchar("targetLiverName", { length: 255 }).notNull(),
+  liveAccount: varchar("liveAccount", { length: 255 }).notNull(),
+  assistantOnsite: mysqlEnum("assistantOnsite", ["yes", "no", "tbd"]).default("tbd").notNull(),
+  assistantDetails: text("assistantDetails"),
+  mechanismSummary: text("mechanismSummary").notNull(),
+  commissionRate: decimal("commissionRate", { precision: 8, scale: 2 }),
+  slotFeeAmount: bigint("slotFeeAmount", { mode: "number" }),
+  guaranteeType: mysqlEnum("guaranteeType", ["none", "roi", "minimum_gmv", "other"]).default("none").notNull(),
+  guaranteeValue: decimal("guaranteeValue", { precision: 20, scale: 4 }),
+  guaranteeTerms: text("guaranteeTerms"),
+  scheduledStart: timestamp("scheduledStart").notNull(),
+  scheduledEnd: timestamp("scheduledEnd").notNull(),
+  businessNotes: text("businessNotes"),
+  status: mysqlEnum("status", ["draft", "pending_approval", "changes_requested", "approved", "scheduled", "cancelled"]).default("draft").notNull(),
+  revision: int("revision").default(1).notNull(),
+  submittedBy: int("submittedBy"),
+  submittedByName: varchar("submittedByName", { length: 255 }),
+  submittedAt: timestamp("submittedAt", { fsp: 3 }),
+  reviewedBy: int("reviewedBy"),
+  reviewedByName: varchar("reviewedByName", { length: 255 }),
+  reviewedAt: timestamp("reviewedAt", { fsp: 3 }),
+  reviewComment: text("reviewComment"),
+  createdBy: int("createdBy").notNull(),
+  createdByName: varchar("createdByName", { length: 255 }).notNull(),
+  updatedBy: int("updatedBy").notNull(),
+  updatedByName: varchar("updatedByName", { length: 255 }).notNull(),
+  createdAt: timestamp("createdAt", { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { fsp: 3 }).defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  brandStatusTime: index("idx_brand_live_approval_brand_status_time").on(table.brandId, table.status, table.scheduledStart),
+  approverStatusTime: index("idx_brand_live_approval_reviewer_status_time").on(table.status, table.submittedAt),
+}));
+export type BrandLiveApproval = typeof brandLiveApprovals.$inferSelect;
+export type InsertBrandLiveApproval = typeof brandLiveApprovals.$inferInsert;
+
+export const brandLiveApprovalProducts = mysqlTable("brand_live_approval_products", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  approvalId: bigint("approvalId", { mode: "number" }).notNull(),
+  productId: int("productId"),
+  productName: varchar("productName", { length: 255 }).notNull(),
+  specification: varchar("specification", { length: 1000 }),
+  originalPrice: bigint("originalPrice", { mode: "number" }),
+  discountedPrice: bigint("discountedPrice", { mode: "number" }),
+  offerMechanism: text("offerMechanism").notNull(),
+  commissionRate: decimal("commissionRate", { precision: 8, scale: 2 }),
+  inventory: int("inventory"),
+  notes: text("notes"),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt", { fsp: 3 }).defaultNow().notNull(),
+}, table => ({
+  approvalOrder: index("idx_brand_live_approval_product_order").on(table.approvalId, table.sortOrder),
+}));
+export type BrandLiveApprovalProduct = typeof brandLiveApprovalProducts.$inferSelect;
+
+export const brandLiveApprovalEvents = mysqlTable("brand_live_approval_events", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  approvalId: bigint("approvalId", { mode: "number" }).notNull(),
+  brandId: int("brandId").notNull(),
+  eventType: varchar("eventType", { length: 48 }).notNull(),
+  fromStatus: varchar("fromStatus", { length: 32 }),
+  toStatus: varchar("toStatus", { length: 32 }),
+  snapshotJson: json("snapshotJson").notNull(),
+  actorUserId: int("actorUserId").notNull(),
+  actorName: varchar("actorName", { length: 255 }).notNull(),
+  comment: text("comment"),
+  createdAt: timestamp("createdAt", { fsp: 3 }).defaultNow().notNull(),
+}, table => ({
+  approvalTime: index("idx_brand_live_approval_event_time").on(table.approvalId, table.createdAt),
+  brandTime: index("idx_brand_live_approval_event_brand_time").on(table.brandId, table.createdAt),
+}));
+export type BrandLiveApprovalEvent = typeof brandLiveApprovalEvents.$inferSelect;
+
+export const brandLiveApprovalScheduleLinks = mysqlTable("brand_live_approval_schedule_links", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  approvalId: bigint("approvalId", { mode: "number" }).notNull(),
+  scheduleId: int("scheduleId").notNull(),
+  brandId: int("brandId").notNull(),
+  linkedBy: int("linkedBy"),
+  linkedByName: varchar("linkedByName", { length: 255 }),
+  linkedAt: timestamp("linkedAt", { fsp: 3 }).defaultNow().notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  unlinkedBy: int("unlinkedBy"),
+  unlinkedByName: varchar("unlinkedByName", { length: 255 }),
+  unlinkedAt: timestamp("unlinkedAt", { fsp: 3 }),
+}, table => ({
+  approvalUnique: uniqueIndex("uq_brand_live_approval_schedule_approval").on(table.approvalId),
+  scheduleActive: index("idx_brand_live_approval_schedule_active").on(table.scheduleId, table.brandId, table.isActive),
+}));
+export type BrandLiveApprovalScheduleLink = typeof brandLiveApprovalScheduleLinks.$inferSelect;
+
+export const brandLiveApprovalSettingEvents = mysqlTable("brand_live_approval_setting_events", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  previousApproverUserId: int("previousApproverUserId"),
+  previousApproverName: varchar("previousApproverName", { length: 255 }),
+  approverUserId: int("approverUserId").notNull(),
+  approverName: varchar("approverName", { length: 255 }).notNull(),
+  actorUserId: int("actorUserId").notNull(),
+  actorName: varchar("actorName", { length: 255 }).notNull(),
+  createdAt: timestamp("createdAt", { fsp: 3 }).defaultNow().notNull(),
+}, table => ({
+  createdIndex: index("idx_brand_live_approval_setting_event_time").on(table.createdAt),
+}));
+export type BrandLiveApprovalSettingEvent = typeof brandLiveApprovalSettingEvents.$inferSelect;
+
 export const brandBusinessDeals = mysqlTable("brand_business_deals", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
   brandId: int("brandId").notNull(),

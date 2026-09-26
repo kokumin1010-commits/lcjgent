@@ -93,6 +93,7 @@ import { exhibitionAdminRouter } from "./exhibitionAdminRouter";
 import { tiktokAdsRouter } from "./tiktokAdsRouter";
 import { brandDayRouter } from "./brandDayRouter";
 import { brandBusinessRouter } from "./brandBusinessRouter";
+import { brandLiveApprovalRouter } from "./brandLiveApprovalRouter";
 import { brandBdCommandRouter } from "./brandBdCommandRouter";
 import { brandHistoricalGmvRouter } from "./brandHistoricalGmvRouter";
 import { getBrandDataAccess, requireBrandDataMutation, requireBrandDataView } from "./brandDataAccess";
@@ -14447,7 +14448,7 @@ ${conversationText}
           notes: z.string().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { id, ...data } = input;
         const updateData: Record<string, unknown> = {};
         
@@ -14465,15 +14466,15 @@ ${conversationText}
         if (data.status !== undefined) updateData.status = data.status;
         if (data.notes !== undefined) updateData.notes = data.notes;
         
-        await updateSchedule(id, updateData);
+        await updateSchedule(id, updateData, ctx.user.id);
         return { success: true };
       }),
 
     // Delete a schedule
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        await deleteSchedule(input.id);
+      .mutation(async ({ input, ctx }) => {
+        await deleteSchedule(input.id, ctx.user.id);
         return { success: true };
       }),
 
@@ -14555,17 +14556,19 @@ ${conversationText}
         
         // Get all active livers with their colors and uid
         const liversResult = await db
-          .selectDistinct({ name: livers.name, color: livers.color, uid: livers.uid })
+          .selectDistinct({ id: livers.id, name: livers.name, color: livers.color, uid: livers.uid, tiktokAccount: livers.tiktokAccount })
           .from(livers)
           .where(eq(livers.isActive, true));
         
         // Build color lookup and uid lookup from livers table
         const colorMap = new Map<string, string>();
         const uidMap = new Map<string, string | null>();
+        const identityMap = new Map<string, { id: number; tiktokAccount: string | null }>();
         for (const l of liversResult) {
           if (l.name && !colorMap.has(l.name)) {
             colorMap.set(l.name, l.color || '#FF69B4');
             uidMap.set(l.name, l.uid || null);
+            identityMap.set(l.name, { id: l.id, tiktokAccount: l.tiktokAccount || null });
           }
         }
         
@@ -14582,7 +14585,7 @@ ${conversationText}
         }
         
         return Array.from(allNames)
-          .map(name => ({ name, color: colorMap.get(name) || null, uid: uidMap.get(name) || null }))
+          .map(name => ({ name, color: colorMap.get(name) || null, uid: uidMap.get(name) || null, id: identityMap.get(name)?.id || null, tiktokAccount: identityMap.get(name)?.tiktokAccount || null }))
           .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
       }),
 
@@ -14652,6 +14655,7 @@ ${conversationText}
           endTime: z.string().optional(),
           isAllDay: z.boolean().optional(),
           category: z.enum(["delivery", "meeting", "live", "other"]).optional(),
+          liverId: z.number().int().positive().optional(),
           liverName: z.string().min(1),
           liveAccount: z.string().optional(),
           notes: z.string().optional(),
@@ -14661,7 +14665,7 @@ ${conversationText}
           locationId: z.number().optional(), // 配信場所ID
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const schedule = await createSchedule({
           title: input.title,
           description: input.description,
@@ -14669,6 +14673,7 @@ ${conversationText}
           endTime: input.endTime ? new Date(input.endTime) : undefined,
           isAllDay: input.isAllDay || false,
           category: input.category || "other",
+          liverId: input.liverId,
           liverName: input.liverName,
           liveAccount: input.liveAccount,
           notes: input.notes,
@@ -14676,6 +14681,7 @@ ${conversationText}
           brandId: input.brandIds?.[0] ?? input.brandId, // 後方互換: 最初のブランドをbrandIdにも保存
           brandIds: input.brandIds,
           locationId: input.locationId,
+          createdBy: ctx.user?.id,
         });
         return schedule;
       }),
@@ -14782,9 +14788,9 @@ ${conversationText}
             recurringUpdateData.brandId = input.brandIds?.[0] ?? null;
           }
           
-          await updateRecurringSchedules(schedule.parentScheduleId, recurringUpdateData);
+          await updateRecurringSchedules(schedule.parentScheduleId, recurringUpdateData, ctx.user?.id);
         } else {
-          await updateSchedule(id, updateData);
+          await updateSchedule(id, updateData, ctx.user?.id);
         }
         return { success: true };
       }),
@@ -14852,9 +14858,9 @@ ${conversationText}
         
         // すべての繰り返しを削除する場合
         if (input.deleteAll && schedule.parentScheduleId) {
-          await deleteRecurringSchedules(schedule.parentScheduleId);
+          await deleteRecurringSchedules(schedule.parentScheduleId, ctx.user?.id);
         } else {
-          await deleteSchedule(input.id);
+          await deleteSchedule(input.id, ctx.user?.id);
         }
         return { success: true };
       }),
@@ -31682,6 +31688,7 @@ JSON形式で推薦順序を返してください。`;
   tiktokAds: tiktokAdsRouter,
   brandDay: brandDayRouter,
   brandBusiness: brandBusinessRouter,
+  brandLiveApproval: brandLiveApprovalRouter,
   brandBdCommand: brandBdCommandRouter,
   brandHistoricalGmv: brandHistoricalGmvRouter,
   storeExecution: storeExecutionRouter,

@@ -43,6 +43,7 @@ import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent,
 import { QRCodeSVG } from "qrcode.react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend, ResponsiveContainer, LineChart, Line, Cell } from "recharts";
 import ProductCardTemplate, { ProductCardMini } from "@/components/ProductCard";
+import BrandLiveApprovalPanel from "@/components/BrandLiveApprovalPanel";
 import { toast } from "sonner";
 import { combineBrandTotalGmv } from "@shared/brandMetrics";
 
@@ -3294,6 +3295,14 @@ ${proposal.proposalContent}
           </div>
           <p className="text-[10px] text-gray-500 mt-2">{language === 'ja' ? '※ クリックして各月のGMV目標を設定できます' : '※ 点击可设置每月GMV目标'}</p>
         </div>
+
+        <BrandLiveApprovalPanel
+          brandId={brandId}
+          brandName={brand?.nameJa || brand?.name || ""}
+          livers={allLivers}
+          products={products}
+          language={language}
+        />
 
         {/* 配信スケジュールセクション - 常に表示 */}
         {(() => {

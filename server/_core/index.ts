@@ -39,6 +39,11 @@ import {
   getBrandBusinessUpgradeHealth,
   startBrandBusinessUpgradeSetup,
 } from "../brandBusinessUpgrade";
+import {
+  getBrandLiveApprovalUpgradeHealth,
+  isBrandLiveApprovalUpgradeAuthorized,
+  startBrandLiveApprovalUpgradeSetup,
+} from "../brandLiveApprovalUpgrade";
 import { ensureBrandDataIntegrityReady } from "../brandDataIntegrityUpgrade";
 import { startPreBriefingScheduler } from "../preBriefingScheduler";
 import { startFeishuSyncScheduler } from "../feishuSyncScheduler";
@@ -460,6 +465,29 @@ async function startServer() {
       return res.status(503).json({
         ok: false,
         schemaVersion: "brand-business-v2",
+        migrationStatus: "unavailable",
+        hasError: true,
+      });
+    }
+  });
+
+  app.get("/api/health/brand-live-approval", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    try {
+      const health = await getBrandLiveApprovalUpgradeHealth();
+      return res.status(health.healthy ? 200 : 503).json({
+        ok: health.healthy,
+        recoveryKey: health.recoveryKey,
+        migrationStatus: health.run?.status || "pending",
+        missingTables: health.schema.missingTables,
+        missingColumns: health.schema.missingColumns,
+        missingIndexes: health.schema.missingIndexes,
+        hasError: Boolean(health.run?.hasError),
+      });
+    } catch {
+      return res.status(503).json({
+        ok: false,
+        recoveryKey: "brand-live-approval-v1",
         migrationStatus: "unavailable",
         hasError: true,
       });
@@ -4778,6 +4806,30 @@ async function startServer() {
         });
     };
     initializeBrandBusinessStorage();
+
+    if (isBrandLiveApprovalUpgradeAuthorized()) {
+      const initializeBrandLiveApprovalStorage = (attempt = 1) => {
+        void startBrandLiveApprovalUpgradeSetup()
+          .then(() => console.info("[BrandLiveApprovalUpgrade] Storage ready", {
+            code: "BRAND_LIVE_APPROVAL_V1_READY",
+          }))
+          .catch(error => {
+            const delayMs = Math.min(10 * 60_000, 30_000 * 2 ** Math.min(attempt - 1, 5));
+            console.error(
+              "[BrandLiveApprovalUpgrade] Storage unavailable; approval and branded scheduling remain fail-closed",
+              {
+                code: "BRAND_LIVE_APPROVAL_V1_UPGRADE_FAILED",
+                attempt,
+                retryInMs: delayMs,
+                errorCode: error instanceof Error ? error.message.slice(0, 120) : "SCHEMA_UPGRADE_FAILED",
+              },
+            );
+            const retryTimer = setTimeout(() => initializeBrandLiveApprovalStorage(attempt + 1), delayMs);
+            retryTimer.unref?.();
+          });
+      };
+      initializeBrandLiveApprovalStorage();
+    }
 
     const {
       ensureLineGroupAutomationDefaults,

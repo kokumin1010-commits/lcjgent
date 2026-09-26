@@ -300,6 +300,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
     endTime: "11:00",
     isAllDay: false,
     category: "other" as "delivery" | "meeting" | "live" | "other",
+    liverId: undefined as number | undefined,
     liverName: "",
     liveAccount: "",
     isNewLiver: false,
@@ -492,6 +493,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
       endTime: "11:00",
       isAllDay: false,
       category: "other",
+      liverId: undefined,
       liverName: "",
       liveAccount: "",
       isNewLiver: false,
@@ -511,7 +513,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
   // ライバーとしてログインしている場合、ライバー名を自動設定
   useEffect(() => {
     if (isLiver && liverData?.name && !newSchedule.liverName) {
-      setNewSchedule(prev => ({ ...prev, liverName: liverData.name }));
+      setNewSchedule(prev => ({ ...prev, liverId: liverData.id, liverName: liverData.name, liveAccount: liverData.tiktokAccount || prev.liveAccount }));
     }
   }, [isLiver, liverData?.name, addModalOpen]);
 
@@ -900,6 +902,14 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
       toast.error("直播アカウントを入力してください");
       return;
     }
+    if (newSchedule.brandIds.length > 0 && !newSchedule.liverId) {
+      toast.error("ブランド配信は登録済みライバーを選択してください");
+      return;
+    }
+    if (newSchedule.brandIds.length > 0 && newSchedule.repeatType !== "none") {
+      toast.error("ブランド配信は1回ずつKG確認が必要なため、繰り返し登録できません");
+      return;
+    }
     
     // 繰り返し設定の場合、繰り返し終了日が必須
     if (newSchedule.repeatType !== "none" && !newSchedule.repeatUntil) {
@@ -952,6 +962,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
         startTime: startTimeUTC.toISOString(),
         endTime: endTimeUTC.toISOString(),
         category: newSchedule.category,
+        liverId: newSchedule.liverId,
         liverName: defaultLiverName,
         liveAccount: newSchedule.liveAccount,
         scheduleGroupId: selectedGroupId || undefined, // 選択中のグループIDを送信
@@ -2807,14 +2818,22 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
               {liverNamesWithColors && liverNamesWithColors.length > 0 ? (
                 <Select
                   value={newSchedule.liverName || "_select_"}
-                  onValueChange={(value) => setNewSchedule(prev => ({ ...prev, liverName: value === "_select_" ? "" : value }))}
+                  onValueChange={(value) => {
+                    const liver = liverNamesWithColors.find((item: any) => item.name === value);
+                    setNewSchedule(prev => ({
+                      ...prev,
+                      liverId: liver?.id || undefined,
+                      liverName: value === "_select_" ? "" : value,
+                      liveAccount: liver?.tiktokAccount || prev.liveAccount,
+                    }));
+                  }}
                 >
                   <SelectTrigger className="border-0 p-0 h-auto focus:ring-0 flex-1">
                     <SelectValue placeholder="ライバーを選択" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="_select_">ライバーを選択</SelectItem>
-                    {liverNamesWithColors.map((liver: { name: string; color: string }) => (
+                    {liverNamesWithColors.map((liver: { id?: number | null; name: string; color: string; tiktokAccount?: string | null }) => (
                       <SelectItem key={liver.name} value={liver.name}>
                         <div className="flex items-center gap-2">
                           <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: liver.color || '#FF69B4' }} />
