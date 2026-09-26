@@ -12,12 +12,30 @@ import mysql, {
 } from "mysql2/promise";
 import { TRPCError } from "@trpc/server";
 import { t } from "./_core/trpc";
+import { isExhibitionBoothUpgradeReady } from "./exhibitionBoothUpgrade";
 
 export const EXHIBITION_ADMIN_PAGE_KEY = "/master/exhibition-booths";
 export const EXHIBITION_SESSION_COOKIE = "exhibition_session";
 export const EXHIBITION_SESSION_TTL_SECONDS = 12 * 60 * 60;
 
 let poolInstance: Pool | null = null;
+
+function assertExhibitionBoothReady() {
+  if (!isExhibitionBoothUpgradeReady()) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message:
+        "ブランド展位ポータルは準備中です。しばらくしてから再度お試しください。",
+    });
+  }
+}
+
+export const exhibitionPublicProcedure = t.procedure.use(
+  async ({ next }) => {
+    assertExhibitionBoothReady();
+    return next();
+  }
+);
 
 export function getExhibitionPool(): Pool {
   if (!poolInstance) {
@@ -191,6 +209,7 @@ export async function verifyExhibitionPortalRequest(
 
 export const exhibitionPortalProcedure = t.procedure.use(
   async ({ ctx, next }) => {
+    assertExhibitionBoothReady();
     const account = await verifyExhibitionPortalRequest(ctx.req);
     if (!account)
       throw new TRPCError({
@@ -209,6 +228,7 @@ export async function requireExhibitionAdminAccess(
   ctx: any,
   mode: "view" | "edit" = "view"
 ) {
+  assertExhibitionBoothReady();
   const user = ctx?.user;
   if (!user?.id)
     throw new TRPCError({

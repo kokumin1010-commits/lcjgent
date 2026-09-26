@@ -1,11 +1,12 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import type { RowDataPacket } from "mysql2/promise";
-import { publicProcedure, router } from "./_core/trpc";
+import { router } from "./_core/trpc";
 import { escapeHtml, sendEmail } from "./emailService";
 import {
   createExhibitionSessionToken,
   exhibitionCookieOptions,
+  exhibitionPublicProcedure,
   EXHIBITION_SESSION_COOKIE,
   generateExhibitionResetToken,
   getExhibitionPool,
@@ -138,7 +139,7 @@ export async function issueExhibitionPasswordToken(params: {
 }
 
 export const exhibitionAuthRouter = router({
-  me: publicProcedure.query(async ({ ctx }) => {
+  me: exhibitionPublicProcedure.query(async ({ ctx }) => {
     const account = await verifyExhibitionPortalRequest(ctx.req);
     if (!account) return null;
     const pool = getExhibitionPool();
@@ -154,7 +155,7 @@ export const exhibitionAuthRouter = router({
     return { ...account, profile: rows[0] || null };
   }),
 
-  login: publicProcedure
+  login: exhibitionPublicProcedure
     .input(
       z.object({
         email: z.string().trim().toLowerCase().email().max(320),
@@ -238,7 +239,7 @@ export const exhibitionAuthRouter = router({
       };
     }),
 
-  logout: publicProcedure.mutation(async ({ ctx }) => {
+  logout: exhibitionPublicProcedure.mutation(async ({ ctx }) => {
     const account = await verifyExhibitionPortalRequest(ctx.req);
     ctx.res.clearCookie(EXHIBITION_SESSION_COOKIE, {
       ...exhibitionCookieOptions(ctx.req),
@@ -255,7 +256,7 @@ export const exhibitionAuthRouter = router({
     return { success: true };
   }),
 
-  requestPasswordReset: publicProcedure
+  requestPasswordReset: exhibitionPublicProcedure
     .input(
       z.object({ email: z.string().trim().toLowerCase().email().max(320) })
     )
@@ -292,7 +293,7 @@ export const exhibitionAuthRouter = router({
       return { success: true, message: GENERIC_RESET_MESSAGE };
     }),
 
-  validateResetToken: publicProcedure
+  validateResetToken: exhibitionPublicProcedure
     .input(z.object({ token: z.string().min(20).max(200) }))
     .query(async ({ input }) => {
       const pool = getExhibitionPool();
@@ -317,7 +318,7 @@ export const exhibitionAuthRouter = router({
       };
     }),
 
-  resetPassword: publicProcedure
+  resetPassword: exhibitionPublicProcedure
     .input(
       z.object({
         token: z.string().min(20).max(200),

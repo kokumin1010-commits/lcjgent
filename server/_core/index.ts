@@ -54,7 +54,10 @@ import { runManualPersistenceProtectionUpgrade } from "../migrations/upgradeManu
 import { runStaffIdentityConsistencyUpgrade } from "../migrations/upgradeStaffIdentityConsistency";
 import { runStoreDataRetentionUpgradeSetup } from "../storeDataRetentionUpgrade";
 import { runStoreDailyShopUpgradeSetup } from "../storeDailyShopUpgrade";
-import { getExhibitionBoothUpgradeHealth, runExhibitionBoothUpgradeSetup } from "../exhibitionBoothUpgrade";
+import {
+  getExhibitionBoothUpgradeHealth,
+  startExhibitionBoothUpgradeSetup,
+} from "../exhibitionBoothUpgrade";
 import { runMemberRiskUpgradeSetup } from "../memberRiskUpgrade";
 import { runMemberIdentityUpgradeSetup } from "../memberIdentityUpgrade";
 import { ensureBeautyWalletMemberLinkSchema } from "../beautyWalletMemberLinkService";
@@ -4314,15 +4317,6 @@ async function startServer() {
     throw error;
   }
 
-  // Brand booth accounts, booth assignments and private brand assets are fully
-  // isolated from LCJ staff auth and the existing LCF live-booth reservation flow.
-  try {
-    await runExhibitionBoothUpgradeSetup();
-  } catch (error) {
-    console.error("[ExhibitionBoothUpgrade] pre-listen setup failed", error);
-    throw error;
-  }
-
   // Member restriction tables and audit logs must exist before any order, receipt,
   // or points mutation can enforce scope-specific restrictions.
   try {
@@ -4617,6 +4611,19 @@ async function startServer() {
 
   server.listen(port, async () => {
     console.log(`Server running on http://localhost:${port}/`);
+
+    // Brand booth accounts, booth assignments and private brand assets are fully
+    // isolated from LCJ staff auth and the existing LCF live-booth reservation flow.
+    // Start this backup-gated upgrade only after listening so Railway health checks
+    // and unrelated public pages remain available. Exhibition APIs stay fail-closed.
+    startExhibitionBoothUpgradeSetup().catch(error => {
+      console.error("[ExhibitionBoothUpgrade] background setup failed", {
+        errorCode:
+          error && typeof error === "object" && "code" in error
+            ? String(error.code)
+            : "EXHIBITION_BOOTH_UPGRADE_FAILED",
+      });
+    });
 
     const initializeDrKozuBrandBook = (attempt = 1) => {
       void import("../drKozuBrandBookImport")

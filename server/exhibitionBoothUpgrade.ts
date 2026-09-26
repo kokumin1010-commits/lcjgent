@@ -18,6 +18,8 @@ const UPGRADE_KEY = "exhibition-booth-v1";
 const PRE_BACKUP_REASON = "pre-exhibition-booth-v1";
 const POST_BACKUP_REASON = "post-exhibition-booth-v1";
 const UPGRADE_LOCK_NAME = "lcj:exhibition-booth-v1";
+let exhibitionBoothUpgradePromise: Promise<void> | null = null;
+let exhibitionBoothUpgradeReady = false;
 const REQUIRED_TABLES = [
   "exhibition_booth_upgrade_runs",
   "exhibition_events",
@@ -504,4 +506,22 @@ export async function runExhibitionBoothUpgradeSetup() {
     lockConnection?.release();
     await pool.end();
   }
+}
+
+export function startExhibitionBoothUpgradeSetup() {
+  if (!exhibitionBoothUpgradePromise) {
+    exhibitionBoothUpgradePromise = runExhibitionBoothUpgradeSetup()
+      .then(() => {
+        exhibitionBoothUpgradeReady = true;
+      })
+      .catch(error => {
+        exhibitionBoothUpgradePromise = null;
+        throw error;
+      });
+  }
+  return exhibitionBoothUpgradePromise;
+}
+
+export function isExhibitionBoothUpgradeReady() {
+  return exhibitionBoothUpgradeReady;
 }

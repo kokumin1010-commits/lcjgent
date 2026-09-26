@@ -151,6 +151,27 @@ describe("data and reservation isolation", () => {
     expect(storage).toContain("expiresIn: 600");
   });
 
+  it("does not block the whole Railway service while the backup-gated upgrade runs", () => {
+    const index = source("server/_core/index.ts");
+    const upgrade = source("server/exhibitionBoothUpgrade.ts");
+    const service = source("server/exhibitionBoothService.ts");
+    const auth = source("server/exhibitionAuthRouter.ts");
+    const serverListenIndex = index.indexOf("server.listen(port");
+    const upgradeStartIndex = index.indexOf(
+      "startExhibitionBoothUpgradeSetup().catch"
+    );
+
+    expect(serverListenIndex).toBeGreaterThan(-1);
+    expect(upgradeStartIndex).toBeGreaterThan(serverListenIndex);
+    expect(index).not.toContain("await runExhibitionBoothUpgradeSetup");
+    expect(upgrade).toContain("exhibitionBoothUpgradeReady = true");
+    expect(upgrade).toContain("isExhibitionBoothUpgradeReady");
+    expect(service).toContain("assertExhibitionBoothReady");
+    expect(service).toContain('code: "PRECONDITION_FAILED"');
+    expect(auth).toContain("exhibitionPublicProcedure");
+    expect(auth).not.toContain("publicProcedure");
+  });
+
   it("serializes booth disable checks with user selection", () => {
     const admin = source("server/exhibitionAdminRouter.ts");
     const block = admin.slice(
