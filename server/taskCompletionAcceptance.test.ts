@@ -17,7 +17,7 @@ const dailyReview = readFileSync("server/dailyReportTaskReview.ts", "utf8");
 const startupMigration = readFileSync("run-required-startup-migrations.mjs", "utf8");
 
 describe("task completion acceptance", () => {
-  it("ships a forward migration and append-only review events", () => {
+  it("ships a forward migration and application-append-only review events", () => {
     expect(journal).toContain('"tag": "0163_task_completion_acceptance"');
     expect(migration).toContain("ADD COLUMN `requiresAcceptance`");
     expect(migration).toContain("DEFAULT TRUE");
@@ -33,10 +33,13 @@ describe("task completion acceptance", () => {
     expect(schema).toContain('mysqlTable("task_completion_review_events"');
     expect(upgrade).toContain("trg_task_completion_review_no_update");
     expect(upgrade).toContain("trg_task_completion_review_no_delete");
+    expect(upgrade).toContain("isOptionalTriggerUnavailable");
     expect(startupMigration).toContain('"0163_task_completion_acceptance"');
     expect(startupMigration).toContain("uq_task_completion_review_version");
     expect(startupMigration).toContain("if (ledgerState.alreadyRecorded) continue");
-    expect(startupMigration).toContain("ER_TRG_ALREADY_EXISTS");
+    expect(startupMigration).not.toContain("information_schema.TRIGGERS");
+    expect(startupMigration).toContain("isOptionalTriggerUnavailable");
+    expect(startupMigration).toContain("/^CREATE\\s+TRIGGER\\b/i.test(statement)");
   });
 
   it("allows only the creator, responsible manager or super admin to review", () => {

@@ -72,6 +72,30 @@ export function isDuplicateSchemaObject(error: unknown): boolean {
   return false;
 }
 
+export function isOptionalTriggerUnavailable(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; current && depth < 5; depth += 1) {
+    const candidate = current as { errno?: unknown; code?: unknown; message?: unknown; cause?: unknown };
+    const errno = typeof candidate.errno === "number" ? candidate.errno : null;
+    const code = typeof candidate.code === "string" ? candidate.code.toUpperCase() : "";
+    const message = (typeof candidate.message === "string" ? candidate.message : String(current)).toLowerCase();
+    if (errno === 1227
+      || errno === 1235
+      || code === "ER_SPECIFIC_ACCESS_DENIED_ERROR"
+      || code === "ER_TABLEACCESS_DENIED_ERROR"
+      || code === "ER_NOT_SUPPORTED_YET"
+      || (message.includes("trigger") && (
+        message.includes("not supported")
+        || message.includes("unsupported")
+        || message.includes("denied")
+      ))) {
+      return true;
+    }
+    current = candidate.cause;
+  }
+  return false;
+}
+
 export async function ensureTaskExecutionTables(): Promise<void> {
   if (!taskExecutionUpgrade) {
     taskExecutionUpgrade = (async () => {
@@ -605,29 +629,38 @@ export async function ensureTaskExecutionTables(): Promise<void> {
           KEY idx_task_completion_review_source (sourceType, sourceId, subjectKey)
         )
       `);
-      const reviewTriggers = rowsOf<any>(await db.execute(sql`
-        SELECT TRIGGER_NAME
-        FROM information_schema.TRIGGERS
-        WHERE TRIGGER_SCHEMA = DATABASE()
-          AND TRIGGER_NAME IN ('trg_task_completion_review_no_update', 'trg_task_completion_review_no_delete')
-      `));
-      const reviewTriggerNames = new Set(reviewTriggers.map(row => String(row.TRIGGER_NAME || row.triggerName || "")));
-      if (!reviewTriggerNames.has("trg_task_completion_review_no_update")) {
-        try {
-          await db.execute(sql.raw(
-            "CREATE TRIGGER trg_task_completion_review_no_update BEFORE UPDATE ON task_completion_review_events FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'task completion review events are append-only'"
-          ));
-        } catch (error) {
-          if (!isDuplicateSchemaObject(error)) throw error;
-        }
+      let reviewTriggerNames = new Set<string>();
+      try {
+        const reviewTriggers = rowsOf<any>(await db.execute(sql`
+          SELECT TRIGGER_NAME
+          FROM information_schema.TRIGGERS
+          WHERE TRIGGER_SCHEMA = DATABASE()
+            AND TRIGGER_NAME IN ('trg_task_completion_review_no_update', 'trg_task_completion_review_no_delete')
+        `));
+        reviewTriggerNames = new Set(reviewTriggers.map(row => String(row.TRIGGER_NAME || row.triggerName || "")));
+      } catch (error) {
+        if (!isOptionalTriggerUnavailable(error)) throw error;
       }
-      if (!reviewTriggerNames.has("trg_task_completion_review_no_delete")) {
+      const optionalReviewTriggers = [
+        [
+          "trg_task_completion_review_no_update",
+          "CREATE TRIGGER trg_task_completion_review_no_update BEFORE UPDATE ON task_completion_review_events FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'task completion review events are append-only'",
+        ],
+        [
+          "trg_task_completion_review_no_delete",
+          "CREATE TRIGGER trg_task_completion_review_no_delete BEFORE DELETE ON task_completion_review_events FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'task completion review events are append-only'",
+        ],
+      ] as const;
+      for (const [triggerName, triggerSql] of optionalReviewTriggers) {
+        if (reviewTriggerNames.has(triggerName)) continue;
         try {
-          await db.execute(sql.raw(
-            "CREATE TRIGGER trg_task_completion_review_no_delete BEFORE DELETE ON task_completion_review_events FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'task completion review events are append-only'"
-          ));
+          await db.execute(sql.raw(triggerSql));
         } catch (error) {
-          if (!isDuplicateSchemaObject(error)) throw error;
+          if (!isDuplicateSchemaObject(error) && !isOptionalTriggerUnavailable(error)) throw error;
+          if (isOptionalTriggerUnavailable(error)) {
+            console.warn("[TaskExecution] Database triggers unavailable; review events remain append-only through application APIs");
+            break;
+          }
         }
       }
       setUpgradeState("ready", "complete");

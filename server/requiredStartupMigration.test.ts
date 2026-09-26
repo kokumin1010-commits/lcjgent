@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   REQUIRED_MIGRATION_TAGS,
+  isOptionalTriggerUnavailable,
   mysqlErrorCode,
   readDrizzleLedgerState,
   verifyRequiredSchema,
@@ -83,7 +84,15 @@ const descriptor = {
   hash: "target-hash",
 };
 
-describe("required startup migration", () => {
+describe("required startup migration behavior", () => {
+  it("only treats unsupported or denied trigger creation as optional", () => {
+    expect(isOptionalTriggerUnavailable({ code: "ER_NOT_SUPPORTED_YET" })).toBe(true);
+    expect(isOptionalTriggerUnavailable({ code: "ER_TABLEACCESS_DENIED_ERROR" })).toBe(true);
+    expect(isOptionalTriggerUnavailable({ errno: 1227 })).toBe(true);
+    expect(isOptionalTriggerUnavailable(new Error("TRIGGER command denied to user"))).toBe(true);
+    expect(isOptionalTriggerUnavailable({ code: "ER_PARSE_ERROR" })).toBe(false);
+  });
+
   it("runs the LINE bridge, reliable report, and task acceptance migrations in order", () => {
     expect(REQUIRED_MIGRATION_TAGS).toEqual([
       "0161_tw_daily_line_bridge",
@@ -175,12 +184,6 @@ describe("required startup migration", () => {
         if (sql.includes("information_schema.STATISTICS")) {
           return [requiredIndexRows(), undefined];
         }
-        if (sql.includes("information_schema.TRIGGERS")) {
-          return [[
-            { triggerName: "trg_task_completion_review_no_update" },
-            { triggerName: "trg_task_completion_review_no_delete" },
-          ], undefined];
-        }
         return [[], undefined];
       },
     };
@@ -226,21 +229,6 @@ describe("required startup migration", () => {
       },
     };
     await expect(verifyRequiredSchema(missingUniqueKeyConnection as never)).rejects.toThrow(
-      "STARTUP_MIGRATION_SCHEMA_VERIFICATION_FAILED",
-    );
-
-    const missingReviewTriggerConnection = {
-      execute: async (sql: string): Promise<ExecuteResult> => {
-        if (sql.includes("information_schema.STATISTICS")) {
-          return [requiredIndexRows(), undefined];
-        }
-        if (sql.includes("information_schema.TRIGGERS")) {
-          return [[{ triggerName: "trg_task_completion_review_no_update" }], undefined];
-        }
-        return [[], undefined];
-      },
-    };
-    await expect(verifyRequiredSchema(missingReviewTriggerConnection as never)).rejects.toThrow(
       "STARTUP_MIGRATION_SCHEMA_VERIFICATION_FAILED",
     );
 

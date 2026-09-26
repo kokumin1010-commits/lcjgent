@@ -10,6 +10,7 @@ import {
   type TaskExecutionAccess,
 } from "./taskExecutionService";
 import { toDate } from "./performanceReconciliationService";
+import { isOptionalTriggerUnavailable } from "./taskExecutionUpgrade";
 
 const task = {
   id: 10,
@@ -29,6 +30,14 @@ const employee = (staffId: number | null, userId = 99): TaskExecutionAccess => (
 });
 
 describe("task execution access and scoring contract", () => {
+  it("only treats unsupported or denied database triggers as optional", () => {
+    expect(isOptionalTriggerUnavailable({ code: "ER_NOT_SUPPORTED_YET" })).toBe(true);
+    expect(isOptionalTriggerUnavailable({ code: "ER_TABLEACCESS_DENIED_ERROR" })).toBe(true);
+    expect(isOptionalTriggerUnavailable({ errno: 1227 })).toBe(true);
+    expect(isOptionalTriggerUnavailable(new Error("TRIGGER command denied to user"))).toBe(true);
+    expect(isOptionalTriggerUnavailable({ code: "ER_PARSE_ERROR" })).toBe(false);
+  });
+
   it("never serializes internal task tokens, storage keys, or request ids", () => {
     const safe = toTaskClientRecord({
       id: 1,

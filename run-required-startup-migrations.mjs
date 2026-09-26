@@ -43,6 +43,29 @@ function isDuplicateMysqlSchemaObject(error) {
   return false;
 }
 
+function isOptionalTriggerUnavailable(error) {
+  let current = error;
+  for (let depth = 0; depth < 4 && current && typeof current === "object"; depth += 1) {
+    const code = String(current.code || "").toUpperCase();
+    const errno = Number(current.errno || 0);
+    const message = String(current.message || "").toLowerCase();
+    if (errno === 1227
+      || errno === 1235
+      || code === "ER_SPECIFIC_ACCESS_DENIED_ERROR"
+      || code === "ER_TABLEACCESS_DENIED_ERROR"
+      || code === "ER_NOT_SUPPORTED_YET"
+      || (message.includes("trigger") && (
+        message.includes("not supported")
+        || message.includes("unsupported")
+        || message.includes("denied")
+      ))) {
+      return true;
+    }
+    current = current.cause;
+  }
+  return false;
+}
+
 async function connectWithRetry(connectionString) {
   let lastError;
   for (let attempt = 1; attempt <= MAX_CONNECT_ATTEMPTS; attempt += 1) {
@@ -245,23 +268,6 @@ async function verifyRequiredSchema(connection) {
     throw new Error("STARTUP_MIGRATION_SCHEMA_VERIFICATION_FAILED");
   }
 
-  const [triggerRowsResult] = await connection.execute(
-    `SELECT TRIGGER_NAME AS triggerName
-       FROM information_schema.TRIGGERS
-      WHERE TRIGGER_SCHEMA = DATABASE()
-        AND TRIGGER_NAME IN (
-          'trg_task_completion_review_no_update',
-          'trg_task_completion_review_no_delete'
-        )`,
-  );
-  const triggerNames = new Set(
-    (Array.isArray(triggerRowsResult) ? triggerRowsResult : [])
-      .map(row => String(row.triggerName || row.TRIGGER_NAME || "")),
-  );
-  if (!triggerNames.has("trg_task_completion_review_no_update")
-    || !triggerNames.has("trg_task_completion_review_no_delete")) {
-    throw new Error("STARTUP_MIGRATION_SCHEMA_VERIFICATION_FAILED");
-  }
 }
 
 async function main() {
@@ -295,7 +301,15 @@ async function main() {
         try {
           await connection.execute(statement);
         } catch (error) {
-          if (!isDuplicateMysqlSchemaObject(error)) throw error;
+          if (isDuplicateMysqlSchemaObject(error)) continue;
+          if (/^CREATE\s+TRIGGER\b/i.test(statement) && isOptionalTriggerUnavailable(error)) {
+            console.warn("[StartupMigration] Optional audit trigger unavailable", {
+              migration: descriptor.tag,
+              code: mysqlErrorCode(error),
+            });
+            continue;
+          }
+          throw error;
         }
       }
     }
@@ -334,6 +348,7 @@ async function main() {
 
 export {
   REQUIRED_MIGRATION_TAGS,
+  isOptionalTriggerUnavailable,
   mysqlErrorCode,
   readDrizzleLedgerState,
   verifyRequiredSchema,
