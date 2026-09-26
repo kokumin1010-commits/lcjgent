@@ -87,6 +87,9 @@ import { isValidEmailForSending, getInvalidEmailReason } from "./emailValidator"
 import { csvSnapshotRouter } from "./csvSnapshotProcedures";
 import { morningMeetingRouter } from "./morningMeetingRouter";
 import { storeManagementRouter } from "./storeManagementRouter";
+import { exhibitionAuthRouter } from "./exhibitionAuthRouter";
+import { exhibitionPortalRouter } from "./exhibitionPortalRouter";
+import { exhibitionAdminRouter } from "./exhibitionAdminRouter";
 import { tiktokAdsRouter } from "./tiktokAdsRouter";
 import { brandDayRouter } from "./brandDayRouter";
 import { brandBusinessRouter } from "./brandBusinessRouter";
@@ -30311,6 +30314,9 @@ JSON配列のみを出力してください。`;
   festival: festivalRouter,
   festivalAuth: festivalAuthRouter,
   festivalEngagement: festivalEngagementRouter,
+  exhibitionAuth: exhibitionAuthRouter,
+  exhibitionPortal: exhibitionPortalRouter,
+  exhibitionAdmin: exhibitionAdminRouter,
   lcm: lcmRouter,
   productLab: productLabRouter,
   alibaba1688: alibaba1688Router,

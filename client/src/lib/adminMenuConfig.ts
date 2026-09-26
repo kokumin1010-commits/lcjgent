@@ -28,6 +28,7 @@ import {
   KeyRound,
   LayoutDashboard,
   Mail,
+  MapPinned,
   Megaphone,
   MessageCircle,
   MessageSquare,
@@ -336,6 +337,12 @@ export const ADMIN_MENU_GROUPS: AdminMenuGroup[] = [
         path: "/master/festival",
         labelZh: "LCF活动管理",
         labelJa: "LCFイベント申込管理",
+      },
+      {
+        icon: MapPinned,
+        path: "/master/exhibition-booths",
+        labelZh: "品牌展位管理",
+        labelJa: "ブランドブース管理",
       },
       {
         icon: Globe,

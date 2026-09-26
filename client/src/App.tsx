@@ -211,6 +211,10 @@ const BrandDayCreatorDashboard = lazy(() => import("./pages/BrandDayCreatorDashb
 const BrandDayRanking = lazy(() => import("./pages/BrandDayRanking"));
 const InfluencerBd = lazy(() => import("./pages/InfluencerBd"));
 const InfluencerBdDedupe = lazy(() => import("./pages/InfluencerBdDedupe"));
+const ExhibitionLogin = lazy(() => import("./pages/ExhibitionLogin"));
+const ExhibitionResetPassword = lazy(() => import("./pages/ExhibitionResetPassword"));
+const ExhibitionPortal = lazy(() => import("./pages/ExhibitionPortal"));
+const ExhibitionBoothAdmin = lazy(() => import("./pages/ExhibitionBoothAdmin"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -231,6 +235,9 @@ function Router() {
         <Route path="/brand-day/:slug/entry" component={BrandDayEntry} />
         <Route path="/brand-day/:slug/ranking" component={BrandDayRanking} />
         <Route path="/brand-day/:slug" component={BrandDayPortal} />
+        <Route path="/booth-portal/reset-password/:token" component={ExhibitionResetPassword} />
+        <Route path="/booth-portal/login" component={ExhibitionLogin} />
+        <Route path="/booth-portal" component={ExhibitionPortal} />
         <Route path="/products/granenzyme" component={ProductGranenzyme} />
         <Route path={"/"}>{window.location.hostname.includes("livecommercefestival") ? <LiveCommerceFestivalTop /> : <MallHome />}</Route>
         <Route path="/line-login" component={LineLogin} />
@@ -782,6 +789,13 @@ function Router() {
         <Route path="/master/festival">
           <DashboardLayout>
             <FestivalAdmin />
+          </DashboardLayout>
+        </Route>
+        <Route path="/master/exhibition-booths">
+          <DashboardLayout>
+            <PermissionGate pageKey="/master/exhibition-booths" pageName="品牌展位管理">
+              <ExhibitionBoothAdmin />
+            </PermissionGate>
           </DashboardLayout>
         </Route>
         <Route path="/master/product-lab">

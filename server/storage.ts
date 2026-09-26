@@ -1,7 +1,12 @@
 // Storage helpers using AWS S3 / Cloudflare R2 (S3-compatible)
 // Uses AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_BUCKET, AWS_S3_ENDPOINT, AWS_S3_REGION
 
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
@@ -83,23 +88,90 @@ export async function storagePut(
   return { key, url };
 }
 
+async function assertAnonymousObjectBlocked(key: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch(
+      `${getPublicUrl(key)}?privacy_probe=${Date.now()}`,
+      {
+        method: "GET",
+        headers: { Range: "bytes=0-0", "Cache-Control": "no-cache" },
+        redirect: "manual",
+        signal: controller.signal,
+      }
+    );
+    if (response.status >= 200 && response.status < 400) {
+      throw new Error(
+        `private object is anonymously readable (HTTP ${response.status})`
+      );
+    }
+    if (![401, 403, 404].includes(response.status)) {
+      throw new Error(
+        `private object policy could not be verified (HTTP ${response.status})`
+      );
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("private object"))
+      throw error;
+    throw new Error("private object policy could not be verified");
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function storagePutPrivate(
+  relKey: string,
+  data: Buffer | Uint8Array,
+  contentType = "application/octet-stream"
+): Promise<{ key: string }> {
+  const client = getS3Client();
+  const bucket = getBucket();
+  const key = normalizeKey(relKey);
+  if (!key.startsWith("private/exhibition/")) {
+    throw new Error(
+      "private exhibition objects must use the private/exhibition prefix"
+    );
+  }
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: data as Buffer,
+      ContentType: contentType,
+      CacheControl: "private, no-store, max-age=0",
+    })
+  );
+  try {
+    await assertAnonymousObjectBlocked(key);
+  } catch (error) {
+    await client
+      .send(new DeleteObjectCommand({ Bucket: bucket, Key: key }))
+      .catch(() => undefined);
+    throw error;
+  }
+  return { key };
+}
+
 export async function storagePutFile(
   relKey: string,
   filePath: string,
-  contentType = "application/octet-stream",
+  contentType = "application/octet-stream"
 ): Promise<{ key: string; url: string; size: number }> {
   const client = getS3Client();
   const bucket = getBucket();
   const key = normalizeKey(relKey);
   const fileStat = await stat(filePath);
 
-  await client.send(new PutObjectCommand({
-    Bucket: bucket,
-    Key: key,
-    Body: createReadStream(filePath),
-    ContentLength: fileStat.size,
-    ContentType: contentType,
-  }));
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: createReadStream(filePath),
+      ContentLength: fileStat.size,
+      ContentType: contentType,
+    })
+  );
 
   return { key, url: getPublicUrl(key), size: fileStat.size };
 }
@@ -109,15 +181,19 @@ export async function storageDelete(relKey: string): Promise<{ key: string }> {
   const bucket = getBucket();
   const key = normalizeKey(relKey);
 
-  await client.send(new DeleteObjectCommand({
-    Bucket: bucket,
-    Key: key,
-  }));
+  await client.send(
+    new DeleteObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    })
+  );
 
   return { key };
 }
 
-export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
+export async function storageGet(
+  relKey: string
+): Promise<{ key: string; url: string }> {
   const client = getS3Client();
   const bucket = getBucket();
   const key = normalizeKey(relKey);
@@ -132,6 +208,20 @@ export async function storageGet(relKey: string): Promise<{ key: string; url: st
   return { key, url };
 }
 
+export async function storageGetPrivate(
+  relKey: string
+): Promise<{ key: string; url: string }> {
+  const client = getS3Client();
+  const bucket = getBucket();
+  const key = normalizeKey(relKey);
+  if (!key.startsWith("private/exhibition/")) {
+    throw new Error("invalid private exhibition object key");
+  }
+  const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+  const url = await getSignedUrl(client, command, { expiresIn: 600 });
+  return { key, url };
+}
+
 export async function storageReadBuffer(relKey: string): Promise<{
   data: Buffer;
   contentType: string | null;
@@ -140,12 +230,15 @@ export async function storageReadBuffer(relKey: string): Promise<{
   const client = getS3Client();
   const bucket = getBucket();
   const key = normalizeKey(relKey);
-  const object = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  const object = await client.send(
+    new GetObjectCommand({ Bucket: bucket, Key: key })
+  );
   if (!object.Body) throw new Error("Stored object body is missing");
   const bytes = await object.Body.transformToByteArray();
   return {
     data: Buffer.from(bytes),
     contentType: object.ContentType || null,
-    contentLength: typeof object.ContentLength === "number" ? object.ContentLength : null,
+    contentLength:
+      typeof object.ContentLength === "number" ? object.ContentLength : null,
   };
 }

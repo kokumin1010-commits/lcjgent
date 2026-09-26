@@ -3,6 +3,7 @@ import compression from "compression";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import path from "node:path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 // OAuth removed - using custom email/password auth
 import { appRouter } from "../routers";
@@ -53,6 +54,7 @@ import { runManualPersistenceProtectionUpgrade } from "../migrations/upgradeManu
 import { runStaffIdentityConsistencyUpgrade } from "../migrations/upgradeStaffIdentityConsistency";
 import { runStoreDataRetentionUpgradeSetup } from "../storeDataRetentionUpgrade";
 import { runStoreDailyShopUpgradeSetup } from "../storeDailyShopUpgrade";
+import { getExhibitionBoothUpgradeHealth, runExhibitionBoothUpgradeSetup } from "../exhibitionBoothUpgrade";
 import { runMemberRiskUpgradeSetup } from "../memberRiskUpgrade";
 import { runMemberIdentityUpgradeSetup } from "../memberIdentityUpgrade";
 import { ensureBeautyWalletMemberLinkSchema } from "../beautyWalletMemberLinkService";
@@ -143,6 +145,12 @@ async function startServer() {
   // Trust Railway's reverse proxy for correct req.protocol, req.secure, req.ip
   app.set('trust proxy', 1);
   const server = createServer(app);
+
+  app.get("/api/exhibition/floor-map", (_req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=86400, immutable");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    return res.sendFile(path.resolve(process.cwd(), "server/assets/exhibition-brand-booth-map.png"));
+  });
 
   // Stripe Webhook endpoint - MUST be registered BEFORE express.json()
   // because Stripe needs the raw body for signature verification
@@ -240,12 +248,12 @@ async function startServer() {
     if (req.secure) {
       res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
-    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/lcm/manage') || req.path.startsWith('/lcm/admin') || req.path.startsWith('/lcm/sample-cart') || req.path.startsWith('/api/trpc/festival') || req.path.startsWith('/api/trpc/festivalAuth') || req.path.startsWith('/api/trpc/festivalEngagement') || req.path.startsWith('/api/trpc/lcm.') || req.path.startsWith('/api/trpc/ranking.admin') || req.path.startsWith('/api/trpc/boothReservation.')) {
+    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/lcm/manage') || req.path.startsWith('/lcm/admin') || req.path.startsWith('/lcm/sample-cart') || req.path.startsWith('/booth-portal') || req.path.startsWith('/api/trpc/exhibition') || req.path.startsWith('/api/trpc/festival') || req.path.startsWith('/api/trpc/festivalAuth') || req.path.startsWith('/api/trpc/festivalEngagement') || req.path.startsWith('/api/trpc/lcm.') || req.path.startsWith('/api/trpc/ranking.admin') || req.path.startsWith('/api/trpc/boothReservation.')) {
       res.setHeader('Cache-Control', 'no-store, private, max-age=0');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
     }
-    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/lcf/login') || req.path.startsWith('/lcf/mypage') || req.path.startsWith('/lcm/manage') || req.path.startsWith('/lcm/admin') || req.path.startsWith('/lcm/sample-cart')) {
+    if (req.path.startsWith('/lcf/admin') || req.path.startsWith('/lcf/login') || req.path.startsWith('/lcf/mypage') || req.path.startsWith('/lcm/manage') || req.path.startsWith('/lcm/admin') || req.path.startsWith('/lcm/sample-cart') || req.path.startsWith('/booth-portal')) {
       res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
     }
     next();
@@ -399,6 +407,27 @@ async function startServer() {
         schemaVersion: "brand-business-v2",
         migrationStatus: "unavailable",
         hasError: true,
+      });
+    }
+  });
+
+  app.get("/api/health/exhibition-booths", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    try {
+      const health = await getExhibitionBoothUpgradeHealth();
+      return res.status(health.healthy ? 200 : 503).json({
+        ok: health.healthy,
+        recoveryKey: health.recoveryKey,
+        missingTables: health.missingTables,
+        counts: health.counts,
+        protectedCounts: health.protectedCounts,
+        migrationStatus: health.recoveryRun?.status || "pending",
+      });
+    } catch {
+      return res.status(503).json({
+        ok: false,
+        recoveryKey: "exhibition-booth-v1",
+        errorCode: "EXHIBITION_BOOTH_HEALTH_UNAVAILABLE",
       });
     }
   });
@@ -4284,6 +4313,15 @@ async function startServer() {
     await runStoreDailyShopUpgradeSetup();
   } catch (error) {
     console.error("[StoreDailyShopUpgrade] pre-listen setup failed", error);
+    throw error;
+  }
+
+  // Brand booth accounts, booth assignments and private brand assets are fully
+  // isolated from LCJ staff auth and the existing LCF live-booth reservation flow.
+  try {
+    await runExhibitionBoothUpgradeSetup();
+  } catch (error) {
+    console.error("[ExhibitionBoothUpgrade] pre-listen setup failed", error);
     throw error;
   }
 
