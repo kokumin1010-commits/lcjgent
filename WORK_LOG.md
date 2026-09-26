@@ -4028,3 +4028,14 @@ client hero、`/2nd` OGP/Event JSON-LD、LCF sitemap imageを同一の新画像U
 LCM／関連LCF 12 files・96 tests、production build、`git diff --check`、secret-like差分監査が成功。全体TypeScriptはrepository既存1,163 diagnostics／86 filesでexit 2だが、今回変更9 filesは0件。独立read-only reviewは**GO（material blocker 0件）**。release SHA `331436716d55851420efa4491fa4544fa9ce0d3f`、GitHub CI run `36244646173`、Railway production deployment `6679304067`はいずれもsuccess。
 
 本番`/lcm`、`/lcm/products/drkozu-cell-peel-crystal`、`/lcm/manage?contact=6`はHTTP 200。本番DOMで連絡controlが`BUTTON`、disabled、`aria-disabled=true`、hrefなし、背景`rgb(165, 165, 165)`、cursor`not-allowed`であることをdesktop／390px mobile双方で確認した。`/lcm#product-search`はhashと検索欄位置へ正しく着地し、旧contact直URLも調整中画面を表示した。検証はGET／DOM read-onlyのみで、新規連絡作成、email、production DB mutationは実行していない。
+
+## 2026-09-26｜LCF／LCM公開ページ整理・OpenChat完了導線（本番反映済み）
+ユーザー指定のスクリーンショット範囲に合わせ、`/lcm`から「第1回LCF 出展商品特集」blockを完全削除した。通常の公開商品検索・カテゴリ・商品card・興味あり・sample cartは維持し、第1回出展archive自体の公開routeと公式TOP footerの「出展企業実績」linkも維持している。`https://www.livecommercefestival.com/`はHero、開催回切替、申込／news／関連link portalまでを残し、「01 / PROVEN IMPACT」から下の本文sectionを削除して通常footerへ直接接続した。
+
+`/2nd`では、「第1回の学びを、第2回の実践へ。」の写真と見出しを残して説明paragraphを削除し、セミナーコンテンツ下の経験条件文と黄色い「ライブコマーサーとして申し込む」rowを完全削除した。他の上部／固定申込CTAと申込routeは変更していない。LCM説明は指定文案へ更新し、第2回LCFの開催前・当日・開催後をつなぐ常設market、`LCFの2日間を、日常の商談へ。`、公開商品情報、共通accountで確認するsample／取引条件、イベント前後の継続的な商品発掘・商談を明記した。bot向けHTMLも同じ内容へ統一した。
+
+第2回ライブコマーサー申込完了画面では、既存の安全なOpenChat URLと`target="_blank"`／`rel="noopener noreferrer"`を維持しつつ、OpenChat cardを「申込受付・詳細は後日連絡」の直後、入場QR／account情報とlogin操作より前へ移動した。linkは完了画面内に1件だけで、通常申込途中には表示しない。local mockで実際に全stepを完了し、`案内 → OpenChat → account情報`の順序、390px横overflow 0、link 1件を確認した。実OpenChatは開かず、productionへの申込送信も行っていない。
+
+関連focused 6 files・64 tests、LCF／LCM全体46 files・326 tests、production build、`git diff --check`、secret-like差分監査が成功した。全量TypeScriptはrepository既存1,163 diagnosticsで前回保存baselineと件数・内容が一致し、`server/_core/index.ts`の既存4件は文案4行追加分だけ行番号が移動、今回UI／test変更による新規diagnosticはない。desktop 1440px／mobile 390pxのlocal・production browser QAで3公開pageともHTTP 200、横overflow 0、削除文言0、新LCM文案表示を確認した。独立read-only reviewは**GO（blocker 0件）**。
+
+feature SHA `520b48eca70df02c2acba6bcf1f1449c1add3f96`、GitHub CI run `36246498304`、Railway production deployment `6679641793`はいずれもsuccess。本番の`/`、`/lcm`、`/2nd`をGET／DOM／screenshotだけで確認し、配信chunk `FestivalApplyLiver-BuDp1U-8.js`にOpenChat link 1件と指定表示順が含まれることを確認した。production DB mutation、商品操作、申込送信、OpenChat参加／投稿は0件。
