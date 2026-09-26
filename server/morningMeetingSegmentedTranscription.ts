@@ -28,7 +28,7 @@ function serviceError(details: string): TranscriptionError {
 }
 
 async function downloadAudioToFile(audioUrl: string, destination: string): Promise<void> {
-  const response = await fetch(audioUrl);
+  const response = await fetch(audioUrl, { signal: AbortSignal.timeout(120_000) });
   if (!response.ok || !response.body) {
     throw new Error(`AUDIO_DOWNLOAD_HTTP_${response.status}`);
   }
@@ -55,7 +55,21 @@ async function downloadAudioToFile(audioUrl: string, destination: string): Promi
   );
 }
 
-async function normalizeAndSplitAudio(sourcePath: string, outputDir: string): Promise<string[]> {
+async function normalizedChunkDuration(path: string): Promise<number> {
+  const result = await execFileAsync(
+    "ffprobe",
+    ["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path],
+    { timeout: 60_000, maxBuffer: 128 * 1024 },
+  );
+  const duration = Number(String(result.stdout || "").trim());
+  if (!Number.isFinite(duration) || duration <= 0) throw new Error("MORNING_AUDIO_CHUNK_DURATION_INVALID");
+  return duration;
+}
+
+async function normalizeAndSplitAudio(
+  sourcePath: string,
+  outputDir: string,
+): Promise<Array<{ path: string; durationSeconds: number }>> {
   const outputPattern = join(outputDir, "chunk-%03d.mp3");
   await execFileAsync(
     "ffmpeg",
@@ -85,28 +99,29 @@ async function normalizeAndSplitAudio(sourcePath: string, outputDir: string): Pr
     throw new Error("MORNING_AUDIO_CHUNK_COUNT_INVALID");
   }
 
-  const chunks: string[] = [];
+  const chunks: Array<{ path: string; durationSeconds: number }> = [];
   for (const name of chunkNames) {
     const path = join(outputDir, name);
     const fileStat = await stat(path);
     if (fileStat.size <= 0 || fileStat.size > 16 * 1024 * 1024) {
       throw new Error("MORNING_AUDIO_CHUNK_SIZE_INVALID");
     }
-    chunks.push(path);
+    chunks.push({ path, durationSeconds: await normalizedChunkDuration(path) });
   }
   return chunks;
 }
 
 export function mergeMorningMeetingChunkResponses(
   responses: TranscriptionResponse[],
+  chunkDurations: number[] = [],
 ): TranscriptionResponse {
   let offsetSeconds = 0;
   let nextSegmentId = 0;
   const segments: WhisperSegment[] = [];
   const textParts: string[] = [];
 
-  for (const response of responses) {
-    const chunkDuration = Math.max(
+  responses.forEach((response, responseIndex) => {
+    const responseDuration = Math.max(
       Number(response.duration) || 0,
       ...response.segments.map(segment => Number(segment.end) || 0),
     );
@@ -120,8 +135,11 @@ export function mergeMorningMeetingChunkResponses(
         end: Math.max(0, Number(segment.end) || 0) + offsetSeconds,
       });
     }
-    offsetSeconds += chunkDuration;
-  }
+    const verifiedDuration = Number(chunkDurations[responseIndex]);
+    offsetSeconds += Number.isFinite(verifiedDuration) && verifiedDuration > 0
+      ? verifiedDuration
+      : responseDuration;
+  });
 
   return {
     task: "transcribe",
@@ -148,8 +166,8 @@ async function createSegmentedTranscriber(
     const chunks = await normalizeAndSplitAudio(sourcePath, workDir);
     const transcribe: SegmentedTranscriber = async (options) => {
       const responses: TranscriptionResponse[] = [];
-      for (const chunkPath of chunks) {
-        const chunk = await readFile(chunkPath);
+      for (const chunkInfo of chunks) {
+        const chunk = await readFile(chunkInfo.path);
         const chunkUrl = `data:audio/mpeg;base64,${chunk.toString("base64")}`;
         const response = await baseTranscriber({
           audioUrl: chunkUrl,
@@ -160,7 +178,10 @@ async function createSegmentedTranscriber(
         responses.push(response);
         await onChunkCompleted?.(responses.length, chunks.length);
       }
-      return mergeMorningMeetingChunkResponses(responses);
+      return mergeMorningMeetingChunkResponses(
+        responses,
+        chunks.map(chunk => chunk.durationSeconds),
+      );
     };
     return {
       transcribe,
@@ -177,7 +198,6 @@ export async function transcribeSegmentedMorningMeetingWithQualityRetry(input: {
   audioUrl: string;
   language: "zh" | "ja";
   primaryPrompt: string;
-  browserTranscript?: string;
   expectedDurationSeconds: number;
   transcribeChunk?: SegmentedTranscriber;
   onChunkCompleted?: (completed: number, total: number) => Promise<void> | void;
@@ -192,7 +212,6 @@ export async function transcribeSegmentedMorningMeetingWithQualityRetry(input: {
       audioUrl: input.audioUrl,
       language: input.language,
       primaryPrompt: input.primaryPrompt,
-      browserTranscript: input.browserTranscript,
       expectedDurationSeconds: input.expectedDurationSeconds,
       transcribe: fallback,
     });
@@ -204,7 +223,6 @@ export async function transcribeSegmentedMorningMeetingWithQualityRetry(input: {
       audioUrl: input.audioUrl,
       language: input.language,
       primaryPrompt: input.primaryPrompt,
-      browserTranscript: input.browserTranscript,
       expectedDurationSeconds: input.expectedDurationSeconds,
       transcribe: prepared.transcribe,
     });

@@ -14,6 +14,8 @@ import {
 import {
   getTaskExecutionOverview,
   getVisibleTaskExecutionRows,
+  reviewReportFollowupCompletion,
+  reviewTaskExecutionCompletion,
   resolveTaskExecutionAccess,
   submitTaskExecutionFeedback,
   toTaskClientRecord,
@@ -3878,6 +3880,28 @@ export const appRouter = router({
           getAllTasks(),
         ]);
         const reportRows = await getAllReportFollowups(buildReportVisibilityFilter(scope));
+        const reportFollowupIds = reportRows.map(row => row.followup.id);
+        const reportReviewResult = reportFollowupIds.length > 0
+          ? await taskAccessResult.db.execute(sqlTag`
+              SELECT sourceId, subjectKey, completionVersion, decision, decisionNote
+              FROM task_completion_review_events
+              WHERE sourceType = 'daily_report'
+                AND sourceId IN (${sqlTag.join(reportFollowupIds.map(id => sqlTag`${id}`), sqlTag`, `)})
+            `)
+          : [[], []];
+        const reportReviewRows = Array.isArray((reportReviewResult as any)?.[0])
+          ? (reportReviewResult as any)[0] as Array<{
+              sourceId: number;
+              subjectKey: string;
+              completionVersion: number;
+              decision: "accepted" | "returned";
+              decisionNote: string | null;
+            }>
+          : [];
+        const reportReviewByVersion = new Map(reportReviewRows.map(review => [
+          `${Number(review.sourceId)}:${Number(review.completionVersion)}`,
+          review,
+        ]));
         const visibleLegacyRows = await getVisibleTaskExecutionRows(
           taskAccessResult.db,
           taskAccessResult.access,
@@ -3885,13 +3909,30 @@ export const appRouter = router({
         );
         const feed = buildUnifiedTaskFeed(
           visibleLegacyRows,
-          reportRows.map(row => ({
-            ...row,
-            canEdit: row.report ? canWriteReport(scope, row.report) : false,
-            canSubmitFeedback: row.report
-              ? scope.ownReportStaffIds.includes(row.report.reportStaffId)
-              : false,
-          }))
+          reportRows.map(row => {
+            const review = reportReviewByVersion.get(
+              `${row.followup.id}:${Number(row.followup.completionRevision || 0)}`
+            );
+            const linkedStaffId = row.staff?.linkedStaffId || null;
+            const canReviewCompletion = row.followup.status === "completed"
+              && row.followup.requiresAcceptance
+              && !review
+              && Boolean(
+                taskAccessResult.access.isSuperAdmin
+                || row.report?.createdBy === ctx.user.id
+                || (linkedStaffId && taskAccessResult.access.reviewableStaffIds.includes(linkedStaffId))
+              );
+            return {
+              ...row,
+              canEdit: row.report ? canWriteReport(scope, row.report) : false,
+              canSubmitFeedback: row.report
+                ? scope.ownReportStaffIds.includes(row.report.reportStaffId)
+                : false,
+              reviewDecision: review?.decision || null,
+              reviewNote: review?.decisionNote || null,
+              canReviewCompletion,
+            };
+          })
         );
         return {
           items: filterUnifiedTaskFeed(
@@ -3993,6 +4034,7 @@ export const appRouter = router({
     completeOwnReportFollowup: protectedProcedure
       .input(z.object({
         id: z.number().int().positive(),
+        requestId: z.string().uuid(),
         resultNote: z.string().trim().min(2).max(2000),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -4008,8 +4050,55 @@ export const appRouter = router({
         await updateFollowupStatus(input.id, "completed", "完了", input.resultNote, ctx.user.id, {
           reportStaffId: followup.reportStaffId,
           linkedStaffId: scope.ownStaffId,
-        });
+        }, input.requestId);
         return { success: true };
+      }),
+
+    reviewCompletion: protectedProcedure
+      .input(z.object({
+        source: z.enum(["manual", "daily_report"]),
+        id: z.number().int().positive(),
+        staffId: z.number().int().positive().optional(),
+        completionVersion: z.number().int().positive(),
+        decision: z.enum(["accepted", "returned"]),
+        decisionNote: z.string().trim().max(2000).default(""),
+        requestId: z.string().uuid(),
+      }).superRefine((value, context) => {
+        if (value.source === "manual" && !value.staffId) {
+          context.addIssue({ code: z.ZodIssueCode.custom, message: "手动任务验收必须指定执行人", path: ["staffId"] });
+        }
+        if (value.decision === "returned" && value.decisionNote.length < 2) {
+          context.addIssue({ code: z.ZodIssueCode.custom, message: "退回时必须填写原因", path: ["decisionNote"] });
+        }
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { db, access } = await resolveTaskExecutionAccess(ctx.user);
+        if (input.source === "manual") {
+          const taskData = await getTaskById(input.id);
+          if (!taskData) throw new TRPCError({ code: "NOT_FOUND", message: "任务不存在" });
+          await assertLcjBrainLinkedTaskMutationAllowed(input.id, "update");
+          const execution = await reviewTaskExecutionCompletion({
+            db,
+            access,
+            task: taskData.task,
+            staffId: input.staffId!,
+            feedbackId: input.completionVersion,
+            decision: input.decision,
+            decisionNote: input.decisionNote,
+            requestId: input.requestId,
+          });
+          return { success: true, execution };
+        }
+        const result = await reviewReportFollowupCompletion({
+          db,
+          access,
+          followupId: input.id,
+          completionRevision: input.completionVersion,
+          decision: input.decision,
+          decisionNote: input.decisionNote,
+          requestId: input.requestId,
+        });
+        return { ...result, execution: null };
       }),
 
     getStaffByTaskId: protectedProcedure

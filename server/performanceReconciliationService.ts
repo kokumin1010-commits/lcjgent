@@ -540,11 +540,26 @@ async function collectTaskFacts(
         'manual' AS taskSource, assigned.staffId,
         CASE
           WHEN t.status = 'cancelled' THEN 'cancelled'
-          ELSE COALESCE(feedback.status, CASE WHEN t.status = 'completed' THEN 'completed' ELSE 'pending' END)
+          WHEN feedback.id IS NULL THEN CASE
+            WHEN t.status = 'completed' AND COALESCE(t.requiresAcceptance, FALSE) = FALSE THEN 'completed'
+            ELSE 'pending'
+          END
+          WHEN feedback.status = 'cancelled' THEN 'cancelled'
+          WHEN feedback.status = 'completed'
+            AND (COALESCE(t.requiresAcceptance, FALSE) = FALSE OR review.decision = 'accepted')
+            THEN 'completed'
+          ELSE 'pending'
         END AS status,
         t.deadline,
         CASE WHEN t.status = 'cancelled' THEN NULL
-          ELSE COALESCE(feedback.completedAt, CASE WHEN t.status = 'completed' THEN t.completedAt ELSE NULL END)
+          WHEN feedback.id IS NULL
+            AND t.status = 'completed'
+            AND COALESCE(t.requiresAcceptance, FALSE) = FALSE
+            THEN t.completedAt
+          WHEN feedback.status = 'completed'
+            AND (COALESCE(t.requiresAcceptance, FALSE) = FALSE OR review.decision = 'accepted')
+            THEN feedback.completedAt
+          ELSE NULL
         END AS completedAt,
         t.startDate, t.createdAt,
         COALESCE(feedback.submittedAt, t.updatedAt) AS updatedAt,
@@ -560,6 +575,11 @@ async function collectTaskFacts(
         FROM task_execution_feedbacks latest
         WHERE latest.taskId = t.id AND latest.staffId = assigned.staffId
       )
+      LEFT JOIN task_completion_review_events review
+        ON review.sourceType = 'manual'
+        AND review.sourceId = t.id
+        AND review.subjectKey = CONCAT('staff:', assigned.staffId)
+        AND review.completionVersion = feedback.id
       INNER JOIN staff s ON s.id = assigned.staffId
       WHERE DATE(t.createdAt) >= ${effectiveFrom}
         AND t.archivedAt IS NULL
@@ -570,7 +590,20 @@ async function collectTaskFacts(
       SELECT followup.id, CONCAT('REPORT-', followup.id) AS taskId,
         CONCAT('daily-report:', followup.id) AS sourceId,
         'daily_report' AS taskSource, reportPerson.linkedStaffId AS staffId,
-        followup.status, followup.dueDate AS deadline, followup.completedAt,
+        CASE
+          WHEN followup.status = 'cancelled' THEN 'cancelled'
+          WHEN followup.status = 'completed'
+            AND (COALESCE(followup.requiresAcceptance, FALSE) = FALSE OR review.decision = 'accepted')
+            THEN 'completed'
+          ELSE 'pending'
+        END AS status,
+        followup.dueDate AS deadline,
+        CASE
+          WHEN followup.status = 'completed'
+            AND (COALESCE(followup.requiresAcceptance, FALSE) = FALSE OR review.decision = 'accepted')
+            THEN followup.completedAt
+          ELSE NULL
+        END AS completedAt,
         UNIX_TIMESTAMP(report.reportDate) * 1000 AS startDate,
         report.reportDate AS createdAt, followup.updatedAt,
         CASE WHEN followup.status = 'completed' OR followup.resultNote IS NOT NULL THEN TRUE ELSE FALSE END AS hasExecutionFeedback
@@ -581,6 +614,11 @@ async function collectTaskFacts(
         AND reportPerson.linkedStaffId IS NOT NULL
       INNER JOIN staff s ON s.id = reportPerson.linkedStaffId
         AND s.isActive = 'active' AND s.archivedAt IS NULL AND s.mergedIntoStaffId IS NULL
+      LEFT JOIN task_completion_review_events review
+        ON review.sourceType = 'daily_report'
+        AND review.sourceId = followup.id
+        AND review.subjectKey = CONCAT('report-staff:', followup.reportStaffId)
+        AND review.completionVersion = followup.completionRevision
       WHERE DATE(report.reportDate) >= ${effectiveFrom}
         AND followup.duplicateOfId IS NULL
         AND followup.archivedAt IS NULL

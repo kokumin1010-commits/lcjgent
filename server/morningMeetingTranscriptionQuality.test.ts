@@ -6,6 +6,7 @@ import type {
 } from "./_core/voiceTranscription";
 import {
   MorningMeetingTranscriptionQualityError,
+  MorningMeetingTranscriptionServiceError,
   assessMorningMeetingTranscription,
   hasWhisperSpeechEvidence,
   transcribeMorningMeetingWithQualityRetry,
@@ -65,6 +66,23 @@ describe("Whisper speech evidence", () => {
       segment(1, 0, 4, "测试声音一", { no_speech_prob: 0.7 }),
       segment(2, 4, 8, "测试声音二", { no_speech_prob: 0.7 }),
     ]))).toBe(false);
+  });
+
+  it("accepts real short Chinese speech when the provider omits confidence fields", () => {
+    expect(hasWhisperSpeechEvidence(response([
+      segment(1, 0, 4, "今天先处理泰国店铺登录和商品上架。", {
+        no_speech_prob: undefined,
+        avg_logprob: undefined,
+        compression_ratio: undefined,
+      }),
+    ]))).toBe(true);
+    expect(hasWhisperSpeechEvidence({
+      task: "transcribe",
+      language: "zh",
+      duration: 12,
+      text: "今天先处理泰国店铺登录，随后确认商品上架，并同步负责人处理结果。",
+      segments: [],
+    })).toBe(true);
   });
 });
 
@@ -142,6 +160,22 @@ describe("morning meeting transcription quality", () => {
     expect(quality.dominantSegmentCharacterRatio).toBeLessThan(0.45);
   });
 
+  it("accepts concise Chinese status updates with pauses across a two-minute meeting", () => {
+    const conciseSegments = [
+      segment(1, 2, 22, "今天上架。"),
+      segment(2, 50, 78, "跟进客户。"),
+      segment(3, 98, 119, "整理素材。"),
+    ];
+    const quality = assessMorningMeetingTranscription({
+      text: response(conciseSegments).text,
+      segments: conciseSegments,
+      expectedDurationSeconds: 120,
+    });
+
+    expect(quality.accepted).toBe(true);
+    expect(quality.reasons).not.toContain("TRANSCRIPT_TOO_SHORT_FOR_DURATION");
+  });
+
   it("rejects an implausibly short transcript for a two-minute recording", () => {
     const quality = assessMorningMeetingTranscription({
       text: "今天先确认工作。",
@@ -189,25 +223,22 @@ describe("morning meeting transcription quality", () => {
     expect(transcribe.mock.calls[1]?.[0]?.prompt).not.toBe("synthetic primary prompt");
   });
 
-  it("accepts browser text only after both server attempts fail and browser text passes", async () => {
+  it("never accepts client-provided browser text as an official transcript", async () => {
     const browserTranscript = validSegments.map(item => item.text).join("\n");
     const transcribe = vi.fn()
-      .mockResolvedValueOnce(serviceError)
-      .mockResolvedValueOnce(response(repeatedSegments));
+      .mockResolvedValue(response(repeatedSegments));
 
-    const result = await transcribeMorningMeetingWithQualityRetry({
+    await expect(transcribeMorningMeetingWithQualityRetry({
       audioUrl: "https://storage.example.test/synthetic.webm",
       language: "zh",
       primaryPrompt: "synthetic primary prompt",
       browserTranscript,
       expectedDurationSeconds: 144,
       transcribe,
-    });
-
-    expect(result.processingSource).toBe("browser_fallback");
-    expect(result.response).toBeNull();
-    expect(result.transcript).toBe(browserTranscript);
-    expect(result.attempts.map(attempt => attempt.source)).toEqual(["primary", "retry", "browser"]);
+    } as Parameters<typeof transcribeMorningMeetingWithQualityRetry>[0])).rejects.toBeInstanceOf(
+      MorningMeetingTranscriptionQualityError,
+    );
+    expect(transcribe).toHaveBeenCalledTimes(2);
   });
 
   it("throws a structured non-sensitive error when every candidate is low quality", async () => {
@@ -223,7 +254,6 @@ describe("morning meeting transcription quality", () => {
         audioUrl: "https://storage.example.test/synthetic.webm",
         language: "zh",
         primaryPrompt: "synthetic primary prompt",
-        browserTranscript: Array.from({ length: 10 }, () => privateRawText).join("\n"),
         expectedDurationSeconds: 144,
         transcribe,
       });
@@ -234,11 +264,76 @@ describe("morning meeting transcription quality", () => {
     expect(caught).toBeInstanceOf(MorningMeetingTranscriptionQualityError);
     const qualityError = caught as MorningMeetingTranscriptionQualityError;
     expect(qualityError.code).toBe("MORNING_TRANSCRIPTION_LOW_QUALITY");
-    expect(qualityError.attempts).toHaveLength(3);
+    expect(qualityError.attempts).toHaveLength(2);
     expect(qualityError.message).not.toContain(privateRawText);
     expect(JSON.stringify(qualityError.attempts)).not.toContain(privateRawText);
     expect(qualityError.attempts.flatMap(attempt => attempt.quality.reasons)).toContain(
       "DOMINANT_REPEATED_SEGMENT",
     );
+  });
+
+  it("classifies repeated upstream failures as a retryable service outage", async () => {
+    const transcribe = vi.fn().mockResolvedValue(serviceError);
+    await expect(transcribeMorningMeetingWithQualityRetry({
+      audioUrl: "https://storage.example.test/synthetic.webm",
+      language: "zh",
+      primaryPrompt: "synthetic primary prompt",
+      expectedDurationSeconds: 60,
+      transcribe,
+    })).rejects.toMatchObject({
+      name: "MorningMeetingTranscriptionServiceError",
+      code: "MORNING_TRANSCRIPTION_SERVICE_UNAVAILABLE",
+    } satisfies Partial<MorningMeetingTranscriptionServiceError>);
+    expect(transcribe).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts a valid retry after a transient primary service failure", async () => {
+    const transcribe = vi.fn()
+      .mockResolvedValueOnce(serviceError)
+      .mockResolvedValueOnce(response(validSegments));
+    const result = await transcribeMorningMeetingWithQualityRetry({
+      audioUrl: "https://storage.example.test/synthetic.webm",
+      language: "zh",
+      primaryPrompt: "synthetic primary prompt",
+      expectedDurationSeconds: 144,
+      transcribe,
+    });
+    expect(result.processingSource).toBe("server_audio_retry");
+    expect(result.response.text).toContain("主持人说明");
+  });
+
+  it.each([
+    [serviceError, response(repeatedSegments)],
+    [response(repeatedSegments), serviceError],
+  ])("does not disguise a mixed service and quality failure as low quality", async (first, second) => {
+    const transcribe = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second);
+    await expect(transcribeMorningMeetingWithQualityRetry({
+      audioUrl: "https://storage.example.test/synthetic.webm",
+      language: "zh",
+      primaryPrompt: "synthetic primary prompt",
+      expectedDurationSeconds: 144,
+      transcribe,
+    })).rejects.toMatchObject({
+      code: "MORNING_TRANSCRIPTION_SERVICE_UNAVAILABLE",
+    });
+  });
+
+  it("does not retry an audio format failure that cannot succeed unchanged", async () => {
+    const transcribe = vi.fn().mockResolvedValue({
+      error: "invalid audio",
+      code: "INVALID_FORMAT",
+    } satisfies TranscriptionError);
+    await expect(transcribeMorningMeetingWithQualityRetry({
+      audioUrl: "https://storage.example.test/invalid.webm",
+      language: "zh",
+      primaryPrompt: "synthetic primary prompt",
+      expectedDurationSeconds: 60,
+      transcribe,
+    })).rejects.toMatchObject({
+      code: "MORNING_TRANSCRIPTION_AUDIO_UNPROCESSABLE",
+    });
+    expect(transcribe).toHaveBeenCalledTimes(1);
   });
 });

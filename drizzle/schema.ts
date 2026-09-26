@@ -207,6 +207,7 @@ export const tasks = mysqlTable("tasks", {
   id: int("id").autoincrement().primaryKey(),
   taskId: varchar("taskId", { length: 64 }).notNull().unique(), // Unique identifier for email threading
   requestId: varchar("requestId", { length: 128 }).unique(), // Idempotency key scoped by creator
+  requiresAcceptance: boolean("requiresAcceptance").default(true).notNull(),
   status: mysqlEnum("status", ["pending", "in_progress", "completed", "cancelled"]).default("pending").notNull(),
   staffId: int("staffId").notNull(),
   taskDetail: text("taskDetail").notNull(),
@@ -386,6 +387,39 @@ export const taskExecutionFeedbacks = mysqlTable("task_execution_feedbacks", {
 
 export type TaskExecutionFeedback = typeof taskExecutionFeedbacks.$inferSelect;
 export type InsertTaskExecutionFeedback = typeof taskExecutionFeedbacks.$inferInsert;
+
+/**
+ * Immutable manager decisions for one concrete completion submission.
+ * A returned submission must be followed by a new completion version before it can be accepted.
+ */
+export const taskCompletionReviewEvents = mysqlTable("task_completion_review_events", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  requestId: varchar("requestId", { length: 128 }).notNull(),
+  sourceType: mysqlEnum("sourceType", ["manual", "daily_report"]).notNull(),
+  sourceId: int("sourceId").notNull(),
+  subjectKey: varchar("subjectKey", { length: 80 }).notNull(),
+  completionVersion: bigint("completionVersion", { mode: "number" }).notNull(),
+  decision: mysqlEnum("decision", ["accepted", "returned"]).notNull(),
+  decisionNote: text("decisionNote").notNull(),
+  decidedByUserId: int("decidedByUserId").notNull(),
+  decidedAt: timestamp("decidedAt").defaultNow().notNull(),
+}, (table) => ({
+  requestIdUnique: uniqueIndex("uq_task_completion_review_request").on(table.requestId),
+  completionUnique: uniqueIndex("uq_task_completion_review_version").on(
+    table.sourceType,
+    table.sourceId,
+    table.subjectKey,
+    table.completionVersion,
+  ),
+  sourceIndex: index("idx_task_completion_review_source").on(
+    table.sourceType,
+    table.sourceId,
+    table.subjectKey,
+  ),
+}));
+
+export type TaskCompletionReviewEvent = typeof taskCompletionReviewEvents.$inferSelect;
+export type InsertTaskCompletionReviewEvent = typeof taskCompletionReviewEvents.$inferInsert;
 
 /**
  * Email tracking table for monitoring email opens
@@ -704,6 +738,9 @@ export const reportFollowups = mysqlTable("report_followups", {
   archiveReason: text("archiveReason"),
   category: mysqlEnum("category", ["提案", "打ち合わせ", "商談", "MTG", "確認", "その他"]).default("その他").notNull(),
   status: mysqlEnum("status", ["pending", "completed", "cancelled"]).default("pending").notNull(),
+  requiresAcceptance: boolean("requiresAcceptance").default(true).notNull(),
+  completionRevision: int("completionRevision").default(0).notNull(),
+  completionRequestId: varchar("completionRequestId", { length: 128 }),
   dueDate: timestamp("dueDate"), // フォローアップ期限（抽出日から2日後）
   // 結果記録用フィールド
   resultCategory: mysqlEnum("resultCategory", ["成約", "継続", "保留", "失注", "完了"]), // 結果カテゴリ
@@ -715,6 +752,7 @@ export const reportFollowups = mysqlTable("report_followups", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({
   reportItemUnique: uniqueIndex("uq_report_followup_report_item").on(table.reportId, table.dedupeKey),
+  completionRequestUnique: uniqueIndex("uq_report_followup_completion_request").on(table.completionRequestId),
 }));
 
 export type ReportFollowup = typeof reportFollowups.$inferSelect;

@@ -9,8 +9,9 @@ const MIGRATIONS_FOLDER = path.join(__dirname, "drizzle");
 const REQUIRED_MIGRATION_TAGS = [
   "0161_tw_daily_line_bridge",
   "0162_daily_report_reliable_submission",
+  "0163_task_completion_acceptance",
 ];
-const LOCK_NAME = "lcjgent-required-0161-0162-daily-report";
+const LOCK_NAME = "lcjgent-required-0161-0163-critical-schema";
 const MAX_CONNECT_ATTEMPTS = 5;
 
 function sleep(milliseconds) {
@@ -36,6 +37,7 @@ function isDuplicateMysqlSchemaObject(error) {
     const message = String(current.message || "");
     if (code === "ER_DUP_FIELDNAME" || message.includes("Duplicate column")) return true;
     if (code === "ER_DUP_KEYNAME" || message.includes("Duplicate key name")) return true;
+    if (code === "ER_TRG_ALREADY_EXISTS" || message.includes("Trigger already exists")) return true;
     current = current.cause;
   }
   return false;
@@ -168,6 +170,11 @@ async function verifyRequiredSchema(connection) {
             last_error, created_at, updated_at
        FROM tw_daily_line_outbox LIMIT 0`,
     "SELECT deletedAt, deletedBy, deleteReason, requestId FROM reports LIMIT 0",
+    "SELECT requiresAcceptance FROM tasks LIMIT 0",
+    "SELECT requiresAcceptance, completionRevision, completionRequestId FROM report_followups LIMIT 0",
+    `SELECT id, requestId, sourceType, sourceId, subjectKey, completionVersion,
+            decision, decisionNote, decidedByUserId, decidedAt
+       FROM task_completion_review_events LIMIT 0`,
     `SELECT id, entityType, entityId, action, actorUserId,
             beforeState, afterState, createdAt
        FROM entity_revision_audits LIMIT 0`,
@@ -199,6 +206,8 @@ async function verifyRequiredSchema(connection) {
             'tw_daily_line_rollouts',
             'tw_daily_line_outbox',
             'reports',
+            'report_followups',
+            'task_completion_review_events',
             'entity_revision_audits',
             'report_attachments',
             'report_followup_extraction_runs'
@@ -219,6 +228,10 @@ async function verifyRequiredSchema(connection) {
     ["tw_daily_line_outbox", "tw_daily_line_outbox_event_uq", ["event_id"], true],
     ["tw_daily_line_outbox", "tw_daily_line_outbox_due_idx", ["status", "next_attempt_at", "id"], false],
     ["reports", "uq_reports_request_id", ["requestId"], true],
+    ["report_followups", "uq_report_followup_completion_request", ["completionRequestId"], true],
+    ["task_completion_review_events", "PRIMARY", ["id"], true],
+    ["task_completion_review_events", "uq_task_completion_review_request", ["requestId"], true],
+    ["task_completion_review_events", "uq_task_completion_review_version", ["sourceType", "sourceId", "subjectKey", "completionVersion"], true],
     ["entity_revision_audits", "idx_entity_revision_entity", ["entityType", "entityId", "id"], false],
     ["report_attachments", "uq_report_attachments_upload", ["reportId", "uploadId"], true],
     ["report_followup_extraction_runs", "uq_followup_extraction_job", ["jobKey"], true],
@@ -229,6 +242,24 @@ async function verifyRequiredSchema(connection) {
       !hasRequiredIndex(indexRows, tableName, indexName, columns, unique),
     )
   ) {
+    throw new Error("STARTUP_MIGRATION_SCHEMA_VERIFICATION_FAILED");
+  }
+
+  const [triggerRowsResult] = await connection.execute(
+    `SELECT TRIGGER_NAME AS triggerName
+       FROM information_schema.TRIGGERS
+      WHERE TRIGGER_SCHEMA = DATABASE()
+        AND TRIGGER_NAME IN (
+          'trg_task_completion_review_no_update',
+          'trg_task_completion_review_no_delete'
+        )`,
+  );
+  const triggerNames = new Set(
+    (Array.isArray(triggerRowsResult) ? triggerRowsResult : [])
+      .map(row => String(row.triggerName || row.TRIGGER_NAME || "")),
+  );
+  if (!triggerNames.has("trg_task_completion_review_no_update")
+    || !triggerNames.has("trg_task_completion_review_no_delete")) {
     throw new Error("STARTUP_MIGRATION_SCHEMA_VERIFICATION_FAILED");
   }
 }
@@ -251,12 +282,15 @@ async function main() {
     if (!lockAcquired) throw new Error("STARTUP_MIGRATION_LOCK_TIMEOUT");
 
     if (!(await tableExists(connection, "line_group_settings"))
-      || !(await tableExists(connection, "reports"))) {
+      || !(await tableExists(connection, "reports"))
+      || !(await tableExists(connection, "tasks"))
+      || !(await tableExists(connection, "report_followups"))) {
       throw new Error("STARTUP_MIGRATION_PREREQUISITE_MISSING");
     }
 
     for (const descriptor of descriptors) {
-      await readDrizzleLedgerState(connection, descriptor);
+      const ledgerState = await readDrizzleLedgerState(connection, descriptor);
+      if (ledgerState.alreadyRecorded) continue;
       for (const statement of descriptor.statements) {
         try {
           await connection.execute(statement);

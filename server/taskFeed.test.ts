@@ -38,6 +38,9 @@ const reportFollowup = {
   resultCategory: null,
   resultNote: null,
   completedAt: null,
+  requiresAcceptance: true,
+  completionRevision: 0,
+  completionRequestId: null,
   completedNote: null,
   nextActionId: null,
   createdAt: new Date("2026-09-20T00:00:00.000Z"),
@@ -101,6 +104,9 @@ describe("unified task feed", () => {
       },
       canEdit: true,
       canSubmitFeedback: false,
+      reviewDecision: null,
+      reviewNote: null,
+      canReviewCompletion: false,
     }]
   );
 
@@ -144,6 +150,48 @@ describe("unified task feed", () => {
       in_progress: 1,
       completed: 0,
       cancelled: 0,
+    });
+  });
+
+  it("keeps a completed report submission in progress until a manager accepts it", () => {
+    const pendingReview = buildUnifiedTaskFeed([], [{
+      followup: {
+        ...reportFollowup,
+        status: "completed" as const,
+        completedAt: new Date("2026-09-20T03:00:00.000Z"),
+        completionRevision: 1,
+      },
+      staff: null,
+      report: null,
+      canEdit: true,
+      canSubmitFeedback: false,
+      reviewDecision: null,
+      reviewNote: null,
+      canReviewCompletion: true,
+    }]);
+    expect(pendingReview[0]).toMatchObject({
+      status: "in_progress",
+      executionSummary: { completedCount: 0, pendingReviewCount: 1 },
+    });
+
+    const accepted = buildUnifiedTaskFeed([], [{
+      followup: {
+        ...reportFollowup,
+        status: "completed" as const,
+        completedAt: new Date("2026-09-20T03:00:00.000Z"),
+        completionRevision: 1,
+      },
+      staff: null,
+      report: null,
+      canEdit: true,
+      canSubmitFeedback: false,
+      reviewDecision: "accepted",
+      reviewNote: "ok",
+      canReviewCompletion: false,
+    }]);
+    expect(accepted[0]).toMatchObject({
+      status: "completed",
+      executionSummary: { completedCount: 1, pendingReviewCount: 0 },
     });
   });
 });

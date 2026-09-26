@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import type { Task } from "../drizzle/schema";
 import {
   canManageTaskExecution,
+  canReviewTaskCompletion,
   canViewTaskExecution,
   resolveAggregateTaskExecutionStatus,
   toTaskClientRecord,
@@ -60,6 +61,9 @@ describe("task execution access and scoring contract", () => {
     expect(canManageTaskExecution(manager, task, [7])).toBe(true);
     expect(canViewTaskExecution(manager, task, [7, 8])).toBe(true);
     expect(canManageTaskExecution(manager, task, [7, 8])).toBe(false);
+    expect(canReviewTaskCompletion(manager, task, 7)).toBe(true);
+    expect(canReviewTaskCompletion(manager, task, 8)).toBe(false);
+    expect(canReviewTaskCompletion(employee(null, 50), task, 8)).toBe(true);
   });
 
   it("keeps multi-assignee tasks open until every active assignee reports completion", () => {
@@ -73,6 +77,21 @@ describe("task execution access and scoring contract", () => {
     ])).toBe("completed");
     expect(resolveAggregateTaskExecutionStatus(task, [
       { status: "blocked", feedbackId: 1 },
+    ])).toBe("in_progress");
+  });
+
+  it("keeps completion submissions open until every required acceptance is recorded", () => {
+    const reviewRequiredTask = { ...task, requiresAcceptance: true };
+    expect(resolveAggregateTaskExecutionStatus(reviewRequiredTask, [
+      { status: "completed", feedbackId: 11, reviewDecision: null },
+      { status: "completed", feedbackId: 12, reviewDecision: "accepted" },
+    ])).toBe("in_progress");
+    expect(resolveAggregateTaskExecutionStatus(reviewRequiredTask, [
+      { status: "completed", feedbackId: 11, reviewDecision: "accepted" },
+      { status: "completed", feedbackId: 12, reviewDecision: "accepted" },
+    ])).toBe("completed");
+    expect(resolveAggregateTaskExecutionStatus(reviewRequiredTask, [
+      { status: "completed", feedbackId: 13, reviewDecision: "returned" },
     ])).toBe("in_progress");
   });
 
@@ -106,6 +125,7 @@ describe("task execution access and scoring contract", () => {
     const identityMerge = readFileSync("server/staffIdentityConsistency.ts", "utf8");
 
     expect(schema).toContain('mysqlTable("task_execution_feedbacks"');
+    expect(schema).toContain('mysqlTable("task_completion_review_events"');
     expect(schema).not.toContain('uniqueIndex("uq_task_execution_task_staff');
     expect(schema).toContain('uniqueIndex("uq_task_execution_feedback_request")');
     expect(schema).toContain('uniqueIndex("uq_task_staff_task_staff")');
@@ -113,6 +133,7 @@ describe("task execution access and scoring contract", () => {
     expect(schema).toContain('mysqlTable("task_staff_archive"');
     expect(schema).toContain('deletedAt: timestamp("deletedAt")');
     expect(upgrade).toContain("CREATE TABLE IF NOT EXISTS task_execution_feedbacks");
+    expect(upgrade).toContain("CREATE TABLE IF NOT EXISTS task_completion_review_events");
     expect(upgrade).toContain("CREATE TABLE IF NOT EXISTS task_staff_archive");
     expect(upgrade.indexOf("INSERT IGNORE INTO task_staff_archive")).toBeLessThan(
       upgrade.indexOf("DELETE duplicateAssignment")
@@ -135,6 +156,7 @@ describe("task execution access and scoring contract", () => {
     expect(upgradeSuccess).toContain("setTimeout(() => initializeTaskExecutionStorage(attempt + 1)");
     expect(serverEntry).toContain('/api/health/task-execution');
     expect(router).toContain("submitExecutionFeedback: protectedProcedure");
+    expect(router).toContain("reviewCompletion: protectedProcedure");
     expect(executionService).toContain("仅被指派员工可以提交本人的执行反馈");
     expect(detail).toContain("提交我的执行反馈");
     expect(detail).toContain("每月任务完成率与按期完成率");
@@ -169,5 +191,6 @@ describe("task execution access and scoring contract", () => {
     expect(reconciliation).toContain("report_followups followup");
     expect(reconciliation).toContain("CONCAT('daily-report:', followup.id)");
     expect(reconciliation).toContain("CAST(t.id AS CHAR) AS sourceId");
+    expect(reconciliation).toContain("review.decision = 'accepted'");
   });
 });

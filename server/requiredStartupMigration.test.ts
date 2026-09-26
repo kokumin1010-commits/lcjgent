@@ -55,6 +55,15 @@ function requiredIndexRows() {
   add("tw_daily_line_outbox", "tw_daily_line_outbox_event_uq", ["event_id"], true);
   add("tw_daily_line_outbox", "tw_daily_line_outbox_due_idx", ["status", "next_attempt_at", "id"], false);
   add("reports", "uq_reports_request_id", ["requestId"], true);
+  add("report_followups", "uq_report_followup_completion_request", ["completionRequestId"], true);
+  add("task_completion_review_events", "PRIMARY", ["id"], true);
+  add("task_completion_review_events", "uq_task_completion_review_request", ["requestId"], true);
+  add(
+    "task_completion_review_events",
+    "uq_task_completion_review_version",
+    ["sourceType", "sourceId", "subjectKey", "completionVersion"],
+    true,
+  );
   add("entity_revision_audits", "idx_entity_revision_entity", ["entityType", "entityId", "id"], false);
   add("report_attachments", "uq_report_attachments_upload", ["reportId", "uploadId"], true);
   add("report_followup_extraction_runs", "uq_followup_extraction_job", ["jobKey"], true);
@@ -75,10 +84,11 @@ const descriptor = {
 };
 
 describe("required startup migration", () => {
-  it("runs the LINE report bridge before the reliable report submission migration", () => {
+  it("runs the LINE bridge, reliable report, and task acceptance migrations in order", () => {
     expect(REQUIRED_MIGRATION_TAGS).toEqual([
       "0161_tw_daily_line_bridge",
       "0162_daily_report_reliable_submission",
+      "0163_task_completion_acceptance",
     ]);
   });
 
@@ -165,6 +175,12 @@ describe("required startup migration", () => {
         if (sql.includes("information_schema.STATISTICS")) {
           return [requiredIndexRows(), undefined];
         }
+        if (sql.includes("information_schema.TRIGGERS")) {
+          return [[
+            { triggerName: "trg_task_completion_review_no_update" },
+            { triggerName: "trg_task_completion_review_no_delete" },
+          ], undefined];
+        }
         return [[], undefined];
       },
     };
@@ -210,6 +226,21 @@ describe("required startup migration", () => {
       },
     };
     await expect(verifyRequiredSchema(missingUniqueKeyConnection as never)).rejects.toThrow(
+      "STARTUP_MIGRATION_SCHEMA_VERIFICATION_FAILED",
+    );
+
+    const missingReviewTriggerConnection = {
+      execute: async (sql: string): Promise<ExecuteResult> => {
+        if (sql.includes("information_schema.STATISTICS")) {
+          return [requiredIndexRows(), undefined];
+        }
+        if (sql.includes("information_schema.TRIGGERS")) {
+          return [[{ triggerName: "trg_task_completion_review_no_update" }], undefined];
+        }
+        return [[], undefined];
+      },
+    };
+    await expect(verifyRequiredSchema(missingReviewTriggerConnection as never)).rejects.toThrow(
       "STARTUP_MIGRATION_SCHEMA_VERIFICATION_FAILED",
     );
 

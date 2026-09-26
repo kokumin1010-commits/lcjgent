@@ -58,8 +58,10 @@ export function isDuplicateSchemaObject(error: unknown): boolean {
     const message = (typeof candidate.message === "string" ? candidate.message : String(current)).toLowerCase();
     if (errno === 1060
       || errno === 1061
+      || errno === 1359
       || code === "ER_DUP_FIELDNAME"
       || code === "ER_DUP_KEYNAME"
+      || code === "ER_TRG_ALREADY_EXISTS"
       || message.includes("duplicate column")
       || message.includes("duplicate key name")
       || message.includes("already exist")) {
@@ -80,6 +82,7 @@ export async function ensureTaskExecutionTables(): Promise<void> {
       setUpgradeState("running", "tasks");
       const taskColumns = [
         ["requestId", "ALTER TABLE tasks ADD COLUMN requestId VARCHAR(128) NULL AFTER taskId"],
+        ["requiresAcceptance", "ALTER TABLE tasks ADD COLUMN requiresAcceptance BOOLEAN NOT NULL DEFAULT TRUE AFTER requestId"],
         ["archivedAt", "ALTER TABLE tasks ADD COLUMN archivedAt TIMESTAMP NULL AFTER createdBy"],
         ["archivedBy", "ALTER TABLE tasks ADD COLUMN archivedBy INT NULL AFTER archivedAt"],
         ["archiveReason", "ALTER TABLE tasks ADD COLUMN archiveReason TEXT NULL AFTER archivedBy"],
@@ -94,6 +97,9 @@ export async function ensureTaskExecutionTables(): Promise<void> {
         if (existing.length === 0) {
           try {
             await db.execute(sql.raw(ddl));
+            if (columnName === "requiresAcceptance") {
+              await db.execute(sql`UPDATE tasks SET requiresAcceptance = FALSE WHERE status = 'completed'`);
+            }
           } catch (error) {
             if (!isDuplicateSchemaObject(error)) throw error;
           }
@@ -468,6 +474,9 @@ export async function ensureTaskExecutionTables(): Promise<void> {
 
       setUpgradeState("running", "report_followups");
       const followupColumns = [
+        ["requiresAcceptance", "ALTER TABLE report_followups ADD COLUMN requiresAcceptance BOOLEAN NOT NULL DEFAULT TRUE AFTER status"],
+        ["completionRevision", "ALTER TABLE report_followups ADD COLUMN completionRevision INT NOT NULL DEFAULT 0 AFTER requiresAcceptance"],
+        ["completionRequestId", "ALTER TABLE report_followups ADD COLUMN completionRequestId VARCHAR(128) NULL AFTER completionRevision"],
         ["dedupeKey", "ALTER TABLE report_followups ADD COLUMN dedupeKey VARCHAR(64) NULL AFTER extractedItem"],
         ["duplicateOfId", "ALTER TABLE report_followups ADD COLUMN duplicateOfId INT NULL AFTER dedupeKey"],
         ["archivedAt", "ALTER TABLE report_followups ADD COLUMN archivedAt TIMESTAMP NULL AFTER duplicateOfId"],
@@ -484,6 +493,9 @@ export async function ensureTaskExecutionTables(): Promise<void> {
         if (existing.length === 0) {
           try {
             await db.execute(sql.raw(ddl));
+            if (columnName === "requiresAcceptance") {
+              await db.execute(sql`UPDATE report_followups SET requiresAcceptance = FALSE WHERE status = 'completed'`);
+            }
           } catch (error) {
             if (!isDuplicateSchemaObject(error)) throw error;
           }
@@ -527,6 +539,20 @@ export async function ensureTaskExecutionTables(): Promise<void> {
         }
       }
 
+      const followupCompletionIndexes = rowsOf<any>(await db.execute(sql`
+        SHOW INDEX FROM report_followups WHERE Key_name = 'uq_report_followup_completion_request'
+      `));
+      if (followupCompletionIndexes.length === 0) {
+        try {
+          await db.execute(sql`
+            CREATE UNIQUE INDEX uq_report_followup_completion_request
+            ON report_followups (completionRequestId)
+          `);
+        } catch (error) {
+          if (!isDuplicateSchemaObject(error)) throw error;
+        }
+      }
+
       setUpgradeState("running", "task_execution_feedbacks");
       await db.execute(sql`
         CREATE TABLE IF NOT EXISTS task_execution_feedbacks (
@@ -559,6 +585,50 @@ export async function ensureTaskExecutionTables(): Promise<void> {
         await db.execute(sql`CREATE UNIQUE INDEX uq_task_execution_feedback_request ON task_execution_feedbacks (requestId)`);
       } catch (error) {
         if (!isDuplicateSchemaObject(error)) throw error;
+      }
+
+      setUpgradeState("running", "task_completion_review_events");
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS task_completion_review_events (
+          id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+          requestId VARCHAR(128) NOT NULL,
+          sourceType ENUM('manual','daily_report') NOT NULL,
+          sourceId INT NOT NULL,
+          subjectKey VARCHAR(80) NOT NULL,
+          completionVersion BIGINT NOT NULL,
+          decision ENUM('accepted','returned') NOT NULL,
+          decisionNote TEXT NOT NULL,
+          decidedByUserId INT NOT NULL,
+          decidedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY uq_task_completion_review_request (requestId),
+          UNIQUE KEY uq_task_completion_review_version (sourceType, sourceId, subjectKey, completionVersion),
+          KEY idx_task_completion_review_source (sourceType, sourceId, subjectKey)
+        )
+      `);
+      const reviewTriggers = rowsOf<any>(await db.execute(sql`
+        SELECT TRIGGER_NAME
+        FROM information_schema.TRIGGERS
+        WHERE TRIGGER_SCHEMA = DATABASE()
+          AND TRIGGER_NAME IN ('trg_task_completion_review_no_update', 'trg_task_completion_review_no_delete')
+      `));
+      const reviewTriggerNames = new Set(reviewTriggers.map(row => String(row.TRIGGER_NAME || row.triggerName || "")));
+      if (!reviewTriggerNames.has("trg_task_completion_review_no_update")) {
+        try {
+          await db.execute(sql.raw(
+            "CREATE TRIGGER trg_task_completion_review_no_update BEFORE UPDATE ON task_completion_review_events FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'task completion review events are append-only'"
+          ));
+        } catch (error) {
+          if (!isDuplicateSchemaObject(error)) throw error;
+        }
+      }
+      if (!reviewTriggerNames.has("trg_task_completion_review_no_delete")) {
+        try {
+          await db.execute(sql.raw(
+            "CREATE TRIGGER trg_task_completion_review_no_delete BEFORE DELETE ON task_completion_review_events FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'task completion review events are append-only'"
+          ));
+        } catch (error) {
+          if (!isDuplicateSchemaObject(error)) throw error;
+        }
       }
       setUpgradeState("ready", "complete");
     })().catch(error => {

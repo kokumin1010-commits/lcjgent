@@ -1028,8 +1028,8 @@ export async function updateBrandBdMeetingStatus(
         );
       } else {
         await connection.query(
-          "UPDATE tasks SET status='completed',completedAt=COALESCE(completedAt,?) WHERE id=? AND status<>'cancelled'",
-          [Date.now(), meeting.taskId]
+          "UPDATE tasks SET status='in_progress',completedAt=NULL WHERE id=? AND status='pending'",
+          [meeting.taskId]
         );
       }
     }

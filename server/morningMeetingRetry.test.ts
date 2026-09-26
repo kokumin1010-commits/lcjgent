@@ -51,7 +51,9 @@ describe("morning meeting failed-audio recovery", () => {
     const result = await transcribeAudio({ audioUrl: "https://storage.example.com/meeting.webm", language: "zh" });
 
     expect("error" in result).toBe(false);
-    expect(fetchMock).toHaveBeenNthCalledWith(1, "https://storage.example.com/meeting.webm");
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "https://storage.example.com/meeting.webm", {
+      signal: expect.any(AbortSignal),
+    });
     expect(fetchMock.mock.calls[1]?.[0]).toBe("https://api.openai.com/v1/audio/transcriptions");
     expect((fetchMock.mock.calls[1]?.[1] as RequestInit)?.headers).toMatchObject({
       authorization: "Bearer test-server-key",
@@ -84,6 +86,7 @@ describe("morning meeting failed-audio recovery", () => {
     expect(saveBlock).toContain("supersededById: newMeetingId, supersededAt: new Date()");
     expect(saveBlock).toContain("audioChunkCount: transcription.audioChunkCount");
     expect(saveBlock).toContain("speechValidationFailureCode: speechEvidence ? null");
+    expect(saveBlock).not.toContain("browserTranscript");
     expect(saveBlock).toContain("participantSnapshot");
     expect(saveBlock).toContain('actionType: "morning_meeting_transcription_quality_failed"');
     expect(saveBlock).toContain('summary: analyzed.summary, status: "completed", errorMessage: null');
@@ -105,6 +108,7 @@ describe("morning meeting failed-audio recovery", () => {
     expect(retryBlock).toContain("storageGet(meeting.audioKey)");
     expect(retryBlock).toContain("transcribeSegmentedMorningMeetingWithQualityRetry({");
     expect(retryBlock).toContain("expectedDurationSeconds: verifiedDurationSeconds");
+    expect(retryBlock).not.toContain("browserTranscript");
     expect(retryBlock).not.toContain("storagePut(");
   });
 

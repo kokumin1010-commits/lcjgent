@@ -1060,13 +1060,11 @@ export const morningMeetingRouter = router({
         let processingStatus: "transcribing" | "summarizing" = "transcribing";
         const stopProcessingHeartbeat = startMorningMeetingProcessingHeartbeat(db, meetingId);
         try {
-          const browserTranscript = input.transcript?.trim() || "";
           const { url: presignedUrl } = await storageGet(stored!.key);
           const transcription = await transcribeSegmentedMorningMeetingWithQualityRetry({
             audioUrl: presignedUrl,
             language: input.language,
             primaryPrompt: teamMeetingTranscriptionPrompt(input.teamCode, input.language, participantSnapshot),
-            browserTranscript,
             expectedDurationSeconds: mediaValidation.mediaDurationSeconds,
             onChunkCompleted: async () => {
               await db.update(morningMeetings).set({ updatedAt: new Date() }).where(and(
@@ -1119,7 +1117,6 @@ export const morningMeetingRouter = router({
           processingStatus = "summarizing";
           const analyzed = await analyzeMorningMeetingWorkPlans({
             transcript,
-            browserTranscript,
             language: input.language,
             profiles: participantSpeechProfiles(participantSnapshot),
             source: processingSource,
@@ -1338,13 +1335,11 @@ export const morningMeetingRouter = router({
       }).catch(() => undefined);
 
       try {
-        const browserTranscript = meeting.transcript?.trim() || "";
         const { url: presignedUrl } = await storageGet(meeting.audioKey);
         const transcription = await transcribeSegmentedMorningMeetingWithQualityRetry({
           audioUrl: presignedUrl,
           language,
           primaryPrompt: teamMeetingTranscriptionPrompt(meeting.teamCode, language, participantSnapshot),
-          browserTranscript,
           expectedDurationSeconds: verifiedDurationSeconds,
           onChunkCompleted: async () => {
             await db.update(morningMeetings).set({ updatedAt: new Date() }).where(and(
@@ -1387,7 +1382,6 @@ export const morningMeetingRouter = router({
         }
         const analyzed = await analyzeMorningMeetingWorkPlans({
           transcript,
-          browserTranscript,
           language,
           profiles: participantSpeechProfiles(participantSnapshot),
           source: processingSource,

@@ -28,6 +28,11 @@ export type UnifiedTaskFeedItem = {
     name: string;
     department: string | null;
     status: UnifiedTaskStatus | "blocked";
+    executionStatus?: UnifiedTaskStatus | "blocked";
+    completionVersion?: number | null;
+    reviewDecision?: "accepted" | "returned" | null;
+    reviewNote?: string | null;
+    canReviewCompletion?: boolean;
   }>;
   createdAt: Date;
   startDate: number;
@@ -41,8 +46,11 @@ export type UnifiedTaskFeedItem = {
   executionSummary: {
     assignedCount: number;
     completedCount: number;
+    acceptedCount?: number;
+    pendingReviewCount?: number;
     blockedCount: number;
     ownStatus: string | null;
+    ownReviewDecision?: "accepted" | "returned" | null;
   } | null;
 };
 
@@ -55,6 +63,11 @@ type LegacyTaskRow = {
     name: string;
     department: string | null;
     status: UnifiedTaskStatus | "blocked";
+    executionStatus?: UnifiedTaskStatus | "blocked";
+    feedbackId?: number | null;
+    reviewDecision?: "accepted" | "returned" | null;
+    reviewNote?: string | null;
+    canReviewCompletion?: boolean;
   }>;
   displayStatus?: UnifiedTaskStatus;
   canEdit?: boolean;
@@ -62,8 +75,11 @@ type LegacyTaskRow = {
   executionSummary?: {
     assignedCount: number;
     completedCount: number;
+    acceptedCount?: number;
+    pendingReviewCount?: number;
     blockedCount: number;
     ownStatus: string | null;
+    ownReviewDecision?: "accepted" | "returned" | null;
   };
 };
 
@@ -73,6 +89,9 @@ type ReportFollowupRow = {
   report: Report | null;
   canEdit: boolean;
   canSubmitFeedback: boolean;
+  reviewDecision: "accepted" | "returned" | null;
+  reviewNote: string | null;
+  canReviewCompletion: boolean;
 };
 
 function toMillis(value: Date | number | null | undefined) {
@@ -99,7 +118,10 @@ export function buildUnifiedTaskFeed(
         }
       : null,
     assignees: assignees?.length
-      ? assignees
+      ? assignees.map(assignee => ({
+          ...assignee,
+          completionVersion: assignee.feedbackId || null,
+        }))
       : staff
         ? [{
             id: staff.id,
@@ -122,12 +144,16 @@ export function buildUnifiedTaskFeed(
   }));
 
   const reportItems: UnifiedTaskFeedItem[] = reportRows.map(
-    ({ followup, staff, report, canEdit, canSubmitFeedback }) => ({
+    ({ followup, staff, report, canEdit, canSubmitFeedback, reviewDecision, reviewNote, canReviewCompletion }) => ({
       key: `daily-report:${followup.id}`,
       source: "daily_report",
       id: followup.id,
       title: followup.extractedItem,
-      status: followup.status === "pending" ? "in_progress" : followup.status,
+      status: followup.status === "completed"
+        && followup.requiresAcceptance
+        && reviewDecision !== "accepted"
+        ? "in_progress"
+        : followup.status === "pending" ? "in_progress" : followup.status,
       staff: staff
         ? {
             id: staff.id,
@@ -143,7 +169,16 @@ export function buildUnifiedTaskFeed(
               : `report-staff:${staff.id}`,
             name: staff.name,
             department: null,
-            status: followup.status === "pending" ? "in_progress" : followup.status,
+            status: followup.status === "completed"
+              && followup.requiresAcceptance
+              && reviewDecision !== "accepted"
+              ? "in_progress"
+              : followup.status === "pending" ? "in_progress" : followup.status,
+            executionStatus: followup.status,
+            completionVersion: followup.completionRevision || null,
+            reviewDecision,
+            reviewNote,
+            canReviewCompletion,
           }]
         : [],
       createdAt: followup.createdAt,
@@ -157,7 +192,18 @@ export function buildUnifiedTaskFeed(
       reportDate: report?.reportDate || null,
       canEdit,
       canSubmitFeedback,
-      executionSummary: null,
+      executionSummary: {
+        assignedCount: 1,
+        completedCount: followup.status === "completed"
+          && (!followup.requiresAcceptance || reviewDecision === "accepted") ? 1 : 0,
+        acceptedCount: reviewDecision === "accepted" ? 1 : 0,
+        pendingReviewCount: followup.status === "completed"
+          && followup.requiresAcceptance
+          && reviewDecision == null ? 1 : 0,
+        blockedCount: 0,
+        ownStatus: canSubmitFeedback ? followup.status : null,
+        ownReviewDecision: canSubmitFeedback ? reviewDecision : null,
+      },
     })
   );
 

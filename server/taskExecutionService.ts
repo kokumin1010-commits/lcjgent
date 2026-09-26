@@ -1,6 +1,11 @@
 import { eq, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { taskExecutionFeedbacks, taskNotificationOutbox, type Task } from "../drizzle/schema";
+import {
+  taskCompletionReviewEvents,
+  taskExecutionFeedbacks,
+  taskNotificationOutbox,
+  type Task,
+} from "../drizzle/schema";
 import { getDb } from "./db";
 import {
   resolvePerformanceAccess,
@@ -35,6 +40,10 @@ export type TaskExecutionAssignment = {
   acknowledgedAt: number | null;
   completedAt: number | null;
   submittedAt: Date | null;
+  reviewDecision: "accepted" | "returned" | null;
+  reviewNote: string | null;
+  reviewedByUserId: number | null;
+  reviewedAt: Date | null;
 };
 
 export type TaskExecutionAccess = PerformanceAccess;
@@ -95,9 +104,19 @@ export function canManageTaskExecution(
       && assignedStaffIds.every(staffId => access.reviewableStaffIds.includes(staffId)));
 }
 
+export function canReviewTaskCompletion(
+  access: TaskExecutionAccess,
+  task: Pick<Task, "createdBy">,
+  subjectStaffId: number,
+): boolean {
+  return access.isSuperAdmin
+    || task.createdBy === access.userId
+    || access.reviewableStaffIds.includes(subjectStaffId);
+}
+
 export function resolveAggregateTaskExecutionStatus(
-  task: Pick<Task, "status">,
-  assignments: Array<Pick<TaskExecutionAssignment, "status" | "feedbackId">>
+  task: Pick<Task, "status" | "requiresAcceptance">,
+  assignments: Array<Pick<TaskExecutionAssignment, "status" | "feedbackId" | "reviewDecision">>
 ): "pending" | "in_progress" | "completed" | "cancelled" {
   if (task.status === "cancelled") return "cancelled";
   if (assignments.length === 0 || assignments.every(row => row.feedbackId == null)) {
@@ -105,7 +124,8 @@ export function resolveAggregateTaskExecutionStatus(
   }
   const active = assignments.filter(row => row.status !== "cancelled");
   if (active.length === 0) return "cancelled";
-  if (active.every(row => row.status === "completed")) return "completed";
+  if (active.every(row => row.status === "completed"
+    && (!task.requiresAcceptance || row.reviewDecision === "accepted"))) return "completed";
   if (active.some(row => ["in_progress", "blocked", "completed"].includes(row.status))) {
     return "in_progress";
   }
@@ -123,7 +143,9 @@ async function getAssignmentRows(
       t.status AS taskStatus, t.completedAt AS taskCompletedAt,
       feedback.id AS feedbackId, feedback.status, feedback.feedbackNote,
       feedback.evidenceUrl, feedback.acknowledgedAt, feedback.completedAt,
-      feedback.submittedAt
+      feedback.submittedAt,
+      review.decision AS reviewDecision, review.decisionNote AS reviewNote,
+      review.decidedByUserId AS reviewedByUserId, review.decidedAt AS reviewedAt
     FROM (
       SELECT ts.taskId, ts.staffId, ts.assignedAt
       FROM task_staff ts
@@ -145,6 +167,11 @@ async function getAssignmentRows(
       FROM task_execution_feedbacks latest
       WHERE latest.taskId = assigned.taskId AND latest.staffId = assigned.staffId
     )
+    LEFT JOIN task_completion_review_events review
+      ON review.sourceType = 'manual'
+      AND review.sourceId = assigned.taskId
+      AND review.subjectKey = CONCAT('staff:', assigned.staffId)
+      AND review.completionVersion = feedback.id
     ORDER BY assigned.taskId DESC, assigned.assignedAt ASC, assigned.staffId ASC
   `);
   return rowsOf<any>(result).map(row => ({
@@ -170,6 +197,12 @@ async function getAssignmentRows(
         : null
       : Number(row.completedAt),
     submittedAt: row.submittedAt ? new Date(row.submittedAt) : null,
+    reviewDecision: row.reviewDecision === "accepted" || row.reviewDecision === "returned"
+      ? row.reviewDecision
+      : null,
+    reviewNote: row.reviewNote ? String(row.reviewNote) : null,
+    reviewedByUserId: row.reviewedByUserId == null ? null : Number(row.reviewedByUserId),
+    reviewedAt: row.reviewedAt ? new Date(row.reviewedAt) : null,
   }));
 }
 
@@ -196,11 +229,24 @@ export async function getVisibleTaskExecutionRows(
       ? taskAssignments.find(item => item.staffId === access.staffId) || null
       : null;
     const aggregateStatus = resolveAggregateTaskExecutionStatus(row.task, taskAssignments);
+    const ownDisplayStatus = ownAssignment?.status === "completed"
+      && row.task.requiresAcceptance
+      && ownAssignment.reviewDecision !== "accepted"
+      ? "in_progress"
+      : ownAssignment?.status;
     const displayStatus = !canManage && ownAssignment?.feedbackId
-      ? ownAssignment.status === "blocked" ? "in_progress" : ownAssignment.status
+      ? ownDisplayStatus === "blocked" ? "in_progress" : ownDisplayStatus
       : aggregateStatus;
     const isCancelled = row.task.status === "cancelled";
-    const completedCount = isCancelled ? 0 : taskAssignments.filter(item => item.status === "completed").length;
+    const acceptedCount = isCancelled ? 0 : taskAssignments.filter(item =>
+      item.status === "completed"
+      && (!row.task.requiresAcceptance || item.reviewDecision === "accepted")
+    ).length;
+    const pendingReviewCount = isCancelled ? 0 : taskAssignments.filter(item =>
+      item.status === "completed"
+      && row.task.requiresAcceptance
+      && item.reviewDecision == null
+    ).length;
     const displayStaff = !canManage && ownAssignment
       ? {
           id: ownAssignment.staffId,
@@ -224,16 +270,32 @@ export async function getVisibleTaskExecutionRows(
         personKey: `staff:${item.staffId}`,
         name: item.staffName,
         department: item.department,
-        status: item.status,
+        status: item.status === "completed"
+          && row.task.requiresAcceptance
+          && item.reviewDecision !== "accepted"
+          ? "in_progress"
+          : item.status,
+        executionStatus: item.status,
+        feedbackId: item.feedbackId,
+        reviewDecision: item.reviewDecision,
+        reviewNote: item.reviewNote,
+        reviewedAt: item.reviewedAt,
+        canReviewCompletion: item.status === "completed"
+          && row.task.requiresAcceptance
+          && item.reviewDecision == null
+          && canReviewTaskCompletion(access, row.task, item.staffId),
       })),
       displayStatus,
       canEdit: canManage,
       canSubmitFeedback: Boolean(ownAssignment) && !isCancelled,
       executionSummary: {
         assignedCount: taskAssignments.length,
-        completedCount,
+        completedCount: acceptedCount,
+        acceptedCount,
+        pendingReviewCount,
         blockedCount: isCancelled ? 0 : taskAssignments.filter(item => item.status === "blocked").length,
         ownStatus: isCancelled ? "cancelled" : ownAssignment?.status || null,
+        ownReviewDecision: isCancelled ? null : ownAssignment?.reviewDecision || null,
       },
     }];
   });
@@ -257,9 +319,16 @@ export async function getTaskExecutionOverview(
     SELECT feedback.id, feedback.taskId, feedback.staffId, feedback.status,
       feedback.feedbackNote, feedback.evidenceUrl, feedback.acknowledgedAt,
       feedback.completedAt, feedback.submittedAt,
-      s.name AS staffName, s.department
+      s.name AS staffName, s.department,
+      review.decision AS reviewDecision, review.decisionNote AS reviewNote,
+      review.decidedByUserId AS reviewedByUserId, review.decidedAt AS reviewedAt
     FROM task_execution_feedbacks feedback
     INNER JOIN staff s ON s.id = feedback.staffId
+    LEFT JOIN task_completion_review_events review
+      ON review.sourceType = 'manual'
+      AND review.sourceId = feedback.taskId
+      AND review.subjectKey = CONCAT('staff:', feedback.staffId)
+      AND review.completionVersion = feedback.id
     WHERE feedback.taskId = ${task.id}
     ORDER BY feedback.id DESC
     LIMIT 200
@@ -276,13 +345,22 @@ export async function getTaskExecutionOverview(
     acknowledgedAt: row.acknowledgedAt == null ? null : Number(row.acknowledgedAt),
     completedAt: row.completedAt == null ? null : Number(row.completedAt),
     submittedAt: row.submittedAt ? new Date(row.submittedAt) : null,
+    reviewDecision: row.reviewDecision === "accepted" || row.reviewDecision === "returned"
+      ? row.reviewDecision
+      : null,
+    reviewNote: row.reviewNote ? String(row.reviewNote) : null,
+    reviewedByUserId: row.reviewedByUserId == null ? null : Number(row.reviewedByUserId),
+    reviewedAt: row.reviewedAt ? new Date(row.reviewedAt) : null,
   })).filter(item => canManage
     || item.staffId === access.staffId
     || access.reviewableStaffIds.includes(item.staffId));
   const activeAssignments = task.status === "cancelled"
     ? []
     : assignments.filter(item => item.status !== "cancelled");
-  const completedCount = activeAssignments.filter(item => item.status === "completed").length;
+  const completedCount = activeAssignments.filter(item =>
+    item.status === "completed"
+    && (!task.requiresAcceptance || item.reviewDecision === "accepted")
+  ).length;
   const visibleAssignments = canManage
     ? assignments
     : assignments.filter(item => item.staffId === access.staffId || access.reviewableStaffIds.includes(item.staffId));
@@ -295,7 +373,13 @@ export async function getTaskExecutionOverview(
     completionRate: activeAssignments.length > 0
       ? completedCount / activeAssignments.length
       : null,
-    assignments: visibleAssignments,
+    assignments: visibleAssignments.map(item => ({
+      ...item,
+      canReviewCompletion: item.status === "completed"
+        && task.requiresAcceptance
+        && item.reviewDecision == null
+        && canReviewTaskCompletion(access, task, item.staffId),
+    })),
     history,
   };
 }
@@ -402,5 +486,245 @@ export async function submitTaskExecutionFeedback(input: {
       status: refreshed.aggregateStatus,
       completedAt,
     });
+  });
+}
+
+function isDuplicateEntry(error: unknown): boolean {
+  const candidate = error as { code?: unknown; errno?: unknown; cause?: unknown };
+  if (candidate?.code === "ER_DUP_ENTRY" || candidate?.errno === 1062) return true;
+  return candidate?.cause ? isDuplicateEntry(candidate.cause) : false;
+}
+
+export async function reviewTaskExecutionCompletion(input: {
+  db: PerformanceDatabase;
+  access: TaskExecutionAccess;
+  task: Task;
+  staffId: number;
+  feedbackId: number;
+  decision: "accepted" | "returned";
+  decisionNote: string;
+  requestId: string;
+}) {
+  const decisionNote = input.decisionNote.trim();
+  if (input.decision === "returned" && !decisionNote) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "退回时必须填写原因" });
+  }
+  return input.db.transaction(async transaction => {
+    const lockedRows = rowsOf<any>(await transaction.execute(sql`
+      SELECT status, completedAt, requiresAcceptance
+      FROM tasks
+      WHERE id = ${input.task.id} AND archivedAt IS NULL
+      FOR UPDATE
+    `));
+    const locked = lockedRows[0];
+    if (!locked) throw new TRPCError({ code: "NOT_FOUND", message: "任务不存在" });
+    if (String(locked.status) === "cancelled") {
+      throw new TRPCError({ code: "CONFLICT", message: "已取消的任务不能验收" });
+    }
+    if (!Boolean(locked.requiresAcceptance)) {
+      throw new TRPCError({ code: "CONFLICT", message: "该历史任务无需重新验收" });
+    }
+    const lockedTask = {
+      ...input.task,
+      status: String(locked.status) as Task["status"],
+      completedAt: locked.completedAt == null ? null : Number(locked.completedAt),
+      requiresAcceptance: Boolean(locked.requiresAcceptance),
+    };
+
+    const existingRequest = await transaction.select().from(taskCompletionReviewEvents)
+      .where(eq(taskCompletionReviewEvents.requestId, input.requestId)).limit(1);
+    if (existingRequest[0]) {
+      const existing = existingRequest[0];
+      if (existing.sourceType !== "manual"
+        || existing.sourceId !== input.task.id
+        || existing.subjectKey !== `staff:${input.staffId}`
+        || Number(existing.completionVersion) !== input.feedbackId
+        || existing.decision !== input.decision
+        || existing.decisionNote !== decisionNote
+        || existing.decidedByUserId !== input.access.userId) {
+        throw new TRPCError({ code: "CONFLICT", message: "验收请求ID已用于其他操作" });
+      }
+      return getTaskExecutionOverview(transaction, input.access, lockedTask);
+    }
+
+    const overview = await getTaskExecutionOverview(transaction, input.access, lockedTask);
+    if (!canReviewTaskCompletion(input.access, lockedTask, input.staffId)) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "无权验收该执行人的任务" });
+    }
+    const assignment = overview.assignments.find(row => row.staffId === input.staffId);
+    if (!assignment || assignment.feedbackId !== input.feedbackId || assignment.status !== "completed") {
+      throw new TRPCError({ code: "CONFLICT", message: "完成申报已更新，请刷新后重新确认" });
+    }
+    if (assignment.reviewDecision) {
+      throw new TRPCError({ code: "CONFLICT", message: "该完成申报已经处理" });
+    }
+
+    try {
+      await transaction.insert(taskCompletionReviewEvents).values({
+        requestId: input.requestId,
+        sourceType: "manual",
+        sourceId: input.task.id,
+        subjectKey: `staff:${input.staffId}`,
+        completionVersion: input.feedbackId,
+        decision: input.decision,
+        decisionNote,
+        decidedByUserId: input.access.userId,
+      });
+    } catch (error) {
+      if (isDuplicateEntry(error)) {
+        throw new TRPCError({ code: "CONFLICT", message: "该完成申报已被其他负责人处理，请刷新查看" });
+      }
+      throw error;
+    }
+
+    const refreshed = await getTaskExecutionOverview(transaction, input.access, lockedTask);
+    const completedTimes = refreshed.assignments
+      .filter(row => !lockedTask.requiresAcceptance || row.reviewDecision === "accepted")
+      .map(row => row.completedAt)
+      .filter((value): value is number => value != null);
+    const completedAt = refreshed.aggregateStatus === "completed" && completedTimes.length > 0
+      ? Math.max(...completedTimes)
+      : null;
+    await transaction.execute(sql`
+      INSERT INTO entity_revision_audits
+        (entityType, entityId, action, actorUserId, beforeState, afterState)
+      VALUES ('task', ${input.task.id}, ${input.decision === "accepted" ? "execution_completion_accepted" : "execution_completion_returned"},
+        ${input.access.userId},
+        ${JSON.stringify({ status: lockedTask.status, completedAt: lockedTask.completedAt })},
+        ${JSON.stringify({
+          status: refreshed.aggregateStatus,
+          completedAt,
+          staffId: input.staffId,
+          feedbackId: input.feedbackId,
+          decision: input.decision,
+          decisionNote,
+        })})
+    `);
+    await transaction.execute(sql`
+      UPDATE tasks
+      SET status = CASE WHEN status = 'cancelled' THEN 'cancelled' ELSE ${refreshed.aggregateStatus} END,
+        completedAt = CASE WHEN status = 'cancelled' THEN NULL ELSE ${completedAt} END,
+        updatedAt = CURRENT_TIMESTAMP
+      WHERE id = ${input.task.id}
+    `);
+    return getTaskExecutionOverview(transaction, input.access, {
+      ...lockedTask,
+      status: refreshed.aggregateStatus,
+      completedAt,
+    });
+  });
+}
+
+export async function reviewReportFollowupCompletion(input: {
+  db: PerformanceDatabase;
+  access: TaskExecutionAccess;
+  followupId: number;
+  completionRevision: number;
+  decision: "accepted" | "returned";
+  decisionNote: string;
+  requestId: string;
+}) {
+  const decisionNote = input.decisionNote.trim();
+  if (input.decision === "returned" && !decisionNote) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "退回时必须填写原因" });
+  }
+  return input.db.transaction(async transaction => {
+    const rows = rowsOf<any>(await transaction.execute(sql`
+      SELECT followup.id, followup.reportStaffId, followup.status,
+        followup.requiresAcceptance, followup.completionRevision,
+        followup.completedAt, report.createdBy, profile.linkedStaffId
+      FROM report_followups followup
+      INNER JOIN reports report ON report.id = followup.reportId AND report.deletedAt IS NULL
+      LEFT JOIN report_staff profile ON profile.id = followup.reportStaffId
+      WHERE followup.id = ${input.followupId}
+        AND followup.archivedAt IS NULL
+        AND followup.duplicateOfId IS NULL
+      FOR UPDATE
+    `));
+    const current = rows[0];
+    if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "日报任务不存在" });
+    const linkedStaffId = current.linkedStaffId == null ? null : Number(current.linkedStaffId);
+    const canReview = input.access.isSuperAdmin
+      || Number(current.createdBy) === input.access.userId
+      || Boolean(linkedStaffId && input.access.reviewableStaffIds.includes(linkedStaffId));
+    if (!canReview) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "无权验收该日报任务" });
+    }
+    const subjectKey = `report-staff:${Number(current.reportStaffId)}`;
+    const existingRequest = await transaction.select().from(taskCompletionReviewEvents)
+      .where(eq(taskCompletionReviewEvents.requestId, input.requestId)).limit(1);
+    if (existingRequest[0]) {
+      const existing = existingRequest[0];
+      if (existing.sourceType !== "daily_report"
+        || existing.sourceId !== input.followupId
+        || existing.subjectKey !== subjectKey
+        || Number(existing.completionVersion) !== input.completionRevision
+        || existing.decision !== input.decision
+        || existing.decisionNote !== decisionNote
+        || existing.decidedByUserId !== input.access.userId) {
+        throw new TRPCError({ code: "CONFLICT", message: "验收请求ID已用于其他操作" });
+      }
+      return { success: true, decision: existing.decision };
+    }
+    if (!Boolean(current.requiresAcceptance)) {
+      throw new TRPCError({ code: "CONFLICT", message: "该历史任务无需重新验收" });
+    }
+    if (String(current.status) !== "completed"
+      || Number(current.completionRevision) !== input.completionRevision) {
+      throw new TRPCError({ code: "CONFLICT", message: "完成申报已更新，请刷新后重新确认" });
+    }
+    const existingDecision = await transaction.select({ id: taskCompletionReviewEvents.id })
+      .from(taskCompletionReviewEvents)
+      .where(sql`${taskCompletionReviewEvents.sourceType} = 'daily_report'
+        AND ${taskCompletionReviewEvents.sourceId} = ${input.followupId}
+        AND ${taskCompletionReviewEvents.subjectKey} = ${subjectKey}
+        AND ${taskCompletionReviewEvents.completionVersion} = ${input.completionRevision}`)
+      .limit(1);
+    if (existingDecision[0]) {
+      throw new TRPCError({ code: "CONFLICT", message: "该完成申报已经处理" });
+    }
+    try {
+      await transaction.insert(taskCompletionReviewEvents).values({
+        requestId: input.requestId,
+        sourceType: "daily_report",
+        sourceId: input.followupId,
+        subjectKey,
+        completionVersion: input.completionRevision,
+        decision: input.decision,
+        decisionNote,
+        decidedByUserId: input.access.userId,
+      });
+    } catch (error) {
+      if (isDuplicateEntry(error)) {
+        throw new TRPCError({ code: "CONFLICT", message: "该完成申报已被其他负责人处理，请刷新查看" });
+      }
+      throw error;
+    }
+    if (input.decision === "returned") {
+      await transaction.execute(sql`
+        UPDATE report_followups
+        SET status = 'pending', completedAt = NULL, updatedAt = CURRENT_TIMESTAMP
+        WHERE id = ${input.followupId}
+          AND status = 'completed'
+          AND completionRevision = ${input.completionRevision}
+          AND archivedAt IS NULL
+          AND duplicateOfId IS NULL
+      `);
+    }
+    await transaction.execute(sql`
+      INSERT INTO entity_revision_audits
+        (entityType, entityId, action, actorUserId, beforeState, afterState)
+      VALUES ('report_followup', ${input.followupId},
+        ${input.decision === "accepted" ? "completion_accepted" : "completion_returned"},
+        ${input.access.userId},
+        ${JSON.stringify({ status: current.status, completedAt: current.completedAt, completionRevision: input.completionRevision })},
+        ${JSON.stringify({
+          status: input.decision === "returned" ? "pending" : "completed",
+          completionRevision: input.completionRevision,
+          decision: input.decision,
+          decisionNote,
+        })})
+    `);
+    return { success: true, decision: input.decision };
   });
 }

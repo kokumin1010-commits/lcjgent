@@ -429,14 +429,20 @@ export async function updateTask(
   return await db.transaction(async transaction => {
     const before = (await transaction.select().from(tasks).where(eq(tasks.id, id)).limit(1).for("update"))[0];
     if (!before) return null;
-    const after = { ...before, ...taskData };
+    const normalizedTaskData: Partial<InsertTask> = { ...taskData };
+    if (before.status === "completed"
+      && (taskData.status === "pending" || taskData.status === "in_progress")) {
+      normalizedTaskData.requiresAcceptance = true;
+      normalizedTaskData.completedAt = null;
+    }
+    const after = { ...before, ...normalizedTaskData };
     await transaction.execute(sql`
       INSERT INTO entity_revision_audits
         (entityType, entityId, action, actorUserId, beforeState, afterState)
       VALUES ('task', ${id}, ${action}, ${actorUserId},
         ${JSON.stringify(before)}, ${JSON.stringify(after)})
     `);
-    return await transaction.update(tasks).set(taskData).where(eq(tasks.id, id));
+    return await transaction.update(tasks).set(normalizedTaskData).where(eq(tasks.id, id));
   });
 }
 
@@ -2086,7 +2092,8 @@ export async function updateFollowupStatus(
   resultCategory?: "成約" | "継続" | "保留" | "失注" | "完了",
   resultNote?: string,
   actorUserId: number | null = null,
-  expectedIdentity?: { reportStaffId: number; linkedStaffId: number }
+  expectedIdentity?: { reportStaffId: number; linkedStaffId: number },
+  completionRequestId?: string,
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -2101,12 +2108,17 @@ export async function updateFollowupStatus(
       updateData.resultNote = resultNote;
       updateData.completedNote = resultNote; // 後方互換
     }
+  } else {
+    updateData.completedAt = null;
   }
   
   await db.transaction(async transaction => {
     const before = (await transaction.select().from(reportFollowups)
       .where(eq(reportFollowups.id, id)).limit(1).for("update"))[0];
     if (!before || before.archivedAt || before.duplicateOfId) return;
+    if (status === "completed" && expectedIdentity && before.completionRequestId === completionRequestId) {
+      return;
+    }
     if (expectedIdentity) {
       const profile = (await transaction.select({
         id: reportStaff.id,
@@ -2134,6 +2146,16 @@ export async function updateFollowupStatus(
       if (before.status !== "pending") {
         throw new Error("Only pending report tasks can be completed");
       }
+      if (status === "completed") {
+        if (!completionRequestId) throw new Error("Completion request id is required");
+        updateData.completionRevision = Number(before.completionRevision || 0) + 1;
+        updateData.completionRequestId = completionRequestId;
+        updateData.requiresAcceptance = true;
+      }
+    } else if (status === "completed") {
+      updateData.requiresAcceptance = false;
+      updateData.completionRevision = Number(before.completionRevision || 0) + 1;
+      updateData.completionRequestId = null;
     }
     await transaction.execute(sql`
       INSERT INTO entity_revision_audits

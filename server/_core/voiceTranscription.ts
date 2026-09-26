@@ -35,16 +35,16 @@ export type TranscribeOptions = {
 
 // Native Whisper API segment format
 export type WhisperSegment = {
-  id: number;
-  seek: number;
+  id?: number;
+  seek?: number;
   start: number;
   end: number;
   text: string;
-  tokens: number[];
-  temperature: number;
-  avg_logprob: number;
-  compression_ratio: number;
-  no_speech_prob: number;
+  tokens?: number[];
+  temperature?: number;
+  avg_logprob?: number;
+  compression_ratio?: number;
+  no_speech_prob?: number;
 };
 
 // Native Whisper API response format
@@ -95,7 +95,7 @@ export async function transcribeAudio(
     let audioBuffer: Buffer;
     let mimeType: string;
     try {
-      const response = await fetch(options.audioUrl);
+      const response = await fetch(options.audioUrl, { signal: AbortSignal.timeout(120_000) });
       if (!response.ok) {
         return {
           error: "Failed to download audio file",
@@ -157,6 +157,7 @@ export async function transcribeAudio(
         "Accept-Encoding": "identity",
       },
       body: formData,
+      signal: AbortSignal.timeout(180_000),
     });
 
     if (!response.ok) {
@@ -169,10 +170,10 @@ export async function transcribeAudio(
     }
 
     // Step 5: Parse and return the transcription result
-    const whisperResponse = await response.json() as WhisperResponse;
+    const rawResponse = await response.json() as Partial<WhisperResponse>;
     
     // Validate response structure
-    if (!whisperResponse.text || typeof whisperResponse.text !== 'string') {
+    if (!rawResponse.text || typeof rawResponse.text !== 'string') {
       return {
         error: "Invalid transcription response",
         code: "SERVICE_ERROR",
@@ -180,7 +181,24 @@ export async function transcribeAudio(
       };
     }
 
-    return whisperResponse; // Return native Whisper API response directly
+    const segments = Array.isArray(rawResponse.segments)
+      ? rawResponse.segments.flatMap((segment, index) => {
+          const start = Number(segment?.start);
+          const end = Number(segment?.end);
+          const text = typeof segment?.text === "string" ? segment.text : "";
+          if (!Number.isFinite(start) || !Number.isFinite(end) || end < start || !text.trim()) return [];
+          return [{ ...segment, id: segment.id ?? index, start, end, text } as WhisperSegment];
+        })
+      : [];
+    const responseDuration = Number(rawResponse.duration);
+    const segmentDuration = segments.reduce((maximum, segment) => Math.max(maximum, segment.end), 0);
+    return {
+      task: "transcribe",
+      language: typeof rawResponse.language === "string" ? rawResponse.language : options.language || "unknown",
+      duration: Number.isFinite(responseDuration) && responseDuration > 0 ? responseDuration : segmentDuration,
+      text: rawResponse.text,
+      segments,
+    };
 
   } catch (error) {
     // Handle unexpected errors

@@ -4,7 +4,6 @@ import {
   type TranscriptionResponse,
   type WhisperSegment,
 } from "./_core/voiceTranscription";
-import type { MorningMeetingProcessingSource } from "./morningMeetingIntelligence";
 
 export type MorningMeetingTranscriptionQualityReason =
   | "EMPTY_TRANSCRIPT"
@@ -32,7 +31,7 @@ export type MorningMeetingTranscriptionQuality = {
 };
 
 export type MorningMeetingTranscriptionAttempt = {
-  source: "primary" | "retry" | "browser";
+  source: "primary" | "retry";
   quality: MorningMeetingTranscriptionQuality;
   speechEvidence: boolean;
   serviceErrorCode?: TranscriptionError["code"];
@@ -40,8 +39,8 @@ export type MorningMeetingTranscriptionAttempt = {
 
 export type MorningMeetingTranscriptionResult = {
   transcript: string;
-  response: TranscriptionResponse | null;
-  processingSource: MorningMeetingProcessingSource;
+  response: TranscriptionResponse;
+  processingSource: "server_audio" | "server_audio_retry";
   attempts: MorningMeetingTranscriptionAttempt[];
 };
 
@@ -69,24 +68,30 @@ const NON_SPEECH_TRANSCRIPT = /^(?:[♪♫\s]|music|applause|silence|noise|音�
 
 export function hasWhisperSpeechEvidence(response: TranscriptionResponse): boolean {
   const segments = Array.isArray(response.segments) ? response.segments : [];
+  if (segments.length === 0) {
+    const normalizedText = normalizeSegment(response.text);
+    return normalizedText.length >= 30
+      && Number(response.duration || 0) >= 3
+      && !NON_SPEECH_TRANSCRIPT.test(normalizedText);
+  }
   const meaningful = segments.filter((segment) => {
     const text = normalizeSegment(segment?.text);
     return text.length >= 2 && !NON_SPEECH_TRANSCRIPT.test(text);
   });
-  if (meaningful.length < 2) return false;
+  if (meaningful.length < 1) return false;
   const distinctText = new Set(meaningful.map((segment) => normalizeSegment(segment.text)));
   const characterCount = [...distinctText].reduce((sum, text) => sum + text.length, 0);
   const voicedSeconds = meaningful.reduce((sum, segment) =>
     sum + Math.max(0, Math.min(30, Number(segment.end) - Number(segment.start))), 0);
   const averageNoSpeechProbability = finiteAverage(meaningful.map((segment) => Number(segment.no_speech_prob)));
   const averageLogProbability = finiteAverage(meaningful.map((segment) => Number(segment.avg_logprob)));
-  return distinctText.size >= 2
-    && characterCount >= 12
-    && voicedSeconds >= 2.5
-    && averageNoSpeechProbability !== null
-    && averageNoSpeechProbability <= 0.35
-    && averageLogProbability !== null
-    && averageLogProbability >= -1.1;
+  const structuralEvidence = characterCount >= 8 && voicedSeconds >= 1.5;
+  if (!structuralEvidence) return false;
+  const hasCompleteConfidence = averageNoSpeechProbability !== null && averageLogProbability !== null;
+  if (!hasCompleteConfidence) {
+    return characterCount >= 12 || (distinctText.size >= 2 && voicedSeconds >= 2.5);
+  }
+  return averageNoSpeechProbability <= 0.35 && averageLogProbability >= -1.1;
 }
 
 function transcriptUnits(
@@ -158,9 +163,19 @@ export function assessMorningMeetingTranscription(input: {
     modelSegments.map(segment => Number(segment.compression_ratio)),
   );
   const reasons: MorningMeetingTranscriptionQualityReason[] = [];
+  const hasDistributedDistinctSpeech = segmentCount >= 3
+    && uniqueSegmentCount >= 3
+    && uniqueSegmentRatio >= 0.75
+    && durationCoverageRatio !== null
+    && durationCoverageRatio >= 0.75
+    && (averageLogProbability === null || averageLogProbability >= -1.1);
 
   if (!text || characterCount === 0) reasons.push("EMPTY_TRANSCRIPT");
-  if (expectedDurationSeconds >= 60 && characterCount < Math.max(30, expectedDurationSeconds * 0.45)) {
+  if (
+    expectedDurationSeconds >= 60
+    && characterCount < Math.max(24, expectedDurationSeconds * 0.22)
+    && !hasDistributedDistinctSpeech
+  ) {
     reasons.push("TRANSCRIPT_TOO_SHORT_FOR_DURATION");
   }
   if (
@@ -251,11 +266,29 @@ export class MorningMeetingTranscriptionQualityError extends Error {
   }
 }
 
+export class MorningMeetingTranscriptionServiceError extends Error {
+  readonly code: "MORNING_TRANSCRIPTION_SERVICE_UNAVAILABLE" | "MORNING_TRANSCRIPTION_AUDIO_UNPROCESSABLE";
+  readonly attempts: MorningMeetingTranscriptionAttempt[];
+
+  constructor(
+    code: "MORNING_TRANSCRIPTION_SERVICE_UNAVAILABLE" | "MORNING_TRANSCRIPTION_AUDIO_UNPROCESSABLE",
+    attempts: MorningMeetingTranscriptionAttempt[],
+  ) {
+    super(code);
+    this.name = "MorningMeetingTranscriptionServiceError";
+    this.code = code;
+    this.attempts = attempts;
+  }
+}
+
+function isDeterministicTranscriptionError(error: TranscriptionError): boolean {
+  return error.code === "FILE_TOO_LARGE" || error.code === "INVALID_FORMAT";
+}
+
 export async function transcribeMorningMeetingWithQualityRetry(input: {
   audioUrl: string;
   language: "zh" | "ja";
   primaryPrompt: string;
-  browserTranscript?: string;
   expectedDurationSeconds: number;
   transcribe?: TranscribeFn;
 }): Promise<MorningMeetingTranscriptionResult> {
@@ -269,6 +302,9 @@ export async function transcribeMorningMeetingWithQualityRetry(input: {
   });
   const primaryAttempt = compactAttempt("primary", primary, input.expectedDurationSeconds);
   attempts.push(primaryAttempt);
+  if ("error" in primary && isDeterministicTranscriptionError(primary)) {
+    throw new MorningMeetingTranscriptionServiceError("MORNING_TRANSCRIPTION_AUDIO_UNPROCESSABLE", attempts);
+  }
   if (!("error" in primary) && primaryAttempt.quality.accepted) {
     return {
       transcript: primary.text,
@@ -293,23 +329,13 @@ export async function transcribeMorningMeetingWithQualityRetry(input: {
       attempts,
     };
   }
-
-  const browserTranscript = String(input.browserTranscript || "").trim();
-  if (browserTranscript) {
-    const browserQuality = assessMorningMeetingTranscription({
-      text: browserTranscript,
-      expectedDurationSeconds: input.expectedDurationSeconds,
-    });
-    attempts.push({ source: "browser", quality: browserQuality, speechEvidence: false });
-    if (browserQuality.accepted) {
-      return {
-        transcript: browserTranscript,
-        response: null,
-        processingSource: "browser_fallback",
-        attempts,
-      };
-    }
+  if ("error" in primary || "error" in retry) {
+    const deterministic = ("error" in primary && isDeterministicTranscriptionError(primary))
+      || ("error" in retry && isDeterministicTranscriptionError(retry));
+    throw new MorningMeetingTranscriptionServiceError(
+      deterministic ? "MORNING_TRANSCRIPTION_AUDIO_UNPROCESSABLE" : "MORNING_TRANSCRIPTION_SERVICE_UNAVAILABLE",
+      attempts,
+    );
   }
-
   throw new MorningMeetingTranscriptionQualityError(attempts);
 }

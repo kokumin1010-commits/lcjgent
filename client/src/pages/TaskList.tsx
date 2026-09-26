@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -92,6 +92,9 @@ export default function TaskList() {
     () => new Set()
   );
   const [completingTaskKey, setCompletingTaskKey] = useState<string | null>(null);
+  const [reviewingTaskKey, setReviewingTaskKey] = useState<string | null>(null);
+  const completionRequestIdsRef = useRef(new Map<string, string>());
+  const reviewAttemptsRef = useRef(new Map<string, { requestId: string; decisionNote: string }>());
   const utils = trpc.useUtils();
 
   const {
@@ -119,6 +122,7 @@ export default function TaskList() {
 
   const completeManualTask = trpc.task.submitExecutionFeedback.useMutation();
   const completeReportTask = trpc.task.completeOwnReportFollowup.useMutation();
+  const reviewCompletion = trpc.task.reviewCompletion.useMutation();
 
   const counts = feed?.counts || {
     all: 0,
@@ -134,13 +138,16 @@ export default function TaskList() {
       !item.canSubmitFeedback ||
       item.status === "completed" ||
       item.status === "cancelled" ||
-      item.executionSummary?.ownStatus === "completed"
+      (item.executionSummary?.ownStatus === "completed"
+        && item.executionSummary.ownReviewDecision !== "returned")
     ) return;
+    const requestId = completionRequestIdsRef.current.get(item.key) || crypto.randomUUID();
+    completionRequestIdsRef.current.set(item.key, requestId);
     setCompletingTaskKey(item.key);
     try {
       if (item.source === "manual") {
         await completeManualTask.mutateAsync({
-          requestId: crypto.randomUUID(),
+          requestId,
           taskId: item.id,
           status: "completed",
           feedbackNote: "员工在任务列表中勾选已完成",
@@ -148,10 +155,12 @@ export default function TaskList() {
       } else {
         await completeReportTask.mutateAsync({
           id: item.id,
+          requestId,
           resultNote: "员工在任务列表中勾选已完成",
         });
       }
-      toast.success("任务已完成，已移入完成记录");
+      completionRequestIdsRef.current.delete(item.key);
+      toast.success("完成申报已提交，等待负责人确认");
       await utils.task.feed.invalidate();
     } catch (error) {
       toast.error("任务完成操作失败", {
@@ -159,6 +168,46 @@ export default function TaskList() {
       });
     } finally {
       setCompletingTaskKey(null);
+    }
+  };
+
+  const reviewItemCompletion = async (
+    item: (typeof items)[number],
+    assignee: (typeof items)[number]["assignees"][number],
+    decision: "accepted" | "returned",
+  ) => {
+    if (!assignee.canReviewCompletion || !assignee.completionVersion) return;
+    const reviewKey = `${item.key}:${assignee.personKey}`;
+    const operationKey = `${reviewKey}:${assignee.completionVersion}:${decision}`;
+    let attempt = reviewAttemptsRef.current.get(operationKey);
+    if (!attempt) {
+      const decisionNote = decision === "returned"
+        ? (window.prompt("请输入退回原因，执行人会据此重新处理") || "").trim()
+        : "负责人在任务列表确认验收";
+      if (decision === "returned" && decisionNote.length < 2) return;
+      attempt = { requestId: crypto.randomUUID(), decisionNote };
+      reviewAttemptsRef.current.set(operationKey, attempt);
+    }
+    setReviewingTaskKey(reviewKey);
+    try {
+      await reviewCompletion.mutateAsync({
+        source: item.source,
+        id: item.id,
+        staffId: item.source === "manual" ? assignee.id : undefined,
+        completionVersion: assignee.completionVersion,
+        decision,
+        decisionNote: attempt.decisionNote,
+        requestId: attempt.requestId,
+      });
+      reviewAttemptsRef.current.delete(operationKey);
+      toast.success(decision === "accepted" ? "已确认验收" : "已退回执行人重新处理");
+      await utils.task.feed.invalidate();
+    } catch (error) {
+      toast.error(decision === "accepted" ? "确认验收失败" : "退回失败", {
+        description: error instanceof Error ? error.message : "请稍后重试",
+      });
+    } finally {
+      setReviewingTaskKey(null);
     }
   };
 
@@ -248,9 +297,8 @@ export default function TaskList() {
         <CardContent className="flex gap-3 p-4 text-sm text-emerald-950">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
-            负责人或同事指派后，执行人会收到邮件并在此看到任务。执行人需提交“进行中／受阻／完成”反馈；
-            每人的完成率与按期完成率会作为绩效积分事实（当前为影子评分，不自动影响奖金或LCJ
-            Coin）。
+            执行人提交“完成”后会进入“待确认”，任务创建者或该员工负责人可在这里确认验收或退回。
+            只有确认验收后才计入完成率；按期时间仍使用员工提交完成的时间，不因负责人稍后确认而延迟。
           </p>
         </CardContent>
       </Card>
@@ -387,7 +435,12 @@ export default function TaskList() {
                     {expanded && (
                       <CardContent className="border-t bg-muted/20 p-3 sm:p-4">
                         <div className="grid gap-3">
-                          {group.items.map(item => (
+                          {group.items.map(item => {
+                            const personAssignee = item.assignees.find(
+                              assignee => assignee.personKey === group.key
+                            );
+                            const reviewKey = `${item.key}:${group.key}`;
+                            return (
                             <Card
                               key={`${group.key}:${item.key}`}
                               className="cursor-pointer border bg-background transition-shadow hover:shadow-sm"
@@ -419,6 +472,19 @@ export default function TaskList() {
                                       >
                                         {statusLabels[item.status]}
                                       </Badge>
+                                      {personAssignee?.executionStatus === "completed" && personAssignee.reviewDecision == null && (
+                                        <Badge className="border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-100">
+                                          待负责人确认
+                                        </Badge>
+                                      )}
+                                      {personAssignee?.reviewDecision === "accepted" && (
+                                        <Badge className="border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                                          已确认
+                                        </Badge>
+                                      )}
+                                      {personAssignee?.reviewDecision === "returned" && (
+                                        <Badge variant="destructive">已退回</Badge>
+                                      )}
                                     </div>
                                     <div className="flex items-start gap-2">
                                       {isTaskUnfinishedForPerson(item, group.key) && (
@@ -440,17 +506,30 @@ export default function TaskList() {
                                           .join("、")}
                                       </p>
                                     )}
+                                    {personAssignee?.reviewDecision === "returned" && personAssignee.reviewNote && (
+                                      <p className="mt-2 rounded-md bg-red-50 px-2.5 py-2 text-xs text-red-700">
+                                        退回原因：{personAssignee.reviewNote}
+                                      </p>
+                                    )}
                                     {item.executionSummary && (
                                       <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
                                         <Badge
                                           variant="outline"
                                           className="border-emerald-300 text-emerald-700"
                                         >
-                                          执行反馈{" "}
+                                          已确认{" "}
                                           {item.executionSummary.completedCount}
                                           /{item.executionSummary.assignedCount}{" "}
-                                          完成
+                                          人
                                         </Badge>
+                                        {Boolean(item.executionSummary.pendingReviewCount) && (
+                                          <Badge
+                                            variant="outline"
+                                            className="border-amber-300 text-amber-700"
+                                          >
+                                            待确认 {item.executionSummary.pendingReviewCount}人
+                                          </Badge>
+                                        )}
                                         {item.executionSummary.blockedCount >
                                           0 && (
                                           <Badge
@@ -468,7 +547,11 @@ export default function TaskList() {
                                               我的反馈:{" "}
                                               {item.executionSummary
                                                 .ownStatus === "completed"
-                                                ? "已完成"
+                                                ? item.executionSummary.ownReviewDecision === "accepted"
+                                                  ? "已确认"
+                                                  : item.executionSummary.ownReviewDecision === "returned"
+                                                    ? "已退回"
+                                                    : "已报完成・待确认"
                                                 : item.executionSummary
                                                       .ownStatus === "blocked"
                                                   ? "受阻"
@@ -482,10 +565,12 @@ export default function TaskList() {
                                       </div>
                                     )}
                                   </div>
-                                  {item.canSubmitFeedback &&
-                                    item.status !== "completed" &&
-                                    item.status !== "cancelled" &&
-                                    item.executionSummary?.ownStatus !== "completed" && (
+                                  <div className="flex shrink-0 flex-wrap gap-2">
+                                    {item.canSubmitFeedback &&
+                                      item.status !== "completed" &&
+                                      item.status !== "cancelled" &&
+                                      (item.executionSummary?.ownStatus !== "completed"
+                                        || item.executionSummary.ownReviewDecision === "returned") && (
                                       <Button
                                         type="button"
                                         size="sm"
@@ -503,9 +588,46 @@ export default function TaskList() {
                                         ) : (
                                           <CheckCircle2 className="mr-1.5 h-4 w-4" />
                                         )}
-                                        完成にする
+                                        完成を申告
                                       </Button>
+                                      )}
+                                    {personAssignee?.canReviewCompletion && personAssignee.completionVersion && (
+                                      <>
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          className="bg-emerald-600 text-white hover:bg-emerald-700"
+                                          data-testid="task-accept-completion"
+                                          disabled={reviewingTaskKey === reviewKey}
+                                          onClick={event => {
+                                            event.stopPropagation();
+                                            void reviewItemCompletion(item, personAssignee, "accepted");
+                                          }}
+                                        >
+                                          {reviewingTaskKey === reviewKey ? (
+                                            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                                          ) : (
+                                            <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                                          )}
+                                          确认验收
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="outline"
+                                          className="border-red-300 text-red-700 hover:bg-red-50"
+                                          data-testid="task-return-completion"
+                                          disabled={reviewingTaskKey === reviewKey}
+                                          onClick={event => {
+                                            event.stopPropagation();
+                                            void reviewItemCompletion(item, personAssignee, "returned");
+                                          }}
+                                        >
+                                          退回
+                                        </Button>
+                                      </>
                                     )}
+                                  </div>
                                 </div>
                               </CardHeader>
                               <CardContent className="p-4 pt-1">
@@ -527,7 +649,8 @@ export default function TaskList() {
                                 </div>
                               </CardContent>
                             </Card>
-                          ))}
+                            );
+                          })}
                         </div>
                       </CardContent>
                     )}

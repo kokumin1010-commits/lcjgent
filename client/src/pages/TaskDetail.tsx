@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 const statusColors = {
   pending: "bg-yellow-500",
@@ -56,6 +56,7 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
   const [feedbackNote, setFeedbackNote] = useState("");
   const [evidenceUrl, setEvidenceUrl] = useState("");
   const [feedbackRequestId, setFeedbackRequestId] = useState(() => crypto.randomUUID());
+  const reviewAttemptsRef = useRef(new Map<string, { requestId: string; decisionNote: string }>());
 
   const utils = trpc.useUtils();
   const { data: taskData, isLoading } = trpc.task.getById.useQuery({ id: taskId });
@@ -64,8 +65,10 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
   const { data: emailTracking } = trpc.task.getEmailTracking.useQuery({ taskId }, { enabled: canManage });
 
   const feedbackMutation = trpc.task.submitExecutionFeedback.useMutation({
-    onSuccess: () => {
-      toast.success("执行反馈已提交，并会进入执行率积分事实");
+    onSuccess: (_result, variables) => {
+      toast.success(variables.status === "completed"
+        ? "完成申报已提交，等待负责人确认"
+        : "执行反馈已提交");
       setFeedbackNote("");
       setEvidenceUrl("");
       setFeedbackRequestId(crypto.randomUUID());
@@ -74,6 +77,17 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
     },
     onError: error => {
       toast.error("执行反馈提交失败", { description: error.message });
+    },
+  });
+
+  const reviewCompletionMutation = trpc.task.reviewCompletion.useMutation({
+    onSuccess: (_result, variables) => {
+      toast.success(variables.decision === "accepted" ? "已确认验收" : "已退回执行人重新处理");
+      utils.task.getById.invalidate({ id: taskId });
+      utils.task.feed.invalidate();
+    },
+    onError: error => {
+      toast.error("验收操作失败", { description: error.message });
     },
   });
 
@@ -150,6 +164,37 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
     setNewStatus("");
   };
 
+  const handleReviewCompletion = async (
+    assignment: (typeof taskData.execution.assignments)[number],
+    decision: "accepted" | "returned",
+  ) => {
+    if (!assignment.feedbackId || !assignment.canReviewCompletion) return;
+    const operationKey = `${taskId}:${assignment.staffId}:${assignment.feedbackId}:${decision}`;
+    let attempt = reviewAttemptsRef.current.get(operationKey);
+    if (!attempt) {
+      const decisionNote = decision === "returned"
+        ? (window.prompt("请输入退回原因，执行人会据此重新处理") || "").trim()
+        : "负责人在任务详情确认验收";
+      if (decision === "returned" && decisionNote.length < 2) return;
+      attempt = { requestId: crypto.randomUUID(), decisionNote };
+      reviewAttemptsRef.current.set(operationKey, attempt);
+    }
+    try {
+      await reviewCompletionMutation.mutateAsync({
+        source: "manual",
+        id: taskId,
+        staffId: assignment.staffId,
+        completionVersion: assignment.feedbackId,
+        decision,
+        decisionNote: attempt.decisionNote,
+        requestId: attempt.requestId,
+      });
+      reviewAttemptsRef.current.delete(operationKey);
+    } catch {
+      // The mutation's onError shows the message; retain the request id for a safe retry.
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -211,12 +256,50 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
                         <Badge variant="outline">
                           {executionStatusLabels[item.status]}
                         </Badge>
+                        {item.status === "completed" && item.reviewDecision == null && task.requiresAcceptance && (
+                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">待负责人确认</Badge>
+                        )}
+                        {item.reviewDecision === "accepted" && (
+                          <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">已确认</Badge>
+                        )}
+                        {item.reviewDecision === "returned" && (
+                          <Badge variant="destructive">已退回</Badge>
+                        )}
                       </div>
                       {item.department && (
                         <p className="text-sm text-muted-foreground">{item.department}</p>
                       )}
                       {item.feedbackNote && (
                         <p className="mt-1 whitespace-pre-wrap text-sm">{item.feedbackNote}</p>
+                      )}
+                      {item.reviewDecision === "returned" && item.reviewNote && (
+                        <p className="mt-2 rounded-md bg-red-50 px-2.5 py-2 text-sm text-red-700">
+                          退回原因：{item.reviewNote}
+                        </p>
+                      )}
+                      {item.canReviewCompletion && item.feedbackId && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="bg-emerald-600 text-white hover:bg-emerald-700"
+                            disabled={reviewCompletionMutation.isPending}
+                            onClick={() => handleReviewCompletion(item, "accepted")}
+                          >
+                            {reviewCompletionMutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                            确认验收
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="border-red-300 text-red-700 hover:bg-red-50"
+                            disabled={reviewCompletionMutation.isPending}
+                            onClick={() => handleReviewCompletion(item, "returned")}
+                          >
+                            退回
+                          </Button>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -392,7 +475,7 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
           <CardHeader>
             <CardTitle>提交我的执行反馈</CardTitle>
             <CardDescription>
-              本人反馈会保留历史，并用于计算每月任务完成率与按期完成率。
+              本人反馈会保留历史，并用于计算每月任务完成率与按期完成率；“已完成”提交后等待负责人确认，确认后才计入完成率。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -405,7 +488,7 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
                 <SelectContent>
                   <SelectItem value="in_progress">进行中</SelectItem>
                   <SelectItem value="blocked">受阻（请说明原因）</SelectItem>
-                  <SelectItem value="completed">已完成</SelectItem>
+                  <SelectItem value="completed">申报完成（待负责人确认）</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -461,11 +544,25 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{entry.staffName}</span>
                   <Badge variant="outline">{executionStatusLabels[entry.status]}</Badge>
+                  {entry.reviewDecision === "accepted" && (
+                    <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">已确认</Badge>
+                  )}
+                  {entry.reviewDecision === "returned" && (
+                    <Badge variant="destructive">已退回</Badge>
+                  )}
+                  {entry.status === "completed" && entry.reviewDecision == null && task.requiresAcceptance && (
+                    <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">待确认</Badge>
+                  )}
                   <span className="text-xs text-muted-foreground">
                     {entry.submittedAt ? new Date(entry.submittedAt).toLocaleString("ja-JP") : "-"}
                   </span>
                 </div>
                 <p className="mt-2 whitespace-pre-wrap text-sm">{entry.feedbackNote}</p>
+                {entry.reviewNote && (
+                  <p className="mt-2 whitespace-pre-wrap rounded-md bg-muted px-2.5 py-2 text-sm">
+                    验收意见：{entry.reviewNote}
+                  </p>
+                )}
                 {safeEvidenceUrl && (
                   <a
                     href={safeEvidenceUrl}

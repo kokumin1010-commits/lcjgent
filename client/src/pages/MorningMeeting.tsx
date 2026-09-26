@@ -164,6 +164,16 @@ function friendlyRecordingError(error: unknown, language: SpeechLanguage, fallba
       ? "转写质量异常，原录音与参会名单已保存；未生成正式日报。请使用原录音重新处理。"
       : "文字起こし品質に異常がありましたが、元音声と参加者記録は保存済みです。正式な日報は元音声から再処理してください。";
   }
+  if (message.includes("MORNING_TRANSCRIPTION_SERVICE_UNAVAILABLE")) {
+    return language === "zh-CN"
+      ? "转写服务暂时不可用，原录音和参会名单已保存。请稍后点击“使用原录音重新处理”，无需重新录音。"
+      : "文字起こしサービスが一時的に利用できません。元音声と参加者記録は保存済みです。しばらくしてから元音声で再処理してください。";
+  }
+  if (message.includes("MORNING_TRANSCRIPTION_AUDIO_UNPROCESSABLE")) {
+    return language === "zh-CN"
+      ? "原录音已保存，但音频格式无法完成转写。请先下载原录音确认播放；如无法播放，请重新录制。"
+      : "元音声は保存済みですが、音声形式を文字起こしできませんでした。元音声をダウンロードして再生確認し、再生できない場合のみ再録音してください。";
+  }
   if (message.includes("MORNING_TRANSCRIPTION_PROCESS_INTERRUPTED")) {
     return language === "zh-CN"
       ? "原录音和参会名单已保存，但后台处理被中断。请点击使用原录音重新处理。"

@@ -266,7 +266,8 @@ async function completeReportFollowup(
   decision: CompletionDecision,
 ) {
   const rows = rowsOf<any>(await transaction.execute(sql`
-    SELECT id, reportStaffId, status, completedAt, resultCategory, resultNote
+    SELECT id, reportStaffId, status, completedAt, resultCategory, resultNote,
+      requiresAcceptance, completionRevision
     FROM report_followups
     WHERE id = ${decision.id}
       AND archivedAt IS NULL
@@ -278,6 +279,8 @@ async function completeReportFollowup(
     return false;
   }
   const completedAt = new Date();
+  const completionRevision = Number(current.completionRevision || 0) + 1;
+  const completionRequestId = `daily-report-review:${report.id}:followup:${decision.id}:v${completionRevision}`;
   const resultNote = `AI次日日報復核：${decision.reason}（根拠：${decision.evidence}）`;
   const after = {
     ...current,
@@ -287,17 +290,22 @@ async function completeReportFollowup(
     resultNote,
     completedNote: resultNote,
     reviewReportId: report.id,
+    requiresAcceptance: true,
+    completionRevision,
+    completionRequestId,
   };
   await transaction.execute(sql`
     INSERT INTO entity_revision_audits
       (entityType, entityId, action, actorUserId, beforeState, afterState)
-    VALUES ('report_followup', ${decision.id}, 'ai_next_report_complete', NULL,
+    VALUES ('report_followup', ${decision.id}, 'ai_next_report_completion_submitted', NULL,
       ${JSON.stringify(current)}, ${JSON.stringify(after)})
   `);
   await transaction.execute(sql`
     UPDATE report_followups
     SET status = 'completed', completedAt = ${completedAt}, resultCategory = '完了',
-      resultNote = ${resultNote}, completedNote = ${resultNote}, updatedAt = CURRENT_TIMESTAMP
+      resultNote = ${resultNote}, completedNote = ${resultNote},
+      requiresAcceptance = TRUE, completionRevision = ${completionRevision},
+      completionRequestId = ${completionRequestId}, updatedAt = CURRENT_TIMESTAMP
     WHERE id = ${decision.id} AND status = 'pending'
       AND archivedAt IS NULL AND duplicateOfId IS NULL
   `);
@@ -312,7 +320,7 @@ async function completeManualTask(
 ) {
   if (!linkedStaffId) return false;
   const taskRows = rowsOf<any>(await transaction.execute(sql`
-    SELECT id, taskId, status, completedAt, createdBy
+    SELECT id, taskId, status, completedAt, createdBy, requiresAcceptance
     FROM tasks
     WHERE id = ${decision.id} AND archivedAt IS NULL
     FOR UPDATE
@@ -392,7 +400,7 @@ async function completeManualTask(
   const stateRows = rowsOf<any>(await transaction.execute(sql`
     SELECT assigned.staffId,
       COALESCE(latest.status, CASE WHEN task.status = 'completed' THEN 'completed' ELSE 'pending' END) AS status,
-      latest.completedAt
+      latest.completedAt, review.decision AS reviewDecision
     FROM tasks task
     INNER JOIN (
       SELECT taskId, staffId FROM task_staff WHERE taskId = ${decision.id}
@@ -412,10 +420,18 @@ async function completeManualTask(
       SELECT MAX(history.id) FROM task_execution_feedbacks history
       WHERE history.taskId = task.id AND history.staffId = assigned.staffId
     )
+    LEFT JOIN task_completion_review_events review
+      ON review.sourceType = 'manual'
+      AND review.sourceId = task.id
+      AND review.subjectKey = CONCAT('staff:', assigned.staffId)
+      AND review.completionVersion = latest.id
     WHERE task.id = ${decision.id}
   `));
   const activeStates = stateRows.filter(row => String(row.status) !== "cancelled");
-  const aggregateStatus = activeStates.length > 0 && activeStates.every(row => String(row.status) === "completed")
+  const aggregateStatus = activeStates.length > 0 && activeStates.every(row =>
+    String(row.status) === "completed"
+    && (!Boolean(task.requiresAcceptance) || String(row.reviewDecision) === "accepted")
+  )
     ? "completed"
     : "in_progress";
   const completedTimes = activeStates
