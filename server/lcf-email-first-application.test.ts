@@ -13,7 +13,7 @@ describe("LCF second-edition email-first application flow", () => {
     expect(company).toContain("if (isSecondEdition) {");
     expect(company).toContain("return [emailStep, ...COMPANY_DETAIL_STEPS]");
     expect(liver).toContain("if (event.edition === 2) {");
-    expect(liver).toContain("return [emailStep, ...detailSteps]");
+    expect(liver).toContain("return [emailStep, ...secondEditionDetailSteps]");
     expect(company).toContain("最初に、ご登録のメールアドレスを教えてください");
     expect(liver).toContain("最初に、ご登録のメールアドレスを教えてください");
   });
@@ -24,7 +24,7 @@ describe("LCF second-edition email-first application flow", () => {
     expect(liver).toContain("...detailSteps.slice(0, 6), emailStep, ...detailSteps.slice(6)");
     expect(liver).toContain(": 'メールアドレスを教えてください 📧'");
     expect(liver).toContain('`lcf_liver_form_${event.eventYear}`');
-    expect(liver).toContain('`lcf_liver_form_${event.eventYear}_password_reuse_v3`');
+    expect(liver).toContain('`lcf_liver_form_${event.eventYear}_password_reuse_v4`');
   });
 
   it("asks recognized members for the existing password before reusing profile data", () => {
@@ -40,10 +40,11 @@ describe("LCF second-edition email-first application flow", () => {
     expect(liver).toContain("同じ情報の再入力は不要です");
   });
 
-  it("keeps the complete form for new addresses and blocks ambiguous lookup failures", () => {
+  it("keeps the streamlined form for new addresses and blocks ambiguous lookup failures", () => {
     const genericMessage = "メールアドレスありがとうございます。第2回のお申し込みを続けます。";
     expect(company).toContain(genericMessage);
     expect(liver).toContain(genericMessage);
+    expect(liver).toContain("filterLiverApplicationSteps(event.edition, detailSteps)");
     expect(company).toContain("会員情報を確認できませんでした。もう一度お試しください");
     expect(liver).toContain("会員情報を確認できませんでした。もう一度お試しください");
   });

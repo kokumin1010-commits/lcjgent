@@ -255,7 +255,7 @@ describe("LCF second-edition official page", () => {
     expect(beginnerSupport).not.toContain("初心者サポートを希望する");
     expect(beginnerSupport).not.toContain("経験年数や配信実績がなくても申込対象です");
     expect(page).not.toContain("「興味はある。でも、何から始めればいいか分からない」方へ。");
-    expect(liverForm).toContain("ライブコマース初心者サポートを希望しますか？");
+    expect(liverForm).toContain("filterLiverApplicationSteps(event.edition, detailSteps)");
     expect(liverForm).toContain("beginnerSupport: (answers.beginnerSupport as 'yes' | 'no') || 'no'");
     expect(router).toContain('beginnerSupport: z.enum(["yes", "no"]).default("no")');
     expect(router).toContain("第2回LCF：ライブコマース初心者サポート希望");

@@ -4039,3 +4039,8 @@ LCM／関連LCF 12 files・96 tests、production build、`git diff --check`、se
 関連focused 6 files・64 tests、LCF／LCM全体46 files・326 tests、production build、`git diff --check`、secret-like差分監査が成功した。全量TypeScriptはrepository既存1,163 diagnosticsで前回保存baselineと件数・内容が一致し、`server/_core/index.ts`の既存4件は文案4行追加分だけ行番号が移動、今回UI／test変更による新規diagnosticはない。desktop 1440px／mobile 390pxのlocal・production browser QAで3公開pageともHTTP 200、横overflow 0、削除文言0、新LCM文案表示を確認した。独立read-only reviewは**GO（blocker 0件）**。
 
 feature SHA `520b48eca70df02c2acba6bcf1f1449c1add3f96`、GitHub CI run `36246498304`、Railway production deployment `6679641793`はいずれもsuccess。本番の`/`、`/lcm`、`/2nd`をGET／DOM／screenshotだけで確認し、配信chunk `FestivalApplyLiver-BuDp1U-8.js`にOpenChat link 1件と指定表示順が含まれることを確認した。production DB mutation、商品操作、申込送信、OpenChat参加／投稿は0件。
+
+## 2026-09-26｜第2回ライブコマーサー申込チャット短縮（本番反映前）
+`/lcf/apply/liver?edition=2`の申込チャットから、所属事務所、SNSアカウント、電話番号、LINE／Lark、来場希望日、企業との事前マッチング、初心者サポートの7問を除外した。新規申込はメール、氏名、フリガナ、ライバー名、任意ジャンル、同意の6ステップ、既存会員はメール、既存パスワード、同意の3ステップ。既存会員の本人確認・第1回プロフィール再利用、重複申込防止、ticket／account作成は維持した。第1回申込は従来13ステップと必須電話・来場日・マッチング選択を完全維持する。
+第2回で省略した非NULL項目はserver側で安全に正規化し、電話は空文字、来場日は両日、事前マッチングと初心者サポートは希望なしを保存する。旧clientから送信された有効値は引き続き受理し、不正な電話形式は拒否する。DB schema・migration・production dataは変更していない。
+検証：LCF／Festival／ticket関連40 files・282 tests通過、production build成功、TypeScript全体既存1,163 diagnosticsに対し今回6 pathsは0件。全体Vitestは4,651通過・45 skip・227失敗で、失敗はDB／外部認証env不足と既存source-contract基線に限定され、本件LCF 40 filesは全通過。desktop 1280px／mobile 390pxで新規6ステップ、既存会員3ステップ、第1回13ステップ保持、横overflow・console／page errorなしを確認。独立read-only reviewはGO（blocker 0件）。

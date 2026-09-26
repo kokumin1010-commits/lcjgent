@@ -108,6 +108,53 @@ const liverProfileUpdateSchema = z.object({
   matchingPreference: z.enum(["yes", "no"]).optional(),
 }).strict().refine(data => Object.keys(data).length > 0, { message: "更新する項目がありません" });
 
+const festivalLiverPhonePattern = /^[0-9+()\-\s]{7,30}$/;
+
+export const festivalLiverApplicationInputSchema = z.object({
+  edition: z.union([z.literal(1), z.literal(2)]).default(1),
+  name: z.string().trim().min(1, "お名前は必須です").max(255),
+  nameKana: z.string().trim().min(1, "フリガナは必須です").max(255),
+  liverName: z.string().trim().min(1, "ライバー名は必須です").max(255),
+  agency: z.string().trim().max(255).optional(),
+  accountInfo: z.string().trim().max(5000).optional(),
+  genre: z.string().trim().max(255).optional(),
+  email: z.string().trim().toLowerCase().email("有効なメールアドレスを入力してください").max(320),
+  phone: z.string().trim().max(50).optional(),
+  lineOrLark: z.string().trim().max(255).optional(),
+  attendanceSchedule: z.enum(["day1_only", "day2_only", "both_days"]).optional(),
+  matchingPreference: z.enum(["yes", "no"]).optional(),
+  beginnerSupport: z.enum(["yes", "no"]).default("no"),
+  portraitRightsConsent: z.literal(true),
+  complianceConsent: z.literal(true),
+}).superRefine((input, ctx) => {
+  if ((input.edition === 1 && !input.phone) || (input.phone && !festivalLiverPhonePattern.test(input.phone))) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["phone"],
+      message: "電話番号の形式が正しくありません",
+    });
+  }
+  if (input.edition === 1 && !input.attendanceSchedule) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["attendanceSchedule"],
+      message: "来場希望日を選択してください",
+    });
+  }
+  if (input.edition === 1 && !input.matchingPreference) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["matchingPreference"],
+      message: "事前マッチング希望を選択してください",
+    });
+  }
+}).transform(input => ({
+  ...input,
+  phone: input.phone || "",
+  attendanceSchedule: input.attendanceSchedule || "both_days" as const,
+  matchingPreference: input.matchingPreference || "no" as const,
+}));
+
 const generalProfileUpdateSchema = z.object({
   participationType: z.enum(["corporate", "individual"]).optional(),
   companyName: z.string().trim().max(255).optional(),
@@ -751,23 +798,7 @@ export const festivalRouter = router({
     }),
   // ライバー＆インフルエンサー申込み
   submitLiver: publicProcedure
-    .input(z.object({
-      edition: z.union([z.literal(1), z.literal(2)]).default(1),
-      name: z.string().trim().min(1, "お名前は必須です").max(255),
-      nameKana: z.string().trim().min(1, "フリガナは必須です").max(255),
-      liverName: z.string().trim().min(1, "ライバー名は必須です").max(255),
-      agency: z.string().trim().max(255).optional(),
-      accountInfo: z.string().trim().max(5000).optional(),
-      genre: z.string().trim().max(255).optional(),
-      email: z.string().trim().toLowerCase().email("有効なメールアドレスを入力してください").max(320),
-      phone: z.string().trim().regex(/^[0-9+()\-\s]{7,30}$/, "電話番号の形式が正しくありません"),
-      lineOrLark: z.string().trim().max(255).optional(),
-      attendanceSchedule: z.enum(["day1_only", "day2_only", "both_days"]),
-      matchingPreference: z.enum(["yes", "no"]),
-      beginnerSupport: z.enum(["yes", "no"]).default("no"),
-      portraitRightsConsent: z.literal(true),
-      complianceConsent: z.literal(true),
-    }))
+    .input(festivalLiverApplicationInputSchema)
     .mutation(async ({ input, ctx }) => {
       const event = getLcfEventByEdition(input.edition);
       enforceSubmissionRateLimit(ctx.req, input.email, `liver:${event.eventYear}`);
@@ -816,7 +847,7 @@ export const festivalRouter = router({
           accountInfo: input.accountInfo || null,
           genre: input.genre || null,
           email: input.email,
-          phone: input.phone,
+          phone: input.phone || "",
           lineOrLark: input.lineOrLark || null,
           attendanceSchedule: input.attendanceSchedule,
           matchingPreference: input.matchingPreference,

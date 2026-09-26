@@ -8,6 +8,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { ArrowLeft, Mic2, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, MessageCircle, Send, PartyPopper, Sparkles, Undo2 } from 'lucide-react';
 import { Link } from 'wouter';
 import { parseLcfApplicationFormError } from '@/lib/lcfApplicationFormErrors';
+import { filterLiverApplicationSteps } from '@/lib/festivalLiverApplicationFlow';
 import { trpc } from '@/lib/trpc';
 import { getLcfEventByEdition, type LcfEventDefinition } from '@shared/lcfEventDefinitions';
 
@@ -70,13 +71,14 @@ function createSteps(event: LcfEventDefinition, existingMemberFlow: ExistingMemb
   { id: 'agree', question: '最後に確認です！ ✅', type: 'checkbox', required: true },
   ];
   if (event.edition === 2) {
+    const secondEditionDetailSteps = filterLiverApplicationSteps(event.edition, detailSteps);
     if (existingMemberFlow === 'recognized' || existingMemberFlow === 'verified-reuse') {
-      return [emailStep, LIVER_PASSWORD_STEP, ...detailSteps.slice(8)];
+      return [emailStep, LIVER_PASSWORD_STEP, ...secondEditionDetailSteps.filter(step => step.id === 'agree')];
     }
     if (existingMemberFlow === 'verified-no-profile') {
-      return [emailStep, LIVER_PASSWORD_STEP, ...detailSteps];
+      return [emailStep, LIVER_PASSWORD_STEP, ...secondEditionDetailSteps];
     }
-    return [emailStep, ...detailSteps];
+    return [emailStep, ...secondEditionDetailSteps];
   }
   return [...detailSteps.slice(0, 6), emailStep, ...detailSteps.slice(6)];
 }
@@ -94,7 +96,7 @@ export default function FestivalApplyLiver() {
   const [existingMemberFlow, setExistingMemberFlow] = useState<ExistingMemberFlow>('unknown');
   const steps = createSteps(event, existingMemberFlow);
   const storageKey = event.edition === 2
-    ? `lcf_liver_form_${event.eventYear}_password_reuse_v3`
+    ? `lcf_liver_form_${event.eventYear}_password_reuse_v4`
     : `lcf_liver_form_${event.eventYear}`;
   // LocalStorageから復元
   const savedData = (() => {
@@ -345,7 +347,7 @@ export default function FestivalApplyLiver() {
       phone: answers.phone || '',
       lineOrLark: answers.lineOrLark || undefined,
       attendanceSchedule: (answers.attendanceSchedule as 'day1_only' | 'day2_only' | 'both_days') || 'both_days',
-      matchingPreference: (answers.matchingPreference as 'yes' | 'no') || 'yes',
+      matchingPreference: (answers.matchingPreference as 'yes' | 'no') || 'no',
       beginnerSupport: (answers.beginnerSupport as 'yes' | 'no') || 'no',
       portraitRightsConsent: true,
       complianceConsent: true,
